@@ -537,6 +537,117 @@ test('"esse último aí" seleciona o último produto antes de calcular o boleto'
   assert.equal(bot.conversation(phone).selectedProduct.id, 'last-2');
 });
 
+test('"esse último aí qual o valor dele parcelado" pergunta cartão ou crediário sem perder o produto', async () => {
+  const phone = '5533977777740';
+
+  const first = bot.compactProduct(product('amb-1', 'Smartphone Samsung A06', {
+    category: 'Celulares',
+    pixPrice: 699,
+    price: 839
+  }));
+  const last = bot.compactProduct(product('amb-2', 'Smartphone Samsung Galaxy A17', {
+    category: 'Celulares',
+    pixPrice: 1191.01,
+    price: 1430
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastProducts: [first, last],
+    selectedProduct: null,
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'Esse último ai qual o valor dele parcelado?',
+    pushName: 'Cliente Parcelado'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Smartphone Samsung Galaxy A17/i);
+  assert.match(sentTexts[0].text, /cartão/i);
+  assert.match(sentTexts[0].text, /crediário\/carnê/i);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'amb-2');
+});
+
+test('após perguntar quantas parcelas, resposta "12" calcula o crediário do mesmo produto', async () => {
+  const phone = '5533977777741';
+
+  const chosen = bot.compactProduct(product('pending-12', 'Smartphone Samsung Galaxy A17', {
+    category: 'Celulares',
+    pixPrice: 1191.01,
+    price: 1430
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastProducts: [chosen],
+    selectedProduct: chosen,
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'Qual o valor dele parcelado no boleto?',
+    pushName: 'Cliente Parcelas'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Em quantas vezes/i);
+  assert.equal(bot.conversation(phone).pendingAction, 'credit_installments');
+  assert.equal(bot.conversation(phone).pendingCreditProductId, 'pending-12');
+
+  sentTexts = [];
+
+  await bot.handleMessage({
+    phone,
+    text: '12',
+    pushName: 'Cliente Parcelas'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Smartphone Samsung Galaxy A17/i);
+  assert.match(sentTexts[0].text, /12x de R\$/i);
+  assert.match(sentTexts[0].text, /total de/i);
+  assert.equal(bot.conversation(phone).lastCreditPlan.count, 12);
+  assert.equal(bot.conversation(phone).pendingAction, '');
+});
+
+test('após perguntar quantas parcelas, resposta "12x" também calcula sem cair no fallback', async () => {
+  const phone = '5533977777742';
+
+  const chosen = bot.compactProduct(product('pending-12x', 'Smartphone Samsung A07', {
+    category: 'Celulares',
+    pixPrice: 739,
+    price: 887
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastProducts: [chosen],
+    selectedProduct: chosen,
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'Qual o valor dele parcelado no boleto?',
+    pushName: 'Cliente Parcelas X'
+  });
+
+  sentTexts = [];
+
+  await bot.handleMessage({
+    phone,
+    text: '12x',
+    pushName: 'Cliente Parcelas X'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Smartphone Samsung A07/i);
+  assert.match(sentTexts[0].text, /12x de R\$/i);
+  assert.doesNotMatch(sentTexts[0].text, /Me conta o que você está procurando/i);
+  assert.equal(bot.conversation(phone).lastCreditPlan.count, 12);
+});
+
 test('"qual o valor desse último aí no boleto" usa o último produto e não pede foto', async () => {
   const phone = '5533977777734';
 
