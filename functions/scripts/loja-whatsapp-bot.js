@@ -587,14 +587,23 @@ async function searchProducts(query, originalText = '') {
   const terms = categoryAliases(query);
   const resultSets = await Promise.all(
     terms.map(async (term) => {
-      try {
-        const q = encodeURIComponent(term);
-        const data = await backend(`/api/products?q=${q}&limit=100`);
-        return Array.isArray(data) ? data : Array.isArray(data?.products) ? data.products : [];
-      } catch (error) {
-        console.warn('[loja-bot] busca por termo falhou:', term, error.message || error);
-        return [];
+      let lastError = null;
+
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        try {
+          const q = encodeURIComponent(term);
+          const data = await backend(`/api/products?q=${q}&limit=100`);
+          return Array.isArray(data) ? data : Array.isArray(data?.products) ? data.products : [];
+        } catch (error) {
+          lastError = error;
+          if (attempt < 2) {
+            await new Promise((resolve) => setTimeout(resolve, 250));
+          }
+        }
       }
+
+      console.warn('[loja-bot] busca por termo falhou após nova tentativa:', term, lastError?.message || lastError);
+      return [];
     })
   );
 
