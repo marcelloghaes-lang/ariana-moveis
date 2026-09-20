@@ -797,7 +797,7 @@ function asksAboutImageProduct(text) {
   // "Vocês vendem esse?" pode ser preparação para o cliente enviar uma foto.
   // Não usamos "valor desse..." aqui, pois essa frase normalmente referencia
   // um produto já mostrado na própria conversa.
-  return /(vende|vendem|tem|teria|trabalha|trabalham).{0,35}\b(esse|essa|desse|dessa)\b(?:\s+produto)?(?:\s+aqui)?\s*$/.test(n);
+  return /(vende|vendem|tem|teria|trabalha|trabalham).{0,35}\b(esse|essa|desse|dessa)\b(?:\s+produto)?(?:\s+aqui)?\s*[!?.,;:]*$/.test(n);
 }
 
 function emojiOnlyIntent(text) {
