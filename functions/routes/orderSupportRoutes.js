@@ -1,5 +1,6 @@
 import { buildStockReservation } from '../services/stockReservationService.js';
 import { createAdminNotification } from '../services/notificationService.js';
+import { sendNewOrderWhatsappAlert } from '../services/adminWhatsappAlertService.js';
 
 // ============================================================
 // ROTAS DE PEDIDOS, TICKETS, CONTATO E DENÚNCIAS
@@ -22,7 +23,8 @@ export default function registerOrderSupportRoutes(app, context = {}) {
     mongoose,
     normalizeObjectId,
     now,
-    toJSON
+    toJSON,
+    waSendTextMessage
   } = context;
 
   const MARKETPLACE_CARD_DISCOUNT_PERCENT = Number(process.env.MARKETPLACE_CARD_DISCOUNT_PERCENT || 17);
@@ -657,7 +659,18 @@ export default function registerOrderSupportRoutes(app, context = {}) {
         });
       }
 
-      return res.json({ ok: true, order: toJSON(order), adminWhatsapp: { skipped: true, reason: 'waiting_payment_approval' } });
+      // O alerta por WhatsApp não bloqueia o checkout. Se houver falha externa,
+      // o pedido continua salvo e o worker tenta novamente.
+      sendNewOrderWhatsappAlert({
+        Order,
+        waSendTextMessage,
+        order: toJSON(order),
+        reminder: false
+      }).catch((error) => {
+        console.error('[admin-whatsapp] novo pedido:', error?.message || error);
+      });
+
+      return res.json({ ok: true, order: toJSON(order), adminWhatsapp: { queued: true } });
     } catch (error) {
       if (reservedStock.length && error?.code !== 'INSUFFICIENT_STOCK') {
         for (const row of reservedStock.reverse()) {
