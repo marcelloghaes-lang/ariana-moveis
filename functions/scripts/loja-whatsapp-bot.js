@@ -355,11 +355,38 @@ function isGreeting(text) {
   return /^(oi|ola|oie)?\s*(bom dia|boa tarde|boa noite)?\s*(tudo bem|td bem|como vai)?\s*$/.test(n);
 }
 
+function asksMarceloOrCallback(text) {
+  const n = normalize(text);
+
+  return (
+    /(falar|conversar).{0,20}(com )?(o )?marcelo/.test(n) ||
+    /marcelo.{0,25}(esta ai|ta ai|pode falar|preciso falar|quero falar)/.test(n) ||
+    /(preciso|queria|quero|gostaria).{0,25}falar.{0,20}(com )?(voce|marcelo)/.test(n) ||
+    /(pode|poderia|teria como|consegue|conseguiria).{0,25}(me )?(ligar|retornar|telefonar)/.test(n) ||
+    /(me liga|me ligue|liga pra mim|liga para mim|retorna pra mim|retorna para mim)/.test(n)
+  );
+}
+
+function isReferralOrPraise(text) {
+  const n = normalize(text);
+
+  const referral = (
+    /\b(indicou|indicacao|indicaram|recomendou|recomendaram)\b/.test(n) ||
+    /(peguei|passaram|me deram).{0,25}(seu numero|seu contato|contato de voces|numero de voces)/.test(n) ||
+    /(amiga|amigo|vizinha|vizinho|parente|cliente).{0,35}(compra|comprou|indicou|recomendou).{0,35}(voces|ai|ariana)/.test(n)
+  );
+
+  const praise = (
+    /(falaram|disseram|me falaram|me disseram).{0,45}(muito bem|otimos precos|precos bons|otimos produtos|produtos bons|muito bons|bons de mexer)/.test(n) ||
+    /(voces|a loja|ariana).{0,30}(tem|tem uns|sao|e).{0,20}(otimos precos|precos bons|otimos produtos|produtos bons|muito bons|bons de mexer)/.test(n)
+  );
+
+  return referral || praise;
+}
+
 function wantsHuman(text) {
   const n = normalize(text);
   return [
-    'falar com o marcelo', 'falar com marcelo', 'quero falar com o marcelo',
-    'quero falar com marcelo', 'marcelo esta ai', 'marcelo ta ai',
     'falar com atendente', 'falar com uma pessoa', 'atendimento humano',
     'quero um atendente'
   ].some((v) => n.includes(v));
@@ -958,6 +985,33 @@ async function handleMessage({ phone, text, pushName = '' }) {
 
   if (await handlePending(phone, text, conv)) return;
 
+  if (asksMarceloOrCallback(text)) {
+    conv.pendingAction = '';
+    conv.marceloCallbackRequested = true;
+    conv.marceloCallbackRequestedAt = Date.now();
+    saveStateSoon();
+
+    await sendText(
+      phone,
+      'O Marcelo está em outro atendimento no momento. Assim que ele terminar, ele retorna seu contato 😊\n\nEnquanto você aguarda, gostaria de dar uma olhada em alguma coisa? Posso te mostrar fotos de produtos, preços e condições de pagamento.'
+    );
+
+    await syncTicket(phone, {
+      status: 'Aguardando retorno do Marcelo',
+      message: text,
+      name: pushName
+    });
+    return;
+  }
+
+  if (isReferralOrPraise(text)) {
+    await sendText(
+      phone,
+      'Que bom 😊 Ficamos muito felizes pela indicação! Aqui na Ariana Móveis trabalhamos com móveis, eletrodomésticos, eletrônicos e vários outros produtos. Também temos crediário próprio no carnê, sujeito à análise de crédito.\n\nSe quiser, posso te mostrar fotos, preços e condições de pagamento. O que você está procurando?'
+    );
+    return;
+  }
+
   if (wantsHuman(text)) {
     conv.humanUntil = Date.now() + HUMAN_TTL_MS;
     conv.pendingAction = '';
@@ -1346,6 +1400,8 @@ export const __test = {
   categoryAliases,
   detectCategory,
   isGreeting,
+  asksMarceloOrCallback,
+  isReferralOrPraise,
   wantsHuman,
   asksPaymentMethods,
   asksPixKey,
