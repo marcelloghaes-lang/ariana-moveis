@@ -1032,6 +1032,31 @@ function isReferralOrPraise(text) {
   return referral || praise;
 }
 
+function asksAttendantIdentity(text) {
+  const n = normalize(text);
+  return (
+    /quem (ta|esta) falando/.test(n) ||
+    /com quem (eu )?(falo|estou falando)/.test(n) ||
+    /qual (e |eh )?(o )?seu nome/.test(n) ||
+    /quem (e|eh) voce/.test(n) ||
+    /quem fala/.test(n)
+  );
+}
+
+function formerEmployeeAsked(text) {
+  const n = normalize(text);
+  const asksAboutPerson = /(cade|onde (ta|esta)|ta ai|esta ai|e a|eh a|falar com|posso falar com|chama|ainda trabalha|trabalha ai|quem e|quem eh)/.test(n);
+  if (!asksAboutPerson) return '';
+
+  const emilly = /\b(emilly|emily)\b/.test(n);
+  const luana = /\bluana\b/.test(n);
+
+  if (emilly && luana) return 'ambas';
+  if (emilly) return 'Emilly';
+  if (luana) return 'Luana';
+  return '';
+}
+
 function wantsHuman(text) {
   const n = normalize(text);
   return [
@@ -2113,6 +2138,11 @@ function financialReply(data = {}) {
       : `Claro${name ? `, ${name}` : ''} 😊 Consultei seu carnê.`
   ];
 
+  if (open.length) {
+    const totalOpen = open.reduce((sum, p) => sum + amountOf(p), 0);
+    lines.push(`Seu *total em aberto* no financeiro é de *${money(totalOpen)}*.`);
+  }
+
   if (current.length) {
     const total = current.reduce((sum, p) => sum + amountOf(p), 0);
     lines.push(`Neste mês você tem *${money(total)}* para pagar.`);
@@ -2437,6 +2467,25 @@ async function handleMessage({ phone, text, pushName = '' }) {
       message: text,
       name: pushName
     });
+    return;
+  }
+
+  {
+    const formerEmployee = formerEmployeeAsked(text);
+    if (formerEmployee) {
+      const message = formerEmployee === 'ambas'
+        ? 'A Emilly e a Luana não trabalham mais aqui. Você está falando com o Gustavo 😊 Posso te ajudar por aqui.'
+        : `A ${formerEmployee} não trabalha mais aqui. Você está falando com o Gustavo 😊 Posso te ajudar por aqui.`;
+      await sendText(phone, message);
+      return;
+    }
+  }
+
+  if (asksAttendantIdentity(text)) {
+    await sendText(
+      phone,
+      'Aqui é o Gustavo 😊 Atendimento da Ariana Móveis. Como posso te ajudar?'
+    );
     return;
   }
 
@@ -3176,6 +3225,8 @@ export const __test = {
   asksProductLink,
   asksDelivery,
   asksFinance,
+  asksAttendantIdentity,
+  formerEmployeeAsked,
   asksPaymentExceptionForMarcelo,
   asksHowToBuyCredit,
   asksToWriteOnCredit,
