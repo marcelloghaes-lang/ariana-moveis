@@ -276,7 +276,7 @@ async function fetchIncomingMedia(incoming = {}) {
   if (!incoming?.rawMessageInfo) throw new Error('Mensagem original da mídia não disponível.');
 
   const data = await evolution(
-    \`/chat/getBase64FromMediaMessage/\${encodeURIComponent(EVOLUTION_INSTANCE)}\`,
+    `/chat/getBase64FromMediaMessage/${encodeURIComponent(EVOLUTION_INSTANCE)}`,
     {
       message: incoming.rawMessageInfo,
       convertToMp4: false
@@ -394,7 +394,7 @@ async function classifyImageWithVision(media = {}, contextText = '') {
     'Nunca conclua que um pagamento foi realmente liquidado ou que o comprovante é autêntico.',
     'Para produto, extraia somente o que estiver visível/razoavelmente identificável: nome, marca, modelo e categoria.',
     'Para comprovante, payment_recipient_name deve ser apenas o nome do favorecido visível, se houver.',
-    \`Texto enviado pelo cliente junto/próximo da imagem: \${String(contextText || '').slice(0, 500)}\`
+    `Texto enviado pelo cliente junto/próximo da imagem: ${String(contextText || '').slice(0, 500)}`
   ].join('\n');
 
   const controller = new AbortController();
@@ -406,7 +406,7 @@ async function classifyImageWithVision(media = {}, contextText = '') {
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
-        Authorization: \`Bearer \${VISION_API_KEY}\`
+        Authorization: `Bearer ${VISION_API_KEY}`
       },
       body: JSON.stringify({
         model: VISION_MODEL,
@@ -418,7 +418,7 @@ async function classifyImageWithVision(media = {}, contextText = '') {
               { type: 'input_text', text: prompt },
               {
                 type: 'input_image',
-                image_url: \`data:\${mime};base64,\${media.base64}\`,
+                image_url: `data:${mime};base64,${media.base64}`,
                 detail: 'low'
               }
             ]
@@ -1069,7 +1069,7 @@ async function showProductsFromVision(phone, conv, classification = {}) {
     await sendText(
       phone,
       label
-        ? \`Pela imagem, parece ser *\${label}* 😊 Não encontrei esse modelo com segurança no catálogo agora. Se você me mandar o nome/modelo ou o link, eu confiro novamente e também posso te mostrar opções semelhantes.\`
+        ? `Pela imagem, parece ser *${label}* 😊 Não encontrei esse modelo com segurança no catálogo agora. Se você me mandar o nome/modelo ou o link, eu confiro novamente e também posso te mostrar opções semelhantes.`
         : 'Recebi a foto 😊 Não consegui identificar o modelo com segurança. Se você me mandar o nome/modelo ou o link do produto, eu confiro no catálogo para você.'
     );
     return false;
@@ -1085,7 +1085,7 @@ async function showProductsFromVision(phone, conv, classification = {}) {
   await sendText(
     phone,
     label
-      ? \`Pela imagem, identifiquei algo como *\${label}* 😊 Encontrei estas opções relacionadas disponíveis na Ariana Móveis:\`
+      ? `Pela imagem, identifiquei algo como *${label}* 😊 Encontrei estas opções relacionadas disponíveis na Ariana Móveis:`
       : 'Encontrei estas opções relacionadas disponíveis na Ariana Móveis 😊'
   );
   await sendProductPage(phone, conv, { announce: false });
@@ -1153,7 +1153,7 @@ async function handleVisionMedia(incoming, conv) {
   if (confident && ['payment_receipt_pix', 'payment_receipt_boleto'].includes(classification.kind)) {
     const method = classification.kind === 'payment_receipt_boleto' ? 'boleto' : 'pix';
     await acknowledgePaymentProof(incoming.phone, conv, {
-      text: \`Imagem classificada como comprovante de \${method}. Conferência humana obrigatória antes da baixa.\`,
+      text: `Imagem classificada como comprovante de ${method}. Conferência humana obrigatória antes da baixa.`,
       pushName: incoming.pushName,
       paymentMethod: method
     });
