@@ -65,6 +65,11 @@ wanted = {
     "LOJA_VISION_MONTHLY_BUDGET_BRL": "30",
     "LOJA_VISION_BUDGET_GUARD_BRL": "0.50",
     "LOJA_VISION_USD_BRL": "6.00",
+    "LOJA_AUDIO_TRANSCRIBE_MODEL": "gpt-4o-mini-transcribe",
+    "LOJA_AUDIO_MAX_SECONDS": "600",
+    "LOJA_AUDIO_USD_PER_MINUTE": "0.003",
+    "LOJA_AUDIO_UNKNOWN_DURATION_SECONDS": "600",
+    "LOJA_AUDIO_TRANSCRIBE_TIMEOUT_MS": "30000",
 }
 
 lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
@@ -109,6 +114,7 @@ printf '%s\n' \
   "Detalhe: high" \
   "Confiança mínima: 0.72" \
   "Limite mensal local: R$ 30,00 (bloqueio preventivo em R$ 29,50)" \
+  "Áudio: gpt-4o-mini-transcribe / máximo 10 minutos" \
   "" \
   "Agora rode:" \
   "  bash /root/run-loja-whatsapp-tests-vps.sh"
