@@ -44,6 +44,9 @@ if [[ -f /root/loja-bot.mjs ]]; then
   fi
 fi
 
+log "Validando sintaxe do candidato"
+node --check "$TMP_DIR/functions/scripts/loja-whatsapp-bot.js"
+
 log "Executando testes automáticos de regras e conversação"
 (
   cd "$TMP_DIR"
