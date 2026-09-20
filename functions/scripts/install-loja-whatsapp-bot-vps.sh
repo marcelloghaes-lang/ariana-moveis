@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-INSTALLER_VERSION="2026-09-20.4"
+INSTALLER_VERSION="2026-09-20.5"
 
 INSTANCE_NAME="ariana loja"
 INSTANCE_PATH="ariana%20loja"
@@ -244,10 +244,11 @@ PY
 chmod 600 "$SET_WEBHOOK_JSON"
 
 if ss -lntp 2>/dev/null | grep -qE ":${PORT}\\b"; then
-  if ! pm2 jlist 2>/dev/null | node -e '
-    let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{let a=[];try{a=JSON.parse(s)}catch{};process.exit(a.some(x=>x?.name==="loja-bot")?0:1)})
-  '; then
-    fail "A porta ${PORT} já está ocupada por outro processo. Nada foi alterado no webhook."
+  HEALTH_CURRENT="$(curl -sS --max-time 3 "http://127.0.0.1:${PORT}/health" 2>/dev/null || true)"
+  if printf '%s' "$HEALTH_CURRENT" | grep -q '"service":"ariana-loja-whatsapp-bot"'; then
+    log "Porta ${PORT} já está sendo usada pelo próprio loja-bot; ele será reiniciado com a versão atual."
+  else
+    fail "A porta ${PORT} está ocupada por outro serviço. Nada foi alterado no webhook."
   fi
 fi
 
