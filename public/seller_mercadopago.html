@@ -243,6 +243,7 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
           <div id="recipient-note" class="rounded-2xl bg-blue-50 border border-blue-100 p-4 text-sm text-slate-700">
             Os pagamentos dos clientes continuam sendo processados pela Ariana Móveis. Esta tela apenas registra os dados para o repasse ao seller; nenhum recipient ou split automático é criado.
           </div>
+          <div id="bank-lock-note" class="hidden rounded-2xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800"></div>
 
           <div class="flex flex-col md:flex-row gap-3 justify-end">
             <button id="btn-save" class="btn btn-primary" type="submit"><i class="fas fa-save"></i> Salvar dados bancários</button>
@@ -261,33 +262,81 @@ function toast(msg,type='info'){const d=document.createElement('div');d.classNam
 function onlyDigits(v){return String(v||'').replace(/\D/g,'')}
 function setPill(configured){const el=$('recipient-pill'); if(!el)return; el.className='pill '+(configured?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700'); el.textContent=configured?'Dados cadastrados':'Dados pendentes'}
 function setStatus(configured){$('status-view').textContent=configured?'Dados cadastrados':'Aguardando dados'; $('status-view').className='text-xl font-black mt-1 '+(configured?'text-green-700':'text-amber-700')}
-function readPayload(){return {
-  legalName:$('legalName').value.trim(),
-  document:onlyDigits($('document').value),
-  bankHolderName:$('bankHolderName').value.trim(),
-  bankHolderDocument:onlyDigits($('bankHolderDocument').value),
-  bankName:$('bankName').value.trim(),
-  bankCode:onlyDigits($('bankCode').value),
-  accountType:$('accountType').value,
-  branchNumber:onlyDigits($('branchNumber').value),
-  branchCheckDigit:onlyDigits($('branchCheckDigit').value),
-  accountNumber:onlyDigits($('accountNumber').value),
-  accountCheckDigit:onlyDigits($('accountCheckDigit').value),
-  pixKey:$('pixKey').value.trim()
-}}
+function readPayload(){
+  const payload={};
+  const canSend=(id)=>{const el=$(id);return !!el && el.dataset.lockedSaved!=='true'};
+  if(canSend('bankHolderName')) payload.bankHolderName=$('bankHolderName').value.trim();
+  if(canSend('bankHolderDocument')) payload.bankHolderDocument=onlyDigits($('bankHolderDocument').value);
+  if(canSend('bankName')) payload.bankName=$('bankName').value.trim();
+  if(canSend('bankCode')) payload.bankCode=onlyDigits($('bankCode').value);
+  if(canSend('accountType')) payload.accountType=$('accountType').value;
+  if(canSend('branchNumber')) payload.branchNumber=onlyDigits($('branchNumber').value);
+  if(canSend('branchCheckDigit')) payload.branchCheckDigit=onlyDigits($('branchCheckDigit').value);
+  if(canSend('accountNumber')) payload.accountNumber=onlyDigits($('accountNumber').value);
+  if(canSend('accountCheckDigit')) payload.accountCheckDigit=onlyDigits($('accountCheckDigit').value);
+  if(canSend('pixKey')) payload.pixKey=$('pixKey').value.trim();
+  return payload;
+}
 function fillBank(bank={}){
   $('legalName').value=bank.legalName||'';
   $('document').value=bank.document||'';
-  $('bankHolderName').value=bank.bankHolderName||'';
-  $('bankHolderDocument').value=bank.bankHolderDocument||'';
+  $('bankHolderName').value=bank.bankHolderName||bank.holderName||'';
+  $('bankHolderDocument').value=bank.bankHolderDocument||bank.holderDocument||'';
   $('bankName').value=bank.bankName||bank.bank||'';
   $('bankCode').value=bank.bankCode||'';
   $('accountType').value=bank.accountType||'checking';
-  $('branchNumber').value=bank.branchNumber||'';
-  $('branchCheckDigit').value=bank.branchCheckDigit||'';
-  $('accountNumber').value=bank.accountNumber||'';
+  $('branchNumber').value=bank.branchNumber||bank.agency||'';
+  $('branchCheckDigit').value=bank.branchCheckDigit||bank.agencyDigit||'';
+  $('accountNumber').value=bank.accountNumber||bank.account||'';
   $('accountCheckDigit').value=bank.accountCheckDigit||bank.accountDigit||'';
   $('pixKey').value=bank.pixKey||'';
+}
+function lockSavedBankFields(sellerApproved=false){
+  const fixedIdentity=['legalName','document'];
+  const bankFields=['bankHolderName','bankHolderDocument','bankName','bankCode','accountType','branchNumber','branchCheckDigit','accountNumber','accountCheckDigit','pixKey'];
+  let missing=0;
+
+  fixedIdentity.forEach((id)=>{
+    const el=$(id); if(!el)return;
+    el.readOnly=true;
+    el.disabled=false;
+    el.classList.add('bg-slate-100','text-slate-500','cursor-not-allowed');
+  });
+
+  bankFields.forEach((id)=>{
+    const el=$(id); if(!el)return;
+    const value=String(el.value||'').trim();
+    const shouldLock=!!sellerApproved && !!value;
+    if(el.tagName==='SELECT') el.disabled=shouldLock;
+    else el.readOnly=shouldLock;
+    el.dataset.lockedSaved=shouldLock?'true':'false';
+    el.classList.toggle('bg-slate-100',shouldLock);
+    el.classList.toggle('text-slate-500',shouldLock);
+    el.classList.toggle('cursor-not-allowed',shouldLock);
+    el.title=shouldLock?'Dado bancário já salvo e bloqueado. Para alterar, solicite ao administrador da Ariana Móveis.':'';
+    if(sellerApproved && !value) missing++;
+  });
+
+  const note=$('bank-lock-note');
+  if(note){
+    note.classList.toggle('hidden',!sellerApproved);
+    if(sellerApproved){
+      note.innerHTML=missing>0
+        ? '<i class="fas fa-lock mr-2"></i>Os dados bancários já salvos estão bloqueados. Preencha somente os campos que ainda estão vazios; depois de salvos, eles também serão bloqueados.'
+        : '<i class="fas fa-lock mr-2"></i>Dados bancários concluídos e bloqueados. Para alterar informações já salvas, solicite ao administrador da Ariana Móveis.';
+    }
+  }
+
+  const btn=$('btn-save');
+  if(btn){
+    if(sellerApproved && missing===0){
+      btn.disabled=true;
+      btn.innerHTML='<i class="fas fa-lock"></i> Dados bancários concluídos';
+    }else if(sellerApproved){
+      btn.disabled=false;
+      btn.innerHTML='<i class="fas fa-save"></i> Salvar dados faltantes';
+    }
+  }
 }
 async function api(path, opts={}){const res=await fetch(API_BASE+path,{...opts,headers:authHeaders(opts.headers||{})});const data=await res.json().catch(()=>({}));if(res.status===401||res.status===403) clearSellerSession();if(!res.ok)throw new Error(data.error||data.message||`HTTP ${res.status}`);return data}
 async function load(){
@@ -295,6 +344,7 @@ async function load(){
   const data=await api('/seller/payment-split');
   const configured=!!data.bank?.configured;
   fillBank(data.bank||{});
+  lockSavedBankFields(data.sellerApproved===true);
   setPill(configured); setStatus(configured);
   try{const p=JSON.parse(localStorage.getItem('seller_profile')||'{}');$('user-display-name').textContent='Bem-vindo, '+(p.factoryName||p.storeName||p.name||'Seller')+'!'}catch(_){ }
 }
@@ -310,7 +360,13 @@ $('split-form').addEventListener('submit',async(e)=>{
   }catch(error){toast(error.message||'Erro ao salvar dados bancários','error')}
   finally{btn.disabled=false;btn.innerHTML=old;}
 });
-$('btn-sair')?.addEventListener('click',(e)=>{e.preventDefault();clearSellerSession()});$('sidebar-toggle')?.addEventListener('click',()=>$('sidebar').classList.toggle('-translate-x-full'));window.addEventListener('load',()=>load().catch(e=>toast(e.message,'error')));
+$('btn-sair')?.addEventListener('click',(e)=>{e.preventDefault();clearSellerSession()});
+$('sidebar-toggle')?.addEventListener('click',()=>$('sidebar').classList.toggle('-translate-x-full'));
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',()=>load().catch(e=>toast(e.message,'error')),{once:true});
+}else{
+  load().catch(e=>toast(e.message,'error'));
+}
 </script>
 
 
