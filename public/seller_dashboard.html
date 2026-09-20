@@ -668,12 +668,10 @@ async function saveSellerProfile(event) {
     }
     if (canSend("seller-uf")) payload.uf = $("seller-uf")?.value?.trim().toUpperCase() || "";
 
-    if (!approved) {
-      if (canSend("seller-store-name")) payload.storeName = $("seller-store-name")?.value || "";
-      if (canSend("seller-display-name")) payload.displayName = $("seller-display-name")?.value || "";
-      if (canSend("seller-document")) payload.document = $("seller-document")?.value || "";
-      if (canSend("seller-email")) payload.email = $("seller-email")?.value || "";
-    }
+    if (canSend("seller-store-name")) payload.storeName = $("seller-store-name")?.value || "";
+    if (canSend("seller-display-name")) payload.displayName = $("seller-display-name")?.value || "";
+    if (canSend("seller-document")) payload.document = $("seller-document")?.value || "";
+    if (canSend("seller-email")) payload.email = $("seller-email")?.value || "";
 
     let res = await fetch(`${API_BASE}/seller/profile`, {
       method: "PATCH",
