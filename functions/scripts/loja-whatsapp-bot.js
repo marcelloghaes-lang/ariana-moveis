@@ -1036,6 +1036,175 @@ async function showMoreProducts(phone, conv) {
   await sendProductPage(phone, conv, { announce: true });
 }
 
+
+function recentProductImageClassification(conv) {
+  if (!conv?.lastImageClassification || conv.lastImageClassification.kind !== 'product') return null;
+  if (Date.now() - Number(conv.lastImageAt || 0) > 30 * 60 * 1000) return null;
+  return conv.lastImageClassification;
+}
+
+async function showProductsFromVision(phone, conv, classification = {}) {
+  const label = imageClassificationLabel(classification) ||
+    String(classification.summary || classification.category_hint || 'produto').trim();
+
+  const queries = [
+    [classification.brand, classification.model].filter(Boolean).join(' ').trim(),
+    classification.product_name,
+    [classification.brand, classification.product_name].filter(Boolean).join(' ').trim(),
+    classification.category_hint
+  ].map((value) => String(value || '').trim()).filter(Boolean);
+
+  let products = [];
+  let usedQuery = '';
+
+  for (const query of [...new Set(queries)]) {
+    products = await searchProducts(query, query);
+    if (products.length) {
+      usedQuery = query;
+      break;
+    }
+  }
+
+  if (!products.length) {
+    await sendText(
+      phone,
+      label
+        ? \`Pela imagem, parece ser *\${label}* 😊 Não encontrei esse modelo com segurança no catálogo agora. Se você me mandar o nome/modelo ou o link, eu confiro novamente e também posso te mostrar opções semelhantes.\`
+        : 'Recebi a foto 😊 Não consegui identificar o modelo com segurança. Se você me mandar o nome/modelo ou o link do produto, eu confiro no catálogo para você.'
+    );
+    return false;
+  }
+
+  conv.allProductResults = products;
+  conv.productResultOffset = 0;
+  conv.lastProductQuery = classification.category_hint || usedQuery;
+  conv.selectedProduct = null;
+  conv.lastIntent = 'produto';
+  saveStateSoon();
+
+  await sendText(
+    phone,
+    label
+      ? \`Pela imagem, identifiquei algo como *\${label}* 😊 Encontrei estas opções relacionadas disponíveis na Ariana Móveis:\`
+      : 'Encontrei estas opções relacionadas disponíveis na Ariana Móveis 😊'
+  );
+  await sendProductPage(phone, conv, { announce: false });
+  return true;
+}
+
+function asksPaymentProofText(text) {
+  const n = normalize(text);
+  return (
+    asksPixProof(text) ||
+    /(comprovante).{0,35}(boleto|pagamento|paguei|pago)/.test(n) ||
+    /(paguei|pago|quitei|fiz o pagamento).{0,30}(boleto|conta|parcela)/.test(n)
+  );
+}
+
+async function handleVisionMedia(incoming, conv) {
+  if (!incoming?.hasMedia || !['image', 'document'].includes(incoming.mediaType)) {
+    return { handled: false };
+  }
+
+  if (!VISION_API_KEY) {
+    if (asksPaymentProofText(incoming.text)) {
+      await acknowledgePaymentProof(incoming.phone, conv, {
+        text: incoming.text || 'Cliente informou que a mídia é um comprovante.',
+        pushName: incoming.pushName,
+        paymentMethod: normalize(incoming.text).includes('boleto') ? 'boleto' : 'pix'
+      });
+      return { handled: true, kind: 'payment_by_text_fallback' };
+    }
+
+    if (asksAboutImageProduct(incoming.text) || conv.pendingImageIntent === 'product_lookup') {
+      conv.pendingImageIntent = '';
+      conv.pendingImageIntentUntil = 0;
+      saveStateSoon();
+      await sendText(
+        incoming.phone,
+        'Recebi a foto/print 😊 Para eu conferir com segurança, me diga o nome ou modelo do produto que aparece nela, ou me mande o link.'
+      );
+      return { handled: true, kind: 'product_without_vision' };
+    }
+
+    await sendText(
+      incoming.phone,
+      'Recebi a imagem 😊 Ela é um *comprovante de pagamento*, uma *foto de produto* ou outra coisa?'
+    );
+    return { handled: true, kind: 'vision_not_configured' };
+  }
+
+  let classification;
+  try {
+    const media = await fetchIncomingMedia(incoming);
+    classification = await classifyImageWithVision(media, incoming.text);
+  } catch (error) {
+    console.warn('[loja-bot] visão da imagem falhou:', error.message || error);
+    await sendText(
+      incoming.phone,
+      'Recebi a imagem 😊 Não consegui analisá-la com segurança agora. É um comprovante de pagamento, uma foto de produto ou outra coisa?'
+    );
+    return { handled: true, kind: 'vision_error' };
+  }
+
+  const confidence = Number(classification.confidence || 0);
+  const confident = confidence >= VISION_MIN_CONFIDENCE;
+
+  if (confident && ['payment_receipt_pix', 'payment_receipt_boleto'].includes(classification.kind)) {
+    const method = classification.kind === 'payment_receipt_boleto' ? 'boleto' : 'pix';
+    await acknowledgePaymentProof(incoming.phone, conv, {
+      text: \`Imagem classificada como comprovante de \${method}. Conferência humana obrigatória antes da baixa.\`,
+      pushName: incoming.pushName,
+      paymentMethod: method
+    });
+    return { handled: true, kind: classification.kind, confidence };
+  }
+
+  if (confident && classification.kind === 'product') {
+    conv.lastImageClassification = classification;
+    conv.lastImageAt = Date.now();
+    conv.pendingImageIntent = '';
+    conv.pendingImageIntentUntil = 0;
+    saveStateSoon();
+
+    await showProductsFromVision(incoming.phone, conv, classification);
+    return { handled: true, kind: 'product', confidence };
+  }
+
+  if (confident && classification.kind === 'personal_document') {
+    await sendText(
+      incoming.phone,
+      'Recebi um documento. Para proteger seus dados, se ele for para análise de crédito, utilize o fluxo do *Ariana Crediário* para o envio seguro dos documentos.'
+    );
+    return { handled: true, kind: 'personal_document', confidence };
+  }
+
+  if (isPixContext(conv) || asksPaymentProofText(incoming.text)) {
+    await sendText(
+      incoming.phone,
+      'Recebi a imagem, mas não consegui confirmar com segurança que ela é um comprovante de pagamento. Você pode confirmar se é o comprovante do PIX/boleto?'
+    );
+    return { handled: true, kind: 'unconfirmed_payment', confidence };
+  }
+
+  if (asksAboutImageProduct(incoming.text) || conv.pendingImageIntent === 'product_lookup') {
+    conv.pendingImageIntent = '';
+    conv.pendingImageIntentUntil = 0;
+    saveStateSoon();
+    await sendText(
+      incoming.phone,
+      'Recebi a imagem, mas não consegui identificar o produto com segurança. Se você me disser o nome/modelo ou mandar o link, eu consulto no catálogo para você.'
+    );
+    return { handled: true, kind: 'unconfirmed_product', confidence };
+  }
+
+  await sendText(
+    incoming.phone,
+    'Recebi a imagem 😊 Não consegui identificar com segurança se é produto, comprovante ou outra coisa. Me diga em uma frase o que você gostaria de consultar.'
+  );
+  return { handled: true, kind: classification.kind || 'unknown', confidence };
+}
+
 async function syncTicket(phone, { status, message, name = '' } = {}) {
   try {
     await backend('/api/bot/atendimento/evento', {
