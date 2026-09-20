@@ -1128,7 +1128,19 @@ function asksMoreProducts(text) {
 
 function asksCreditQuote(text) {
   const n = normalize(text);
-  return /quanto fica.{0,30}(boleto|carne|crediario)|quanto (da|fica) em \d{1,2}x|\d{1,2}x.{0,20}(boleto|carne|crediario)|parcelar.{0,20}(boleto|carne|crediario)/.test(n);
+  const creditWord = '(?:boleto|carne|crediario)';
+  const boletoTypoInInstallmentContext =
+    /\b(parcela|parcelado|parcelar|prestacao|vezes)\b.{0,30}\b(beto|bolto|boleo)\b/.test(n);
+
+  return (
+    new RegExp(`quanto fica.{0,30}${creditWord}`).test(n) ||
+    /quanto (da|fica) em \d{1,2}\s*(x|vezes|parcelas)?/.test(n) ||
+    new RegExp(`\\d{1,2}\\s*(?:x|vezes|parcelas).{0,25}${creditWord}`).test(n) ||
+    new RegExp(`parcel(?:ar|ado|ada)?[^\\n]{0,35}${creditWord}`).test(n) ||
+    new RegExp(`(?:valor|quanto)[^\\n]{0,25}(?:parcela|prestacao)[^\\n]{0,25}${creditWord}`).test(n) ||
+    new RegExp(`(?:parcela|prestacao)[^\\n]{0,25}${creditWord}`).test(n) ||
+    boletoTypoInInstallmentContext
+  );
 }
 
 function parseInstallments(text) {
@@ -2096,16 +2108,22 @@ async function handleMessage({ phone, text, pushName = '' }) {
   }
 
   const ord = ordinalIndex(text);
-  if (ord >= 0 && Array.isArray(conv.lastProducts) && conv.lastProducts[ord]) {
-    conv.selectedProduct = conv.lastProducts[ord];
-    saveStateSoon();
-    await sendText(phone, `Perfeito 😊 Você escolheu *${conv.selectedProduct.name}*. O que você gostaria de saber dele: cartão, PIX, carnê, entrega ou quer comprar?`);
-    return;
-  }
 
   if (asksCreditQuote(text)) {
     markCreditContext(conv);
-    let product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
+
+    let product = null;
+
+    // Quando o cliente diz "o primeiro em 10 vezes no boleto", o ordinal faz
+    // parte do próprio pedido de cálculo. Selecionamos e calculamos na mesma resposta.
+    if (ord >= 0 && Array.isArray(conv.lastProducts) && conv.lastProducts[ord]) {
+      product = conv.lastProducts[ord];
+      conv.selectedProduct = product;
+      saveStateSoon();
+    } else {
+      product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
+    }
+
     if (!product) {
       const quoteCategory = detectCategory(text);
       if (quoteCategory) {
@@ -2117,7 +2135,14 @@ async function handleMessage({ phone, text, pushName = '' }) {
       return;
     }
 
-    const count = parseInstallments(text);
+    const parsedCount = parseInstallments(text);
+    const previousCount = (
+      /\b(parcela|prestacao)\b/.test(n) &&
+      String(conv.lastCreditPlan?.productId || '') === productId(product)
+    )
+      ? Number(conv.lastCreditPlan?.count || 0)
+      : 0;
+    const count = parsedCount || previousCount;
     const plan = creditPlan(product, count);
 
     if (!count) {
@@ -2130,12 +2155,25 @@ async function handleMessage({ phone, text, pushName = '' }) {
       return;
     }
 
-    conv.lastCreditPlan = { count, divisor: plan.divisor, total: plan.total, installment: plan.installment };
+    conv.lastCreditPlan = {
+      productId: productId(product),
+      count,
+      divisor: plan.divisor,
+      total: plan.total,
+      installment: plan.installment
+    };
     saveStateSoon();
     await sendText(
       phone,
       `No crediário próprio, para *${product.name}*, em *${count}x* fica aproximadamente *${count}x de ${money(plan.installment)}*, total de *${money(plan.total)}*. A compra no carnê é sujeita à análise de crédito.\n\nSe quiser seguir com o carnê, eu já posso iniciar a solicitação para você.`
     );
+    return;
+  }
+
+  if (ord >= 0 && Array.isArray(conv.lastProducts) && conv.lastProducts[ord]) {
+    conv.selectedProduct = conv.lastProducts[ord];
+    saveStateSoon();
+    await sendText(phone, `Perfeito 😊 Você escolheu *${conv.selectedProduct.name}*. O que você gostaria de saber dele: cartão, PIX, carnê, entrega ou quer comprar?`);
     return;
   }
 
