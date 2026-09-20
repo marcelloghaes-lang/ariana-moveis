@@ -139,6 +139,8 @@ function conversation(phone) {
     state.conversations[key] = {
       lastAt: Date.now(),
       lastProducts: [],
+      allProductResults: [],
+      productResultOffset: 0,
       lastProductQuery: '',
       selectedProduct: null,
       pendingAction: '',
@@ -312,7 +314,22 @@ function asksFinance(text) {
 
 function asksHowToBuyCredit(text) {
   const n = normalize(text);
-  return /como (eu )?faco para comprar no carne|como comprar no carne|quero comprar no carne|quero fazer no carne|quero no carne|fazer crediario|abrir crediario/.test(n);
+
+  if (/fazer crediario|abrir crediario|quero no carne|quero fazer no carne/.test(n)) return true;
+
+  const mentionsCredit = /(carne|crediario|boleto)/.test(n);
+  if (!mentionsCredit) return false;
+
+  return (
+    /(como|queria|gostaria|quero|pode|posso|da pra|tem como).{0,45}(comprar|fazer|pegar).{0,45}(carne|crediario|boleto)/.test(n) ||
+    /(comprar|fazer|pegar).{0,35}(ele|esse|essa|este|esta|produto)?.{0,20}(carne|crediario|boleto)/.test(n) ||
+    /(ele|esse|essa|este|esta|produto).{0,25}(no|na|pelo|pela).{0,10}(carne|crediario|boleto)/.test(n)
+  );
+}
+
+function asksMoreProducts(text) {
+  const n = normalize(text);
+  return /mostrar mais|mostra mais|ver mais|tem mais|mais opcoes|outras opcoes|outros modelos|outras alternativas|tem outro|tem outros|quero ver mais/.test(n);
 }
 
 function asksCreditQuote(text) {
@@ -383,17 +400,69 @@ function productCaption(product, index = null) {
 
 async function searchProducts(query, originalText = '') {
   const q = encodeURIComponent(query);
-  const data = await backend(`/api/products?q=${q}&limit=30`);
+  const data = await backend(`/api/products?q=${q}&limit=100`);
   const rows = Array.isArray(data) ? data : Array.isArray(data?.products) ? data.products : [];
   let products = rows
     .map(compactProduct)
     .filter((p) => p.id && Number(p.stock || 0) > 0 && productCashPrice(p) > 0);
 
+  const seen = new Set();
+  products = products.filter((p) => {
+    if (seen.has(p.id)) return false;
+    seen.add(p.id);
+    return true;
+  });
+
   const n = normalize(originalText);
   if (/mais barato|baratinho|menor preco|mais em conta/.test(n)) {
     products = products.sort((a, b) => productCashPrice(a) - productCashPrice(b));
   }
-  return products.slice(0, 4);
+  return products;
+}
+
+async function sendProductPage(phone, conv, { announce = true } = {}) {
+  const all = Array.isArray(conv.allProductResults) ? conv.allProductResults : [];
+  const offset = Math.max(0, Number(conv.productResultOffset || 0));
+  const page = all.slice(offset, offset + 4);
+
+  if (!page.length) {
+    await sendText(phone, 'Essas são todas as opções disponíveis que encontrei no catálogo no momento 😊');
+    return;
+  }
+
+  conv.lastProducts = page;
+  conv.selectedProduct = page.length === 1 ? page[0] : null;
+  conv.productResultOffset = offset + page.length;
+  conv.lastIntent = 'produto';
+  saveStateSoon();
+
+  if (announce) {
+    if (all.length === 1) {
+      await sendText(phone, 'Encontrei este produto disponível no momento 😊');
+    } else if (offset === 0) {
+      await sendText(
+        phone,
+        all.length > 4
+          ? `Encontrei *${all.length} opções disponíveis* no catálogo. Vou te mostrar as primeiras 4:`
+          : `Encontrei *${all.length} opções disponíveis* no momento. Vou te mostrar:`
+      );
+    } else {
+      await sendText(phone, `Claro 😊 Aqui vão mais ${page.length} opções:`);
+    }
+  }
+
+  for (let i = 0; i < page.length; i += 1) {
+    await sendImage(phone, page[i].imageUrl, productCaption(page[i], page.length > 1 ? i : null));
+  }
+
+  const remaining = Math.max(0, all.length - conv.productResultOffset);
+  if (page.length > 1) {
+    let message = 'Se gostar de algum, pode me falar “o primeiro”, “o segundo” etc. que eu continuo por ele.';
+    if (remaining > 0) {
+      message += `\n\nAinda tenho *${remaining} opção(ões)*. Se quiser ver, é só dizer *“mostrar mais”*.`;
+    }
+    await sendText(phone, message);
+  }
 }
 
 async function showProducts(phone, conv, query, originalText) {
@@ -403,26 +472,28 @@ async function showProducts(phone, conv, query, originalText) {
     return;
   }
 
-  conv.lastProducts = products;
+  conv.allProductResults = products;
+  conv.productResultOffset = 0;
   conv.lastProductQuery = query;
-  conv.selectedProduct = products.length === 1 ? products[0] : null;
-  conv.lastIntent = 'produto';
+  conv.selectedProduct = null;
   saveStateSoon();
 
-  await sendText(
-    phone,
-    products.length === 1
-      ? 'Encontrei este produto disponível no momento 😊'
-      : `Encontrei ${products.length} opções disponíveis no momento. Vou te mostrar:`
-  );
+  await sendProductPage(phone, conv, { announce: true });
+}
 
-  for (let i = 0; i < products.length; i += 1) {
-    await sendImage(phone, products[i].imageUrl, productCaption(products[i], products.length > 1 ? i : null));
+async function showMoreProducts(phone, conv) {
+  const all = Array.isArray(conv.allProductResults) ? conv.allProductResults : [];
+  if (!all.length) {
+    await sendText(phone, 'Me diga qual produto você quer procurar que eu consulto o catálogo para você 😊');
+    return;
   }
 
-  if (products.length > 1) {
-    await sendText(phone, 'Se gostar de algum, pode me falar “o primeiro”, “o segundo” etc. que eu continuo por ele.');
+  if (Number(conv.productResultOffset || 0) >= all.length) {
+    await sendText(phone, 'Essas são todas as opções disponíveis que encontrei no catálogo no momento 😊');
+    return;
   }
+
+  await sendProductPage(phone, conv, { announce: true });
 }
 
 async function syncTicket(phone, { status, message, name = '' } = {}) {
@@ -786,7 +857,12 @@ async function handleMessage({ phone, text, pushName = '' }) {
     return;
   }
 
-  if (/mais barato|mais em conta|tem outro|outra opcao|outra opção/.test(n) && conv.lastIntent === 'produto') {
+  if (asksMoreProducts(text) && conv.lastIntent === 'produto') {
+    await showMoreProducts(phone, conv);
+    return;
+  }
+
+  if (/mais barato|mais em conta|baratinho|menor preco/.test(n) && conv.lastIntent === 'produto') {
     const categoryFromLast = conv.lastProductQuery || conv.lastProducts?.[0]?.category || conv.lastProducts?.[0]?.name || '';
     if (categoryFromLast) {
       await showProducts(phone, conv, categoryFromLast, text);
