@@ -351,9 +351,29 @@ function isGreeting(text) {
     .replace(/\s+/g, ' ')
     .trim();
 
+  if (!n) return false;
+
   if (/^(oi|ola|oie|bom dia|boa tarde|boa noite|tudo bem)$/.test(n)) return true;
 
-  return /^(oi|ola|oie)?\s*(bom dia|boa tarde|boa noite)?\s*(tudo bem|td bem|como vai)?\s*$/.test(n);
+  return /^(?=.*(?:oi|ola|oie|bom dia|boa tarde|boa noite|tudo bem|td bem|como vai))(oi|ola|oie)?\s*(bom dia|boa tarde|boa noite)?\s*(tudo bem|td bem|como vai)?\s*$/.test(n);
+}
+
+function asksPresencePing(text) {
+  const raw = String(text || '').trim();
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (/^\?+$/.test(raw)) return true;
+
+  return (
+    /^(ta|esta|tá) ai$/.test(n) ||
+    /^ainda (ta|esta) ai$/.test(n) ||
+    /^(oi|ola|oie)\s+(ta|esta) ai$/.test(n) ||
+    /^(voce )?(ta|esta) ai$/.test(n) ||
+    /^ainda por ai$/.test(n)
+  );
 }
 
 function asksMarceloOrCallback(text) {
@@ -1218,6 +1238,11 @@ async function handleMessage({ phone, text, pushName = '' }) {
     }
   }
 
+  if (asksPresencePing(text)) {
+    await sendText(phone, 'Sim, estou aqui 😊 Pode falar. Se quiser, continuamos de onde paramos.');
+    return;
+  }
+
   if (isGreeting(text)) {
     const nGreeting = normalize(text);
     let saudacao = 'Olá';
@@ -1471,6 +1496,7 @@ export const __test = {
   categoryAliases,
   detectCategory,
   isGreeting,
+  asksPresencePing,
   asksMarceloOrCallback,
   isReferralOrPraise,
   wantsHuman,
