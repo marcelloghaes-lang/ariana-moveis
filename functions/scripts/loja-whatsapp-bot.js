@@ -360,8 +360,8 @@ function asksMarceloOrCallback(text) {
 
   return (
     /(falar|conversar).{0,20}(com )?(o )?marcelo/.test(n) ||
-    /marcelo.{0,25}(esta ai|ta ai|pode falar|preciso falar|quero falar)/.test(n) ||
-    /(preciso|queria|quero|gostaria).{0,25}falar.{0,20}(com )?(voce|marcelo)/.test(n) ||
+    /marcelo.{0,45}(esta ai|ta ai|pode falar|preciso falar|quero falar|precisando falar)/.test(n) ||
+    /(preciso|precisando|precisava|queria|quero|gostaria).{0,25}falar.{0,20}(com )?(voce|marcelo)/.test(n) ||
     /(pode|poderia|teria como|consegue|conseguiria).{0,25}(me )?(ligar|retornar|telefonar)/.test(n) ||
     /(me liga|me ligue|liga pra mim|liga para mim|retorna pra mim|retorna para mim)/.test(n)
   );
@@ -377,7 +377,8 @@ function isReferralOrPraise(text) {
   );
 
   const praise = (
-    /(falaram|disseram|me falaram|me disseram).{0,45}(muito bem|otimos precos|precos bons|otimos produtos|produtos bons|muito bons|bons de mexer)/.test(n) ||
+    /(falou|disse|contou|falaram|disseram|me falou|me disse|me contou|me falaram|me disseram).{0,70}(muito bem|otimos precos|precos bons|otimos produtos|produtos bons|muito bons|bons de mexer|vende no carne|vendem no carne|compra com voces|comprou com voces)/.test(n) ||
+    /(falou|disse|contou|falaram|disseram).{0,40}(que )?(voces|a loja|ariana).{0,50}(vende|vendem|tem|sao|e|compra|comprou).{0,35}(carne|otimos precos|precos bons|otimos produtos|produtos bons|muito bons|bons de mexer)/.test(n) ||
     /(voces|a loja|ariana).{0,30}(tem|tem uns|sao|e).{0,20}(otimos precos|precos bons|otimos produtos|produtos bons|muito bons|bons de mexer)/.test(n)
   );
 
