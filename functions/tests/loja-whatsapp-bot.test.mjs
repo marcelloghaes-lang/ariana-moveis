@@ -457,7 +457,9 @@ test('indicação e elogios da loja recebem resposta acolhedora', async () => {
     'Uma amiga minha me indicou, disse que vocês vendem no carnê',
     'Peguei seu número com uma amiga que compra aí',
     'Me falaram muito bem de vocês e disseram que têm ótimos preços',
+    'Disse que vocês têm ótimos preços',
     'Disseram que vocês têm ótimos produtos',
+    'Disse que compra com vocês e que vocês têm ótimos produtos',
     'Uma cliente disse que vocês são muito bons de mexer'
   ];
 
