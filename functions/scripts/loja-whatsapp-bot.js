@@ -394,6 +394,21 @@ function responseOutputText(data = {}) {
 }
 
 async function classifyImageWithVision(media = {}, contextText = '') {
+  const budgetStatus = visionBudgetStatus();
+  if (budgetStatus.blocked) {
+    return {
+      kind: 'unknown',
+      confidence: 0,
+      product_name: '',
+      brand: '',
+      model: '',
+      category_hint: '',
+      payment_method: 'unknown',
+      payment_recipient_name: '',
+      summary: 'vision_budget_blocked'
+    };
+  }
+
   if (!VISION_API_KEY) {
     return {
       kind: 'unknown',
@@ -529,6 +544,7 @@ async function classifyImageWithVision(media = {}, contextText = '') {
     });
 
     const data = await readJson(response);
+    recordVisionUsage(data?.usage || {});
     const output = responseOutputText(data);
     const parsed = JSON.parse(output || '{}');
 
@@ -1293,6 +1309,15 @@ function asksPaymentProofText(text) {
 async function handleVisionMedia(incoming, conv) {
   if (!incoming?.hasMedia || !['image', 'document'].includes(incoming.mediaType)) {
     return { handled: false };
+  }
+
+  const currentBudget = visionBudgetStatus();
+  if (currentBudget.blocked) {
+    await sendText(
+      incoming.phone,
+      'Recebi a imagem 😊 No momento a análise automática de imagens está temporariamente indisponível. Se for um produto, me diga o nome/modelo; se for um comprovante, me confirme se é PIX ou boleto.'
+    );
+    return { handled: true, kind: 'vision_budget_blocked' };
   }
 
   if (!VISION_API_KEY) {
