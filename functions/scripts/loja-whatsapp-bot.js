@@ -1428,6 +1428,25 @@ async function handleMessage({ phone, text, pushName = '' }) {
     saveStateSoon();
   }
 
+  if (conv.pendingImageIntentUntil && Date.now() >= Number(conv.pendingImageIntentUntil)) {
+    conv.pendingImageIntent = '';
+    conv.pendingImageIntentUntil = 0;
+    saveStateSoon();
+  }
+
+  const emojiIntent = emojiOnlyIntent(text);
+  if (emojiIntent === 'positive') {
+    return;
+  }
+  if (emojiIntent === 'question') {
+    await sendText(phone, 'Sim, estou aqui 😊 Pode falar.');
+    return;
+  }
+  if (emojiIntent === 'negative') {
+    await sendText(phone, 'Posso te ajudar. O que aconteceu?');
+    return;
+  }
+
   {
     const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
     const implicitCreditByProduct = Boolean(
@@ -1500,8 +1519,12 @@ async function handleMessage({ phone, text, pushName = '' }) {
     return;
   }
 
-  if (asksPixProof(text)) {
-    await acknowledgePixProof(phone, conv, text, pushName);
+  if (asksPaymentProofText(text)) {
+    markPixContext(conv);
+    await sendText(
+      phone,
+      'Perfeito 😊 Pode enviar o comprovante aqui na conversa. Assim que a imagem chegar, vamos identificar o tipo de comprovante e encaminhar para análise da baixa.'
+    );
     return;
   }
 
@@ -1562,6 +1585,24 @@ async function handleMessage({ phone, text, pushName = '' }) {
 
   if (asksPaymentMethods(text) && !asksHowToBuyCredit(text) && !asksCreditQuote(text) && !asksCardQuote(text) && !asksPixPrice(text)) {
     await sendText(phone, paymentMethodsReply());
+    return;
+  }
+
+  if (asksAboutImageProduct(text)) {
+    const recentImage = recentProductImageClassification(conv);
+    if (recentImage) {
+      await showProductsFromVision(phone, conv, recentImage);
+      return;
+    }
+
+    conv.pendingImageIntent = 'product_lookup';
+    conv.pendingImageIntentUntil = Date.now() + 10 * 60 * 1000;
+    saveStateSoon();
+
+    await sendText(
+      phone,
+      'Sim 😊 Pode me mandar a foto ou o print do produto. Eu vou analisar a imagem e conferir no catálogo da Ariana Móveis se temos esse modelo ou opções relacionadas.'
+    );
     return;
   }
 
