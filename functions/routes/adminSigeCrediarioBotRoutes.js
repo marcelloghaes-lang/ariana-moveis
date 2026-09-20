@@ -11330,6 +11330,25 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     return next();
   }
 
+  const LOJA_BOT_API_TOKEN = String(process.env.LOJA_BOT_API_TOKEN || '').trim();
+
+  function lojaBotAccessRequired(req, res, next) {
+    const incomingToken = String(
+      req.headers['x-loja-bot-token'] ||
+      req.headers['x-bot-token'] ||
+      req.headers['x-api-key'] ||
+      ''
+    ).trim();
+
+    if (!LOJA_BOT_API_TOKEN) {
+      return res.status(503).json({ ok: false, error: 'Integração segura da loja não configurada.' });
+    }
+    if (incomingToken !== LOJA_BOT_API_TOKEN) {
+      return res.status(401).json({ ok: false, error: 'Token da loja inválido.' });
+    }
+    return next();
+  }
+
   function onlyDigits(value = '') {
     return String(value || '').replace(/\D/g, '');
   }
@@ -11676,8 +11695,8 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     }
   }
 
-  app.get('/api/bot/financeiro/carne', botAccessRequired, botFinanceiroCarneHandler);
-  app.post('/api/bot/financeiro/carne', botAccessRequired, botFinanceiroCarneHandler);
+  app.get('/api/bot/financeiro/carne', lojaBotAccessRequired, botFinanceiroCarneHandler);
+  app.post('/api/bot/financeiro/carne', lojaBotAccessRequired, botFinanceiroCarneHandler);
 
   app.get('/api/bot/financeiro/consulta', botAccessRequired, (req, res) => botConsultaHandler(req, res, 'financeiro'));
   app.post('/api/bot/financeiro/consulta', botAccessRequired, (req, res) => botConsultaHandler(req, res, 'financeiro'));
