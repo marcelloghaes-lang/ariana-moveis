@@ -2111,7 +2111,7 @@ function deliveryReply(text) {
 
 function financialReply(data = {}) {
   const parcelas = Array.isArray(data.parcelas) ? data.parcelas : [];
-  const fromErpReceivables = String(data?.fonteFinanceira || '') === 'ariana_erp_contas_receber';
+  const fromErpReceivables = String(data?.fonteFinanceira || '').startsWith('ariana_erp');
   const open = parcelas.filter((p) => {
     const status = normalize(p.status);
     return p.quitado !== true && !['paga', 'pago', 'quitada', 'quitado', 'paid'].includes(status);
