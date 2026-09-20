@@ -21,14 +21,14 @@ const STATE_FILE = String(process.env.LOJA_BOT_STATE_FILE || '/root/loja-bot-sta
 const HUMAN_TTL_MS = Math.max(1, Number(process.env.LOJA_HUMAN_TTL_HOURS || 12)) * 60 * 60 * 1000;
 
 const CATEGORY_TERMS = [
-  ['sofa', ['sofa', 'sofas']],
+  ['sofá', ['sofa', 'sofas']],
   ['geladeira', ['geladeira', 'geladeiras', 'refrigerador', 'refrigeradores']],
-  ['fogao', ['fogao', 'fogoes']],
+  ['fogão', ['fogao', 'fogoes']],
   ['cama', ['cama', 'camas', 'box', 'colchao', 'colchoes']],
   ['celular', ['celular', 'celulares', 'smartphone', 'smartphones', 'iphone']],
   ['tv', ['tv', 'televisao', 'televisor', 'smart tv']],
   ['guarda-roupa', ['guarda roupa', 'guarda-roupa', 'roupeiro']],
-  ['maquina de lavar', ['maquina de lavar', 'lavadora', 'lava roupas']],
+  ['máquina de lavar', ['maquina de lavar', 'lavadora', 'lava roupas']],
   ['air fryer', ['air fryer', 'fritadeira eletrica', 'fritadeira']],
   ['micro-ondas', ['microondas', 'micro-ondas']],
   ['ventilador', ['ventilador', 'ventiladores']],
@@ -38,8 +38,8 @@ const CATEGORY_TERMS = [
   ['cadeira', ['cadeira', 'cadeiras']],
   ['rack', ['rack', 'racks']],
   ['painel', ['painel', 'paineis']],
-  ['armario', ['armario', 'armarios']],
-  ['comoda', ['comoda', 'comodas']],
+  ['armário', ['armario', 'armarios']],
+  ['cômoda', ['comoda', 'comodas']],
   ['notebook', ['notebook', 'notebooks']],
   ['computador', ['computador', 'computadores', 'pc']],
   ['tablet', ['tablet', 'tablets']],
@@ -139,6 +139,7 @@ function conversation(phone) {
     state.conversations[key] = {
       lastAt: Date.now(),
       lastProducts: [],
+      lastProductQuery: '',
       selectedProduct: null,
       pendingAction: '',
       humanUntil: 0,
@@ -270,12 +271,27 @@ function wantsHuman(text) {
 
 function asksPaymentMethods(text) {
   const n = normalize(text);
-  return /forma(s)? de pagamento|como (eu )?posso pagar|aceita cartao|aceitam cartao|aceita pix|faz no carne|trabalha com carne|tem crediario/.test(n);
+  return /forma(s)? de pagamento|como (eu )?posso pagar|aceita cartao|aceitam cartao|aceita pix|aceita boleto|pagamento.{0,15}boleto|faz no carne|trabalha com carne|tem crediario/.test(n);
 }
 
 function asksPixKey(text) {
   const n = normalize(text);
   return /(manda|me passa|passa|envia|qual|chave).{0,20}pix|pix.{0,20}(chave|numero|qual)/.test(n);
+}
+
+function asksCardQuote(text) {
+  const n = normalize(text);
+  return /(quanto|valor|fica|parcel).{0,30}(cartao|credito)|(cartao|credito).{0,30}(quanto|valor|fica|parcel)/.test(n);
+}
+
+function asksPixPrice(text) {
+  const n = normalize(text);
+  return /(quanto|valor|fica|preco).{0,25}(no pix|pix)|(no pix|pix).{0,25}(quanto|valor|fica|preco)/.test(n);
+}
+
+function asksProductLink(text) {
+  const n = normalize(text);
+  return /manda.{0,20}link|me passa.{0,20}link|envia.{0,20}link|link do produto|link desse|link dessa/.test(n);
 }
 
 function asksDelivery(text) {
@@ -382,6 +398,7 @@ async function showProducts(phone, conv, query, originalText) {
   }
 
   conv.lastProducts = products;
+  conv.lastProductQuery = query;
   conv.selectedProduct = products.length === 1 ? products[0] : null;
   conv.lastIntent = 'produto';
   saveStateSoon();
@@ -672,8 +689,40 @@ async function handleMessage({ phone, text, pushName = '' }) {
     return;
   }
 
-  if (asksPaymentMethods(text) && !asksHowToBuyCredit(text) && !asksCreditQuote(text)) {
+  if (asksPaymentMethods(text) && !asksHowToBuyCredit(text) && !asksCreditQuote(text) && !asksCardQuote(text) && !asksPixPrice(text)) {
     await sendText(phone, paymentMethodsReply());
+    return;
+  }
+
+  if (asksProductLink(text)) {
+    const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
+    if (!product) {
+      await sendText(phone, 'Claro 😊 Me diga qual produto você quer que eu te mande o link.');
+    } else {
+      await sendText(phone, `Aqui está o link de *${product.name}*: ${productLink(product)}`);
+    }
+    return;
+  }
+
+  if (asksCardQuote(text)) {
+    const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
+    if (!product) {
+      await sendText(phone, 'Consigo calcular sim 😊 Me diga qual produto você está olhando.');
+      return;
+    }
+    const full = productFullPrice(product);
+    const count = Math.max(1, Number(product.installmentCount || 12));
+    await sendText(phone, `No cartão, *${product.name}* fica em até *${count}x de ${money(full / count)}*, total de *${money(full)}*.`);
+    return;
+  }
+
+  if (asksPixPrice(text)) {
+    const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
+    if (!product) {
+      await sendText(phone, 'Claro 😊 Me diga qual produto você está olhando para eu te passar o valor no PIX.');
+      return;
+    }
+    await sendText(phone, `No PIX, *${product.name}* fica por *${money(productCashPrice(product))}*.`);
     return;
   }
 
@@ -686,8 +735,14 @@ async function handleMessage({ phone, text, pushName = '' }) {
   }
 
   if (asksCreditQuote(text)) {
-    const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
+    let product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
     if (!product) {
+      const quoteCategory = detectCategory(text);
+      if (quoteCategory) {
+        await showProducts(phone, conv, quoteCategory, text);
+        await sendText(phone, 'Escolha uma dessas opções e eu calculo o carnê certinho para você.');
+        return;
+      }
       await sendText(phone, 'Consigo calcular sim 😊 Me diga qual produto você está olhando para eu usar o valor correto do catálogo.');
       return;
     }
@@ -726,7 +781,7 @@ async function handleMessage({ phone, text, pushName = '' }) {
   }
 
   if (/mais barato|mais em conta|tem outro|outra opcao|outra opção/.test(n) && conv.lastIntent === 'produto') {
-    const categoryFromLast = conv.lastProducts?.[0]?.category || conv.lastProducts?.[0]?.name || '';
+    const categoryFromLast = conv.lastProductQuery || conv.lastProducts?.[0]?.category || conv.lastProducts?.[0]?.name || '';
     if (categoryFromLast) {
       await showProducts(phone, conv, categoryFromLast, text);
       return;
