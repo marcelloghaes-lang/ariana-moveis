@@ -1151,6 +1151,12 @@ async function showSimilarProductsFromVisual(phone, conv, category) {
 async function showProductsFromVision(phone, conv, classification = {}) {
   const label = imageClassificationLabel(classification) ||
     String(classification.summary || classification.category_hint || 'produto').trim();
+  const visualCategory = visualCategoryFromClassification(classification);
+
+  if (visualCategory) {
+    conv.lastVisualCategory = visualCategory;
+    conv.lastVisualCategoryAt = Date.now();
+  }
 
   const queries = [
     [classification.brand, classification.model].filter(Boolean).join(' ').trim(),
@@ -1171,10 +1177,13 @@ async function showProductsFromVision(phone, conv, classification = {}) {
   }
 
   if (!products.length) {
+    conv.awaitingSimilarOptions = Boolean(visualCategory);
+    saveStateSoon();
+
     await sendText(
       phone,
       label
-        ? `Pela imagem, parece ser *${label}* 😊 Não encontrei esse modelo com segurança no catálogo agora. Se você me mandar o nome/modelo ou o link, eu confiro novamente e também posso te mostrar opções semelhantes.`
+        ? `Pela imagem, parece ser *${label}* 😊 Não encontrei esse modelo com segurança no catálogo agora.${visualCategory ? ` Se quiser, posso te mostrar os *${visualCategory}* que temos disponíveis e que podem ser parecidos com ele.` : ' Se você me mandar o nome/modelo ou o link, eu confiro novamente.'}`
         : 'Recebi a foto 😊 Não consegui identificar o modelo com segurança. Se você me mandar o nome/modelo ou o link do produto, eu confiro no catálogo para você.'
     );
     return false;
@@ -1182,9 +1191,10 @@ async function showProductsFromVision(phone, conv, classification = {}) {
 
   conv.allProductResults = products;
   conv.productResultOffset = 0;
-  conv.lastProductQuery = classification.category_hint || usedQuery;
+  conv.lastProductQuery = visualCategory || classification.category_hint || usedQuery;
   conv.selectedProduct = null;
   conv.lastIntent = 'produto';
+  conv.awaitingSimilarOptions = false;
   saveStateSoon();
 
   await sendText(
