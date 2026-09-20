@@ -1478,6 +1478,7 @@ async function sendProductPage(phone, conv, { announce = true } = {}) {
 }
 
 async function showProducts(phone, conv, query, originalText) {
+  clearAlternativeOffer(conv);
   const products = await searchProducts(query, originalText);
   if (!products.length) {
     const tvInches = normalize(query) === 'tv' ? requestedTvInches(originalText) : 0;
