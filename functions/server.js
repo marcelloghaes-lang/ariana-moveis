@@ -35,6 +35,7 @@ import registerAdminUserRoutes from './routes/adminUserRoutes.js';
 import createTelevendasRoutes from './routes/televendas/index.js';
 import registerCieloRoutes from './routes/cieloRoutes.js';
 import { releaseExpiredStockReservations } from './services/stockReservationService.js';
+import { startAdminWhatsappReminderWorker } from './services/adminWhatsappAlertService.js';
 import initModels from './models/index.js';
 
 
@@ -2922,7 +2923,8 @@ app.post('/api/coupons/validate', async (req, res, next) => {
 });
 
 registerCoraRoutes(app, { adminRequired, authRequired, mongoose, Order, Product });
-registerCrediarioAnalysisRoutes(app, { adminRequired, authRequired, mongoose, Order, Product });
+registerCrediarioAnalysisRoutes(app, { adminRequired, authRequired, mongoose, Order, Product, waSendTextMessage });
+startAdminWhatsappReminderWorker({ Order, mongoose, waSendTextMessage });
 registerCrediarioConversationRoutes(app, { mongoose, adminRequired });
 registerAdminUserRoutes(app, { User, AdminAuditLog, AdminSession, AdminLoginEvent, adminRequired, bcrypt, mongoose, isSuperAdminEmail });
 
