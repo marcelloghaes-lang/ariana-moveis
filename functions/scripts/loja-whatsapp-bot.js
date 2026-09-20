@@ -970,7 +970,28 @@ function asksPaymentMethods(text) {
 
 function asksPixKey(text) {
   const n = normalize(text);
-  return /(manda|me passa|passa|envia|qual|chave).{0,20}pix|pix.{0,20}(chave|numero|qual)/.test(n);
+
+  // Pedido explícito contendo PIX.
+  if (/(manda|me passa|passa|envia|qual|chave).{0,20}pix|pix.{0,20}(chave|numero|qual)/.test(n)) {
+    return true;
+  }
+
+  // No WhatsApp da loja, "sua chave" em contexto de pagamento/parcela normalmente
+  // significa a chave PIX, mesmo quando o cliente não escreve a palavra "pix".
+  const asksForKey =
+    /\b(manda|mande|envia|envie|me passa|passa|passa ai|qual|me fala|me informe)\b.{0,35}\b(sua )?chave\b/.test(n) ||
+    /\bqual (e |eh )?(a )?(sua )?chave\b/.test(n);
+
+  if (!asksForKey) return false;
+
+  const paymentContext =
+    /\b(pagar|pagamento|pago|parcela|prestacao|mensalidade|notinha|nota|carne|boleto|vencimento|mes)\b/.test(n);
+
+  // "Manda/envia/me passa sua chave" já é uma forma corrente de pedir PIX.
+  const directStoreKeyRequest =
+    /\b(manda|mande|envia|envie|me passa|passa|passa ai)\b.{0,25}\b(sua )?chave\b/.test(n);
+
+  return paymentContext || directStoreKeyRequest;
 }
 
 function asksPixProof(text) {
