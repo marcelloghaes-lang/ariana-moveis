@@ -844,35 +844,57 @@ function isKnownBotOutbound(incoming = {}) {
   return Boolean(at && Date.now() - at < 2 * 60 * 1000);
 }
 
-async function sendText(phone, text) {
+async function sendText(phone, text, { linkPreview = true } = {}) {
   const bodyText = String(text || '').trim();
   rememberBotOutbound(phone, bodyText);
   const result = await evolution(`/message/sendText/${encodeURIComponent(EVOLUTION_INSTANCE)}`, {
     number: digits(phone),
-    text: bodyText
+    text: bodyText,
+    linkPreview
   });
   rememberBotOutbound(phone, bodyText, result);
   return result;
 }
 
+function isPlaceholderProductImage(imageUrl = '') {
+  const url = String(imageUrl || '').trim().toLowerCase();
+  if (!url) return true;
+
+  return (
+    /placehold\.co|placeholder\.com|via\.placeholder\.com/.test(url) ||
+    /imagem(?:\+|%20|[-_ ])do(?:\+|%20|[-_ ])produto/.test(url)
+  );
+}
+
 async function sendImage(phone, imageUrl, caption) {
-  if (!/^https?:\/\//i.test(String(imageUrl || ''))) {
-    return sendText(phone, caption);
+  const url = String(imageUrl || '').trim();
+  const captionText = String(caption || '').trim();
+
+  if (!/^https?:\/\//i.test(url) || isPlaceholderProductImage(url)) {
+    return sendText(
+      phone,
+      `📷 *Foto indisponível no momento.*\n\n${captionText}`,
+      { linkPreview: false }
+    );
   }
+
   try {
-    const captionText = String(caption || '').trim();
     rememberBotOutbound(phone, captionText);
     const result = await evolution(`/message/sendMedia/${encodeURIComponent(EVOLUTION_INSTANCE)}`, {
       number: digits(phone),
       mediatype: 'image',
-      media: imageUrl,
+      media: url,
       caption: captionText
     });
     rememberBotOutbound(phone, captionText, result);
     return result;
   } catch (error) {
     console.warn('[loja-bot] imagem falhou, enviando texto:', error.message || error);
-    return sendText(phone, caption);
+    return sendText(
+      phone,
+      `📷 *Não consegui carregar a foto deste produto agora.*\n\n${captionText}`,
+      { linkPreview: false }
+    );
   }
 }
 
@@ -2758,6 +2780,7 @@ export const __test = {
   productFullPrice,
   productLink,
   compactProduct,
+  isPlaceholderProductImage,
   matchesRequestedProductType,
   requestedTvInches,
   productTvInches,
