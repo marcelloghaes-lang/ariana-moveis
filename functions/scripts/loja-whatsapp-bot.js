@@ -386,9 +386,9 @@ function asksHowToBuyCredit(text) {
   if (!mentionsCredit) return false;
 
   return (
-    /(como|queria|gostaria|quero|pode|posso|da pra|tem como).{0,45}(comprar|fazer|pegar).{0,45}(carne|crediario|boleto)/.test(n) ||
-    /(comprar|fazer|pegar).{0,35}(ele|esse|essa|este|esta|produto)?.{0,20}(carne|crediario|boleto)/.test(n) ||
-    /(ele|esse|essa|este|esta|produto).{0,25}(no|na|pelo|pela).{0,10}(carne|crediario|boleto)/.test(n)
+    /(como|queria|gostaria|quero|pode|posso|da pra|tem como).{0,45}(comprar|fazer|faz|faco|pegar).{0,45}(carne|crediario|boleto)/.test(n) ||
+    /(comprar|fazer|faz|faco|pegar).{0,35}(ele|ela|esse|essa|este|esta|produto)?.{0,25}(no|na|pelo|pela)?.{0,10}(carne|crediario|boleto)/.test(n) ||
+    /(ele|ela|esse|essa|este|esta|produto).{0,25}(no|na|pelo|pela).{0,10}(carne|crediario|boleto)/.test(n)
   );
 }
 
