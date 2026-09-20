@@ -174,6 +174,50 @@ if (!evoKey) {
   }
 }
 
+
+try {
+  const ps = execFileSync('docker', ['ps', '--format', '{{.ID}}\t{{.Image}}\t{{.Names}}'], { encoding: 'utf8' });
+  const row = ps.split('\n').find((line) => /chatwoot/i.test(line) && !/postgres|redis/i.test(line));
+  if (!row) {
+    warn('Chatwoot Televendas', 'container do Chatwoot não encontrado');
+  } else {
+    const containerId = row.split('\t')[0];
+    const ruby = [
+      "i=Inbox.find_by(name: 'Ariana Loja - Televendas') || Inbox.find_by(id: 7)",
+      "if i.nil?; puts 'NOT_FOUND'; exit; end",
+      "wh=i.respond_to?(:working_hours_enabled) ? i.working_hours_enabled : nil",
+      "gr=i.respond_to?(:greeting_enabled) ? i.greeting_enabled : nil",
+      "puts([i.id, i.name, wh, gr].join('|'))"
+    ].join(';');
+
+    const result = execFileSync(
+      'docker',
+      ['exec', containerId, 'bundle', 'exec', 'rails', 'runner', ruby],
+      { encoding: 'utf8' }
+    ).trim();
+
+    if (/NOT_FOUND/.test(result)) {
+      fail('Chatwoot Televendas', 'inbox não encontrado');
+    } else {
+      const line = result.split('\n').filter(Boolean).pop() || '';
+      const parts = line.split('|');
+      const workingHours = String(parts[2] || '').trim().toLowerCase();
+      const greeting = String(parts[3] || '').trim().toLowerCase();
+
+      if (workingHours === 'false' && greeting === 'false') {
+        ok('Chatwoot Televendas', 'sem saudação automática e sem fora do horário');
+      } else {
+        fail(
+          'Chatwoot Televendas',
+          'working_hours_enabled=' + workingHours + ', greeting_enabled=' + greeting
+        );
+      }
+    }
+  }
+} catch (error) {
+  warn('Chatwoot Televendas', 'não foi possível validar automaticamente');
+}
+
 if (existsSync('/root/.pm2/logs/loja-bot-error.log')) {
   try {
     const logPath = '/root/.pm2/logs/loja-bot-error.log';
