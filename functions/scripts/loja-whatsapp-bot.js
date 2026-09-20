@@ -2339,6 +2339,18 @@ async function handleWebhook(payload) {
     return { ignored: 'manual_human_mode' };
   }
 
+  if (incoming.mediaType === 'audio') {
+    const audio = await handleIncomingAudio(incoming, conv);
+    if (audio?.handled) {
+      return {
+        ok: true,
+        media: true,
+        audio: audio.kind || 'handled',
+        durationSeconds: Number(audio.durationSeconds || incoming.mediaDurationSeconds || 0)
+      };
+    }
+  }
+
   if (incoming.hasMedia && ['image', 'document'].includes(incoming.mediaType)) {
     const vision = await handleVisionMedia(incoming, conv);
     if (vision?.handled) {
@@ -2385,6 +2397,10 @@ const server = http.createServer((req, res) => {
       visionConfigured: Boolean(VISION_API_KEY),
       visionModel: VISION_MODEL,
       visionDetail: VISION_DETAIL,
+      audioTranscriptionConfigured: Boolean(VISION_API_KEY),
+      audioTranscriptionModel: AUDIO_TRANSCRIBE_MODEL,
+      audioMaxMinutes: Number((AUDIO_MAX_SECONDS / 60).toFixed(1)),
+      aiBudget: visionBudgetStatus(),
       visionBudget: visionBudgetStatus(),
       legacyWebhookForwarding: Boolean(LEGACY_WEBHOOK_URL),
       manualHumanPauseMinutes: Math.round(MANUAL_HUMAN_PAUSE_MS / 60000)
@@ -2461,6 +2477,11 @@ export const __test = {
   acknowledgePaymentProof,
   visionBudgetStatus,
   recordVisionUsage,
+  estimatedAudioCostBrl,
+  canUseAudioTranscription,
+  recordAudioUsage,
+  transcribeIncomingAudio,
+  handleIncomingAudio,
   patchTestVisionBudget,
   asksCardQuote,
   asksPixPrice,
