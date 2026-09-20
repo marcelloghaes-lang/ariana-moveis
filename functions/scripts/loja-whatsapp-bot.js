@@ -42,6 +42,7 @@ const PIX_HOLDER = 'Marcelo Nunes Silva';
 const STATE_FILE = String(process.env.LOJA_BOT_STATE_FILE || '/root/loja-bot-state.json');
 const HUMAN_TTL_MS = Math.max(1, Number(process.env.LOJA_HUMAN_TTL_HOURS || 12)) * 60 * 60 * 1000;
 const MANUAL_HUMAN_PAUSE_MS = Math.max(1, Number(process.env.LOJA_MANUAL_HUMAN_PAUSE_MINUTES || 60)) * 60 * 1000;
+const REVIEW_CONTEXT_TTL_MS = Math.max(1, Number(process.env.LOJA_REVIEW_CONTEXT_HOURS || 12)) * 60 * 60 * 1000;
 const LEGACY_WEBHOOK_URL = String(process.env.LOJA_LEGACY_WEBHOOK_URL || '').trim();
 const LEGACY_WEBHOOK_BY_EVENTS = ['1', 'true', 'yes', 'on'].includes(
   String(process.env.LOJA_LEGACY_WEBHOOK_BY_EVENTS || '').trim().toLowerCase()
@@ -323,12 +324,37 @@ function conversation(phone) {
       pendingAlternativeUntil: 0,
       pendingCreditProductId: '',
       pendingCreditUntil: 0,
+      reviewNeeded: false,
+      reviewReason: '',
+      reviewMessage: '',
+      reviewMarkedAt: 0,
+      reviewCount: 0,
       creditOrderWaitingMarcelo: false,
       lastIntent: ''
     };
   }
-  state.conversations[key].lastAt = Date.now();
-  return state.conversations[key];
+
+  const conv = state.conversations[key];
+  if (typeof conv.reviewNeeded !== 'boolean') conv.reviewNeeded = false;
+  if (!Number.isFinite(Number(conv.reviewMarkedAt))) conv.reviewMarkedAt = 0;
+  if (!Number.isFinite(Number(conv.reviewCount))) conv.reviewCount = 0;
+  if (typeof conv.reviewReason !== 'string') conv.reviewReason = '';
+  if (typeof conv.reviewMessage !== 'string') conv.reviewMessage = '';
+
+  if (
+    conv.reviewNeeded &&
+    Number(conv.reviewMarkedAt || 0) > 0 &&
+    Date.now() - Number(conv.reviewMarkedAt || 0) > REVIEW_CONTEXT_TTL_MS
+  ) {
+    conv.reviewNeeded = false;
+    conv.reviewReason = '';
+    conv.reviewMessage = '';
+    conv.reviewMarkedAt = 0;
+    conv.reviewCount = 0;
+  }
+
+  conv.lastAt = Date.now();
+  return conv;
 }
 
 function productId(product = {}) {
@@ -1903,23 +1929,93 @@ async function handleVisionMedia(incoming, conv) {
   return { handled: true, kind: classification.kind || 'unknown', confidence };
 }
 
-async function syncTicket(phone, { status, message, name = '' } = {}) {
+async function syncTicket(phone, { status, message, name = '', metadata = {} } = {}) {
   try {
+    const key = digits(phone);
+    const conv = state.conversations?.[key] || null;
+    const reviewMetadata = conv?.reviewNeeded
+      ? {
+          reviewNeeded: true,
+          reviewReason: String(conv.reviewReason || ''),
+          reviewMessage: String(conv.reviewMessage || ''),
+          reviewMarkedAt: Number(conv.reviewMarkedAt || 0),
+          reviewCount: Number(conv.reviewCount || 0)
+        }
+      : { reviewNeeded: false };
+
     await backend('/api/bot/atendimento/evento', {
       method: 'POST',
       botAuth: true,
       body: {
-        protocolo: `LOJA-${digits(phone)}`,
-        telefone: digits(phone),
+        protocolo: `LOJA-${key}`,
+        telefone: key,
         setor: 'loja',
         status: status || 'Aguardando atendimento',
         mensagem: message || '',
-        nome: name
+        nome: name,
+        metadata: {
+          ...reviewMetadata,
+          ...(metadata || {})
+        }
       }
     });
   } catch (error) {
     console.warn('[loja-bot] falha ao sincronizar atendimento:', error.message || error);
   }
+}
+
+function classifiedTicketStatus(conv, baseStatus = 'Atendimento normal') {
+  const status = String(baseStatus || 'Atendimento normal').trim();
+
+  if (!conv?.reviewNeeded || status === 'Revisar atendimento') return status;
+
+  if (
+    /aguardando.*marcelo/i.test(status) ||
+    /comprovante/i.test(status) ||
+    /consultar logistica/i.test(normalize(status))
+  ) {
+    return status;
+  }
+
+  return `${status} • Revisar atendimento`;
+}
+
+async function markReviewNeeded(phone, conv, text, pushName = '', reason = 'Mensagem não compreendida pelo atendimento automático') {
+  conv.reviewNeeded = true;
+  conv.reviewReason = String(reason || 'Mensagem não compreendida pelo atendimento automático').trim();
+  conv.reviewMessage = String(text || '').trim();
+  conv.reviewMarkedAt = Date.now();
+  conv.reviewCount = Math.max(0, Number(conv.reviewCount || 0)) + 1;
+  saveStateSoon();
+
+  await syncTicket(phone, {
+    status: 'Revisar atendimento',
+    message: String(text || '').trim() || 'Mensagem do cliente precisa de revisão.',
+    name: pushName,
+    metadata: {
+      atendimentoAutomaticoContinua: true,
+      reviewSource: 'fallback'
+    }
+  });
+}
+
+function clearReviewNeeded(conv) {
+  if (!conv) return;
+  conv.reviewNeeded = false;
+  conv.reviewReason = '';
+  conv.reviewMessage = '';
+  conv.reviewMarkedAt = 0;
+  conv.reviewCount = 0;
+  saveStateSoon();
+}
+
+async function markConversationStatus(phone, conv, status, message, name = '', metadata = {}) {
+  await syncTicket(phone, {
+    status: classifiedTicketStatus(conv, status),
+    message,
+    name,
+    metadata
+  });
 }
 
 function paymentMethodsReply() {
