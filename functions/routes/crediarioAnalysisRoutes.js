@@ -240,19 +240,26 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
   if (!app || !mongoose || !Order) throw new Error('Crediário análise: dependências obrigatórias ausentes.');
   const { Analysis, Profile, CollectionLog, Renegotiation } = getModels(mongoose);
   const LOJA_BOT_API_TOKEN = String(process.env.LOJA_BOT_API_TOKEN || '').trim();
+  const LOJA_BOT_API_TOKEN_HASH = String(
+    process.env.LOJA_BOT_API_TOKEN_HASH || 'b606566f79a4e7545ccc413029ad8136decb159de2de5ef5fe471d2503b2044b'
+  ).trim().toLowerCase();
 
   function lojaBotAccessRequired(req, res, next) {
     const incomingToken = String(
+      req.headers['x-loja-bot-token'] ||
       req.headers['x-bot-token'] ||
       req.headers['x-api-key'] ||
       req.query.token ||
       ''
     ).trim();
 
-    if (!LOJA_BOT_API_TOKEN) {
-      return res.status(503).json({ ok: false, error: 'Integração segura da loja não configurada.' });
-    }
-    if (incomingToken !== LOJA_BOT_API_TOKEN) {
+    const validBySecret = Boolean(LOJA_BOT_API_TOKEN) && incomingToken === LOJA_BOT_API_TOKEN;
+    const incomingHash = incomingToken
+      ? crypto.createHash('sha256').update(incomingToken).digest('hex')
+      : '';
+    const validByHash = Boolean(LOJA_BOT_API_TOKEN_HASH) && incomingHash === LOJA_BOT_API_TOKEN_HASH;
+
+    if (!validBySecret && !validByHash) {
       return res.status(401).json({ ok: false, error: 'Token da loja inválido.' });
     }
     return next();
