@@ -239,12 +239,7 @@ function getModels(mongoose) {
 export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, Product, authRequired, adminRequired, waSendTextMessage } = {}) {
   if (!app || !mongoose || !Order) throw new Error('Crediário análise: dependências obrigatórias ausentes.');
   const { Analysis, Profile, CollectionLog, Renegotiation } = getModels(mongoose);
-  const LOJA_BOT_API_TOKEN = String(
-    process.env.BOT_API_TOKEN ||
-    process.env.FINANCEIRO_BOT_SECRET ||
-    process.env.SAC_BOT_SECRET ||
-    ''
-  ).trim();
+  const LOJA_BOT_API_TOKEN = String(process.env.LOJA_BOT_API_TOKEN || '').trim();
 
   function lojaBotAccessRequired(req, res, next) {
     const incomingToken = String(
@@ -254,8 +249,11 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
       ''
     ).trim();
 
-    if (LOJA_BOT_API_TOKEN && incomingToken !== LOJA_BOT_API_TOKEN) {
-      return res.status(401).json({ ok: false, error: 'Token do bot inválido' });
+    if (!LOJA_BOT_API_TOKEN) {
+      return res.status(503).json({ ok: false, error: 'Integração segura da loja não configurada.' });
+    }
+    if (incomingToken !== LOJA_BOT_API_TOKEN) {
+      return res.status(401).json({ ok: false, error: 'Token da loja inválido.' });
     }
     return next();
   }
