@@ -91,17 +91,30 @@ try {
       warn('Visão de imagens', 'chave da API de visão ainda não configurada');
     }
 
-    const visionBudget = local.body?.visionBudget || {};
-    if (Number(visionBudget.limitBrl) === 30 && Number(visionBudget.stopAtBrl) === 29.5) {
-      const used = Number(visionBudget.usedBrl || 0).toFixed(2);
-      if (visionBudget.blocked === true) {
-        warn('Limite mensal da visão', `bloqueado em R$ ${used} / R$ 30,00`);
+    if (
+      local.body?.audioTranscriptionConfigured === true &&
+      String(local.body?.audioTranscriptionModel || '') === 'gpt-4o-mini-transcribe' &&
+      Number(local.body?.audioMaxMinutes) === 10
+    ) {
+      ok('Áudio de clientes', 'transcrição ativa / máximo 10 minutos');
+    } else {
+      warn('Áudio de clientes', 'transcrição ainda não está ativa na produção atual');
+    }
+
+    const aiBudget = local.body?.aiBudget || local.body?.visionBudget || {};
+    if (Number(aiBudget.limitBrl) === 30 && Number(aiBudget.stopAtBrl) === 29.5) {
+      const used = Number(aiBudget.usedBrl || 0).toFixed(2);
+      if (aiBudget.blocked === true) {
+        warn('Limite mensal da IA', `bloqueado em R$ ${used} / R$ 30,00`);
       } else {
-        ok('Limite mensal da visão', `R$ ${used} usados / R$ 30,00`);
+        ok(
+          'Limite mensal da IA',
+          `R$ ${used} usados / R$ 30,00 | áudios: ${Number(aiBudget.audioRequests || 0)}`
+        );
       }
     } else {
       warn(
-        'Limite mensal da visão',
+        'Limite mensal da IA',
         'esperado R$ 30,00 com margem preventiva em R$ 29,50'
       );
     }
