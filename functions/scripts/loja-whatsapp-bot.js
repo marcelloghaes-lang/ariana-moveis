@@ -415,11 +415,173 @@ async function fetchIncomingMedia(incoming = {}) {
     data?.mimeType ||
     data?.data?.mimetype ||
     incoming?.mimeType ||
-    'image/jpeg'
+    (incoming?.mediaType === 'audio' ? 'audio/ogg' : 'image/jpeg')
   ).trim();
 
   if (!base64) throw new Error('Evolution não retornou a mídia em base64.');
   return { base64, mimetype };
+}
+
+function audioExtensionFromMime(mimetype = '') {
+  const mime = String(mimetype || '').toLowerCase();
+  if (mime.includes('ogg')) return 'ogg';
+  if (mime.includes('webm')) return 'webm';
+  if (mime.includes('wav')) return 'wav';
+  if (mime.includes('m4a') || mime.includes('mp4')) return 'm4a';
+  if (mime.includes('mpeg') || mime.includes('mp3')) return 'mp3';
+  if (mime.includes('flac')) return 'flac';
+  return 'ogg';
+}
+
+async function transcribeIncomingAudio(incoming = {}) {
+  if (!VISION_API_KEY) throw new Error('API de IA não configurada para transcrição.');
+
+  const durationSeconds = Math.max(
+    0,
+    Number(incoming?.mediaDurationSeconds || 0)
+  );
+
+  if (durationSeconds > AUDIO_MAX_SECONDS) {
+    const error = new Error('audio_too_long');
+    error.code = 'audio_too_long';
+    error.durationSeconds = durationSeconds;
+    throw error;
+  }
+
+  const budget = canUseAudioTranscription(durationSeconds);
+  if (!budget.allowed) {
+    const error = new Error('ai_budget_blocked');
+    error.code = 'ai_budget_blocked';
+    throw error;
+  }
+
+  const media = await fetchIncomingMedia(incoming);
+  const buffer = Buffer.from(String(media.base64 || ''), 'base64');
+
+  if (!buffer.length) throw new Error('Áudio recebido sem conteúdo.');
+  if (buffer.length > 24 * 1024 * 1024) {
+    const error = new Error('audio_file_too_large');
+    error.code = 'audio_file_too_large';
+    throw error;
+  }
+
+  const mime = String(media.mimetype || incoming.mimeType || 'audio/ogg')
+    .split(';')[0]
+    .trim()
+    .toLowerCase();
+  const extension = audioExtensionFromMime(mime);
+  const form = new FormData();
+
+  form.append(
+    'file',
+    new Blob([buffer], { type: mime || 'audio/ogg' }),
+    `audio-whatsapp.${extension}`
+  );
+  form.append('model', AUDIO_TRANSCRIBE_MODEL);
+  form.append('response_format', 'json');
+  form.append('language', 'pt');
+  form.append(
+    'prompt',
+    'Português do Brasil. Atendimento da Ariana Móveis em Guanhães/MG. Preserve nomes de marcas, modelos de produtos, Marcelo, Ariana Móveis, crediário, carnê, PIX e nomes próprios.'
+  );
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), AUDIO_TRANSCRIBE_TIMEOUT_MS);
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${VISION_API_KEY}`
+      },
+      body: form
+    });
+
+    const data = await readJson(response);
+    const text = String(data?.text || '').trim();
+
+    recordAudioUsage(durationSeconds);
+
+    return {
+      text,
+      durationSeconds: durationSeconds || AUDIO_UNKNOWN_DURATION_SECONDS,
+      model: AUDIO_TRANSCRIBE_MODEL
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function handleIncomingAudio(incoming = {}, conv = {}) {
+  if (incoming.mediaType !== 'audio') return { handled: false };
+
+  const durationSeconds = Math.max(0, Number(incoming.mediaDurationSeconds || 0));
+
+  if (durationSeconds > AUDIO_MAX_SECONDS) {
+    await sendText(
+      incoming.phone,
+      `Recebi seu áudio 😊 Para conseguir processar com segurança, envie áudios de até ${Math.round(AUDIO_MAX_SECONDS / 60)} minutos, ou divida em duas partes.`
+    );
+    return { handled: true, kind: 'audio_too_long' };
+  }
+
+  const budget = canUseAudioTranscription(durationSeconds);
+  if (!budget.allowed) {
+    await sendText(
+      incoming.phone,
+      'Recebi seu áudio 😊 No momento a transcrição automática está temporariamente indisponível. Se puder, me mande a informação por escrito que eu continuo seu atendimento.'
+    );
+    return { handled: true, kind: 'ai_budget_blocked' };
+  }
+
+  let transcription;
+  try {
+    transcription = await transcribeIncomingAudio(incoming);
+  } catch (error) {
+    if (error?.code === 'audio_too_long') {
+      await sendText(
+        incoming.phone,
+        `Recebi seu áudio 😊 Para conseguir processar com segurança, envie áudios de até ${Math.round(AUDIO_MAX_SECONDS / 60)} minutos, ou divida em duas partes.`
+      );
+      return { handled: true, kind: 'audio_too_long' };
+    }
+
+    if (error?.code === 'ai_budget_blocked') {
+      await sendText(
+        incoming.phone,
+        'Recebi seu áudio 😊 No momento a transcrição automática está temporariamente indisponível. Se puder, me mande a informação por escrito que eu continuo seu atendimento.'
+      );
+      return { handled: true, kind: 'ai_budget_blocked' };
+    }
+
+    console.warn('[loja-bot] transcrição de áudio falhou:', error.message || error);
+    await sendText(
+      incoming.phone,
+      'Recebi seu áudio 😊 Não consegui entender com segurança agora. Você pode repetir em outro áudio ou me mandar a informação por escrito?'
+    );
+    return { handled: true, kind: 'audio_transcription_error' };
+  }
+
+  if (!transcription.text) {
+    await sendText(
+      incoming.phone,
+      'Recebi seu áudio 😊 Não consegui identificar fala suficiente para continuar. Você pode repetir ou me mandar a informação por escrito?'
+    );
+    return { handled: true, kind: 'audio_empty' };
+  }
+
+  await handleMessage({
+    phone: incoming.phone,
+    text: transcription.text,
+    pushName: incoming.pushName
+  });
+
+  return {
+    handled: true,
+    kind: 'audio_transcribed',
+    durationSeconds: transcription.durationSeconds
+  };
 }
 
 function responseOutputText(data = {}) {
