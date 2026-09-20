@@ -2109,6 +2109,15 @@ async function consultFinance(phone, cpf = '') {
 async function startCreditApplication(phone, conv) {
   markCreditContext(conv);
   const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
+
+  await markConversationStatus(
+    phone,
+    conv,
+    'Crediário / análise',
+    product
+      ? `Cliente iniciou solicitação de crediário para: ${product.name}`
+      : 'Cliente iniciou solicitação de crediário.'
+  );
   if (!product) {
     conv.pendingAction = 'crediario_product';
     saveStateSoon();
@@ -2196,6 +2205,14 @@ async function handlePending(phone, text, conv) {
     await sendText(
       phone,
       `No crediário próprio, para *${product.name}*, em *${count}x* fica aproximadamente *${count}x de ${money(plan.installment)}*, total de *${money(plan.total)}*. A compra no carnê é sujeita à análise de crédito.\n\nSe quiser seguir com o carnê, eu já posso iniciar a solicitação para você.`
+    );
+    await markConversationStatus(
+      phone,
+      conv,
+      'Venda em andamento',
+      `Cliente calculou ${product.name} em ${count}x no crediário.`,
+      '',
+      { paymentMode: 'crediario', productId: productId(product), installments: count }
     );
     return true;
   }
@@ -2493,6 +2510,14 @@ async function handleMessage({ phone, text, pushName = '' }) {
     const full = productFullPrice(product);
     const count = Math.max(1, Number(product.installmentCount || 12));
     await sendText(phone, `No cartão, *${product.name}* fica em até *${count}x de ${money(full / count)}*, total de *${money(full)}*.`);
+    await markConversationStatus(
+      phone,
+      conv,
+      'Venda em andamento',
+      `Cliente consultou parcelamento no cartão de: ${product.name}`,
+      pushName,
+      { paymentMode: 'cartao', productId: productId(product) }
+    );
     return;
   }
 
@@ -2504,6 +2529,14 @@ async function handleMessage({ phone, text, pushName = '' }) {
     }
     markPixContext(conv);
     await sendText(phone, `No PIX, *${product.name}* fica por *${money(productCashPrice(product))}*.`);
+    await markConversationStatus(
+      phone,
+      conv,
+      'Venda em andamento',
+      `Cliente consultou preço no PIX de: ${product.name}`,
+      pushName,
+      { paymentMode: 'pix', productId: productId(product) }
+    );
     return;
   }
 
@@ -2577,6 +2610,14 @@ async function handleMessage({ phone, text, pushName = '' }) {
       phone,
       `No crediário próprio, para *${product.name}*, em *${count}x* fica aproximadamente *${count}x de ${money(plan.installment)}*, total de *${money(plan.total)}*. A compra no carnê é sujeita à análise de crédito.\n\nSe quiser seguir com o carnê, eu já posso iniciar a solicitação para você.`
     );
+    await markConversationStatus(
+      phone,
+      conv,
+      'Venda em andamento',
+      `Cliente calculou ${product.name} em ${count}x no crediário.`,
+      pushName,
+      { paymentMode: 'crediario', productId: productId(product), installments: count }
+    );
     return;
   }
 
@@ -2600,6 +2641,14 @@ async function handleMessage({ phone, text, pushName = '' }) {
       phone,
       `Claro 😊 Você quer que eu calcule *${product.name}* parcelado no *cartão* ou no *crediário/carnê*?`
     );
+    await markConversationStatus(
+      phone,
+      conv,
+      'Venda em andamento',
+      `Cliente pediu condição parcelada de: ${product.name}`,
+      pushName,
+      { paymentMode: 'a_definir', productId: productId(product) }
+    );
     return;
   }
 
@@ -2607,6 +2656,14 @@ async function handleMessage({ phone, text, pushName = '' }) {
     conv.selectedProduct = conv.lastProducts[ord];
     saveStateSoon();
     await sendText(phone, `Perfeito 😊 Você escolheu *${conv.selectedProduct.name}*. O que você gostaria de saber dele: cartão, PIX, carnê, entrega ou quer comprar?`);
+    await markConversationStatus(
+      phone,
+      conv,
+      'Venda em andamento',
+      `Cliente selecionou o produto: ${conv.selectedProduct.name}`,
+      pushName,
+      { productId: productId(conv.selectedProduct) }
+    );
     return;
   }
 
@@ -2614,6 +2671,14 @@ async function handleMessage({ phone, text, pushName = '' }) {
     conv.selectedProduct = conv.lastProducts[conv.lastProducts.length - 1];
     saveStateSoon();
     await sendText(phone, `Perfeito 😊 Você escolheu *${conv.selectedProduct.name}*. O que você gostaria de saber dele: cartão, PIX, carnê, entrega ou quer comprar?`);
+    await markConversationStatus(
+      phone,
+      conv,
+      'Venda em andamento',
+      `Cliente selecionou o produto: ${conv.selectedProduct.name}`,
+      pushName,
+      { productId: productId(conv.selectedProduct) }
+    );
     return;
   }
 
@@ -2634,6 +2699,14 @@ async function handleMessage({ phone, text, pushName = '' }) {
     }
 
     await showProducts(phone, conv, category, text);
+    await markConversationStatus(
+      phone,
+      conv,
+      'Atendimento normal',
+      text,
+      pushName,
+      { intent: 'catalogo', category }
+    );
     return;
   }
 
@@ -2670,11 +2743,21 @@ async function handleMessage({ phone, text, pushName = '' }) {
     const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
     if (product) {
       await sendText(phone, `Ótimo 😊 Você pode ver e comprar *${product.name}* por aqui: ${productLink(product)}\n\nSe preferir, me diga a forma de pagamento que você quer usar e eu te ajudo.`);
+      await markConversationStatus(
+        phone,
+        conv,
+        'Venda em andamento',
+        `Cliente demonstrou intenção de compra: ${product.name}`,
+        pushName,
+        { productId: productId(product), purchaseIntent: true }
+      );
       return;
     }
   }
 
-  await sendText(phone, 'Claro 😊 Me conta o que você está procurando. Posso consultar produtos e preços, formas de pagamento, carnê, PIX, entrega ou sua notinha.');
+  await sendText(phone, 'Claro 😊 Quero te ajudar certinho. Me conta um pouco mais do que você precisa. Posso consultar produtos e preços, formas de pagamento, carnê, PIX, entrega ou sua notinha.');
+  await markReviewNeeded(phone, conv, text, pushName);
+
 }
 
 function extractIncoming(payload = {}) {
@@ -2816,7 +2899,15 @@ async function handleWebhook(payload) {
     conv.humanUntil = 0;
     conv.manualHumanUntil = Date.now() + MANUAL_HUMAN_PAUSE_MS;
     conv.lastAt = Date.now();
+    clearReviewNeeded(conv);
     saveStateSoon();
+
+    await syncTicket(incoming.phone, {
+      status: 'Em atendimento pelo Marcelo',
+      message: incoming.text || 'Marcelo assumiu o atendimento manualmente.',
+      name: incoming.pushName,
+      metadata: { manualHuman: true }
+    });
 
     return {
       ok: true,
@@ -2873,8 +2964,30 @@ async function handleWebhook(payload) {
     return { ok: true, media: true };
   }
 
-  await handleMessage(incoming);
-  return { ok: true };
+  try {
+    await handleMessage(incoming);
+    return { ok: true };
+  } catch (error) {
+    console.error('[loja-bot] erro ao processar mensagem:', error?.stack || error?.message || error);
+    await markReviewNeeded(
+      incoming.phone,
+      conv,
+      incoming.text,
+      incoming.pushName,
+      `Erro interno no atendimento automático: ${String(error?.message || error || 'erro desconhecido').slice(0, 240)}`
+    );
+
+    try {
+      await sendText(
+        incoming.phone,
+        'Tive uma dificuldade para processar essa mensagem agora 😊 Pode continuar falando comigo por aqui. Seu atendimento ficou sinalizado para revisão da loja.'
+      );
+    } catch (sendError) {
+      console.error('[loja-bot] falha ao enviar recuperação do erro:', sendError?.message || sendError);
+    }
+
+    return { ok: false, reviewNeeded: true, recovered: true };
+  }
 }
 
 function sendJson(res, status, body) {
@@ -3023,6 +3136,10 @@ export const __test = {
   handleMessage,
   handleWebhook,
   conversation,
+  markReviewNeeded,
+  clearReviewNeeded,
+  classifiedTicketStatus,
+  markConversationStatus,
   resetTestState,
   patchTestConversation,
   manualHumanPauseMs: MANUAL_HUMAN_PAUSE_MS,
