@@ -851,6 +851,12 @@ function sellerProfile(s, u) {
     cnpj: String(meta.cnpj || o.document || u?.cpf || '').trim(),
     bio: String(meta.bio || meta.description || meta.descricao || o.bio || '').trim(),
     description: String(meta.bio || meta.description || meta.descricao || o.description || '').trim(),
+    cep: String(meta.cep || meta.postalCode || meta.zipCode || '').replace(/\D/g, ''),
+    address: String(meta.address || meta.endereco || meta.streetAddress || '').trim(),
+    endereco: String(meta.endereco || meta.address || meta.streetAddress || '').trim(),
+    city: String(u?.city || meta.city || meta.cidade || '').trim(),
+    cidade: String(meta.cidade || u?.city || meta.city || '').trim(),
+    uf: String(u?.uf || meta.uf || meta.state || '').trim().toUpperCase().slice(0, 2),
     bankAccount,
     cepColeta: String(meta.cepColeta || meta.pickupCep || meta.cep_coleta || '').replace(/\D/g, ''),
     tipoLogistica: String(meta.tipoLogistica || meta.shippingType || (meta.transpPropria === true ? 'propria' : 'marketplace')).trim(),
@@ -1072,8 +1078,28 @@ async function saveSellerProfileSettings(req, res) {
       userUpdates.phone = sellerUpdates.phone;
       metadata.phone = sellerUpdates.phone;
     }
-    if (body.city !== undefined) userUpdates.city = String(body.city || '').trim();
-    if (body.uf !== undefined) userUpdates.uf = String(body.uf || '').trim().toUpperCase().slice(0, 2);
+    if (body.cep !== undefined || body.postalCode !== undefined || body.zipCode !== undefined) {
+      const cep = String(body.cep ?? body.postalCode ?? body.zipCode ?? '').replace(/\D/g, '').slice(0, 8);
+      metadata.cep = cep;
+      metadata.postalCode = cep;
+    }
+    if (body.address !== undefined || body.endereco !== undefined || body.streetAddress !== undefined) {
+      const address = String(body.address ?? body.endereco ?? body.streetAddress ?? '').trim();
+      metadata.address = address;
+      metadata.endereco = address;
+    }
+    if (body.city !== undefined || body.cidade !== undefined) {
+      const city = String(body.city ?? body.cidade ?? '').trim();
+      userUpdates.city = city;
+      metadata.city = city;
+      metadata.cidade = city;
+    }
+    if (body.uf !== undefined || body.state !== undefined) {
+      const uf = String(body.uf ?? body.state ?? '').trim().toUpperCase().slice(0, 2);
+      userUpdates.uf = uf;
+      metadata.uf = uf;
+      metadata.state = uf;
+    }
 
     if (body.bio !== undefined || body.description !== undefined || body.descricao !== undefined) {
       metadata.bio = String(body.bio ?? body.description ?? body.descricao ?? '').trim();
