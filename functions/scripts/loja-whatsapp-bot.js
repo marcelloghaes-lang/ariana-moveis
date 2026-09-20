@@ -30,7 +30,7 @@ const CATEGORY_TERMS = [
   ['cama', ['cama', 'camas', 'colchao', 'colchoes', 'box', 'cama box', 'colchao box', 'colchoes box']],
   ['celular', ['celular', 'celulares', 'smartphone', 'smartphones', 'iphone']],
   ['tv', ['tv', 'tvs', 'televisao', 'televisoes', 'televisor', 'televisores', 'smart tv', 'smart tvs']],
-  ['caixa de som', ['som', 'caixa de som', 'caixas de som', 'caixa torre', 'caixas torre', 'torre', 'torres', 'torre de som', 'torres de som']],
+  ['caixa de som', ['som', 'caixa de som', 'caixas de som', 'caixa torre', 'caixas torre', 'caix torre', 'torre', 'torres', 'torre de som', 'torres de som']],
   ['guarda-roupa', ['guarda roupa', 'guarda-roupa', 'guarda roupas', 'roupeiro', 'roupeiros']],
   ['armário', ['armario', 'armarios']],
   ['cozinha completa', ['cozinha completa', 'cozinhas completas']],
@@ -43,7 +43,7 @@ const CATEGORY_TERMS = [
   ['ar-condicionado', ['ar condicionado', 'ar-condicionado']],
   ['mesa', ['mesa', 'mesas']],
   ['cadeira', ['cadeira', 'cadeiras']],
-  ['rack/painel', ['rack', 'racks', 'painel', 'paineis', 'estante home', 'estantes home', 'home', 'home theater', 'home para tv']],
+  ['rack/painel', ['rack', 'racks', 'painel', 'paineis', 'estante home', 'estantes home', 'home theater', 'home para tv']],
   ['multiuso', ['multiuso', 'multiusos', 'sapateira', 'sapateiras']],
   ['penteadeira', ['penteadeira', 'penteadeiras', 'camarim', 'camarins']],
   ['cômoda', ['comoda', 'comodas']],
@@ -543,6 +543,16 @@ function matchesRequestedProductType(product = {}, query = '') {
   }
   if (requested === 'forno eletrico') {
     return /forno eletrico|forninho/.test(haystack) && !/micro ?-? ?ondas/.test(haystack);
+  }
+
+  if (requested === 'tv') {
+    return /\btv\b|televisao|televisor|smart tv/.test(haystack);
+  }
+
+  if (requested === 'cama') {
+    const isBedFamily = /\bcama\b|colchao|\bbox\b/.test(haystack);
+    const isOtherBox = /tv box|box tv|android box|receptor box|caixa de som/.test(haystack);
+    return isBedFamily && !isOtherBox;
   }
 
   if (requested === 'caixa de som') {
