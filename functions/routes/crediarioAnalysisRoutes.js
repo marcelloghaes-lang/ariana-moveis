@@ -239,6 +239,27 @@ function getModels(mongoose) {
 export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, Product, authRequired, adminRequired, waSendTextMessage } = {}) {
   if (!app || !mongoose || !Order) throw new Error('Crediário análise: dependências obrigatórias ausentes.');
   const { Analysis, Profile, CollectionLog, Renegotiation } = getModels(mongoose);
+  const LOJA_BOT_API_TOKEN = String(
+    process.env.BOT_API_TOKEN ||
+    process.env.FINANCEIRO_BOT_SECRET ||
+    process.env.SAC_BOT_SECRET ||
+    ''
+  ).trim();
+
+  function lojaBotAccessRequired(req, res, next) {
+    const incomingToken = String(
+      req.headers['x-bot-token'] ||
+      req.headers['x-api-key'] ||
+      req.query.token ||
+      ''
+    ).trim();
+
+    if (LOJA_BOT_API_TOKEN && incomingToken !== LOJA_BOT_API_TOKEN) {
+      return res.status(401).json({ ok: false, error: 'Token do bot inválido' });
+    }
+    return next();
+  }
+
 
   async function notifyAdminOnce({ type, relatedId, title, message, severity = 'info', metadata = {} } = {}) {
     try {
@@ -895,6 +916,144 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
       return res.status(500).json({ ok: false, error: error.message || 'Falha ao abrir solicitação da loja.' });
     }
   });
+
+  app.post('/api/bot/crediario/analises/loja', lojaBotAccessRequired, async (req, res) => {
+    try {
+      const body = req.body || {};
+      const phone = digits(body.phone || body.telefone);
+      const baseAmountCents = cents(body.baseAmountCents || body.valorCentavos);
+      const customerName = text(body.customerName || body.nome, 160);
+      const purchaseDescription = text(body.purchaseDescription || body.produto, 1000);
+
+      if (!customerName || !phone || baseAmountCents <= 0) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Informe nome, WhatsApp e valor da compra.'
+        });
+      }
+
+      const duplicateSince = new Date(Date.now() - 30 * 60 * 1000);
+      const existing = await Analysis.findOne({
+        'customer.phone': phone,
+        baseAmountCents,
+        status: { $in: ['PENDENTE_ANALISE', 'AGUARDANDO_DOCUMENTOS', 'EM_ANALISE'] },
+        createdAt: { $gte: duplicateSince },
+        'purchase.source': 'WHATSAPP'
+      }).sort({ createdAt: -1 });
+
+      if (existing) {
+        return res.status(200).json({
+          ok: true,
+          existing: true,
+          analysis: existing,
+          message: 'Já existe uma solicitação recente de crediário para este cliente e valor.'
+        });
+      }
+
+      const analysis = await Analysis.create({
+        analysisId: publicId('analise'),
+        orderId: text(body.orderId || body.pedidoId, 120),
+        origin: 'WHATSAPP',
+        conversationId: text(body.conversationId, 160),
+        documentCollectionStatus: 'ENVIO_CONVITE_PENDENTE',
+        customerId: text(body.customerId, 120),
+        customer: {
+          name: customerName,
+          document: digits(body.document || body.cpf),
+          email: text(body.email, 160),
+          phone
+        },
+        status: 'AGUARDANDO_DOCUMENTOS',
+        baseAmountCents,
+        financedAmountCents: baseAmountCents,
+        installmentCount: Number(body.installmentCount || body.parcelas || 0),
+        installmentDivisor: Number(body.installmentDivisor || body.divisor || 0),
+        internalNote: text(
+          body.note ||
+          body.observacao ||
+          'Solicitação aberta automaticamente pelo atendimento comercial do WhatsApp principal.',
+          3000
+        ),
+        purchase: {
+          source: 'WHATSAPP',
+          description: purchaseDescription,
+          seller: text(body.seller || body.vendedor || 'Atendimento WhatsApp', 160),
+          storeReference: text(body.storeReference || body.referencia || 'numero_principal', 160)
+        },
+        history: [{
+          action: 'ANALYSIS_REQUESTED',
+          toStatus: 'AGUARDANDO_DOCUMENTOS',
+          actorId: 'loja_whatsapp_bot',
+          actorName: 'Atendimento WhatsApp Ariana',
+          note: 'Solicitação de crediário iniciada pelo número principal da loja.',
+          metadata: { origin: 'WHATSAPP', source: 'loja_bot' }
+        }]
+      });
+
+      sendCreditAnalysisWhatsappAlert({
+        mongoose,
+        waSendTextMessage,
+        analysis
+      }).catch((error) => {
+        console.error('[admin-whatsapp] análise criada pelo bot da loja:', error?.message || error);
+      });
+
+      let whatsapp = null;
+      try {
+        whatsapp = await sendCrediarioWhatsApp({
+          phone,
+          message: `Olá, ${customerName.split(' ')[0]}! 👋 A equipe da *Ariana Móveis* abriu uma solicitação de crediário para sua compra${purchaseDescription ? ` de *${text(purchaseDescription, 180)}*` : ''}. Para iniciar o envio seguro dos seus dados e documentos, responda *ACEITO* nesta conversa.`,
+          metadata: {
+            eventType: 'CREDIT_ANALYSIS_INVITE',
+            origin: 'WHATSAPP',
+            source: 'loja_bot',
+            orderId: analysis.orderId,
+            analysisId: analysis.analysisId
+          }
+        });
+
+        analysis.documentCollectionStatus = 'CONVITE_ENVIADO';
+        analysis.history.push({
+          action: 'WHATSAPP_INVITE_SENT',
+          actorName: 'Sistema',
+          metadata: {
+            provider: whatsapp.provider,
+            messageId: whatsapp.messageId,
+            normalizedPhone: whatsapp.normalizedPhone || phone,
+            attempts: whatsapp.attempts || []
+          }
+        });
+        await analysis.save();
+      } catch (sendError) {
+        analysis.documentCollectionStatus = 'FALHA_NO_CONVITE';
+        analysis.history.push({
+          action: 'WHATSAPP_INVITE_FAILED',
+          actorName: 'Sistema',
+          note: text(sendError.message, 1000),
+          metadata: {
+            code: text(sendError.code, 120),
+            phone,
+            attempts: Array.isArray(sendError.attempts) ? sendError.attempts : []
+          }
+        });
+        await analysis.save();
+        console.error('[crediario invite LOJA BOT]', {
+          analysisId: analysis.analysisId,
+          phone,
+          code: sendError.code || '',
+          error: sendError.message
+        });
+      }
+
+      return res.status(201).json({ ok: true, existing: false, analysis, whatsapp });
+    } catch (error) {
+      return res.status(500).json({
+        ok: false,
+        error: error.message || 'Falha ao abrir solicitação do crediário pelo WhatsApp.'
+      });
+    }
+  });
+
 
   app.post(
     '/api/admin/crediario/analises/:id/reenviar-convite',
