@@ -38,6 +38,13 @@ let backendEvents = [];
 let requestLog = [];
 let messageSeq = 0;
 let catalogResponseStatus = 200;
+let financeResponseStatus = 200;
+let financeResponse = {
+  ok: true,
+  fonteFinanceira: 'ariana_erp_contas_receber',
+  cliente: { nome: 'Cliente Teste' },
+  parcelas: []
+};
 let audioTranscriptionText = 'Olá';
 let visionClassification = {
   kind: 'unknown',
@@ -103,8 +110,8 @@ function installFetchMock() {
       return jsonResponse({ ok: true, existing: false });
     }
 
-    if (href === 'https://backend.test/api/bot/financeiro/carne') {
-      return jsonResponse({ cliente: { nome: 'Cliente Teste' }, parcelas: [] });
+    if (href === 'https://backend.test/api/bot/financeiro/contas-receber') {
+      return jsonResponse(financeResponse, financeResponseStatus);
     }
 
     if (href.startsWith('https://evolution.test/message/sendText/')) {
@@ -155,6 +162,13 @@ beforeEach(() => {
   requestLog = [];
   messageSeq = 0;
   catalogResponseStatus = 200;
+  financeResponseStatus = 200;
+  financeResponse = {
+    ok: true,
+    fonteFinanceira: 'ariana_erp_contas_receber',
+    cliente: { nome: 'Cliente Teste' },
+    parcelas: []
+  };
   audioTranscriptionText = 'Olá';
   visionClassification = {
     kind: 'unknown',
@@ -1882,9 +1896,102 @@ test('indicação e elogios da loja recebem resposta acolhedora', async () => {
   assert.match(sentTexts[0].text, /O que você está procurando/i);
 });
 
+test('consulta financeira usa Contas a Receber do Ariana ERP e responde parcela do mês', async () => {
+  const phone = '5533988888810';
+  const now = new Date();
+  const due = new Date(now.getFullYear(), now.getMonth(), Math.min(20, new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()));
+
+  financeResponse = {
+    ok: true,
+    fonteFinanceira: 'ariana_erp_contas_receber',
+    cliente: { nome: 'Marcelo Teste' },
+    resumo: { parcelasAbertas: 2, saldo: 450 },
+    parcelas: [
+      {
+        parcelaLabel: '3/10',
+        dataVencimento: due.toISOString(),
+        status: 'pendente',
+        quitado: false,
+        vencida: false,
+        emAberto: true,
+        valorParcela: 150,
+        valorPago: 0,
+        saldoParcela: 150,
+        atualizacaoFinanceira: {
+          diasAtraso: 0,
+          multa: 0,
+          juros: 0,
+          valorAtualizado: 150
+        }
+      }
+    ]
+  };
+
+  await bot.handleMessage({
+    phone,
+    text: 'quantos que tenho que te passar esse mes ?',
+    pushName: 'Marcelo Teste'
+  });
+
+  const financeCall = requestLog.find((item) =>
+    item.href === 'https://backend.test/api/bot/financeiro/contas-receber'
+  );
+  assert.ok(financeCall, 'deve consultar o Contas a Receber do ERP');
+  assert.match(sentTexts.at(-1).text, /parcelas no financeiro da Ariana Móveis/i);
+  assert.match(sentTexts.at(-1).text, /Neste mês você tem/i);
+  assert.match(sentTexts.at(-1).text, /R\$\s*150,00/i);
+  assert.doesNotMatch(sentTexts.at(-1).text, /carnê consultado/i);
+});
+
+test('consulta financeira sem vínculo seguro por telefone continua pedindo CPF', async () => {
+  const phone = '5533988888811';
+
+  financeResponseStatus = 409;
+  financeResponse = {
+    ok: false,
+    identityRequired: true,
+    error: 'Para proteger os dados do cliente, confirme o CPF do titular.'
+  };
+
+  await bot.handleMessage({
+    phone,
+    text: 'Qual o valor da minha notinha?',
+    pushName: 'Cliente Financeiro'
+  });
+
+  assert.equal(bot.conversation(phone).pendingAction, 'finance_cpf');
+  assert.match(sentTexts.at(-1).text, /CPF do titular com 11 números/i);
+
+  financeResponseStatus = 200;
+  financeResponse = {
+    ok: true,
+    fonteFinanceira: 'ariana_erp_contas_receber',
+    cliente: { nome: 'Cliente Financeiro' },
+    parcelas: []
+  };
+
+  await bot.handleMessage({
+    phone,
+    text: '05292442682',
+    pushName: 'Cliente Financeiro'
+  });
+
+  assert.equal(bot.conversation(phone).pendingAction, '');
+  assert.match(sentTexts.at(-1).text, /parcelas no financeiro da Ariana Móveis/i);
+  assert.match(sentTexts.at(-1).text, /Não encontrei parcelas em aberto/i);
+
+  const calls = requestLog.filter((item) =>
+    item.href === 'https://backend.test/api/bot/financeiro/contas-receber'
+  );
+  assert.equal(calls.length, 2);
+  const cpfBody = JSON.parse(calls[1].options.body);
+  assert.equal(cpfBody.cpf, '05292442682');
+});
+
 test('intenções financeiras e atendimento humano genérico continuam reconhecidas', () => {
   assert.equal(bot.asksFinance('Qual o valor da minha notinha?'), true);
   assert.equal(bot.asksFinance('Quanto tenho que te passar esse mês?'), true);
+  assert.equal(bot.asksFinance('quantos que tenho que te passar esse mes ?'), true);
   assert.equal(bot.wantsHuman('Quero um atendente'), true);
   assert.equal(bot.wantsHuman('Quero falar com uma pessoa'), true);
   assert.equal(bot.wantsHuman('Quero falar com o Marcelo'), false);
