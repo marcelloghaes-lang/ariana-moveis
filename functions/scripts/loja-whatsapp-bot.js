@@ -167,6 +167,72 @@ function saveStateSoon() {
   if (typeof saveTimer.unref === 'function') saveTimer.unref();
 }
 
+function visionBudgetMonth() {
+  const now = new Date();
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+function ensureVisionBudgetState() {
+  state.visionBudget = state.visionBudget || {};
+  const month = visionBudgetMonth();
+
+  if (state.visionBudget.month !== month) {
+    state.visionBudget = {
+      month,
+      estimatedBrl: 0,
+      requests: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      lastAt: 0
+    };
+    saveStateSoon();
+  }
+
+  return state.visionBudget;
+}
+
+function visionBudgetStatus() {
+  const budget = ensureVisionBudgetState();
+  const used = Math.max(0, Number(budget.estimatedBrl || 0));
+  const stopAt = Math.max(0, VISION_MONTHLY_BUDGET_BRL - VISION_BUDGET_GUARD_BRL);
+
+  return {
+    month: budget.month,
+    limitBrl: Number(VISION_MONTHLY_BUDGET_BRL.toFixed(2)),
+    guardBrl: Number(VISION_BUDGET_GUARD_BRL.toFixed(2)),
+    stopAtBrl: Number(stopAt.toFixed(2)),
+    usedBrl: Number(used.toFixed(4)),
+    remainingBrl: Number(Math.max(0, VISION_MONTHLY_BUDGET_BRL - used).toFixed(4)),
+    requests: Math.max(0, Number(budget.requests || 0)),
+    inputTokens: Math.max(0, Number(budget.inputTokens || 0)),
+    outputTokens: Math.max(0, Number(budget.outputTokens || 0)),
+    blocked: used >= stopAt
+  };
+}
+
+function recordVisionUsage(usage = {}) {
+  const budget = ensureVisionBudgetState();
+  const inputTokens = Math.max(0, Number(usage?.input_tokens || usage?.inputTokens || 0));
+  const outputTokens = Math.max(0, Number(usage?.output_tokens || usage?.outputTokens || 0));
+
+  const usd =
+    (inputTokens / 1_000_000) * VISION_INPUT_USD_PER_1M +
+    (outputTokens / 1_000_000) * VISION_OUTPUT_USD_PER_1M;
+
+  const estimatedBrl = inputTokens || outputTokens
+    ? usd * VISION_USD_BRL
+    : VISION_FALLBACK_CHARGE_BRL;
+
+  budget.estimatedBrl = Number((Number(budget.estimatedBrl || 0) + estimatedBrl).toFixed(6));
+  budget.requests = Math.max(0, Number(budget.requests || 0)) + 1;
+  budget.inputTokens = Math.max(0, Number(budget.inputTokens || 0)) + inputTokens;
+  budget.outputTokens = Math.max(0, Number(budget.outputTokens || 0)) + outputTokens;
+  budget.lastAt = Date.now();
+  saveStateSoon();
+
+  return visionBudgetStatus();
+}
+
 function cleanupState() {
   const now = Date.now();
   for (const [id, at] of Object.entries(state.processed)) {
