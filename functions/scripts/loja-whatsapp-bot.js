@@ -332,7 +332,10 @@ async function classifyImageWithVision(media = {}, contextText = '') {
   }
 
   const mime = String(media?.mimetype || 'image/jpeg').toLowerCase();
-  if (!mime.startsWith('image/')) {
+  const isImage = mime.startsWith('image/');
+  const isPdf = mime === 'application/pdf';
+
+  if (!isImage && !isPdf) {
     return {
       kind: 'unknown',
       confidence: 0,
@@ -421,11 +424,18 @@ async function classifyImageWithVision(media = {}, contextText = '') {
             role: 'user',
             content: [
               { type: 'input_text', text: prompt },
-              {
-                type: 'input_image',
-                image_url: `data:${mime};base64,${media.base64}`,
-                detail: VISION_DETAIL
-              }
+              isPdf
+                ? {
+                    type: 'input_file',
+                    filename: 'arquivo-whatsapp.pdf',
+                    file_data: `data:application/pdf;base64,${media.base64}`,
+                    detail: VISION_DETAIL
+                  }
+                : {
+                    type: 'input_image',
+                    image_url: `data:${mime};base64,${media.base64}`,
+                    detail: VISION_DETAIL
+                  }
             ]
           }
         ],
