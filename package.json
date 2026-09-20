@@ -6,7 +6,10 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "test:loja-whatsapp": "node --test functions/tests/loja-whatsapp-bot.test.mjs",
+    "test:loja-whatsapp:live": "node functions/tests/loja-whatsapp-live-check.mjs",
+    "test:loja-whatsapp:all": "npm run test:loja-whatsapp && npm run test:loja-whatsapp:live"
   },
   "dependencies": {
     "@expo/webpack-config": "^19.0.0",
