@@ -1896,6 +1896,56 @@ test('indicação e elogios da loja recebem resposta acolhedora', async () => {
   assert.match(sentTexts[0].text, /O que você está procurando/i);
 });
 
+test('cliente que propõe pagar só parte por imprevisto é encaminhado ao Marcelo sem acordo automático', async () => {
+  const phone = '5533988888820';
+
+  await bot.handleMessage({
+    phone,
+    text: 'Esse mês vou te mandar somente 200 porque tive um imprevisto e precisei gastar com médico e medicamentos',
+    pushName: 'Cliente Parcial'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.equal(
+    sentTexts[0].text,
+    'Ok 😊 Assim que o Marcelo chegar, eu peço para ele retornar para você por aqui.'
+  );
+
+  assert.equal(backendEvents.length, 1);
+  assert.equal(backendEvents[0].status, 'Aguardando retorno do Marcelo');
+  assert.equal(backendEvents[0].metadata.assunto, 'negociacao_pagamento_parcial');
+  assert.equal(backendEvents[0].metadata.exigeConfirmacaoMarcelo, true);
+
+  const financeCall = requestLog.find((item) =>
+    item.href === 'https://backend.test/api/bot/financeiro/contas-receber'
+  );
+  assert.equal(financeCall, undefined, 'não deve consultar nem alterar financeiro nessa proposta');
+
+  const conv = bot.conversation(phone);
+  assert.equal(conv.marceloCallbackRequested, true);
+  assert.equal(Boolean(conv.humanUntil && conv.humanUntil > Date.now()), false);
+});
+
+test('motivos comuns de dificuldade com pagamento parcial são reconhecidos', () => {
+  const examples = [
+    'esse mes vou te mandar so 100 porque meu pagamento veio pouco',
+    'este mês só consigo pagar 150 porque não recebi ainda',
+    'esse mes posso te passar somente 200 porque tive um imprevisto',
+    'vou te pagar só 120 porque precisei gastar com remedio',
+    'esse mês vou enviar apenas 90 porque tive gasto com hospital'
+  ];
+
+  for (const value of examples) {
+    assert.equal(bot.asksPaymentExceptionForMarcelo(value), true, value);
+  }
+
+  assert.equal(
+    bot.asksPaymentExceptionForMarcelo('Quanto tenho que te passar esse mês?'),
+    false,
+    'consulta normal de valor não pode virar negociação'
+  );
+});
+
 test('consulta financeira usa Contas a Receber do Ariana ERP e responde parcela do mês', async () => {
   const phone = '5533988888810';
   const now = new Date();
@@ -1992,6 +2042,12 @@ test('intenções financeiras e atendimento humano genérico continuam reconheci
   assert.equal(bot.asksFinance('Qual o valor da minha notinha?'), true);
   assert.equal(bot.asksFinance('Quanto tenho que te passar esse mês?'), true);
   assert.equal(bot.asksFinance('quantos que tenho que te passar esse mes ?'), true);
+  assert.equal(bot.asksFinance('qual o valor tenho que te mandar ?'), true);
+  assert.equal(bot.asksFinance('preciso te mandar quantos mesmo?'), true);
+  assert.equal(bot.asksFinance('soma pra mim minhas notinhas ai'), true);
+  assert.equal(bot.asksFinance('soma pra mim minha conta e me manda o valor aqui fazendo favor ?'), true);
+  assert.equal(bot.asksFinance('soma tudo que eu te devo aí pra mim fazendo favor'), true);
+  assert.equal(bot.asksFinance('esqueci o valor que tenho que te mandar'), true);
   assert.equal(bot.wantsHuman('Quero um atendente'), true);
   assert.equal(bot.wantsHuman('Quero falar com uma pessoa'), true);
   assert.equal(bot.wantsHuman('Quero falar com o Marcelo'), false);
