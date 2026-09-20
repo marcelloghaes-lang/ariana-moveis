@@ -198,6 +198,9 @@ function conversation(phone) {
       pendingImageIntentUntil: 0,
       lastImageClassification: null,
       lastImageAt: 0,
+      lastVisualCategory: '',
+      lastVisualCategoryAt: 0,
+      awaitingSimilarOptions: false,
       creditOrderWaitingMarcelo: false,
       lastIntent: ''
     };
