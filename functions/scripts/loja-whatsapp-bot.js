@@ -148,6 +148,7 @@ function conversation(phone) {
       pendingAction: '',
       humanUntil: 0,
       customerName: '',
+      creditContextUntil: 0,
       lastIntent: ''
     };
   }
@@ -327,6 +328,27 @@ function asksHowToBuyCredit(text) {
     /(comprar|fazer|pegar).{0,35}(ele|esse|essa|este|esta|produto)?.{0,20}(carne|crediario|boleto)/.test(n) ||
     /(ele|esse|essa|este|esta|produto).{0,25}(no|na|pelo|pela).{0,10}(carne|crediario|boleto)/.test(n)
   );
+}
+
+function markCreditContext(conv) {
+  conv.creditContextUntil = Date.now() + 30 * 60 * 1000;
+  saveStateSoon();
+}
+
+function isCreditContext(conv, text = '') {
+  const n = normalize(text);
+  if (/(carne|crediario|boleto)/.test(n)) return true;
+  if (String(conv?.pendingAction || '').startsWith('crediario_')) return true;
+  if (conv?.lastCreditPlan) return true;
+  return Number(conv?.creditContextUntil || 0) > Date.now();
+}
+
+function asksToWriteOnCredit(text) {
+  const n = normalize(text);
+  return (
+    /\b(anota|anote|anotar)\b/.test(n) &&
+    /\b(ele|ela|esse|essa|este|esta|produto|pedido|pra mim|para mim)\b/.test(n)
+  ) || /\bcoloca.{0,20}(no|na).{0,10}(carne|crediario)\b/.test(n);
 }
 
 function asksMoreProducts(text) {
@@ -651,6 +673,7 @@ async function consultFinance(phone, cpf = '') {
 }
 
 async function startCreditApplication(phone, conv) {
+  markCreditContext(conv);
   const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
   if (!product) {
     conv.pendingAction = 'crediario_product';
@@ -757,6 +780,28 @@ async function handleMessage({ phone, text, pushName = '' }) {
     return;
   }
 
+  if (asksToWriteOnCredit(text) && isCreditContext(conv, text)) {
+    const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
+    conv.pendingAction = '';
+    conv.humanUntil = Date.now() + HUMAN_TTL_MS;
+    markCreditContext(conv);
+    saveStateSoon();
+
+    await sendText(
+      phone,
+      'Sim, claro 😊 Assim que o Marcelo retornar de outro atendimento, ele vai terminar seu pedido.'
+    );
+
+    await syncTicket(phone, {
+      status: 'Aguardando Marcelo - finalizar pedido no carnê',
+      message: product
+        ? `Cliente pediu para anotar no carnê: ${product.name}`
+        : 'Cliente pediu para anotar a compra no carnê.',
+      name: pushName
+    });
+    return;
+  }
+
   if (await handlePending(phone, text, conv)) return;
 
   if (wantsHuman(text)) {
@@ -859,6 +904,7 @@ async function handleMessage({ phone, text, pushName = '' }) {
   }
 
   if (asksCreditQuote(text)) {
+    markCreditContext(conv);
     let product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
     if (!product) {
       const quoteCategory = detectCategory(text);
@@ -894,6 +940,7 @@ async function handleMessage({ phone, text, pushName = '' }) {
   }
 
   if (asksHowToBuyCredit(text) || (conv.lastCreditPlan && /quero|pode fazer|vamos fazer|pode iniciar|pode abrir/.test(n) && /carne|crediario|boleto/.test(n))) {
+    markCreditContext(conv);
     await startCreditApplication(phone, conv);
     return;
   }
