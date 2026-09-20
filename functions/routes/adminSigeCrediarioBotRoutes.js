@@ -235,11 +235,102 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     };
   }
 
-  function exactErpReceivableIdentity(row = {}, { cpf = '', phone = '' } = {}) {
+  function exactErpReceivableIdentity(row = {}, { cpf = '', phone = '', sourcePersonId = '' } = {}) {
     const requestedCpf = onlyDigits(cpf);
-    if (requestedCpf) return onlyDigits(row.personDocument || '') === requestedCpf;
-    if (phone) return botPhoneMatches(phone, row.personPhone || '');
+    if (requestedCpf && onlyDigits(row.personDocument || '') === requestedCpf) return true;
+    if (phone && botPhoneMatches(phone, row.personPhone || '')) return true;
+    if (sourcePersonId && String(row?.migration?.sourcePersonId || '') === String(sourcePersonId)) return true;
     return false;
+  }
+
+  function mergeErpReceivableRows(...groups) {
+    const seen = new Set();
+    const rows = [];
+    for (const group of groups) {
+      for (const row of Array.isArray(group) ? group : []) {
+        const key = String(
+          row?.id ||
+          row?._id ||
+          [row?.source, row?.orderId, row?.installmentNumber, row?.migration?.sourcePersonId, row?.dueAt, row?.value].join('|')
+        );
+        if (seen.has(key)) continue;
+        seen.add(key);
+        rows.push(row);
+      }
+    }
+    return rows;
+  }
+
+  async function findErpPersonForBot({ cpf = '', phone = '' } = {}) {
+    const Person = mongoose.models.ErpPerson;
+    if (!Person) return null;
+
+    const requestedCpf = onlyDigits(cpf);
+    if (requestedCpf) {
+      return Person.findOne({
+        document: requestedCpf,
+        active: { $ne: false }
+      }).select('_id source sourceId name companyName document phone email active').lean();
+    }
+
+    const requestedPhone = onlyDigits(phone);
+    if (!requestedPhone) return null;
+
+    const phoneTail = requestedPhone.slice(-10);
+    const rows = await Person.find({
+      active: { $ne: false },
+      phone: { $exists: true, $ne: '' }
+    }).select('_id source sourceId name companyName document phone email active').limit(5000).lean();
+
+    const matches = rows.filter((person) => {
+      const personPhone = onlyDigits(person?.phone || '');
+      if (!personPhone) return false;
+      return personPhone === requestedPhone || personPhone.slice(-10) === phoneTail;
+    });
+
+    return matches.length === 1 ? matches[0] : null;
+  }
+
+  async function financeRowsByPersonIdentity({ cpf = '', phone = '', person = null } = {}) {
+    const groups = [];
+    const requestedCpf = onlyDigits(cpf || person?.document || '');
+    const requestedPhone = onlyDigits(phone || person?.phone || '');
+    const sourcePersonId = String(person?.sourceId || '').trim();
+
+    if (requestedCpf) {
+      const byDocument = await erpParityFinance.finance({
+        direction: 'receivable',
+        q: requestedCpf
+      });
+      groups.push(
+        (Array.isArray(byDocument?.entries) ? byDocument.entries : [])
+          .filter((row) => exactErpReceivableIdentity(row, { cpf: requestedCpf }))
+      );
+    }
+
+    if (requestedPhone) {
+      const byPhone = await erpParityFinance.finance({
+        direction: 'receivable',
+        q: requestedPhone
+      });
+      groups.push(
+        (Array.isArray(byPhone?.entries) ? byPhone.entries : [])
+          .filter((row) => exactErpReceivableIdentity(row, { phone: requestedPhone }))
+      );
+    }
+
+    if (sourcePersonId) {
+      const bySourcePerson = await erpParityFinance.finance({
+        direction: 'receivable',
+        personSourceId: sourcePersonId
+      });
+      groups.push(
+        (Array.isArray(bySourcePerson?.entries) ? bySourcePerson.entries : [])
+          .filter((row) => exactErpReceivableIdentity(row, { sourcePersonId }))
+      );
+    }
+
+    return mergeErpReceivableRows(...groups);
   }
 
   async function erpReceivablesForBot({ cpf = '', phone = '' } = {}) {
@@ -247,50 +338,49 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     const requestedPhone = onlyDigits(phone);
 
     if (requestedCpf) {
-      const data = await erpParityFinance.finance({
-        direction: 'receivable',
-        q: requestedCpf
+      const person = await findErpPersonForBot({ cpf: requestedCpf });
+      const rows = await financeRowsByPersonIdentity({
+        cpf: requestedCpf,
+        phone: person?.phone || '',
+        person
       });
-      const matches = (Array.isArray(data?.entries) ? data.entries : [])
-        .filter((row) => exactErpReceivableIdentity(row, { cpf: requestedCpf }));
-      return { rows: matches, verifiedBy: 'cpf', requestedCpf };
+      return {
+        rows,
+        person,
+        verifiedBy: person?.sourceId ? 'cpf_and_erp_person' : 'cpf',
+        requestedCpf
+      };
     }
 
     if (!requestedPhone) return { rows: [], verifiedBy: '' };
 
-    const byPhone = await erpParityFinance.finance({
-      direction: 'receivable',
-      q: requestedPhone
+    const person = await findErpPersonForBot({ phone: requestedPhone });
+    const rows = await financeRowsByPersonIdentity({
+      phone: requestedPhone,
+      cpf: person?.document || '',
+      person
     });
-    const phoneMatches = (Array.isArray(byPhone?.entries) ? byPhone.entries : [])
-      .filter((row) => exactErpReceivableIdentity(row, { phone: requestedPhone }));
 
-    if (!phoneMatches.length) {
+    if (!rows.length && !person) {
       return { rows: [], verifiedBy: 'phone_not_found', identityRequired: true };
     }
 
     const documents = [...new Set(
-      phoneMatches
+      rows
         .map((row) => onlyDigits(row.personDocument || ''))
         .filter((value) => value.length === 11 || value.length === 14)
     )];
 
-    if (documents.length > 1) {
+    if (!person && documents.length !== 1) {
       return { rows: [], verifiedBy: 'phone_ambiguous', identityRequired: true };
     }
 
-    if (documents.length === 1) {
-      const document = documents[0];
-      const byDocument = await erpParityFinance.finance({
-        direction: 'receivable',
-        q: document
-      });
-      const allForDocument = (Array.isArray(byDocument?.entries) ? byDocument.entries : [])
-        .filter((row) => onlyDigits(row.personDocument || '') === document);
-      return { rows: allForDocument, verifiedBy: 'phone_and_document', requestedCpf: document };
-    }
-
-    return { rows: phoneMatches, verifiedBy: 'phone' };
+    return {
+      rows,
+      person,
+      verifiedBy: person?.sourceId ? 'phone_and_erp_person' : 'phone',
+      requestedCpf: onlyDigits(person?.document || documents[0] || '')
+    };
   }
 
 
@@ -11740,7 +11830,10 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         .sort((a, b) => new Date(a.dueAt || 0) - new Date(b.dueAt || 0));
 
       const customerName = String(
-        allRows.find((row) => String(row.personName || '').trim())?.personName || ''
+        found?.person?.name ||
+        found?.person?.companyName ||
+        allRows.find((row) => String(row.personName || '').trim())?.personName ||
+        ''
       ).trim();
 
       const parcelas = openRows.map(normalizeErpBotReceivable);
