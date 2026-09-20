@@ -1,0 +1,30 @@
+name: Loja WhatsApp Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "functions/scripts/loja-whatsapp-bot.js"
+      - "functions/tests/loja-whatsapp-bot.test.mjs"
+      - ".github/workflows/loja-whatsapp-tests.yml"
+  pull_request:
+    paths:
+      - "functions/scripts/loja-whatsapp-bot.js"
+      - "functions/tests/loja-whatsapp-bot.test.mjs"
+      - ".github/workflows/loja-whatsapp-tests.yml"
+
+jobs:
+  test-loja-whatsapp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Testes do atendimento WhatsApp
+        run: node --test functions/tests/loja-whatsapp-bot.test.mjs
