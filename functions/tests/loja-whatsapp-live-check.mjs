@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -16,6 +16,7 @@ process.env.ARIANA_BACKEND_URL = process.env.ARIANA_BACKEND_URL || 'https://aria
 copyFileSync(sourcePath, modulePath);
 const imported = await import(pathToFileURL(modulePath).href + '?v=' + Date.now());
 const bot = imported.__test;
+const smokeStartedAt = Date.now();
 
 let failures = 0;
 let warnings = 0;
@@ -50,7 +51,12 @@ console.log('\nARIANA LOJA — SMOKE TEST DO AMBIENTE REAL\n');
 
 try {
   const raw = execFileSync('pm2', ['jlist'], { encoding: 'utf8' });
-  const apps = JSON.parse(raw);
+  const jsonStart = raw.indexOf('[{');
+  const jsonEnd = raw.lastIndexOf('}]');
+  const json = jsonStart >= 0 && jsonEnd >= jsonStart
+    ? raw.slice(jsonStart, jsonEnd + 2)
+    : raw.trim();
+  const apps = JSON.parse(json);
   const loja = apps.find((app) => app.name === 'loja-bot');
   if (!loja) {
     fail('PM2 loja-bot', 'processo não encontrado');
@@ -60,7 +66,7 @@ try {
     ok('PM2 loja-bot', 'online');
   }
 } catch (error) {
-  warn('PM2 loja-bot', 'não foi possível consultar PM2 neste ambiente');
+  warn('PM2 loja-bot', 'não foi possível interpretar a saída do PM2');
 }
 
 try {
@@ -170,9 +176,17 @@ if (!evoKey) {
 
 if (existsSync('/root/.pm2/logs/loja-bot-error.log')) {
   try {
-    const tail = execFileSync('tail', ['-n', '30', '/root/.pm2/logs/loja-bot-error.log'], { encoding: 'utf8' }).trim();
-    if (!tail) ok('Log de erro', 'vazio');
-    else warn('Log de erro', 'há conteúdo; revisar se é antigo ou atual');
+    const logPath = '/root/.pm2/logs/loja-bot-error.log';
+    const tail = execFileSync('tail', ['-n', '30', logPath], { encoding: 'utf8' }).trim();
+    const modifiedAt = statSync(logPath).mtimeMs;
+
+    if (!tail) {
+      ok('Log de erro', 'vazio');
+    } else if (modifiedAt < smokeStartedAt) {
+      ok('Log de erro', 'sem novos erros durante este smoke test');
+    } else {
+      warn('Log de erro', 'houve nova gravação durante o smoke test');
+    }
   } catch {
     warn('Log de erro', 'não foi possível ler');
   }
