@@ -673,9 +673,13 @@ function isPixContext(conv) {
   return Number(conv?.pixContextUntil || 0) > Date.now();
 }
 
-async function acknowledgePixProof(phone, conv, text = '', pushName = '') {
+async function acknowledgePaymentProof(phone, conv, {
+  text = '',
+  pushName = '',
+  paymentMethod = 'unknown'
+} = {}) {
   conv.pixContextUntil = 0;
-  conv.lastIntent = 'comprovante_pix';
+  conv.lastIntent = 'comprovante_pagamento';
   saveStateSoon();
 
   await sendText(
@@ -683,10 +687,24 @@ async function acknowledgePixProof(phone, conv, text = '', pushName = '') {
     'Recebemos seu comprovante 😊 O pagamento está sendo analisado e, em breve, enviaremos o comprovante da baixa do pagamento.'
   );
 
+  const methodLabel = paymentMethod === 'pix'
+    ? 'PIX'
+    : paymentMethod === 'boleto'
+      ? 'boleto'
+      : 'pagamento';
+
   await syncTicket(phone, {
-    status: 'Comprovante PIX recebido - analisar baixa',
-    message: text || 'Cliente enviou comprovante de pagamento PIX.',
+    status: 'Comprovante de pagamento recebido - analisar baixa',
+    message: text || `Cliente enviou comprovante de ${methodLabel}.`,
     name: pushName
+  });
+}
+
+async function acknowledgePixProof(phone, conv, text = '', pushName = '') {
+  return acknowledgePaymentProof(phone, conv, {
+    text,
+    pushName,
+    paymentMethod: 'pix'
   });
 }
 
@@ -1320,7 +1338,20 @@ async function handleMessage({ phone, text, pushName = '' }) {
 
   if (asksPixKey(text)) {
     markPixContext(conv);
-    await sendText(phone, `Claro 😊\n\n*PIX:* ${PIX_KEY}\n*Banco:* ${PIX_BANK}\n*Titular:* ${PIX_HOLDER}`);
+    await sendText(
+      phone,
+      [
+        'Claro 😊',
+        '',
+        `*PIX:* ${PIX_KEY}`,
+        `*Banco:* ${PIX_BANK}`,
+        `*Titular:* ${PIX_HOLDER}`,
+        '',
+        '⚠️ *ATENÇÃO:* antes de confirmar o pagamento, confira o nome do favorecido.',
+        '*Efetue o PIX somente se aparecer MARCELO NUNES SILVA.*',
+        'Se aparecer qualquer outro nome, não realize o pagamento e nos avise imediatamente.'
+      ].join('\n')
+    );
     return;
   }
 
