@@ -29,6 +29,11 @@ const VISION_USD_BRL = Math.max(1, Number(process.env.LOJA_VISION_USD_BRL || 6.0
 const VISION_INPUT_USD_PER_1M = Math.max(0, Number(process.env.LOJA_VISION_INPUT_USD_PER_1M || 0.20));
 const VISION_OUTPUT_USD_PER_1M = Math.max(0, Number(process.env.LOJA_VISION_OUTPUT_USD_PER_1M || 1.20));
 const VISION_FALLBACK_CHARGE_BRL = Math.max(0.01, Number(process.env.LOJA_VISION_FALLBACK_CHARGE_BRL || 0.05));
+const AUDIO_TRANSCRIBE_MODEL = String(process.env.LOJA_AUDIO_TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe').trim();
+const AUDIO_MAX_SECONDS = Math.max(30, Number(process.env.LOJA_AUDIO_MAX_SECONDS || 600));
+const AUDIO_USD_PER_MINUTE = Math.max(0, Number(process.env.LOJA_AUDIO_USD_PER_MINUTE || 0.003));
+const AUDIO_UNKNOWN_DURATION_SECONDS = Math.max(30, Number(process.env.LOJA_AUDIO_UNKNOWN_DURATION_SECONDS || 600));
+const AUDIO_TRANSCRIBE_TIMEOUT_MS = Math.max(5000, Number(process.env.LOJA_AUDIO_TRANSCRIBE_TIMEOUT_MS || 30000));
 
 const SITE_URL = 'https://arianamoveis.com.br';
 const PIX_KEY = '31985147119';
@@ -2012,6 +2017,16 @@ function extractIncoming(payload = {}) {
     ''
   ).trim();
 
+  const mediaDurationSeconds = Math.max(
+    0,
+    Number(
+      message?.audioMessage?.seconds ||
+      message?.audioMessage?.duration ||
+      message?.videoMessage?.seconds ||
+      0
+    )
+  );
+
   return {
     remoteJid,
     phone: digits(remoteJid.split('@')[0]),
@@ -2021,6 +2036,7 @@ function extractIncoming(payload = {}) {
     text,
     mediaType,
     mimeType,
+    mediaDurationSeconds,
     hasMedia: Boolean(mediaType),
     rawMessageInfo: data,
     isGroup: remoteJid.endsWith('@g.us'),
