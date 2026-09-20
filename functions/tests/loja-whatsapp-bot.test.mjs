@@ -592,6 +592,57 @@ test('imagem reconhecida como comprovante de boleto recebe a mesma confirmação
   assert.match(backendEvents[0].status, /Comprovante de pagamento recebido - analisar baixa/i);
 });
 
+
+test('PDF de comprovante de boleto também é analisado pela visão', async () => {
+  const phone = '5533923333337';
+
+  mediaBase64Response = {
+    mimetype: 'application/pdf',
+    base64: 'JVBERi0xLjQKZmFrZS1wZGY='
+  };
+
+  visionClassification = {
+    kind: 'payment_receipt_boleto',
+    confidence: 0.95,
+    product_name: '',
+    brand: '',
+    model: '',
+    category_hint: '',
+    payment_method: 'boleto',
+    payment_recipient_name: '',
+    summary: 'Comprovante de boleto em PDF'
+  };
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'BOLETO-PDF-VISION-1'
+      },
+      pushName: 'Cliente PDF',
+      message: {
+        documentMessage: {
+          mimetype: 'application/pdf',
+          fileName: 'comprovante.pdf'
+        }
+      }
+    }
+  });
+
+  assert.equal(result.vision, 'payment_receipt_boleto');
+  assert.match(sentTexts[0].text, /pagamento está sendo analisado/i);
+  assert.equal(backendEvents.length, 1);
+
+  const openAiCall = requestLog.find((item) => item.href === 'https://api.openai.com/v1/responses');
+  assert.ok(openAiCall, 'deve chamar a visão para o PDF');
+  const body = JSON.parse(openAiCall.options.body);
+  const filePart = body.input[0].content.find((item) => item.type === 'input_file');
+  assert.ok(filePart, 'PDF deve ser enviado como input_file');
+  assert.match(filePart.file_data, /^data:application\/pdf;base64,/);
+});
+
 test('foto de produto não é confundida com comprovante mesmo após contexto PIX', async () => {
   const phone = '5533923333335';
 
