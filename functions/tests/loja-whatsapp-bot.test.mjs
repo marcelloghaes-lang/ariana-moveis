@@ -159,7 +159,18 @@ after(() => {
 });
 
 test('saudação natural reconhece frases comuns', () => {
-  for (const value of ['Oi', 'Bom dia', 'Oi bom dia tudo bem?', 'Boa tarde, tudo bem?', 'Boa noite']) {
+  for (const value of [
+    'Oi',
+    'Oii',
+    'Oiii',
+    'Oiee',
+    'Oláá',
+    'Bom dia',
+    'Oi bom dia tudo bem?',
+    'Oii boa tarde',
+    'Boa tarde, tudo bem?',
+    'Boa noite'
+  ]) {
     assert.equal(bot.isGreeting(value), true, value);
   }
 
