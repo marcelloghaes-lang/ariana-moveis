@@ -797,7 +797,7 @@ function asksAboutImageProduct(text) {
   // "Vocês vendem esse?" pode ser preparação para o cliente enviar uma foto.
   // Não usamos "valor desse..." aqui, pois essa frase normalmente referencia
   // um produto já mostrado na própria conversa.
-  return /(vende|vendem|tem|teria|trabalha|trabalham).{0,25}\b(esse|essa)\b(?:\s+produto)?\s*$/.test(n);
+  return /(vende|vendem|tem|teria|trabalha|trabalham).{0,35}\b(esse|essa|desse|dessa)\b(?:\s+produto)?(?:\s+aqui)?\s*$/.test(n);
 }
 
 function emojiOnlyIntent(text) {
@@ -1188,6 +1188,7 @@ function asksCreditQuote(text) {
     /quanto (da|fica) em \d{1,2}\s*(x|vezes|parcelas)?/.test(n) ||
     new RegExp(`\\d{1,2}\\s*(?:x|vezes|parcelas).{0,25}${creditWord}`).test(n) ||
     new RegExp(`parcel(?:ar|ado|ada)?[^\\n]{0,35}${creditWord}`).test(n) ||
+    new RegExp(`(?:qual\\s+)?(?:o\\s+)?valor[^\\n]{0,55}${creditWord}`).test(n) ||
     new RegExp(`(?:valor|quanto)[^\\n]{0,25}(?:parcela|prestacao)[^\\n]{0,25}${creditWord}`).test(n) ||
     new RegExp(`(?:parcela|prestacao)[^\\n]{0,25}${creditWord}`).test(n) ||
     boletoTypoInInstallmentContext
