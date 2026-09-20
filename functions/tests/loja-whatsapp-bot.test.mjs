@@ -361,6 +361,59 @@ test('pesquisa de TV elimina móveis/acessórios e produtos sem estoque', async 
   assert.deepEqual(rows.map((p) => p.id).sort(), ['tv1', 'tv2']);
 });
 
+test('pesquisa de celular não mistura caixa de som nem acessórios', async () => {
+  catalogRows = [
+    product('phone1', 'Smartphone Samsung Galaxy A15 128GB', { category: 'Celulares' }),
+    product('phone2', 'Motorola Moto G54 5G', { category: 'Smartphones' }),
+    product('sound1', 'CAIXA AMP AMVOX ACA181 180W', { category: 'Áudio' }),
+    product('acc1', 'Carregador USB-C 25W', { category: 'Acessórios' })
+  ];
+
+  const rows = await bot.searchProducts('celular', 'Boa tarde, você vende celular?');
+  assert.deepEqual(rows.map((p) => p.id).sort(), ['phone1', 'phone2']);
+});
+
+test('pedido de iPhone não retorna Android nem caixa de som', async () => {
+  catalogRows = [
+    product('iphone1', 'Apple iPhone 15 128GB', { category: 'Celulares', brand: 'Apple' }),
+    product('galaxy1', 'Smartphone Samsung Galaxy S24', { category: 'Celulares', brand: 'Samsung' }),
+    product('sound2', 'Caixa de Som Bluetooth', { category: 'Áudio' })
+  ];
+
+  const rows = await bot.searchProducts('celular', 'Boa tarde você trabalha com iPhone?');
+  assert.deepEqual(rows.map((p) => p.id), ['iphone1']);
+});
+
+test('TV de 50 polegadas retorna somente TVs de 50', async () => {
+  catalogRows = [
+    product('tv32', 'Smart TV 32 LG Full HD 32LR6700PSA', { category: 'TVs' }),
+    product('tv42', 'Semp Google TV S42', { category: 'TVs' }),
+    product('tv50a', 'Smart TV LED 50 Samsung Crystal UHD', { category: 'TVs' }),
+    product('tv50b', 'Smart TV TCL 50P635 4K', { category: 'TVs' }),
+    product('rack50', 'Rack para TV 50 Polegadas', { category: 'Móveis' })
+  ];
+
+  const rows = await bot.searchProducts('tv', 'Boa tarde você vende tv de 50 polegadas?');
+  assert.deepEqual(rows.map((p) => p.id).sort(), ['tv50a', 'tv50b']);
+});
+
+test('se não houver TV de 50 polegadas não oferece outro tamanho no lugar', async () => {
+  const phone = '5533977777710';
+
+  catalogRows = [
+    product('tv32only', 'Smart TV 32 LG Full HD', { category: 'TVs' }),
+    product('tv43only', 'Smart TV 43 Samsung 4K', { category: 'TVs' })
+  ];
+
+  const conv = bot.conversation(phone);
+  await bot.showProducts(phone, conv, 'tv', 'Boa tarde você vende tv de 50 polegadas?');
+
+  assert.equal(sentMedia.length, 0);
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /TV de 50 polegadas/i);
+  assert.match(sentTexts[0].text, /não encontrei/i);
+});
+
 test('pesquisa junta aliases sem repetir produtos', async () => {
   catalogRows = [
     product('s1', 'Caixa de Som Bluetooth', { category: 'Áudio' }),
