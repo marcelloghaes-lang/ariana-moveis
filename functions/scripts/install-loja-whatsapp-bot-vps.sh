@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+INSTALLER_VERSION="2026-09-20.3"
+
 INSTANCE_NAME="ariana loja"
 INSTANCE_PATH="ariana%20loja"
 EVOLUTION_API_URL="${EVOLUTION_API_URL:-http://127.0.0.1:8082}"
@@ -111,7 +113,17 @@ if [[ -z "$BOT_API_TOKEN" ]]; then
 fi
 
 [[ -n "$EVOLUTION_API_KEY" ]] || fail "Não encontrei EVOLUTION_API_KEY no ariana-secrets.env nem nos processos PM2."
-[[ -n "$BOT_API_TOKEN" ]] || fail "Não encontrei BOT_API_TOKEN/SAC_BOT_SECRET/FINANCEIRO_BOT_SECRET no PM2 nem nos arquivos locais dos bots. Nada foi alterado."
+
+if [[ -z "$BOT_API_TOKEN" ]]; then
+  log "Token de bot não localizado localmente; verificando se o backend exige autenticação"
+  PROBE_CODE="$(curl -sS -o /tmp/ariana-loja-bot-auth-probe.json -w '%{http_code}'     "https://ariana-backend.onrender.com/api/bot/sac/consulta?identifier=__loja_bot_probe__" || true)"
+
+  if [[ "$PROBE_CODE" == "401" || "$PROBE_CODE" == "403" ]]; then
+    fail "O backend exige BOT_API_TOKEN, mas o token não foi localizado na VPS. Nada foi alterado."
+  fi
+
+  log "Backend não exige BOT_API_TOKEN para as rotas de bot atuais; seguindo sem token local"
+fi
 
 command -v curl >/dev/null 2>&1 || fail "curl não encontrado."
 command -v node >/dev/null 2>&1 || fail "node não encontrado."
@@ -119,6 +131,7 @@ command -v python3 >/dev/null 2>&1 || fail "python3 não encontrado."
 command -v pm2 >/dev/null 2>&1 || fail "pm2 não encontrado."
 command -v nginx >/dev/null 2>&1 || fail "nginx não encontrado."
 
+log "Instalador versão ${INSTALLER_VERSION}"
 log "Verificando instância principal da Evolution"
 INSTANCES_JSON="/tmp/ariana-loja-instances-${STAMP}.json"
 curl -fsS "${EVOLUTION_API_URL}/instance/fetchInstances" \
@@ -149,7 +162,7 @@ log "Baixando o atendimento comercial e validando sintaxe"
 if [[ -f "$BOT_FILE" ]]; then
   cp -a "$BOT_FILE" "${BOT_FILE}.bak-${STAMP}"
 fi
-curl -fsSL "$BOT_SOURCE_URL" -o "${BOT_FILE}.new"
+curl -fsSL "${BOT_SOURCE_URL}?v=${STAMP}" -o "${BOT_FILE}.new"
 node --check "${BOT_FILE}.new" >/dev/null
 mv "${BOT_FILE}.new" "$BOT_FILE"
 chmod 700 "$BOT_FILE"
