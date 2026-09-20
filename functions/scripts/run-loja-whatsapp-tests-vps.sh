@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-RAW_BASE="https://raw.githubusercontent.com/marcelloghaes-lang/ariana-moveis/main"
+REPO="marcelloghaes-lang/ariana-moveis"
 STAMP="$(date +%Y%m%d-%H%M%S)"
+RAW_REF="$(curl -fsSL -H 'Accept: application/vnd.github+json' "https://api.github.com/repos/$REPO/commits/main?ts=$STAMP" | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])')"
+[[ -n "$RAW_REF" ]] || fail "Não foi possível resolver o commit atual do GitHub."
+RAW_BASE="https://raw.githubusercontent.com/$REPO/$RAW_REF"
 TMP_DIR="/tmp/ariana-loja-tests-$STAMP"
 
 log() { printf '\n[TESTES ARIANA LOJA] %s\n' "$*"; }
@@ -22,6 +25,7 @@ set +a
 set -u
 
 log "Baixando candidato e suíte de testes"
+echo "Commit testado: $RAW_REF"
 curl -fsSL "$RAW_BASE/functions/scripts/loja-whatsapp-bot.js?v=$STAMP" \
   -o "$TMP_DIR/functions/scripts/loja-whatsapp-bot.js"
 curl -fsSL "$RAW_BASE/functions/tests/loja-whatsapp-bot.test.mjs?v=$STAMP" \
