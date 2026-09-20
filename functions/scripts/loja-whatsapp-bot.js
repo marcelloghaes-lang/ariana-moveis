@@ -34,6 +34,7 @@ const CATEGORY_TERMS = [
   ['ventilador', ['ventilador', 'ventiladores']],
   ['ar-condicionado', ['ar condicionado', 'ar-condicionado']],
   ['freezer', ['freezer', 'freezers']],
+  ['frigobar', ['frigobar', 'frigobares']],
   ['mesa', ['mesa', 'mesas']],
   ['cadeira', ['cadeira', 'cadeiras']],
   ['rack', ['rack', 'racks']],
@@ -398,13 +399,37 @@ function productCaption(product, index = null) {
   return lines.join('\n');
 }
 
+function matchesRequestedProductType(product = {}, query = '') {
+  const requested = normalize(query);
+  const haystack = normalize([
+    product.name,
+    product.category,
+    product.brand
+  ].filter(Boolean).join(' '));
+
+  if (requested === 'geladeira' || requested === 'refrigerador') {
+    return !/\bfreezer\b|\bfrigobar\b/.test(haystack);
+  }
+
+  if (requested === 'freezer') {
+    return /\bfreezer\b/.test(haystack);
+  }
+
+  if (requested === 'frigobar') {
+    return /\bfrigobar\b/.test(haystack);
+  }
+
+  return true;
+}
+
 async function searchProducts(query, originalText = '') {
   const q = encodeURIComponent(query);
   const data = await backend(`/api/products?q=${q}&limit=100`);
   const rows = Array.isArray(data) ? data : Array.isArray(data?.products) ? data.products : [];
   let products = rows
     .map(compactProduct)
-    .filter((p) => p.id && Number(p.stock || 0) > 0 && productCashPrice(p) > 0);
+    .filter((p) => p.id && Number(p.stock || 0) > 0 && productCashPrice(p) > 0)
+    .filter((p) => matchesRequestedProductType(p, query));
 
   const seen = new Set();
   products = products.filter((p) => {
