@@ -211,6 +211,8 @@ function visionBudgetStatus() {
     requests: Math.max(0, Number(budget.requests || 0)),
     inputTokens: Math.max(0, Number(budget.inputTokens || 0)),
     outputTokens: Math.max(0, Number(budget.outputTokens || 0)),
+    audioRequests: Math.max(0, Number(budget.audioRequests || 0)),
+    audioSeconds: Math.max(0, Number(budget.audioSeconds || 0)),
     blocked: used >= stopAt
   };
 }
@@ -232,6 +234,43 @@ function recordVisionUsage(usage = {}) {
   budget.requests = Math.max(0, Number(budget.requests || 0)) + 1;
   budget.inputTokens = Math.max(0, Number(budget.inputTokens || 0)) + inputTokens;
   budget.outputTokens = Math.max(0, Number(budget.outputTokens || 0)) + outputTokens;
+  budget.lastAt = Date.now();
+  saveStateSoon();
+
+  return visionBudgetStatus();
+}
+
+function estimatedAudioCostBrl(seconds = 0) {
+  const safeSeconds = Math.max(
+    1,
+    Number(seconds || 0) || AUDIO_UNKNOWN_DURATION_SECONDS
+  );
+  const usd = (safeSeconds / 60) * AUDIO_USD_PER_MINUTE;
+  return usd * VISION_USD_BRL;
+}
+
+function canUseAudioTranscription(seconds = 0) {
+  const status = visionBudgetStatus();
+  const estimatedBrl = estimatedAudioCostBrl(seconds);
+  return {
+    ...status,
+    estimatedAudioBrl: Number(estimatedBrl.toFixed(4)),
+    allowed: !status.blocked && (status.usedBrl + estimatedBrl) < status.stopAtBrl
+  };
+}
+
+function recordAudioUsage(seconds = 0) {
+  const budget = ensureVisionBudgetState();
+  const safeSeconds = Math.max(
+    1,
+    Number(seconds || 0) || AUDIO_UNKNOWN_DURATION_SECONDS
+  );
+  const estimatedBrl = estimatedAudioCostBrl(safeSeconds);
+
+  budget.estimatedBrl = Number((Number(budget.estimatedBrl || 0) + estimatedBrl).toFixed(6));
+  budget.requests = Math.max(0, Number(budget.requests || 0)) + 1;
+  budget.audioRequests = Math.max(0, Number(budget.audioRequests || 0)) + 1;
+  budget.audioSeconds = Math.max(0, Number(budget.audioSeconds || 0)) + safeSeconds;
   budget.lastAt = Date.now();
   saveStateSoon();
 
