@@ -482,34 +482,9 @@ test('contextos de clientes diferentes permanecem isolados', () => {
 });
 
 
-test('comprovante PIX por texto é reconhecido e registrado para análise', async () => {
+
+test('mensagem de PIX inclui alerta obrigatório do favorecido', async () => {
   const phone = '5533933333333';
-
-  for (const value of [
-    'Segue o comprovante do pix',
-    'Paguei no PIX',
-    'Enviei o comprovante do pagamento',
-    'PIX realizado'
-  ]) {
-    assert.equal(bot.asksPixProof(value), true, value);
-  }
-
-  await bot.handleMessage({
-    phone,
-    text: 'Segue o comprovante do pix',
-    pushName: 'Cliente PIX'
-  });
-
-  assert.equal(sentTexts.length, 1);
-  assert.match(sentTexts[0].text, /pagamento está sendo analisado/i);
-  assert.match(sentTexts[0].text, /comprovante da baixa do pagamento/i);
-
-  assert.equal(backendEvents.length, 1);
-  assert.match(backendEvents[0].status, /Comprovante PIX recebido - analisar baixa/i);
-});
-
-test('foto ou PDF após contexto recente de PIX é tratado como comprovante', async () => {
-  const phone = '5533923333333';
 
   await bot.handleMessage({
     phone,
@@ -519,7 +494,39 @@ test('foto ou PDF após contexto recente de PIX é tratado como comprovante', as
 
   assert.equal(sentTexts.length, 1);
   assert.match(sentTexts[0].text, /31985147119/);
-  assert.equal(bot.isPixContext(bot.conversation(phone)), true);
+  assert.match(sentTexts[0].text, /MARCELO NUNES SILVA/);
+  assert.match(sentTexts[0].text, /somente se aparecer/i);
+  assert.match(sentTexts[0].text, /não realize o pagamento/i);
+});
+
+test('texto dizendo que pagou pede o comprovante em vez de confirmar baixa', async () => {
+  const phone = '5533933333334';
+
+  await bot.handleMessage({
+    phone,
+    text: 'Paguei no PIX',
+    pushName: 'Cliente PIX'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Pode enviar o comprovante/i);
+  assert.equal(backendEvents.length, 0);
+});
+
+test('imagem reconhecida como comprovante PIX é registrada para análise', async () => {
+  const phone = '5533923333333';
+
+  visionClassification = {
+    kind: 'payment_receipt_pix',
+    confidence: 0.96,
+    product_name: '',
+    brand: '',
+    model: '',
+    category_hint: '',
+    payment_method: 'pix',
+    payment_recipient_name: 'MARCELO NUNES SILVA',
+    summary: 'Comprovante PIX'
+  };
 
   const result = await bot.handleWebhook({
     event: 'MESSAGES_UPSERT',
@@ -527,7 +534,7 @@ test('foto ou PDF após contexto recente de PIX é tratado como comprovante', as
       key: {
         remoteJid: phone + '@s.whatsapp.net',
         fromMe: false,
-        id: 'PIX-PROOF-1'
+        id: 'PIX-PROOF-VISION-1'
       },
       pushName: 'Cliente PIX',
       message: {
@@ -538,17 +545,29 @@ test('foto ou PDF após contexto recente de PIX é tratado como comprovante', as
     }
   });
 
-  assert.equal(result.pixProof, true);
-  assert.equal(sentTexts.length, 2);
-  assert.match(sentTexts[1].text, /pagamento está sendo analisado/i);
-  assert.equal(bot.isPixContext(bot.conversation(phone)), false);
+  assert.equal(result.media, true);
+  assert.equal(result.vision, 'payment_receipt_pix');
+  assert.match(sentTexts[0].text, /pagamento está sendo analisado/i);
+  assert.match(sentTexts[0].text, /comprovante da baixa do pagamento/i);
 
   assert.equal(backendEvents.length, 1);
-  assert.match(backendEvents[0].status, /Comprovante PIX recebido - analisar baixa/i);
+  assert.match(backendEvents[0].status, /Comprovante de pagamento recebido - analisar baixa/i);
 });
 
-test('foto comum fora de contexto PIX continua pedindo explicação', async () => {
-  const phone = '5533913333333';
+test('imagem reconhecida como comprovante de boleto recebe a mesma confirmação segura', async () => {
+  const phone = '5533923333334';
+
+  visionClassification = {
+    kind: 'payment_receipt_boleto',
+    confidence: 0.94,
+    product_name: '',
+    brand: '',
+    model: '',
+    category_hint: '',
+    payment_method: 'boleto',
+    payment_recipient_name: '',
+    summary: 'Comprovante de pagamento de boleto'
+  };
 
   const result = await bot.handleWebhook({
     event: 'MESSAGES_UPSERT',
@@ -556,7 +575,160 @@ test('foto comum fora de contexto PIX continua pedindo explicação', async () =
       key: {
         remoteJid: phone + '@s.whatsapp.net',
         fromMe: false,
-        id: 'MEDIA-NORMAL-1'
+        id: 'BOLETO-PROOF-VISION-1'
+      },
+      pushName: 'Cliente Boleto',
+      message: {
+        imageMessage: {
+          mimetype: 'image/jpeg'
+        }
+      }
+    }
+  });
+
+  assert.equal(result.vision, 'payment_receipt_boleto');
+  assert.match(sentTexts[0].text, /pagamento está sendo analisado/i);
+  assert.equal(backendEvents.length, 1);
+  assert.match(backendEvents[0].status, /Comprovante de pagamento recebido - analisar baixa/i);
+});
+
+test('foto de produto não é confundida com comprovante mesmo após contexto PIX', async () => {
+  const phone = '5533923333335';
+
+  await bot.handleMessage({
+    phone,
+    text: 'Me passa a chave pix',
+    pushName: 'Cliente'
+  });
+  assert.equal(bot.isPixContext(bot.conversation(phone)), true);
+
+  visionClassification = {
+    kind: 'product',
+    confidence: 0.93,
+    product_name: 'Smart TV 43 polegadas',
+    brand: 'LG',
+    model: '',
+    category_hint: 'tv',
+    payment_method: 'unknown',
+    payment_recipient_name: '',
+    summary: 'Televisão LG'
+  };
+
+  catalogRows = [
+    product('tv-vision-1', 'Smart TV LG 43 Polegadas', {
+      category: 'TV',
+      brand: 'LG',
+      stock: 3
+    })
+  ];
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'PRODUCT-AFTER-PIX-1'
+      },
+      pushName: 'Cliente',
+      message: {
+        imageMessage: {
+          mimetype: 'image/jpeg'
+        }
+      }
+    }
+  });
+
+  assert.equal(result.vision, 'product');
+  assert.equal(backendEvents.length, 0);
+  assert.ok(
+    sentTexts.some((item) => /Pela imagem, identifiquei/i.test(item.text)) ||
+    sentMedia.some((item) => /Smart TV LG 43/i.test(item.caption || ''))
+  );
+});
+
+test('cliente pergunta se vende produto e envia print: visão consulta catálogo', async () => {
+  const phone = '5533923333336';
+
+  await bot.handleMessage({
+    phone,
+    text: 'Marcelo você vende desse produto aqui?',
+    pushName: 'Cliente Produto'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Pode me mandar a foto ou o print/i);
+
+  visionClassification = {
+    kind: 'product',
+    confidence: 0.95,
+    product_name: 'Air Fryer 5 litros',
+    brand: 'Mondial',
+    model: 'AFN-50',
+    category_hint: 'air fryer',
+    payment_method: 'unknown',
+    payment_recipient_name: '',
+    summary: 'Air Fryer Mondial'
+  };
+
+  catalogRows = [
+    product('af-vision-1', 'Air Fryer Mondial AFN-50 5L', {
+      category: 'Air Fryer',
+      brand: 'Mondial',
+      stock: 2
+    })
+  ];
+
+  await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'PRODUCT-PRINT-1'
+      },
+      pushName: 'Cliente Produto',
+      message: {
+        imageMessage: {
+          mimetype: 'image/jpeg'
+        }
+      }
+    }
+  });
+
+  assert.ok(sentTexts.some((item) => /Pela imagem, identifiquei/i.test(item.text)));
+  assert.ok(sentMedia.some((item) => /Air Fryer Mondial AFN-50/i.test(item.caption || '')));
+  assert.equal(bot.conversation(phone).lastIntent, 'produto');
+});
+
+test('imagem incerta em contexto PIX não é assumida como comprovante', async () => {
+  const phone = '5533913333333';
+
+  await bot.handleMessage({
+    phone,
+    text: 'Me passa a chave pix',
+    pushName: 'Cliente'
+  });
+
+  visionClassification = {
+    kind: 'other',
+    confidence: 0.45,
+    product_name: '',
+    brand: '',
+    model: '',
+    category_hint: '',
+    payment_method: 'unknown',
+    payment_recipient_name: '',
+    summary: 'Imagem indefinida'
+  };
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'MEDIA-UNCERTAIN-1'
       },
       pushName: 'Cliente',
       message: {
@@ -568,10 +740,22 @@ test('foto comum fora de contexto PIX continua pedindo explicação', async () =
   });
 
   assert.equal(result.media, true);
-  assert.equal(Boolean(result.pixProof), false);
-  assert.equal(sentTexts.length, 1);
-  assert.match(sentTexts[0].text, /Me diga em uma frase/i);
   assert.equal(backendEvents.length, 0);
+  assert.match(sentTexts.at(-1).text, /não consegui confirmar com segurança/i);
+});
+
+test('emojis positivos, de dúvida e negativos têm comportamento próprio', async () => {
+  const positivePhone = '5533913333340';
+  await bot.handleMessage({ phone: positivePhone, text: '👍', pushName: 'Cliente' });
+  assert.equal(sentTexts.length, 0);
+
+  await bot.handleMessage({ phone: '5533913333341', text: '🤔', pushName: 'Cliente' });
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /estou aqui/i);
+
+  await bot.handleMessage({ phone: '5533913333342', text: '👎', pushName: 'Cliente' });
+  assert.equal(sentTexts.length, 2);
+  assert.match(sentTexts[1].text, /O que aconteceu/i);
 });
 
 test('pedido para falar com Marcelo ou receber ligação é reconhecido', () => {
