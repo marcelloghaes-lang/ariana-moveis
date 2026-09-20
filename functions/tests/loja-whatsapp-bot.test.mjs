@@ -400,8 +400,8 @@ test('primeiro produto em 10 vezes no boleto seleciona e calcula na mesma respos
 
   assert.equal(sentTexts.length, 1);
   assert.match(sentTexts[0].text, /Guarda Roupa Primeiro/);
-  assert.match(sentTexts[0].text, /10x de R\$ 100,00/);
-  assert.match(sentTexts[0].text, /total de R\$ 1\.000,00/);
+  assert.match(sentTexts[0].text, /10x de R\$\s+100,00/);
+  assert.match(sentTexts[0].text, /total de R\$\s+1\.000,00/);
   assert.equal(bot.conversation(phone).selectedProduct.id, 'cred-ord-1');
   assert.equal(bot.conversation(phone).lastCreditPlan.count, 10);
 });
@@ -435,7 +435,7 @@ test('erro "beto" em contexto de parcela reaproveita o último plano do boleto',
 
   assert.equal(sentTexts.length, 1);
   assert.match(sentTexts[0].text, /Guarda Roupa Teste/);
-  assert.match(sentTexts[0].text, /10x de R\$ 100,00/);
+  assert.match(sentTexts[0].text, /10x de R\$\s+100,00/);
   assert.doesNotMatch(sentTexts[0].text, /Me conta o que você está procurando/i);
 });
 
