@@ -2168,6 +2168,7 @@ const server = http.createServer((req, res) => {
       visionConfigured: Boolean(VISION_API_KEY),
       visionModel: VISION_MODEL,
       visionDetail: VISION_DETAIL,
+      visionBudget: visionBudgetStatus(),
       legacyWebhookForwarding: Boolean(LEGACY_WEBHOOK_URL),
       manualHumanPauseMinutes: Math.round(MANUAL_HUMAN_PAUSE_MS / 60000)
     });
@@ -2203,6 +2204,13 @@ function resetTestState() {
   state.processed = {};
   state.botOutbound = {};
   state.botOutboundFingerprints = {};
+  state.visionBudget = {};
+}
+
+function patchTestVisionBudget(patch = {}) {
+  const budget = ensureVisionBudgetState();
+  Object.assign(budget, patch || {});
+  return budget;
 }
 
 function patchTestConversation(phone, patch = {}) {
@@ -2234,6 +2242,9 @@ export const __test = {
   handleVisionMedia,
   showProductsFromVision,
   acknowledgePaymentProof,
+  visionBudgetStatus,
+  recordVisionUsage,
+  patchTestVisionBudget,
   asksCardQuote,
   asksPixPrice,
   asksProductLink,
