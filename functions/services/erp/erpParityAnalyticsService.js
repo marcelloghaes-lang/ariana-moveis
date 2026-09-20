@@ -43,7 +43,7 @@ export function createErpParityAnalyticsService(context={}){
   if(q.bankAccountId)filter.bankAccountId=clean(q.bankAccountId,120);
   if(q.paymentMethod)filter.paymentMethod=clean(q.paymentMethod,100);
   if(q.from||q.to){filter.dueAt={};if(q.from)filter.dueAt.$gte=new Date(q.from);if(q.to){const d=new Date(q.to);d.setHours(23,59,59,999);filter.dueAt.$lte=d}}
-  const text=clean(q.q||q.search,160);if(text){const rx=new RegExp(regexEscape(text),'i');filter.$or=[{personName:rx},{personDocument:rx},{description:rx},{categoryName:rx},{documentNumber:rx},{boletoNumber:rx}]}
+  const text=clean(q.q||q.search,160);if(text){const rx=new RegExp(regexEscape(text),'i');filter.$or=[{personName:rx},{personDocument:rx},{personPhone:rx},{personEmail:rx},{description:rx},{categoryName:rx},{documentNumber:rx},{boletoNumber:rx}]}
   let base=(await Entry.collection.find(filter).sort({dueAt:1}).limit(30000).toArray()).map(normalizeLedgerRow);
   if(!q.direction||q.direction==='receivable')base.push(...await currentReceivables());
   if(['receivable','payable'].includes(q.direction))base=base.filter(r=>r.direction===q.direction);
