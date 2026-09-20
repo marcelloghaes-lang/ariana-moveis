@@ -291,7 +291,7 @@ function fillBank(bank={}){
   $('accountCheckDigit').value=bank.accountCheckDigit||bank.accountDigit||'';
   $('pixKey').value=bank.pixKey||'';
 }
-function lockSavedBankFields(sellerApproved=false){
+function lockSavedBankFields(sellerApproved=false,savedFields={}){
   const fixedIdentity=['legalName','document'];
   const bankFields=['bankHolderName','bankHolderDocument','bankName','bankCode','accountType','branchNumber','branchCheckDigit','accountNumber','accountCheckDigit','pixKey'];
   let missing=0;
@@ -306,7 +306,8 @@ function lockSavedBankFields(sellerApproved=false){
   bankFields.forEach((id)=>{
     const el=$(id); if(!el)return;
     const value=String(el.value||'').trim();
-    const shouldLock=!!sellerApproved && !!value;
+    const wasPersisted=savedFields[id]===true;
+    const shouldLock=!!sellerApproved && wasPersisted && !!value;
     if(el.tagName==='SELECT') el.disabled=shouldLock;
     else el.readOnly=shouldLock;
     el.dataset.lockedSaved=shouldLock?'true':'false';
@@ -344,21 +345,32 @@ async function load(){
   const data=await api('/seller/payment-split');
   const configured=!!data.bank?.configured;
   fillBank(data.bank||{});
-  lockSavedBankFields(data.sellerApproved===true);
+  lockSavedBankFields(data.sellerApproved===true,data.savedFields||{});
   setPill(configured); setStatus(configured);
   try{const p=JSON.parse(localStorage.getItem('seller_profile')||'{}');$('user-display-name').textContent='Bem-vindo, '+(p.factoryName||p.storeName||p.name||'Seller')+'!'}catch(_){ }
 }
 $('split-form').addEventListener('submit',async(e)=>{
   e.preventDefault();
-  const btn=$('btn-save'); const old=btn.innerHTML; btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Salvando...';
+  const btn=$('btn-save');
+  const old=btn.innerHTML;
+  btn.disabled=true;
+  btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Salvando...';
+  let refreshed=false;
   try{
     const payload=readPayload();
     const saved=await api('/seller/payment-split',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     if(saved.seller)localStorage.setItem('seller_profile',JSON.stringify(saved.seller));
     toast('Dados para repasse salvos com sucesso.','success');
     await load();
-  }catch(error){toast(error.message||'Erro ao salvar dados bancários','error')}
-  finally{btn.disabled=false;btn.innerHTML=old;}
+    refreshed=true;
+  }catch(error){
+    toast(error.message||'Erro ao salvar dados bancários','error');
+  }finally{
+    if(!refreshed){
+      btn.disabled=false;
+      btn.innerHTML=old;
+    }
+  }
 });
 $('btn-sair')?.addEventListener('click',(e)=>{e.preventDefault();clearSellerSession()});
 $('sidebar-toggle')?.addEventListener('click',()=>$('sidebar').classList.toggle('-translate-x-full'));
