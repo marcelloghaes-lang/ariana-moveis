@@ -73,6 +73,7 @@ function getModels(mongoose) {
     origin: { type: String, enum: ['SITE','LOJA_FISICA','WHATSAPP'], default: 'SITE', index: true },
     conversationId: { type: String, default: '', index: true },
     documentCollectionStatus: { type: String, default: 'NAO_INICIADA', index: true },
+    adminWhatsapp: { type: mongoose.Schema.Types.Mixed, default: null },
     purchase: { type: mongoose.Schema.Types.Mixed, default: null },
     customerId: { type: String, default: '', index: true },
     customer: {
