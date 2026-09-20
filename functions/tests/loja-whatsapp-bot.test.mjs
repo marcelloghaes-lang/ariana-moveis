@@ -20,6 +20,8 @@ process.env.EVOLUTION_API_URL = 'https://evolution.test';
 process.env.EVOLUTION_API_KEY = 'test-evolution-key';
 process.env.LOJA_BOT_API_TOKEN = 'test-loja-token';
 process.env.LOJA_EVOLUTION_INSTANCE = 'ariana loja';
+process.env.LOJA_VISION_OPENAI_API_KEY = 'test-vision-key';
+process.env.LOJA_VISION_MODEL = 'gpt-5.6-luna';
 
 copyFileSync(sourcePath, modulePath);
 const imported = await import(pathToFileURL(modulePath).href + '?v=' + Date.now());
@@ -32,6 +34,21 @@ let sentMedia = [];
 let backendEvents = [];
 let requestLog = [];
 let messageSeq = 0;
+let visionClassification = {
+  kind: 'unknown',
+  confidence: 0.2,
+  product_name: '',
+  brand: '',
+  model: '',
+  category_hint: '',
+  payment_method: 'unknown',
+  payment_recipient_name: '',
+  summary: 'Imagem não identificada'
+};
+let mediaBase64Response = {
+  mimetype: 'image/jpeg',
+  base64: 'ZmFrZS1pbWFnZQ=='
+};
 
 function jsonResponse(body, status = 200) {
   return {
@@ -96,6 +113,16 @@ function installFetchMock() {
       return jsonResponse({ key: { id } });
     }
 
+    if (href.startsWith('https://evolution.test/chat/getBase64FromMediaMessage/')) {
+      return jsonResponse(mediaBase64Response, 201);
+    }
+
+    if (href === 'https://api.openai.com/v1/responses') {
+      return jsonResponse({
+        output_text: JSON.stringify(visionClassification)
+      });
+    }
+
     return jsonResponse({ error: 'mock_not_found', href }, 404);
   };
 }
@@ -108,6 +135,21 @@ beforeEach(() => {
   backendEvents = [];
   requestLog = [];
   messageSeq = 0;
+  visionClassification = {
+    kind: 'unknown',
+    confidence: 0.2,
+    product_name: '',
+    brand: '',
+    model: '',
+    category_hint: '',
+    payment_method: 'unknown',
+    payment_recipient_name: '',
+    summary: 'Imagem não identificada'
+  };
+  mediaBase64Response = {
+    mimetype: 'image/jpeg',
+    base64: 'ZmFrZS1pbWFnZQ=='
+  };
   installFetchMock();
 });
 
