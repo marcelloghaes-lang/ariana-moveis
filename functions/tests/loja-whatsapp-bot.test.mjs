@@ -361,6 +361,30 @@ test('pesquisa de TV elimina móveis/acessórios e produtos sem estoque', async 
   assert.deepEqual(rows.map((p) => p.id).sort(), ['tv1', 'tv2']);
 });
 
+test('saudação junto com pedido de produto é respondida antes do catálogo', async () => {
+  const phone = '5533977777720';
+
+  catalogRows = [
+    product('iphone-greet-1', 'Apple iPhone 15 128GB', {
+      category: 'Celulares',
+      brand: 'Apple'
+    })
+  ];
+
+  await bot.handleMessage({
+    phone,
+    text: 'Boa tarde, vocês trabalham com iPhone?',
+    pushName: 'Cliente Saudação'
+  });
+
+  assert.ok(sentTexts.length >= 2);
+  assert.match(sentTexts[0].text, /^Boa tarde!/i);
+  assert.match(sentTexts[0].text, /bem-vindo à Ariana Móveis/i);
+  assert.match(sentTexts[1].text, /Encontrei/i);
+  assert.equal(sentMedia.length, 1);
+  assert.match(sentMedia[0].caption || '', /iPhone 15/i);
+});
+
 test('pesquisa de celular não mistura caixa de som nem acessórios', async () => {
   catalogRows = [
     product('phone1', 'Smartphone Samsung Galaxy A15 128GB', { category: 'Celulares' }),
