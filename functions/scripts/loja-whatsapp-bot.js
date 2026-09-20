@@ -546,7 +546,10 @@ function matchesRequestedProductType(product = {}, query = '') {
   }
 
   if (requested === 'tv') {
-    return /\btv\b|televisao|televisor|smart tv/.test(haystack);
+    const isTv = /\btv\b|televisao|televisor|smart tv/.test(haystack);
+    const isTvAccessoryOrFurniture =
+      /rack|painel|home theater|home para tv|estante|suporte|base para tv|antena|controle|conversor|tv box|box tv|receptor|cabide|aparador/.test(haystack);
+    return isTv && !isTvAccessoryOrFurniture;
   }
 
   if (requested === 'cama') {
