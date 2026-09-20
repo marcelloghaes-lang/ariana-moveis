@@ -177,6 +177,7 @@ function conversation(phone) {
       manualHumanUntil: 0,
       customerName: '',
       creditContextUntil: 0,
+      pixContextUntil: 0,
       creditOrderWaitingMarcelo: false,
       lastIntent: ''
     };
@@ -402,6 +403,42 @@ function asksPaymentMethods(text) {
 function asksPixKey(text) {
   const n = normalize(text);
   return /(manda|me passa|passa|envia|qual|chave).{0,20}pix|pix.{0,20}(chave|numero|qual)/.test(n);
+}
+
+function asksPixProof(text) {
+  const n = normalize(text);
+  return (
+    /(segue|enviei|mandei|to mandando|estou mandando).{0,30}(comprovante|pix)/.test(n) ||
+    /(comprovante).{0,30}(pix|pagamento|pago|paguei)/.test(n) ||
+    /(paguei|pago|fiz|feito).{0,25}(no |por |via )?pix/.test(n) ||
+    /(pix).{0,25}(pago|feito|realizado|comprovante)/.test(n)
+  );
+}
+
+function markPixContext(conv) {
+  conv.pixContextUntil = Date.now() + 30 * 60 * 1000;
+  saveStateSoon();
+}
+
+function isPixContext(conv) {
+  return Number(conv?.pixContextUntil || 0) > Date.now();
+}
+
+async function acknowledgePixProof(phone, conv, text = '', pushName = '') {
+  conv.pixContextUntil = 0;
+  conv.lastIntent = 'comprovante_pix';
+  saveStateSoon();
+
+  await sendText(
+    phone,
+    'Recebemos seu comprovante 😊 O pagamento está sendo analisado e, em breve, enviaremos o comprovante da baixa do pagamento.'
+  );
+
+  await syncTicket(phone, {
+    status: 'Comprovante PIX recebido - analisar baixa',
+    message: text || 'Cliente enviou comprovante de pagamento PIX.',
+    name: pushName
+  });
 }
 
 function asksCardQuote(text) {
@@ -1027,7 +1064,13 @@ async function handleMessage({ phone, text, pushName = '' }) {
     return;
   }
 
+  if (asksPixProof(text)) {
+    await acknowledgePixProof(phone, conv, text, pushName);
+    return;
+  }
+
   if (asksPixKey(text)) {
+    markPixContext(conv);
     await sendText(phone, `Claro 😊\n\n*PIX:* ${PIX_KEY}\n*Banco:* ${PIX_BANK}\n*Titular:* ${PIX_HOLDER}`);
     return;
   }
@@ -1101,6 +1144,7 @@ async function handleMessage({ phone, text, pushName = '' }) {
       await sendText(phone, 'Claro 😊 Me diga qual produto você está olhando para eu te passar o valor no PIX.');
       return;
     }
+    markPixContext(conv);
     await sendText(phone, `No PIX, *${product.name}* fica por *${money(productCashPrice(product))}*.`);
     return;
   }
@@ -1226,6 +1270,16 @@ function extractIncoming(payload = {}) {
     ''
   ).trim();
 
+  const mediaType = message?.imageMessage
+    ? 'image'
+    : message?.documentMessage
+      ? 'document'
+      : message?.videoMessage
+        ? 'video'
+        : message?.audioMessage
+          ? 'audio'
+          : '';
+
   return {
     remoteJid,
     phone: digits(remoteJid.split('@')[0]),
@@ -1233,6 +1287,8 @@ function extractIncoming(payload = {}) {
     id,
     pushName,
     text,
+    mediaType,
+    hasMedia: Boolean(mediaType),
     isGroup: remoteJid.endsWith('@g.us'),
     isStatus: remoteJid.includes('status@broadcast')
   };
@@ -1324,7 +1380,20 @@ async function handleWebhook(payload) {
 
   if (!incoming.text) {
     const conv = conversation(incoming.phone);
+
     if (conv.humanUntil && Date.now() < Number(conv.humanUntil)) return { ignored: 'human_mode' };
+    if (conv.manualHumanUntil && Date.now() < Number(conv.manualHumanUntil)) return { ignored: 'manual_human_mode' };
+
+    if (incoming.hasMedia && isPixContext(conv) && ['image', 'document'].includes(incoming.mediaType)) {
+      await acknowledgePixProof(
+        incoming.phone,
+        conv,
+        'Cliente enviou imagem/documento após receber informações de PIX.',
+        incoming.pushName
+      );
+      return { ok: true, media: true, pixProof: true };
+    }
+
     await sendText(incoming.phone, 'Recebi seu arquivo/foto 😊 Me diga em uma frase o que você gostaria de saber sobre ele. Se precisar, eu encaminho para o atendimento humano.');
     return { ok: true, media: true };
   }
@@ -1407,6 +1476,9 @@ export const __test = {
   wantsHuman,
   asksPaymentMethods,
   asksPixKey,
+  asksPixProof,
+  markPixContext,
+  isPixContext,
   asksCardQuote,
   asksPixPrice,
   asksProductLink,
