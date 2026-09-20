@@ -1,3 +1,5 @@
+import { createErpParityAnalyticsService } from '../services/erp/erpParityAnalyticsService.js';
+
 // ============================================================
 // ROTAS ADMIN SIGE / CREDIÁRIO / BOTS - ARIANA MÓVEIS
 // Extraído de legacyRoutes.js sem alterar endpoints, regras ou respostas.
@@ -188,6 +190,107 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
   function formatMoneyBRL(value = 0) {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: DEFAULT_CURRENCY }).format(Number(value || 0));
+  }
+
+  const erpParityFinance = createErpParityAnalyticsService(context);
+
+  function botFinanceDaysLate(dueAt) {
+    if (!dueAt) return 0;
+    const due = new Date(dueAt);
+    if (Number.isNaN(due.getTime())) return 0;
+    due.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return due < today ? Math.max(0, Math.floor((today - due) / 86400000)) : 0;
+  }
+
+  function normalizeErpBotReceivable(row = {}) {
+    const outstanding = Math.max(0, Number(row.outstanding ?? row.remaining ?? row.value ?? 0));
+    const paid = String(row.status || '').toLowerCase() === 'paid' || outstanding <= 0.009;
+    const installmentNumber = Number(row.installmentNumber || row.number || 0);
+    const installments = Number(row.installments || 0);
+    const parcelLabel = installmentNumber > 0
+      ? (installments > 0 ? `${installmentNumber}/${installments}` : `Parcela ${installmentNumber}`)
+      : String(row.documentNumber || row.boletoNumber || row.description || 'Parcela').trim();
+
+    return {
+      documento: String(row.documentNumber || row.boletoNumber || row.id || ''),
+      descricao: String(row.description || row.categoryName || 'Conta a receber'),
+      parcelaNumero: installmentNumber,
+      parcelaLabel: parcelLabel,
+      dataVencimento: row.dueAt || null,
+      status: paid ? 'pago' : (row.partial ? 'parcial' : 'pendente'),
+      quitado: paid,
+      vencida: !paid && botFinanceDaysLate(row.dueAt) > 0,
+      emAberto: !paid && outstanding > 0.009,
+      valorParcela: Number(row.value || 0),
+      valorPago: Number(row.principalPaid || 0),
+      saldoParcela: outstanding,
+      atualizacaoFinanceira: {
+        diasAtraso: paid ? 0 : botFinanceDaysLate(row.dueAt),
+        multa: Number(row.fineDefault || 0),
+        juros: Number(row.interestDefault || 0),
+        valorAtualizado: outstanding
+      }
+    };
+  }
+
+  function exactErpReceivableIdentity(row = {}, { cpf = '', phone = '' } = {}) {
+    const requestedCpf = onlyDigits(cpf);
+    if (requestedCpf) return onlyDigits(row.personDocument || '') === requestedCpf;
+    if (phone) return botPhoneMatches(phone, row.personPhone || '');
+    return false;
+  }
+
+  async function erpReceivablesForBot({ cpf = '', phone = '' } = {}) {
+    const requestedCpf = onlyDigits(cpf);
+    const requestedPhone = onlyDigits(phone);
+
+    if (requestedCpf) {
+      const data = await erpParityFinance.finance({
+        direction: 'receivable',
+        q: requestedCpf
+      });
+      const matches = (Array.isArray(data?.entries) ? data.entries : [])
+        .filter((row) => exactErpReceivableIdentity(row, { cpf: requestedCpf }));
+      return { rows: matches, verifiedBy: 'cpf', requestedCpf };
+    }
+
+    if (!requestedPhone) return { rows: [], verifiedBy: '' };
+
+    const byPhone = await erpParityFinance.finance({
+      direction: 'receivable',
+      q: requestedPhone
+    });
+    const phoneMatches = (Array.isArray(byPhone?.entries) ? byPhone.entries : [])
+      .filter((row) => exactErpReceivableIdentity(row, { phone: requestedPhone }));
+
+    if (!phoneMatches.length) {
+      return { rows: [], verifiedBy: 'phone_not_found', identityRequired: true };
+    }
+
+    const documents = [...new Set(
+      phoneMatches
+        .map((row) => onlyDigits(row.personDocument || ''))
+        .filter((value) => value.length === 11 || value.length === 14)
+    )];
+
+    if (documents.length > 1) {
+      return { rows: [], verifiedBy: 'phone_ambiguous', identityRequired: true };
+    }
+
+    if (documents.length === 1) {
+      const document = documents[0];
+      const byDocument = await erpParityFinance.finance({
+        direction: 'receivable',
+        q: document
+      });
+      const allForDocument = (Array.isArray(byDocument?.entries) ? byDocument.entries : [])
+        .filter((row) => onlyDigits(row.personDocument || '') === document);
+      return { rows: allForDocument, verifiedBy: 'phone_and_document', requestedCpf: document };
+    }
+
+    return { rows: phoneMatches, verifiedBy: 'phone' };
   }
 
 
@@ -11600,6 +11703,78 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     return localA.slice(-10) === localB.slice(-10);
   }
 
+  async function botFinanceiroContasReceberHandler(req, res) {
+    try {
+      const cpf = String(req.query.cpf || req.body?.cpf || '').trim();
+      const phone = String(
+        req.query.phone ||
+        req.query.telefone ||
+        req.body?.phone ||
+        req.body?.telefone ||
+        ''
+      ).trim();
+
+      if (!onlyDigits(cpf) && !onlyDigits(phone)) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Informe telefone ou CPF para consultar as parcelas em aberto.'
+        });
+      }
+
+      const found = await erpReceivablesForBot({ cpf, phone });
+      if (found.identityRequired) {
+        return res.status(409).json({
+          ok: false,
+          identityRequired: true,
+          error: 'Para proteger os dados do cliente, confirme o CPF do titular.'
+        });
+      }
+
+      const allRows = Array.isArray(found.rows) ? found.rows : [];
+      const openRows = allRows
+        .filter((row) => String(row.status || '').toLowerCase() !== 'cancelled')
+        .filter((row) => {
+          const outstanding = Math.max(0, Number(row.outstanding ?? row.remaining ?? row.value ?? 0));
+          return String(row.status || '').toLowerCase() !== 'paid' && outstanding > 0.009;
+        })
+        .sort((a, b) => new Date(a.dueAt || 0) - new Date(b.dueAt || 0));
+
+      const customerName = String(
+        allRows.find((row) => String(row.personName || '').trim())?.personName || ''
+      ).trim();
+
+      const parcelas = openRows.map(normalizeErpBotReceivable);
+      const saldo = Number(
+        parcelas.reduce((sum, parcela) => sum + Number(parcela.saldoParcela || 0), 0).toFixed(2)
+      );
+      const atrasadas = parcelas.filter((parcela) => parcela.vencida).length;
+
+      return res.json({
+        ok: true,
+        channel: 'loja',
+        fonteFinanceira: 'ariana_erp_contas_receber',
+        cliente: {
+          nome: customerName,
+          telefoneConfirmado: Boolean(phone && found.verifiedBy?.startsWith('phone')),
+          identidadeConfirmadaPor: found.verifiedBy || ''
+        },
+        resumo: {
+          parcelasAbertas: parcelas.length,
+          atrasadas,
+          saldo
+        },
+        parcelas
+      });
+    } catch (error) {
+      console.error('[bot:loja] erro ao consultar Contas a Receber do ERP:', error);
+      return res.status(error.statusCode || 500).json({
+        ok: false,
+        error: error.message || 'Erro ao consultar as parcelas em aberto no Ariana ERP.',
+        fonteFinanceira: 'ariana_erp_contas_receber'
+      });
+    }
+  }
+
   async function botFinanceiroCarneHandler(req, res) {
     try {
       const cpf = String(req.query.cpf || req.body?.cpf || '').trim();
@@ -11700,6 +11875,9 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       });
     }
   }
+
+  app.get('/api/bot/financeiro/contas-receber', lojaBotAccessRequired, botFinanceiroContasReceberHandler);
+  app.post('/api/bot/financeiro/contas-receber', lojaBotAccessRequired, botFinanceiroContasReceberHandler);
 
   app.get('/api/bot/financeiro/carne', lojaBotAccessRequired, botFinanceiroCarneHandler);
   app.post('/api/bot/financeiro/carne', lojaBotAccessRequired, botFinanceiroCarneHandler);
