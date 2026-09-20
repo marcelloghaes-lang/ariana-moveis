@@ -41,7 +41,7 @@ let catalogResponseStatus = 200;
 let financeResponseStatus = 200;
 let financeResponse = {
   ok: true,
-  fonteFinanceira: 'ariana_erp_contas_receber',
+  fonteFinanceira: 'ariana_erp_financeiro_cobrancas',
   cliente: { nome: 'Cliente Teste' },
   parcelas: []
 };
@@ -165,7 +165,7 @@ beforeEach(() => {
   financeResponseStatus = 200;
   financeResponse = {
     ok: true,
-    fonteFinanceira: 'ariana_erp_contas_receber',
+    fonteFinanceira: 'ariana_erp_financeiro_cobrancas',
     cliente: { nome: 'Cliente Teste' },
     parcelas: []
   };
@@ -1953,7 +1953,7 @@ test('consulta financeira usa Contas a Receber do Ariana ERP e responde parcela 
 
   financeResponse = {
     ok: true,
-    fonteFinanceira: 'ariana_erp_contas_receber',
+    fonteFinanceira: 'ariana_erp_financeiro_cobrancas',
     cliente: { nome: 'Marcelo Teste' },
     resumo: { parcelasAbertas: 2, saldo: 450 },
     parcelas: [
@@ -2034,7 +2034,7 @@ test('consulta financeira sem vínculo seguro por telefone continua pedindo CPF'
   financeResponseStatus = 200;
   financeResponse = {
     ok: true,
-    fonteFinanceira: 'ariana_erp_contas_receber',
+    fonteFinanceira: 'ariana_erp_financeiro_cobrancas',
     cliente: { nome: 'Cliente Financeiro' },
     parcelas: []
   };
