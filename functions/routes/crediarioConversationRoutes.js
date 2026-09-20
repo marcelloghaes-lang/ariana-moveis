@@ -5,6 +5,7 @@ import {
   processCrediarioConversation
 } from '../services/crediarioConversationService.js';
 import { getCrediarioEvolutionMediaBase64 } from '../services/crediarioEvolutionMediaService.js';
+import { createAdminNotification } from '../services/notificationService.js';
 
 import {
   getCrediarioMediaStorageConfig,
@@ -450,6 +451,55 @@ async function synchronizeConversationWithAnalysis(mongoose, session = {}) {
 }
 
 
+async function notifyDocumentsReadyOnce(mongoose, analysis = {}, session = {}) {
+  try {
+    if (!analysis) return null;
+    const completed = session?.step === 'AGUARDANDO_ANALISE' || session?.status === 'CONCLUIDO';
+    if (!completed) return null;
+
+    const orderId = clean(analysis.orderId, 120);
+    const analysisId = clean(analysis.analysisId, 120);
+    const relatedId = orderId || analysisId;
+    if (!relatedId) return null;
+
+    const Notification = mongoose?.models?.Notification;
+    const query = {
+      audience: 'admin',
+      type: 'crediario_documents_received',
+      relatedId
+    };
+    if (analysisId) query['metadata.analysisId'] = analysisId;
+    if (Notification && await Notification.exists(query)) return null;
+
+    const docs = session.documents || {};
+    const receivedCount = ['identityFront','identityBack','selfie','addressProof','incomeProof']
+      .filter((key) => documentReceived(docs[key])).length;
+    const customerName = clean(analysis.customer?.name || session.data?.name || 'Cliente', 160);
+    const orderShort = orderId ? orderId.slice(-8).toUpperCase() : '';
+    const reference = orderShort ? ` do pedido #${orderShort}` : '';
+
+    return await createAdminNotification({
+      type: 'crediario_documents_received',
+      title: 'Documentos do crediário recebidos',
+      message: `Os dados e documentos de ${customerName}${reference} foram recebidos e estão prontos para análise.`,
+      relatedId,
+      severity: 'success',
+      audience: 'admin',
+      metadata: {
+        orderId,
+        analysisId,
+        conversationId: clean(session.conversationId, 160),
+        receivedDocuments: receivedCount,
+        status: clean(analysis.status, 80),
+        action: 'open_credit_analysis'
+      }
+    });
+  } catch (error) {
+    console.error('[crediario documents notification]', error?.message || error);
+    return null;
+  }
+}
+
 async function hydratePayloadMediaFromEvolution(payload = {}) {
   if (!payload.media || !Object.keys(payload.media).length) return payload;
   if (payload.media.base64) return payload;
@@ -726,6 +776,7 @@ export default function registerCrediarioConversationRoutes(
       });
 
       const linkedAnalysis = await synchronizeConversationWithAnalysis(mongoose, result.session);
+      await notifyDocumentsReadyOnce(mongoose, linkedAnalysis, result.session);
 
       return res.json({
         ok: true,
