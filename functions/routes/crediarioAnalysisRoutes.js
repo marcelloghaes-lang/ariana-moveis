@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { calculateArianaScore, suggestCreditDecision } from '../services/crediarioScoreEngine.js';
 import { getCrediarioWhatsAppConfig, sendCrediarioWhatsApp } from '../services/crediarioWhatsAppService.js';
 import { ensureStockReservationForPaymentAttempt, releaseStockReservation } from '../services/stockReservationService.js';
+import { createAdminNotification } from '../services/notificationService.js';
 
 const ANALYSIS_STATUSES = [
   'PENDENTE_ANALISE',
@@ -236,6 +237,32 @@ function getModels(mongoose) {
 export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, Product, authRequired, adminRequired } = {}) {
   if (!app || !mongoose || !Order) throw new Error('Crediário análise: dependências obrigatórias ausentes.');
   const { Analysis, Profile, CollectionLog, Renegotiation } = getModels(mongoose);
+
+  async function notifyAdminOnce({ type, relatedId, title, message, severity = 'info', metadata = {} } = {}) {
+    try {
+      const Notification = mongoose?.models?.Notification;
+      const query = {
+        audience: 'admin',
+        type: String(type || ''),
+        relatedId: String(relatedId || '')
+      };
+      if (metadata?.analysisId) query['metadata.analysisId'] = String(metadata.analysisId);
+      if (Notification && await Notification.exists(query)) return null;
+
+      return await createAdminNotification({
+        type,
+        title,
+        message,
+        relatedId,
+        severity,
+        audience: 'admin',
+        metadata
+      });
+    } catch (error) {
+      console.error('[crediario notification]', error?.message || error);
+      return null;
+    }
+  }
 
   async function findOrder(orderId) {
     const id = text(orderId, 120);
@@ -501,7 +528,24 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
       if (!customerOwns(order, req)) return res.status(403).json({ ok: false, error: 'Pedido não pertence ao cliente autenticado.' });
 
       const existing = await Analysis.findOne({ orderId, status: { $nin: ['REPROVADO', 'CANCELADO'] } }).sort({ createdAt: -1 });
-      if (existing) return res.status(200).json({ ok: true, reused: true, analysis: existing });
+      if (existing) {
+        const shortId = String(orderId || '').slice(-8).toUpperCase();
+        await notifyAdminOnce({
+          type: 'crediario_analysis_requested',
+          relatedId: orderId,
+          title: 'Nova análise de crédito',
+          message: `${existing.customer?.name || order.customerName || 'Cliente'} possui solicitação de análise do pedido #${shortId} aguardando ação.`,
+          severity: 'warning',
+          metadata: {
+            orderId,
+            analysisId: existing.analysisId,
+            status: existing.status,
+            origin: existing.origin || 'SITE',
+            action: 'open_credit_analysis'
+          }
+        });
+        return res.status(200).json({ ok: true, reused: true, analysis: existing });
+      }
 
       const plan = body.plan || body.crediario || {};
       const baseAmountCents = cents(plan.baseAmountCents || body.baseAmountCents);
@@ -570,6 +614,24 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
         'crediario.installmentDivisor': installmentDivisor,
         'crediario.firstDueDate': analysis.firstDueDate,
         'crediario.installmentPlan': analysis.installmentPlan
+      });
+
+      const shortId = String(orderId || '').slice(-8).toUpperCase();
+      await notifyAdminOnce({
+        type: 'crediario_analysis_requested',
+        relatedId: orderId,
+        title: 'Nova análise de crédito',
+        message: `${analysis.customer?.name || order.customerName || 'Cliente'} enviou uma solicitação de análise para o pedido #${shortId}.`,
+        severity: 'warning',
+        metadata: {
+          orderId,
+          analysisId: analysis.analysisId,
+          status: analysis.status,
+          origin: 'SITE',
+          customerId: analysis.customerId || '',
+          baseAmountCents,
+          action: 'open_credit_analysis'
+        }
       });
 
       let whatsapp = null;
