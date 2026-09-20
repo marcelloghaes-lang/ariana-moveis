@@ -11565,6 +11565,120 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     }
   }
 
+  function botPhoneMatches(requested = '', found = '') {
+    const a = onlyDigits(requested);
+    const b = onlyDigits(found);
+    if (!a || !b) return false;
+    const localA = a.startsWith('55') ? a.slice(2) : a;
+    const localB = b.startsWith('55') ? b.slice(2) : b;
+    if (localA === localB) return true;
+    return localA.slice(-10) === localB.slice(-10);
+  }
+
+  async function botFinanceiroCarneHandler(req, res) {
+    try {
+      const cpf = String(req.query.cpf || req.body?.cpf || '').trim();
+      const phone = String(
+        req.query.phone ||
+        req.query.telefone ||
+        req.body?.phone ||
+        req.body?.telefone ||
+        ''
+      ).trim();
+      const identifier = String(
+        req.query.identifier ||
+        req.query.q ||
+        req.body?.identifier ||
+        req.body?.q ||
+        cpf ||
+        phone ||
+        ''
+      ).trim();
+
+      if (!identifier) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Informe telefone ou CPF para consultar o carnê.'
+        });
+      }
+
+      const data = await getUnifiedFinancialData(identifier, {
+        limit: Math.max(100, Math.min(Number(req.query.limit || req.body?.limit || 5000), 10000)),
+        maxRecords: Math.max(1000, Math.min(Number(req.query.maxRecords || req.body?.maxRecords || 20000), 30000))
+      });
+
+      const requestedCpf = onlyDigits(cpf);
+      const returnedCpf = onlyDigits(data?.cpf || '');
+      if (requestedCpf && returnedCpf && requestedCpf !== returnedCpf) {
+        return res.status(403).json({
+          ok: false,
+          identityRequired: true,
+          error: 'Os dados informados não correspondem ao titular localizado.'
+        });
+      }
+
+      if (phone) {
+        const returnedPhone = String(data?.telefone || '').trim();
+        if (!returnedPhone || !botPhoneMatches(phone, returnedPhone)) {
+          return res.status(409).json({
+            ok: false,
+            identityRequired: true,
+            error: 'Para proteger os dados do cliente, confirme o CPF do titular.'
+          });
+        }
+      }
+
+      const parcelas = (Array.isArray(data?.parcelas) ? data.parcelas : []).map((parcela) => ({
+        documento: String(parcela?.documento || parcela?.chave || ''),
+        descricao: String(parcela?.descricao || ''),
+        parcelaNumero: Number(parcela?.parcelaNumero || 0),
+        parcelaLabel: String(parcela?.parcelaLabel || ''),
+        dataVencimento: parcela?.dataVencimento || null,
+        status: String(parcela?.status || ''),
+        quitado: parcela?.quitado === true,
+        vencida: parcela?.vencida === true,
+        emAberto: parcela?.emAberto === true,
+        valorParcela: Number(parcela?.valorParcela ?? parcela?.valor ?? 0),
+        valorPago: Number(parcela?.valorPago ?? parcela?.totalRecebido ?? 0),
+        saldoParcela: Number(parcela?.saldoParcela ?? parcela?.saldo ?? 0),
+        atualizacaoFinanceira: {
+          diasAtraso: Number(parcela?.atualizacaoFinanceira?.diasAtraso || 0),
+          multa: Number(parcela?.atualizacaoFinanceira?.multa || 0),
+          juros: Number(parcela?.atualizacaoFinanceira?.juros || 0),
+          valorAtualizado: Number(
+            parcela?.atualizacaoFinanceira?.valorAtualizado ??
+            parcela?.saldoParcela ??
+            parcela?.valorParcela ??
+            parcela?.valor ??
+            0
+          )
+        }
+      }));
+
+      return res.json({
+        ok: true,
+        channel: 'loja',
+        fonteFinanceira: 'sige',
+        cliente: {
+          nome: String(data?.cliente || ''),
+          telefoneConfirmado: Boolean(phone)
+        },
+        resumo: data?.resumo || {},
+        parcelas
+      });
+    } catch (error) {
+      console.error('[bot:loja] erro ao consultar carnê:', error);
+      return res.status(error.statusCode || 500).json({
+        ok: false,
+        error: error.message || 'Erro ao consultar o carnê no SIGE.',
+        fonteFinanceira: 'sige'
+      });
+    }
+  }
+
+  app.get('/api/bot/financeiro/carne', botAccessRequired, botFinanceiroCarneHandler);
+  app.post('/api/bot/financeiro/carne', botAccessRequired, botFinanceiroCarneHandler);
+
   app.get('/api/bot/financeiro/consulta', botAccessRequired, (req, res) => botConsultaHandler(req, res, 'financeiro'));
   app.post('/api/bot/financeiro/consulta', botAccessRequired, (req, res) => botConsultaHandler(req, res, 'financeiro'));
 
