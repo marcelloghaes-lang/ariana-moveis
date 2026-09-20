@@ -705,7 +705,7 @@ async function syncTicket(phone, { status, message, name = '' } = {}) {
         setor: 'loja',
         status: status || 'Aguardando atendimento',
         mensagem: message || '',
-        nome
+        nome: name
       }
     });
   } catch (error) {
