@@ -98,9 +98,29 @@ try {
 
 try {
   const backend = String(process.env.ARIANA_BACKEND_URL || '').replace(/\/$/, '');
-  const probe = await getJson(backend + '/api/products?limit=1');
-  if (!probe.response.ok) {
-    fail('Catálogo público', 'HTTP ' + probe.response.status);
+  let probe = null;
+  let lastStatus = 0;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      probe = await getJson(backend + '/api/products?limit=1');
+      lastStatus = Number(probe.response.status || 0);
+      if (probe.response.ok) break;
+    } catch (error) {
+      lastError = error;
+    }
+
+    if (attempt < 3) {
+      await new Promise((resolve) => setTimeout(resolve, 750 * attempt));
+    }
+  }
+
+  if (!probe?.response?.ok) {
+    fail(
+      'Catálogo público',
+      lastStatus ? 'HTTP ' + lastStatus + ' após 3 tentativas' : (lastError?.message || 'falha após 3 tentativas')
+    );
   } else {
     const rows = Array.isArray(probe.body) ? probe.body : (Array.isArray(probe.body?.products) ? probe.body.products : []);
     ok('Catálogo público', rows.length ? 'respondendo com produtos' : 'respondendo sem erro');
