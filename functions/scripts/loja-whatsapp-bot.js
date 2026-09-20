@@ -23,6 +23,12 @@ const VISION_MIN_CONFIDENCE = Math.min(
   Math.max(0.5, Number(process.env.LOJA_VISION_MIN_CONFIDENCE || 0.72))
 );
 const VISION_TIMEOUT_MS = Math.max(3000, Number(process.env.LOJA_VISION_TIMEOUT_MS || 20000));
+const VISION_MONTHLY_BUDGET_BRL = Math.max(1, Number(process.env.LOJA_VISION_MONTHLY_BUDGET_BRL || 30));
+const VISION_BUDGET_GUARD_BRL = Math.max(0, Number(process.env.LOJA_VISION_BUDGET_GUARD_BRL || 0.50));
+const VISION_USD_BRL = Math.max(1, Number(process.env.LOJA_VISION_USD_BRL || 6.00));
+const VISION_INPUT_USD_PER_1M = Math.max(0, Number(process.env.LOJA_VISION_INPUT_USD_PER_1M || 0.20));
+const VISION_OUTPUT_USD_PER_1M = Math.max(0, Number(process.env.LOJA_VISION_OUTPUT_USD_PER_1M || 1.20));
+const VISION_FALLBACK_CHARGE_BRL = Math.max(0.01, Number(process.env.LOJA_VISION_FALLBACK_CHARGE_BRL || 0.05));
 
 const SITE_URL = 'https://arianamoveis.com.br';
 const PIX_KEY = '31985147119';
@@ -130,14 +136,16 @@ function loadState() {
       conversations: parsed?.conversations || {},
       processed: parsed?.processed || {},
       botOutbound: parsed?.botOutbound || {},
-      botOutboundFingerprints: parsed?.botOutboundFingerprints || {}
+      botOutboundFingerprints: parsed?.botOutboundFingerprints || {},
+      visionBudget: parsed?.visionBudget || {}
     };
   } catch {
     return {
       conversations: {},
       processed: {},
       botOutbound: {},
-      botOutboundFingerprints: {}
+      botOutboundFingerprints: {},
+      visionBudget: {}
     };
   }
 }
