@@ -80,6 +80,16 @@ try {
     } else {
       fail('Pausa humana', 'esperado 60, recebido ' + String(local.body.manualHumanPauseMinutes));
     }
+
+    if (local.body?.visionConfigured === true) {
+      ok(
+        'Visão de imagens',
+        String(local.body.visionModel || 'modelo configurado') +
+          ' / detalhe ' + String(local.body.visionDetail || 'auto')
+      );
+    } else {
+      warn('Visão de imagens', 'chave da API de visão ainda não configurada');
+    }
   }
 } catch (error) {
   fail('Health local 8093', error.message);
