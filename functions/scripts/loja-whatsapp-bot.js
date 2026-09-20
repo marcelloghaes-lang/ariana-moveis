@@ -1066,6 +1066,88 @@ function recentProductImageClassification(conv) {
   return conv.lastImageClassification;
 }
 
+function visualCategoryFromClassification(classification = {}) {
+  const combined = [
+    classification.category_hint,
+    classification.product_name,
+    classification.summary,
+    classification.brand,
+    classification.model
+  ].filter(Boolean).join(' ');
+
+  return detectCategory(combined);
+}
+
+function recentVisualCategory(conv) {
+  const direct = String(conv?.lastVisualCategory || '').trim();
+  const directAt = Number(conv?.lastVisualCategoryAt || 0);
+
+  if (direct && directAt && Date.now() - directAt <= 30 * 60 * 1000) {
+    return direct;
+  }
+
+  const recent = recentProductImageClassification(conv);
+  return recent ? visualCategoryFromClassification(recent) : '';
+}
+
+function asksSimilarVisualProducts(text) {
+  const n = normalize(text);
+
+  return (
+    /(parecido|parecida|parecidos|parecidas|semelhante|semelhantes|similar|similares)/.test(n) ||
+    /(me manda|manda|mostra|mostrar|quero ver|tem).{0,35}(foto|fotos|opcao|opcoes|produto|produtos).{0,35}(desse|dessa|assim|tipo)/.test(n) ||
+    /(me manda|manda|mostra|mostrar).{0,40}(o que|oque).{0,25}(tem|voce tem|voces tem)/.test(n)
+  );
+}
+
+function asksContextualSend(text) {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return /^(manda( ai)?|pode mandar|manda pra mim|manda para mim|mostra( ai)?|pode mostrar|quero ver|quero sim|sim pode mandar|sim manda)$/.test(n);
+}
+
+async function showSimilarProductsFromVisual(phone, conv, category) {
+  const query = String(category || recentVisualCategory(conv) || '').trim();
+
+  if (!query) {
+    await sendText(
+      phone,
+      'Consigo te mostrar opções parecidas 😊 Só me diga qual tipo de produto você quer que eu procure.'
+    );
+    return false;
+  }
+
+  const products = await searchProducts(query, query);
+
+  if (!products.length) {
+    conv.awaitingSimilarOptions = true;
+    saveStateSoon();
+    await sendText(
+      phone,
+      `No momento não encontrei *${query}* disponível no catálogo. Se quiser, posso tentar outra categoria ou você pode me mandar o nome/modelo do produto.`
+    );
+    return false;
+  }
+
+  conv.allProductResults = products;
+  conv.productResultOffset = 0;
+  conv.lastProductQuery = query;
+  conv.selectedProduct = null;
+  conv.lastIntent = 'produto';
+  conv.awaitingSimilarOptions = false;
+  saveStateSoon();
+
+  await sendText(
+    phone,
+    `Claro 😊 Vou te mostrar algumas opções de *${query}* que temos disponíveis e que podem ser parecidas com o produto da foto:`
+  );
+  await sendProductPage(phone, conv, { announce: false });
+  return true;
+}
+
 async function showProductsFromVision(phone, conv, classification = {}) {
   const label = imageClassificationLabel(classification) ||
     String(classification.summary || classification.category_hint || 'produto').trim();
