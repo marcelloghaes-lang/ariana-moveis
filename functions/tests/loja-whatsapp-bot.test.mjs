@@ -120,6 +120,32 @@ test('saudação natural reconhece frases comuns', () => {
   for (const value of ['Oi', 'Bom dia', 'Oi bom dia tudo bem?', 'Boa tarde, tudo bem?', 'Boa noite']) {
     assert.equal(bot.isGreeting(value), true, value);
   }
+
+  for (const value of ['?', '??', '!!!', '...']) {
+    assert.equal(bot.isGreeting(value), false, value);
+  }
+});
+
+test('interrogação e chamada de presença retomam conversa sem nova saudação', async () => {
+  for (const value of ['?', '??', 'Tá aí?', 'Ainda está aí?', 'Oi, está aí?']) {
+    assert.equal(bot.asksPresencePing(value), true, value);
+  }
+
+  const phone = '5533903333333';
+  const chosen = bot.compactProduct(product('ctx1', 'Smart TV 50 Polegadas'));
+  bot.patchTestConversation(phone, {
+    selectedProduct: chosen,
+    lastProducts: [chosen],
+    lastIntent: 'produto',
+    manualHumanUntil: Date.now() - 1
+  });
+
+  await bot.handleMessage({ phone, text: '?', pushName: 'Cliente' });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Sim, estou aqui/i);
+  assert.doesNotMatch(sentTexts[0].text, /Seja bem-vindo/i);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'ctx1');
 });
 
 test('famílias equivalentes são reconhecidas corretamente', () => {
