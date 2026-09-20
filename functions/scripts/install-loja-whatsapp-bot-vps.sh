@@ -63,8 +63,55 @@ if [[ -z "$BOT_API_TOKEN" ]]; then
   BOT_API_TOKEN="$(pm2_env_value BOT_API_TOKEN FINANCEIRO_BOT_SECRET SAC_BOT_SECRET)"
 fi
 
+discover_bot_token_from_files() {
+  python3 - <<'PY'
+import glob, os, re
+
+candidates = [
+    "/root/ariana-secrets.env",
+    "/root/sac-bot.js",
+    "/root/financeiro-bot.js",
+    "/root/chatwoot-human-webhook.js",
+]
+candidates += sorted(glob.glob("/root/*.env"))
+candidates += sorted(glob.glob("/root/*bot*.js"))
+
+seen=set()
+files=[]
+for p in candidates:
+    if p in seen or not os.path.isfile(p):
+        continue
+    seen.add(p)
+    files.append(p)
+
+patterns = [
+    re.compile(r'^(?:export\s+)?(?:BOT_API_TOKEN|FINANCEIRO_BOT_SECRET|SAC_BOT_SECRET)\s*=\s*["\']?([^"\'\s#;]+)', re.M),
+    re.compile(r'const\s+(?:BOT_API_TOKEN|FINANCEIRO_BOT_SECRET|SAC_BOT_SECRET)\s*=\s*["\']([^"\']{12,})["\']'),
+    re.compile(r'["\']x-bot-token["\']\s*:\s*["\']([^"\']{12,})["\']'),
+    re.compile(r'process\.env\.(?:BOT_API_TOKEN|FINANCEIRO_BOT_SECRET|SAC_BOT_SECRET)\s*\|\|\s*["\']([^"\']{12,})["\']'),
+]
+
+for path in files:
+    try:
+        text=open(path, encoding="utf-8", errors="ignore").read()
+    except Exception:
+        continue
+    for pattern in patterns:
+        m=pattern.search(text)
+        if m:
+            value=m.group(1).strip()
+            if value and value.lower() not in {"changeme","secret","token","undefined","null"}:
+                print(value, end="")
+                raise SystemExit(0)
+PY
+}
+
+if [[ -z "$BOT_API_TOKEN" ]]; then
+  BOT_API_TOKEN="$(discover_bot_token_from_files)"
+fi
+
 [[ -n "$EVOLUTION_API_KEY" ]] || fail "Não encontrei EVOLUTION_API_KEY no ariana-secrets.env nem nos processos PM2."
-[[ -n "$BOT_API_TOKEN" ]] || fail "Não encontrei BOT_API_TOKEN/SAC_BOT_SECRET/FINANCEIRO_BOT_SECRET nos processos atuais. Nada foi alterado."
+[[ -n "$BOT_API_TOKEN" ]] || fail "Não encontrei BOT_API_TOKEN/SAC_BOT_SECRET/FINANCEIRO_BOT_SECRET no PM2 nem nos arquivos locais dos bots. Nada foi alterado."
 
 command -v curl >/dev/null 2>&1 || fail "curl não encontrado."
 command -v node >/dev/null 2>&1 || fail "node não encontrado."
