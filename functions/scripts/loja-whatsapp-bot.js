@@ -7,6 +7,17 @@ const EVOLUTION_API_KEY = String(process.env.EVOLUTION_API_KEY || '').trim();
 const EVOLUTION_INSTANCE = String(process.env.LOJA_EVOLUTION_INSTANCE || 'ariana loja').trim();
 const BACKEND_URL = String(process.env.ARIANA_BACKEND_URL || 'https://ariana-backend.onrender.com').replace(/\/$/, '');
 const LOJA_BOT_API_TOKEN = String(process.env.LOJA_BOT_API_TOKEN || '').trim();
+const VISION_API_KEY = String(
+  process.env.LOJA_VISION_OPENAI_API_KEY ||
+  process.env.OPENAI_API_KEY ||
+  ''
+).trim();
+const VISION_MODEL = String(process.env.LOJA_VISION_MODEL || 'gpt-5.6-luna').trim();
+const VISION_MIN_CONFIDENCE = Math.min(
+  0.99,
+  Math.max(0.5, Number(process.env.LOJA_VISION_MIN_CONFIDENCE || 0.72))
+);
+const VISION_TIMEOUT_MS = Math.max(3000, Number(process.env.LOJA_VISION_TIMEOUT_MS || 20000));
 
 const SITE_URL = 'https://arianamoveis.com.br';
 const PIX_KEY = '31985147119';
@@ -178,6 +189,10 @@ function conversation(phone) {
       customerName: '',
       creditContextUntil: 0,
       pixContextUntil: 0,
+      pendingImageIntent: '',
+      pendingImageIntentUntil: 0,
+      lastImageClassification: null,
+      lastImageAt: 0,
       creditOrderWaitingMarcelo: false,
       lastIntent: ''
     };
