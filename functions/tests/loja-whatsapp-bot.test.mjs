@@ -413,6 +413,99 @@ test('contextos de clientes diferentes permanecem isolados', () => {
   assert.equal(bot.conversation('5533922222222').selectedProduct.id, 'B');
 });
 
+
+test('comprovante PIX por texto é reconhecido e registrado para análise', async () => {
+  const phone = '5533933333333';
+
+  for (const value of [
+    'Segue o comprovante do pix',
+    'Paguei no PIX',
+    'Enviei o comprovante do pagamento',
+    'PIX realizado'
+  ]) {
+    assert.equal(bot.asksPixProof(value), true, value);
+  }
+
+  await bot.handleMessage({
+    phone,
+    text: 'Segue o comprovante do pix',
+    pushName: 'Cliente PIX'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /pagamento está sendo analisado/i);
+  assert.match(sentTexts[0].text, /comprovante da baixa do pagamento/i);
+
+  assert.equal(backendEvents.length, 1);
+  assert.match(backendEvents[0].status, /Comprovante PIX recebido - analisar baixa/i);
+});
+
+test('foto ou PDF após contexto recente de PIX é tratado como comprovante', async () => {
+  const phone = '5533923333333';
+
+  await bot.handleMessage({
+    phone,
+    text: 'Me passa a chave pix',
+    pushName: 'Cliente PIX'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /31985147119/);
+  assert.equal(bot.isPixContext(bot.conversation(phone)), true);
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'PIX-PROOF-1'
+      },
+      pushName: 'Cliente PIX',
+      message: {
+        imageMessage: {
+          mimetype: 'image/jpeg'
+        }
+      }
+    }
+  });
+
+  assert.equal(result.pixProof, true);
+  assert.equal(sentTexts.length, 2);
+  assert.match(sentTexts[1].text, /pagamento está sendo analisado/i);
+  assert.equal(bot.isPixContext(bot.conversation(phone)), false);
+
+  assert.equal(backendEvents.length, 1);
+  assert.match(backendEvents[0].status, /Comprovante PIX recebido - analisar baixa/i);
+});
+
+test('foto comum fora de contexto PIX continua pedindo explicação', async () => {
+  const phone = '5533913333333';
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'MEDIA-NORMAL-1'
+      },
+      pushName: 'Cliente',
+      message: {
+        imageMessage: {
+          mimetype: 'image/jpeg'
+        }
+      }
+    }
+  });
+
+  assert.equal(result.media, true);
+  assert.equal(Boolean(result.pixProof), false);
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Me diga em uma frase/i);
+  assert.equal(backendEvents.length, 0);
+});
+
 test('pedido para falar com Marcelo ou receber ligação é reconhecido', () => {
   for (const value of [
     'Oi Marcelo tudo bem? Tô precisando falar com você',
