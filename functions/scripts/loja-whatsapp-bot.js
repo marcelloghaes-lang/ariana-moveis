@@ -1703,6 +1703,21 @@ async function handleMessage({ phone, text, pushName = '' }) {
     return;
   }
 
+  {
+    const visualCategory = recentVisualCategory(conv);
+    const wantsSimilar = asksSimilarVisualProducts(text);
+    const confirmsSimilar = Boolean(
+      visualCategory &&
+      conv.awaitingSimilarOptions &&
+      asksContextualSend(text)
+    );
+
+    if (visualCategory && (wantsSimilar || confirmsSimilar)) {
+      await showSimilarProductsFromVisual(phone, conv, visualCategory);
+      return;
+    }
+  }
+
   if (asksAboutImageProduct(text)) {
     const recentImage = recentProductImageClassification(conv);
     if (recentImage) {
