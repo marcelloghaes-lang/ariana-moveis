@@ -339,7 +339,7 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
                         <input id="seller-uf" maxlength="2" class="w-full border border-gray-300 rounded-xl px-3 py-2 uppercase" placeholder="MG" />
                     </div>
                     <div class="lg:col-span-4 flex justify-end">
-                        <button type="submit" class="inline-flex items-center justify-center px-5 py-3 rounded-xl bg-primary-blue text-white font-bold hover:bg-secondary-light-blue transition">
+                        <button id="seller-profile-save-btn" type="submit" class="inline-flex items-center justify-center px-5 py-3 rounded-xl bg-primary-blue text-white font-bold hover:bg-secondary-light-blue transition disabled:opacity-60 disabled:cursor-not-allowed">
                             <i class="fas fa-save mr-2"></i> Salvar dados cadastrais
                         </button>
                     </div>
@@ -355,9 +355,9 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
                     <div><p class="text-sm font-medium text-gray-500">Meus Pedidos</p><p id="kpi-orders" class="text-3xl font-bold text-success-green">0</p></div>
                     <i class="fas fa-shopping-cart text-4xl text-success-green opacity-50"></i>
                 </div>
-                <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between animate-fade">
-                    <div><p class="text-sm font-medium text-gray-500">Vendas (aprovadas)</p><p id="kpi-sales" class="text-3xl font-bold text-text-dark">R$ 0,00</p></div>
-                    <i class="fas fa-money-check-alt text-4xl text-text-dark opacity-50"></i>
+                <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between gap-3 overflow-hidden animate-fade">
+                    <div class="min-w-0 flex-1"><p class="text-sm font-medium text-gray-500">Vendas (aprovadas)</p><p id="kpi-sales" class="text-2xl xl:text-3xl font-bold text-text-dark whitespace-nowrap">R$ 0,00</p></div>
+                    <i class="fas fa-coins text-3xl text-text-dark opacity-40 shrink-0"></i>
                 </div>
                 <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between animate-fade">
                     <div><p class="text-sm font-medium text-gray-500">Pendências</p><p id="kpi-pending" class="text-3xl font-bold text-error-red">0</p></div>
@@ -559,25 +559,30 @@ function isSellerApproved(seller = {}) {
 
 function applySellerProfileLock(seller = {}) {
   const approved = isSellerApproved(seller);
-
-  const lockedIds = [
-    "seller-store-name",
-    "seller-display-name",
-    "seller-document",
-    "seller-email"
+  const ids = [
+    "seller-store-name","seller-display-name","seller-document","seller-phone",
+    "seller-email","seller-cep","seller-address","seller-city","seller-uf"
   ];
 
-  lockedIds.forEach((id) => {
+  let editableMissing = 0;
+  ids.forEach((id) => {
     const input = $(id);
     if (!input) return;
-    input.readOnly = approved;
+    const hasValue = String(input.value || "").trim().length > 0;
+    const shouldLock = approved && hasValue;
+
+    input.readOnly = shouldLock;
     input.disabled = false;
-    input.classList.toggle("bg-gray-100", approved);
-    input.classList.toggle("text-gray-500", approved);
-    input.classList.toggle("cursor-not-allowed", approved);
-    input.title = approved
-      ? "Este dado cadastral fica bloqueado após aprovação. Para alterar, solicite ao administrador da Ariana Móveis."
+    input.dataset.lockedSaved = shouldLock ? "true" : "false";
+    input.classList.toggle("bg-gray-100", shouldLock);
+    input.classList.toggle("text-gray-500", shouldLock);
+    input.classList.toggle("cursor-not-allowed", shouldLock);
+    input.classList.toggle("border-green-200", shouldLock);
+    input.title = shouldLock
+      ? "Dado já salvo e bloqueado. Para alterar, solicite ao administrador da Ariana Móveis."
       : "";
+
+    if (approved && !hasValue) editableMissing++;
   });
 
   let warning = $("seller-profile-lock-warning");
@@ -586,10 +591,29 @@ function applySellerProfileLock(seller = {}) {
     warning = document.createElement("div");
     warning.id = "seller-profile-lock-warning";
     warning.className = "lg:col-span-4 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-xl px-4 py-3 text-sm";
-    warning.innerHTML = '<i class="fas fa-lock mr-2"></i>Dados jurídicos bloqueados após aprovação: nome da loja, responsável, CPF/CNPJ e e-mail. Para alterar esses dados, solicite ao administrador da Ariana Móveis.';
     form.insertBefore(warning, form.firstChild);
+  }
+
+  if (approved && warning) {
+    warning.innerHTML = editableMissing > 0
+      ? '<i class="fas fa-lock mr-2"></i>Os dados já salvos estão bloqueados. Preencha apenas os campos que ainda estão vazios; depois de salvos, eles também serão bloqueados.'
+      : '<i class="fas fa-lock mr-2"></i>Cadastro concluído. Todos os dados já salvos estão bloqueados. Para alterar algum deles, solicite ao administrador da Ariana Móveis.';
   } else if (!approved && warning) {
     warning.remove();
+  }
+
+  const saveBtn = $("seller-profile-save-btn");
+  if (saveBtn) {
+    if (approved && editableMissing === 0) {
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<i class="fas fa-lock mr-2"></i> Cadastro concluído';
+    } else if (approved) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="fas fa-save mr-2"></i> Salvar dados faltantes';
+    } else {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="fas fa-save mr-2"></i> Salvar dados cadastrais';
+    }
   }
 }
 
@@ -626,22 +650,31 @@ async function saveSellerProfile(event) {
     const currentSeller = getSellerProfile();
     const approved = isSellerApproved(currentSeller);
 
-    const payload = {
-      phone: $("seller-phone")?.value || "",
-      cep: String($("seller-cep")?.value || "").replace(/\D/g, ""),
-      address: $("seller-address")?.value?.trim() || "",
-      endereco: $("seller-address")?.value?.trim() || "",
-      city: $("seller-city")?.value?.trim() || "",
-      cidade: $("seller-city")?.value?.trim() || "",
-      uf: $("seller-uf")?.value?.trim().toUpperCase() || ""
+    const payload = {};
+    const canSend = (id) => {
+      const el = $(id);
+      return !!el && el.readOnly !== true && el.dataset.lockedSaved !== "true";
     };
 
-    if (!approved) {
-      payload.storeName = $("seller-store-name")?.value || "";
-      payload.displayName = $("seller-display-name")?.value || "";
-      payload.document = $("seller-document")?.value || "";
-      payload.email = $("seller-email")?.value || "";
+    if (canSend("seller-phone")) payload.phone = $("seller-phone")?.value?.trim() || "";
+    if (canSend("seller-cep")) payload.cep = String($("seller-cep")?.value || "").replace(/\D/g, "");
+    if (canSend("seller-address")) {
+      payload.address = $("seller-address")?.value?.trim() || "";
+      payload.endereco = payload.address;
     }
+    if (canSend("seller-city")) {
+      payload.city = $("seller-city")?.value?.trim() || "";
+      payload.cidade = payload.city;
+    }
+    if (canSend("seller-uf")) payload.uf = $("seller-uf")?.value?.trim().toUpperCase() || "";
+
+    if (!approved) {
+      if (canSend("seller-store-name")) payload.storeName = $("seller-store-name")?.value || "";
+      if (canSend("seller-display-name")) payload.displayName = $("seller-display-name")?.value || "";
+      if (canSend("seller-document")) payload.document = $("seller-document")?.value || "";
+      if (canSend("seller-email")) payload.email = $("seller-email")?.value || "";
+    }
+
     let res = await fetch(`${API_BASE}/seller/profile`, {
       method: "PATCH",
       headers: authHeaders({ "Content-Type": "application/json" }),
