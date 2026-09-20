@@ -11617,7 +11617,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         });
       }
 
-      if (phone) {
+      if (phone && !requestedCpf) {
         const returnedPhone = String(data?.telefone || '').trim();
         if (!returnedPhone || !botPhoneMatches(phone, returnedPhone)) {
           return res.status(409).json({
