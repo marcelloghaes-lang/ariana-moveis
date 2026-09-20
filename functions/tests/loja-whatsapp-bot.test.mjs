@@ -37,6 +37,7 @@ let sentMedia = [];
 let backendEvents = [];
 let requestLog = [];
 let messageSeq = 0;
+let catalogResponseStatus = 200;
 let audioTranscriptionText = 'Olá';
 let visionClassification = {
   kind: 'unknown',
@@ -86,6 +87,9 @@ function installFetchMock() {
     requestLog.push({ href, method, options });
 
     if (href.startsWith('https://backend.test/api/products?')) {
+      if (catalogResponseStatus !== 200) {
+        return jsonResponse({ error: 'catalog_unavailable' }, catalogResponseStatus);
+      }
       return jsonResponse({ products: catalogRows });
     }
 
@@ -150,6 +154,7 @@ beforeEach(() => {
   backendEvents = [];
   requestLog = [];
   messageSeq = 0;
+  catalogResponseStatus = 200;
   audioTranscriptionText = 'Olá';
   visionClassification = {
     kind: 'unknown',
@@ -989,6 +994,31 @@ test('resposta manual do Marcelo limpa revisão e registra atendimento humano', 
   assert.equal(backendEvents.at(-1).status, 'Em atendimento pelo Marcelo');
   assert.equal(backendEvents.at(-1).metadata.reviewNeeded, false);
   assert.equal(backendEvents.at(-1).metadata.manualHuman, true);
+});
+
+test('falha total do catálogo não deixa cliente sem resposta e marca revisão', async () => {
+  const phone = '5533977777755';
+  catalogResponseStatus = 500;
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: { remoteJid: phone + '@s.whatsapp.net', fromMe: false, id: 'CATALOG-ERROR-1' },
+      pushName: 'Cliente Erro Catálogo',
+      message: { conversation: 'Quero ver uma TV' }
+    }
+  });
+
+  assert.equal(result.recovered, true);
+  assert.equal(result.reviewNeeded, true);
+  assert.ok(sentTexts.some((item) => /Tive uma dificuldade para processar/i.test(item.text || '')));
+  assert.equal(backendEvents.at(-1).status, 'Revisar atendimento');
+  assert.equal(backendEvents.at(-1).metadata.reviewNeeded, true);
+  assert.match(backendEvents.at(-1).metadata.reviewReason || '', /catalog_unavailable/i);
+
+  const conv = bot.conversation(phone);
+  assert.equal(conv.reviewNeeded, true);
+  assert.equal(Boolean(conv.humanUntil && conv.humanUntil > Date.now()), false);
 });
 
 test('intervenção manual pausa o bot por 60 minutos', async () => {
