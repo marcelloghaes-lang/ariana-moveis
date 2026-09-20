@@ -11845,7 +11845,9 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       return res.json({
         ok: true,
         channel: 'loja',
-        fonteFinanceira: 'ariana_erp_contas_receber',
+        fonteFinanceira: 'ariana_erp_financeiro_cobrancas',
+        sourceSystem: 'ariana_erp',
+        origemOperacional: 'Financeiro > Contas a Receber + Central de Cobranças',
         cliente: {
           nome: customerName,
           telefoneConfirmado: Boolean(phone && found.verifiedBy?.startsWith('phone')),
