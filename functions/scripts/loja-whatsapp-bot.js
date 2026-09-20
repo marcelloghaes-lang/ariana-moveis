@@ -272,6 +272,220 @@ async function evolution(path, body) {
   return readJson(response);
 }
 
+async function fetchIncomingMedia(incoming = {}) {
+  if (!incoming?.rawMessageInfo) throw new Error('Mensagem original da mídia não disponível.');
+
+  const data = await evolution(
+    \`/chat/getBase64FromMediaMessage/\${encodeURIComponent(EVOLUTION_INSTANCE)}\`,
+    {
+      message: incoming.rawMessageInfo,
+      convertToMp4: false
+    }
+  );
+
+  const base64 = String(data?.base64 || data?.data?.base64 || '').trim();
+  const mimetype = String(
+    data?.mimetype ||
+    data?.mimeType ||
+    data?.data?.mimetype ||
+    incoming?.mimeType ||
+    'image/jpeg'
+  ).trim();
+
+  if (!base64) throw new Error('Evolution não retornou a mídia em base64.');
+  return { base64, mimetype };
+}
+
+function responseOutputText(data = {}) {
+  if (typeof data?.output_text === 'string' && data.output_text.trim()) {
+    return data.output_text.trim();
+  }
+
+  for (const item of Array.isArray(data?.output) ? data.output : []) {
+    for (const content of Array.isArray(item?.content) ? item.content : []) {
+      if (typeof content?.text === 'string' && content.text.trim()) {
+        return content.text.trim();
+      }
+    }
+  }
+  return '';
+}
+
+async function classifyImageWithVision(media = {}, contextText = '') {
+  if (!VISION_API_KEY) {
+    return {
+      kind: 'unknown',
+      confidence: 0,
+      product_name: '',
+      brand: '',
+      model: '',
+      category_hint: '',
+      payment_method: 'unknown',
+      payment_recipient_name: '',
+      summary: 'vision_not_configured'
+    };
+  }
+
+  const mime = String(media?.mimetype || 'image/jpeg').toLowerCase();
+  if (!mime.startsWith('image/')) {
+    return {
+      kind: 'unknown',
+      confidence: 0,
+      product_name: '',
+      brand: '',
+      model: '',
+      category_hint: '',
+      payment_method: 'unknown',
+      payment_recipient_name: '',
+      summary: 'unsupported_media_type'
+    };
+  }
+
+  const schema = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      kind: {
+        type: 'string',
+        enum: [
+          'payment_receipt_pix',
+          'payment_receipt_boleto',
+          'product',
+          'personal_document',
+          'other',
+          'unknown'
+        ]
+      },
+      confidence: { type: 'number', minimum: 0, maximum: 1 },
+      product_name: { type: 'string' },
+      brand: { type: 'string' },
+      model: { type: 'string' },
+      category_hint: { type: 'string' },
+      payment_method: {
+        type: 'string',
+        enum: ['pix', 'boleto', 'other', 'unknown']
+      },
+      payment_recipient_name: { type: 'string' },
+      summary: { type: 'string' }
+    },
+    required: [
+      'kind',
+      'confidence',
+      'product_name',
+      'brand',
+      'model',
+      'category_hint',
+      'payment_method',
+      'payment_recipient_name',
+      'summary'
+    ]
+  };
+
+  const prompt = [
+    'Classifique esta imagem recebida no WhatsApp de uma loja brasileira.',
+    'As classes permitidas são:',
+    '- payment_receipt_pix: comprovante/recibo de pagamento por PIX;',
+    '- payment_receipt_boleto: comprovante/recibo de pagamento de boleto;',
+    '- product: foto ou print de um produto comercial;',
+    '- personal_document: RG, CNH, CPF, comprovante de residência ou documento pessoal;',
+    '- other: outra imagem reconhecível;',
+    '- unknown: não é possível determinar com segurança.',
+    '',
+    'Nunca conclua que um pagamento foi realmente liquidado ou que o comprovante é autêntico.',
+    'Para produto, extraia somente o que estiver visível/razoavelmente identificável: nome, marca, modelo e categoria.',
+    'Para comprovante, payment_recipient_name deve ser apenas o nome do favorecido visível, se houver.',
+    \`Texto enviado pelo cliente junto/próximo da imagem: \${String(contextText || '').slice(0, 500)}\`
+  ].join('\n');
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), VISION_TIMEOUT_MS);
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: \`Bearer \${VISION_API_KEY}\`
+      },
+      body: JSON.stringify({
+        model: VISION_MODEL,
+        store: false,
+        input: [
+          {
+            role: 'user',
+            content: [
+              { type: 'input_text', text: prompt },
+              {
+                type: 'input_image',
+                image_url: \`data:\${mime};base64,\${media.base64}\`,
+                detail: 'low'
+              }
+            ]
+          }
+        ],
+        text: {
+          format: {
+            type: 'json_schema',
+            name: 'ariana_whatsapp_image_classification',
+            strict: true,
+            schema
+          }
+        },
+        max_output_tokens: 500
+      })
+    });
+
+    const data = await readJson(response);
+    const output = responseOutputText(data);
+    const parsed = JSON.parse(output || '{}');
+
+    return {
+      kind: String(parsed.kind || 'unknown'),
+      confidence: Number(parsed.confidence || 0),
+      product_name: String(parsed.product_name || '').trim(),
+      brand: String(parsed.brand || '').trim(),
+      model: String(parsed.model || '').trim(),
+      category_hint: String(parsed.category_hint || '').trim(),
+      payment_method: String(parsed.payment_method || 'unknown'),
+      payment_recipient_name: String(parsed.payment_recipient_name || '').trim(),
+      summary: String(parsed.summary || '').trim()
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function imageClassificationLabel(classification = {}) {
+  return [
+    classification.product_name,
+    classification.brand,
+    classification.model
+  ].map((v) => String(v || '').trim()).filter(Boolean).join(' ').trim();
+}
+
+function asksAboutImageProduct(text) {
+  const n = normalize(text);
+  return (
+    /(vende|vendem|tem|teria|consegue|conseguem|trabalha|trabalham|quanto|preco|valor).{0,40}(esse|essa|desse|dessa|produto|foto|imagem|print)/.test(n) ||
+    /(esse|essa|desse|dessa).{0,30}(produto|da foto|na foto|da imagem|na imagem|do print|no print)/.test(n) ||
+    /(produto).{0,25}(foto|imagem|print)/.test(n)
+  );
+}
+
+function emojiOnlyIntent(text) {
+  const raw = String(text || '').replace(/\s+/g, '');
+  if (!raw) return '';
+
+  if (/^(?:👍|🙏|😊|🙂|😁|😄|❤️|❤|👏|✅|👌|🤝|🙌|🥰|😍|💙|💛|😂|🤣)+$/u.test(raw)) {
+    return 'positive';
+  }
+  if (/^(?:🤔|❓|❔|⁉️|⁉)+$/u.test(raw)) return 'question';
+  if (/^(?:😕|😟|😞|😡|😠|👎|😤|😭)+$/u.test(raw)) return 'negative';
+
+  return '';
+}
+
 function outboundMessageId(result = {}) {
   return String(
     result?.key?.id ||
