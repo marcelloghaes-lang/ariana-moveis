@@ -244,24 +244,14 @@ export async function runAdminWhatsappReminderSweep({
 
   const reminderHours = Math.max(1, Number(process.env.ADMIN_WHATSAPP_REMINDER_HOURS || 12));
   const reminderCutoff = new Date(Date.now() - reminderHours * 60 * 60 * 1000);
-  const backfillSince = new Date(Date.now() - 6 * 60 * 60 * 1000);
 
-  let newOrderAlerts = 0;
   let orderReminders = 0;
-  let analysisAlerts = 0;
   let analysisReminders = 0;
 
-  const recentOrders = await Order.find({
-    createdAt: { $gte: backfillSince },
-    'whatsappNotification.adminNewOrder.firstSentAt': { $exists: false }
-  }).sort({ createdAt: -1 }).limit(50).lean();
-
-  for (const order of recentOrders) {
-    if (isOrderResolved(order)) continue;
-    const sent = await sendNewOrderWhatsappAlert({ Order, waSendTextMessage, order, reminder: false });
-    if (sent?.ok) newOrderAlerts += 1;
-  }
-
+  // IMPORTANTE:
+  // Esta varredura NUNCA envia o alerta inicial. O alerta inicial acontece
+  // somente no evento real (pedido criado / análise criada). Aqui entram
+  // exclusivamente lembretes cujo último envio já tem 12h ou mais.
   const pendingOrders = await Order.find({
     'whatsappNotification.adminNewOrder.firstSentAt': { $exists: true },
     'whatsappNotification.adminNewOrder.lastSentAt': { $lte: reminderCutoff }
@@ -269,30 +259,18 @@ export async function runAdminWhatsappReminderSweep({
 
   for (const order of pendingOrders) {
     if (isOrderResolved(order)) continue;
-    const sent = await sendNewOrderWhatsappAlert({ Order, waSendTextMessage, order, reminder: true });
+    const sent = await sendNewOrderWhatsappAlert({
+      Order,
+      waSendTextMessage,
+      order,
+      reminder: true
+    });
     if (sent?.ok) orderReminders += 1;
   }
 
   const Analysis = mongoose.models?.CrediarioAnalysis;
   if (Analysis) {
     const pendingStatuses = ['PENDENTE_ANALISE', 'AGUARDANDO_DOCUMENTOS', 'EM_ANALISE'];
-
-    const recentAnalyses = await Analysis.find({
-      createdAt: { $gte: backfillSince },
-      status: { $in: pendingStatuses },
-      'adminWhatsapp.firstSentAt': { $exists: false }
-    }).sort({ createdAt: -1 }).limit(50).lean();
-
-    for (const analysis of recentAnalyses) {
-      const sent = await sendCreditAnalysisWhatsappAlert({
-        mongoose,
-        waSendTextMessage,
-        analysis,
-        reminder: false
-      });
-      if (sent?.ok) analysisAlerts += 1;
-    }
-
     const pendingAnalyses = await Analysis.find({
       status: { $in: pendingStatuses },
       'adminWhatsapp.firstSentAt': { $exists: true },
@@ -312,9 +290,7 @@ export async function runAdminWhatsappReminderSweep({
 
   return {
     ok: true,
-    newOrderAlerts,
     orderReminders,
-    analysisAlerts,
     analysisReminders,
     reminderHours
   };
@@ -325,13 +301,13 @@ export function startAdminWhatsappReminderWorker({
   mongoose,
   waSendTextMessage
 } = {}) {
-  const sweepMinutes = Math.max(5, Number(process.env.ADMIN_WHATSAPP_REMINDER_SWEEP_MINUTES || 15));
+  const sweepMinutes = Math.max(15, Number(process.env.ADMIN_WHATSAPP_REMINDER_SWEEP_MINUTES || 60));
   const sweepMs = sweepMinutes * 60 * 1000;
 
   const run = async () => {
     try {
       const result = await runAdminWhatsappReminderSweep({ Order, mongoose, waSendTextMessage });
-      if (result?.ok && (result.newOrderAlerts || result.orderReminders || result.analysisAlerts || result.analysisReminders)) {
+      if (result?.ok && (result.orderReminders || result.analysisReminders)) {
         console.log('[admin-whatsapp-reminders]', result);
       }
     } catch (error) {
@@ -339,7 +315,8 @@ export function startAdminWhatsappReminderWorker({
     }
   };
 
-  const initialTimer = setTimeout(run, 45 * 1000);
+  // Primeira checagem somente para lembretes já vencidos; nunca cria alerta inicial.
+  const initialTimer = setTimeout(run, 60 * 1000);
   initialTimer.unref?.();
 
   const interval = setInterval(run, sweepMs);
