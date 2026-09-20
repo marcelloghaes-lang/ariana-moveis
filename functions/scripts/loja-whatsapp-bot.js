@@ -437,8 +437,20 @@ function asksToWriteOnCredit(text) {
 }
 
 function asksMoreProducts(text) {
-  const n = normalize(text);
-  return /mostrar mais|mostra mais|ver mais|tem mais|mais opcoes|outras opcoes|outros modelos|outras alternativas|tem outro|tem outros|quero ver mais/.test(n);
+  const n = normalize(text)
+    .replace(/([a-z])\1{2,}/g, '$1$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return (
+    /most+r+a?r? mais/.test(n) ||
+    /mostra mais|mostar mais|mostrar mais/.test(n) ||
+    /ver mais|quero ver mais|quero mais/.test(n) ||
+    /tem mais|tem outras|tem outros/.test(n) ||
+    /manda mais|envia mais/.test(n) ||
+    /mais opcoes|outras opcoes|outros modelos|outras alternativas/.test(n) ||
+    /tem outro|tem outros/.test(n)
+  );
 }
 
 function asksCreditQuote(text) {
