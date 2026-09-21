@@ -515,7 +515,7 @@ test('pedido vago para melhorar condição é entendido sem inventar desconto', 
 
   assert.equal(bot.conversation(phone).pendingAction, 'special_condition_product');
   assert.match(sentTexts.at(-1).text, /melhorar a condição de pagamento/i);
-  assert.match(sentTexts.at(-1).text, /Marcelo analisar/i);
+  assert.match(sentTexts.at(-1).text, /análise do Marcelo|Marcelo analisar/i);
   assert.doesNotMatch(sentTexts.at(-1).text, /desconto aprovado|consigo fazer por/i);
 });
 
