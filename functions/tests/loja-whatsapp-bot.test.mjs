@@ -376,7 +376,7 @@ test('camada semântica usa calculadora oficial do cartão em vez de inventar va
 
   await bot.handleMessage({
     phone,
-    text: 'e se eu passar isso no crédito como é que fica pra mim?',
+    text: 'se eu pagar no crédito vocês dividem como?',
     pushName: 'Cliente Semântico'
   });
 
