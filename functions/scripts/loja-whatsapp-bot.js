@@ -1222,8 +1222,16 @@ async function acknowledgePixProof(phone, conv, text = '', pushName = '') {
 }
 
 function asksCardQuote(text) {
-  const n = normalize(text);
-  return /(quanto|valor|fica|parcel).{0,30}(cartao|credito)|(cartao|credito).{0,30}(quanto|valor|fica|parcel)/.test(n);
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return (
+    /(quanto|valor|fica|parcel).{0,30}(cartao|credito)|(cartao|credito).{0,30}(quanto|valor|fica|parcel)/.test(n) ||
+    /^(?:e\s+)?(?:no\s+)?cartao$/.test(n) ||
+    /^(?:e\s+)?(?:no\s+)?credito$/.test(n)
+  );
 }
 
 function asksPixPrice(text) {
