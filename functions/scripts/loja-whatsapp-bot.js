@@ -1092,7 +1092,25 @@ function asksMarceloOrCallback(text) {
   const directGreeting = new RegExp(
     '^(?:(?:oi+|oie+|ola+|bom dia|boa tarde|boa noite)(?: tudo bem)?\\s+)(?:o\\s+)?' +
     marcelo +
-    '(?:\\s+tudo bem)?
+    '(?:\\s+tudo bem)?$'
+  ).test(n);
+
+  const asksIfAvailable = new RegExp(
+    '^(?:o\\s+)?' + marcelo + '\\s+(?:ta|esta)(?:\\s+(?:ai|por ai))?$'
+  ).test(n);
+
+  return (
+    directGreeting ||
+    asksIfAvailable ||
+    new RegExp('(falar|conversar).{0,20}(com )?(o )?' + marcelo).test(n) ||
+    new RegExp(marcelo + '.{0,50}(esta ai|ta ai|pode falar|preciso falar|quero falar|precisando falar|me liga|me ligue)').test(n) ||
+    new RegExp('(preciso|precisando|precisava|queria|quero|gostaria|to precisando|estou precisando).{0,30}falar.{0,20}(com )?(voce|' + marcelo + ')').test(n) ||
+    new RegExp(marcelo + '.{0,70}(e com voce|eh com voce).{0,35}(falando|falo)').test(n) ||
+    new RegExp(marcelo + '.{0,70}(fala|fale).{0,20}(aqui )?comigo').test(n) ||
+    /(pode|poderia|teria|teria como|consegue|conseguiria).{0,30}(me|mim)?\s*(ligar|retornar|telefonar)/.test(n) ||
+    /(me|mim)\s+(liga|ligue|retorna|retorne)|liga(r)?\s+(aqui|pra mim|para mim)|retorna(r)?\s+(aqui|pra mim|para mim)/.test(n)
+  );
+}
 
 function isReferralOrPraise(text) {
   const n = normalize(text);
