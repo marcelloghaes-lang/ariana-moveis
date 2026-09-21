@@ -1317,6 +1317,7 @@ function asksHowToBuyFromStore(text) {
 
   return (
     /como\s+(?:eu\s+)?(?:faco|faço)?\s*(?:pra|para)?\s*comprar\s+(?:com|de)\s+voces?/.test(n) ||
+    /como\s+(?:eu\s+)?compro\s+(?:com|de)\s+voces?/.test(n) ||
     /como\s+comprar\s+(?:com|de)\s+voces?/.test(n) ||
     /(?:quero|quro)\s+comprar\s+(?:com|de)\s+voces?.{0,25}como\s+(?:eu\s+)?(?:faco|faço)/.test(n)
   );
