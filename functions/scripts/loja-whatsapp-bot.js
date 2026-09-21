@@ -56,6 +56,7 @@ const CATEGORY_TERMS = [
   ['frigobar', ['frigobar', 'frigobares']],
   ['fogão', ['fogao', 'fogoes']],
   ['cama', ['cama', 'camas', 'colchao', 'colchoes', 'box', 'cama box', 'colchao box', 'colchoes box']],
+  ['beliche', ['beliche', 'beliches']],
   ['celular', ['celular', 'celulares', 'smartphone', 'smartphones', 'iphone']],
   ['tv', ['tv', 'tvs', 'televisao', 'televisoes', 'televisor', 'televisores', 'smart tv', 'smart tvs']],
   ['caixa de som', ['som', 'caixa de som', 'caixas de som', 'caixa torre', 'caixas torre', 'caix torre', 'torre', 'torres', 'torre de som', 'torres de som']],
@@ -969,6 +970,59 @@ function greetingFromText(text) {
   return '';
 }
 
+function greetingForFallback(text) {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (/\bbom dia\b/.test(n)) return 'Bom dia';
+  if (/\bboa tarde\b/.test(n)) return 'Boa tarde';
+  if (/\bboa noite\b/.test(n)) return 'Boa noite';
+  return 'Olá';
+}
+
+function isCommercialTopic(text, conv = {}) {
+  const n = normalize(text);
+  if (!n) return false;
+
+  if (
+    detectCategory(text) ||
+    asksPaymentMethods(text) ||
+    asksPixKey(text) ||
+    asksPixProof(text) ||
+    asksFinance(text) ||
+    asksHowToBuyCredit(text) ||
+    asksToWriteOnCredit(text) ||
+    asksMoreProducts(text) ||
+    asksCreditQuote(text) ||
+    asksGenericInstallmentQuote(text) ||
+    asksCardQuote(text) ||
+    asksPixPrice(text) ||
+    asksProductLink(text) ||
+    asksDelivery(text) ||
+    asksAboutImageProduct(text) ||
+    asksLastShownProduct(text) ||
+    asksThisShownProduct(text) ||
+    ordinalIndex(text) >= 0
+  ) {
+    return true;
+  }
+
+  if (
+    /\b(produto|produtos|mercadoria|mercadorias|comprar|compra|compras|vender|vende|vendem|preco|precos|valor|valores|estoque|disponivel|disponibilidade|modelo|modelos|foto|fotos|promocao|oferta|desconto|parcelado|parcelar|parcela|parcelas|cartao|pix|carne|crediario|boleto|entrega|frete|notinha|notinhas|garantia)\b/.test(n)
+  ) {
+    return true;
+  }
+
+  return Boolean(
+    conv?.selectedProduct ||
+    (Array.isArray(conv?.lastProducts) && conv.lastProducts.length) ||
+    conv?.lastIntent === 'produto' ||
+    String(conv?.pendingAction || '').startsWith('crediario_')
+  );
+}
+
 function isGreeting(text) {
   const n = normalize(text)
     .replace(/[!?.,;:]+/g, ' ')
@@ -1009,6 +1063,8 @@ function asksMarceloOrCallback(text) {
     new RegExp('(falar|conversar).{0,20}(com )?(o )?' + marcelo).test(n) ||
     new RegExp(marcelo + '.{0,50}(esta ai|ta ai|pode falar|preciso falar|quero falar|precisando falar|me liga|me ligue)').test(n) ||
     new RegExp('(preciso|precisando|precisava|queria|quero|gostaria|to precisando|estou precisando).{0,30}falar.{0,20}(com )?(voce|' + marcelo + ')').test(n) ||
+    new RegExp(marcelo + '.{0,70}(e com voce|eh com voce).{0,35}(falando|falo)').test(n) ||
+    new RegExp(marcelo + '.{0,70}(fala|fale).{0,20}(aqui )?comigo').test(n) ||
     /(pode|poderia|teria|teria como|consegue|conseguiria).{0,30}(me|mim)?\s*(ligar|retornar|telefonar)/.test(n) ||
     /(me|mim)\s+(liga|ligue|retorna|retorne)|liga(r)?\s+(aqui|pra mim|para mim)|retorna(r)?\s+(aqui|pra mim|para mim)/.test(n)
   );
@@ -2477,9 +2533,14 @@ async function handleMessage({ phone, text, pushName = '' }) {
     conv.marceloCallbackRequestedAt = Date.now();
     saveStateSoon();
 
+    const greeting = greetingForFallback(text);
+    const greetingPrefix = /\b(bom dia|boa tarde|boa noite)\b/.test(n)
+      ? `${greeting}! 😊 `
+      : '';
+
     await sendText(
       phone,
-      'O Marcelo está em outro atendimento no momento. Assim que ele terminar, ele retorna seu contato 😊\n\nEnquanto você aguarda, gostaria de dar uma olhada em alguma coisa? Posso te mostrar fotos de produtos, preços e condições de pagamento.'
+      `${greetingPrefix}O Marcelo está em outro atendimento no momento. Assim que ele terminar, ele retorna seu contato 😊\n\nEnquanto você aguarda, gostaria de dar uma olhada em alguma coisa? Posso te mostrar fotos de produtos, preços e condições de pagamento.`
     );
 
     await syncTicket(phone, {
@@ -2896,9 +2957,40 @@ async function handleMessage({ phone, text, pushName = '' }) {
     }
   }
 
-  await sendText(phone, 'Claro 😊 Quero te ajudar certinho. Me conta um pouco mais do que você precisa. Posso consultar produtos e preços, formas de pagamento, carnê, PIX, entrega ou sua notinha.');
-  await markReviewNeeded(phone, conv, text, pushName);
+  if (isCommercialTopic(text, conv)) {
+    await sendText(
+      phone,
+      'Claro 😊 Quero te ajudar com isso. Me conta um pouco mais do produto ou da condição que você precisa, para eu continuar seu atendimento sem te passar informação errada.'
+    );
+    await markReviewNeeded(
+      phone,
+      conv,
+      text,
+      pushName,
+      'Mensagem relacionada a venda/mercadoria precisa de revisão, mas o atendimento automático continua.'
+    );
+    return;
+  }
 
+  const fallbackGreeting = greetingForFallback(text);
+  conv.marceloCallbackRequested = true;
+  conv.marceloCallbackRequestedAt = Date.now();
+  saveStateSoon();
+
+  await sendText(
+    phone,
+    `${fallbackGreeting}! 😊 Não consigo te ajudar com esse assunto por aqui, mas assim que o Marcelo chegar eu peço para ele te dar um retorno.\n\nEnquanto isso, posso te auxiliar com fotos de produtos, preços, condições de pagamento, carnê e outras informações de venda da Ariana Móveis.`
+  );
+
+  await syncTicket(phone, {
+    status: 'Aguardando retorno do Marcelo',
+    message: text,
+    name: pushName,
+    metadata: {
+      assunto: 'fora_escopo_vendas',
+      atendimentoAutomaticoContinua: true
+    }
+  });
 }
 
 function extractIncoming(payload = {}) {
@@ -3215,6 +3307,8 @@ export const __test = {
   categoryAliases,
   detectCategory,
   greetingFromText,
+  greetingForFallback,
+  isCommercialTopic,
   isGreeting,
   asksPresencePing,
   asksMarceloOrCallback,
