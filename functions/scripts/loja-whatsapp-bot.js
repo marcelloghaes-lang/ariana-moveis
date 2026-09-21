@@ -2243,11 +2243,17 @@ async function startCreditApplication(phone, conv) {
   conv.pendingAction = '';
   saveStateSoon();
 
+  const creditNextStep =
+    'Se você *já é cliente da Ariana Móveis*, é só aguardar a aprovação da compra.\n' +
+    'Se você *ainda não é cliente*, envie os dados e documentos que acabaram de ser solicitados no WhatsApp do *Crediário Ariana Móveis* para fazermos a abertura do seu crédito.';
+
+  const creditMessage = result?.existing
+    ? 'Sua solicitação de crediário já está aberta 😊'
+    : 'Pronto 😊 Sua compra foi encaminhada para análise de crédito.';
+
   await sendText(
     phone,
-    result?.existing
-      ? 'Sua solicitação de crediário já está aberta 😊 Confira o WhatsApp do Crediário Ariana Móveis e siga a solicitação de documentos por lá.'
-      : 'Pronto 😊 Vou te enviar a solicitação de documentos pelo número do *Crediário Ariana Móveis*. Quando a mensagem chegar, responda *ACEITO* e siga as orientações para enviar os dados e documentos.'
+    `${creditMessage}\n\n${creditNextStep}`
   );
 }
 
