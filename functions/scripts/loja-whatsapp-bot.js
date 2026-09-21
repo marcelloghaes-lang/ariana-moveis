@@ -1399,12 +1399,18 @@ function asksMoreProducts(text) {
 }
 
 function asksCreditQuote(text) {
-  const n = normalize(text);
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   const creditWord = '(?:boleto|carne|crediario)';
   const boletoTypoInInstallmentContext =
     /\b(parcela|parcelado|parcelar|prestacao|vezes)\b.{0,30}\b(beto|bolto|boleo)\b/.test(n);
+  const shortCreditContinuation =
+    /^(?:e\s+)?(?:no\s+)?(?:boleto|carne|crediario)$/.test(n);
 
   return (
+    shortCreditContinuation ||
     new RegExp(`quanto fica.{0,30}${creditWord}`).test(n) ||
     /quanto (da|fica) em \d{1,2}\s*(x|vezes|parcelas)?/.test(n) ||
     new RegExp(`\\d{1,2}\\s*(?:x|vezes|parcelas).{0,25}${creditWord}`).test(n) ||
