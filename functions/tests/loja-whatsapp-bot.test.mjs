@@ -481,6 +481,21 @@ test('"A vista tá qto?" mantém contexto da lista e pede qual produto', async (
   assert.match(sentTexts[0].text, /primeiro/i);
   assert.doesNotMatch(sentTexts[0].text, /Me conta um pouco mais/i);
   assert.equal(bot.conversation(phone).lastProducts.length, 2);
+  assert.equal(bot.conversation(phone).pendingAction, 'cash_price_product');
+
+  sentTexts = [];
+
+  await bot.handleMessage({
+    phone,
+    text: 'o segundo',
+    pushName: 'Cliente Geladeira'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Geladeira Inox 400L/i);
+  assert.match(sentTexts[0].text, /R\$\s*2\.197,40/i);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'fridge-cash-2');
+  assert.equal(bot.conversation(phone).pendingAction, '');
 });
 
 
