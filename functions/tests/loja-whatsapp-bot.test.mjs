@@ -523,6 +523,40 @@ test('"pode me enviar fotos" continua oferta de outros tamanhos de TV', async ()
   assert.doesNotMatch(sentTexts.at(-1)?.text || '', /Me conta o que você está procurando/i);
 });
 
+test('"quanto fica esse em 10x no boleto" usa o último produto mostrado', async () => {
+  const phone = '5533977777738';
+
+  const first = bot.compactProduct(product('sofa-1', 'Sofá 2 Lugares Teste', {
+    category: 'Sofá',
+    pixPrice: 1599,
+    price: 1899
+  }));
+  const last = bot.compactProduct(product('sofa-2', 'Sofá 3 Lugares Retrátil e Reclinável SMP Kratos', {
+    category: 'Sofá',
+    pixPrice: 1779,
+    price: 2134
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastProducts: [first, last],
+    selectedProduct: null,
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'quanto fica esse em 10x no boleto?',
+    pushName: 'Cliente Sofá'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Sofá 3 Lugares Retrátil e Reclinável SMP Kratos/i);
+  assert.match(sentTexts[0].text, /10x de R\$/i);
+  assert.doesNotMatch(sentTexts[0].text, /Me diga qual produto/i);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'sofa-2');
+  assert.equal(bot.conversation(phone).lastCreditPlan.count, 10);
+});
+
 test('"esse último aí" seleciona o último produto antes de calcular o boleto', async () => {
   const phone = '5533977777732';
 
@@ -2074,6 +2108,7 @@ test('quando perguntam quem está falando o atendente se apresenta como Gustavo'
 test('perguntas sobre Emilly ou Luana informam que não trabalham mais na loja', async () => {
   const cases = [
     ['Cadê a Emilly?', /A Emilly não trabalha mais aqui/i],
+    ['A Emilly se encontra?', /A Emilly não trabalha mais aqui/i],
     ['É a Luana?', /A Luana não trabalha mais aqui/i],
     ['É a Emily ou Luana?', /A Emilly e a Luana não trabalham mais aqui/i]
   ];
@@ -2089,6 +2124,11 @@ test('perguntas sobre Emilly ou Luana informam que não trabalham mais na loja',
     assert.match(sentTexts.at(-1).text, expected);
     assert.match(sentTexts.at(-1).text, /Gustavo/i);
   }
+});
+
+test('"esse mês" não é confundido com referência a produto', () => {
+  assert.equal(bot.asksThisShownProduct('esse mês vou te pagar somente 200'), false);
+  assert.equal(bot.asksThisShownProduct('quanto fica esse em 10x no boleto?'), true);
 });
 
 test('intenções financeiras e atendimento humano genérico continuam reconhecidas', () => {
