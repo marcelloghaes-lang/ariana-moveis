@@ -727,6 +727,55 @@ test('"E no cartão?" continua no mesmo produto após cálculo do crediário', a
 });
 
 
+test('"e no boleto?" continua no mesmo produto e pergunta as parcelas do crediário', async () => {
+  const phone = '5533977777755';
+  const chosen = bot.compactProduct(product('fridge-boleto-1', 'Refrigerador Consul 451L Branco 110V', {
+    category: 'Geladeiras',
+    pixPrice: 3974,
+    price: 4787.95,
+    installmentCount: 12
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: chosen,
+    lastProducts: [chosen],
+    allProductResults: [chosen],
+    lastIntent: 'produto'
+  });
+
+  assert.equal(bot.asksCreditQuote('e no boleto?'), true);
+  assert.equal(bot.asksCreditQuote('e no carnê?'), true);
+  assert.equal(bot.asksCreditQuote('no crediário?'), true);
+
+  await bot.handleMessage({
+    phone,
+    text: 'e no boleto?',
+    pushName: 'Cliente Boleto'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Refrigerador Consul 451L Branco 110V/i);
+  assert.match(sentTexts[0].text, /crediário próprio/i);
+  assert.match(sentTexts[0].text, /Em quantas vezes/i);
+  assert.doesNotMatch(sentTexts[0].text, /Me conta um pouco mais/i);
+  assert.equal(bot.conversation(phone).pendingAction, 'credit_installments');
+
+  sentTexts = [];
+
+  await bot.handleMessage({
+    phone,
+    text: '10x',
+    pushName: 'Cliente Boleto'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /10x/i);
+  assert.match(sentTexts[0].text, /crediário próprio/i);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'fridge-boleto-1');
+  assert.equal(bot.conversation(phone).pendingAction, '');
+});
+
+
 test('nome/modelo recente identifica Moto G06 e calcula cartão sem pedir produto de novo', async () => {
   const phone = '5533977777751';
 
