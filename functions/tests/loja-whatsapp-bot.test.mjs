@@ -1378,6 +1378,144 @@ test('áudio recebido do cliente é transcrito e segue o mesmo atendimento de te
   assert.equal(budget.usedBrl, 0.0036);
 });
 
+test('áudio fora de venda recebe saudação e fica aguardando retorno do Marcelo', async () => {
+  const phone = '5533923333410';
+
+  audioTranscriptionText = 'Pessoal, bom dia, tudo bem? Carro saindo hoje às 11 horas, rota completa. Pode adiantar os pedidos, eu agradeço.';
+  mediaBase64Response = {
+    mimetype: 'audio/ogg; codecs=opus',
+    base64: 'T2dnUwBmYWtlLWF1ZGlvLWZvc3Njb3Bl'
+  };
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'AUDIO-OUT-OF-SALES-1'
+      },
+      pushName: 'Fornecedor Rota',
+      message: {
+        audioMessage: {
+          mimetype: 'audio/ogg; codecs=opus',
+          seconds: 10,
+          ptt: true
+        }
+      }
+    }
+  });
+
+  assert.equal(result.audio, 'audio_transcribed');
+  assert.match(sentTexts.at(-1).text, /^Bom dia! 😊/i);
+  assert.match(sentTexts.at(-1).text, /Não consigo te ajudar com esse assunto por aqui/i);
+  assert.match(sentTexts.at(-1).text, /Marcelo.*retorno/i);
+  assert.match(sentTexts.at(-1).text, /fotos de produtos/i);
+
+  assert.equal(backendEvents.at(-1).status, 'Aguardando retorno do Marcelo');
+  assert.equal(backendEvents.at(-1).metadata.assunto, 'fora_escopo_vendas');
+  assert.equal(backendEvents.at(-1).metadata.atendimentoAutomaticoContinua, true);
+  assert.equal(bot.conversation(phone).marceloCallbackRequested, true);
+});
+
+test('áudio sobre beliche continua no atendimento de venda e não vira assunto fora de escopo', async () => {
+  const phone = '5533923333411';
+
+  audioTranscriptionText = 'Bom dia, queria olhar uma beliche para minha filha e saber as condições para pagar.';
+  mediaBase64Response = {
+    mimetype: 'audio/ogg; codecs=opus',
+    base64: 'T2dnUwBmYWtlLWF1ZGlvLWJlbGljaGU='
+  };
+  catalogRows = [
+    product('beliche-audio-1', 'Beliche Solteiro Madeira', {
+      category: 'Beliche',
+      stock: 2
+    })
+  ];
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'AUDIO-BELICHE-SALE-1'
+      },
+      pushName: 'Cliente Beliche',
+      message: {
+        audioMessage: {
+          mimetype: 'audio/ogg; codecs=opus',
+          seconds: 18,
+          ptt: true
+        }
+      }
+    }
+  });
+
+  assert.equal(result.audio, 'audio_transcribed');
+  assert.ok(
+    sentMedia.some((item) => /Beliche Solteiro Madeira/i.test(item.caption || '')),
+    'beliche deve seguir como busca de produto'
+  );
+  assert.equal(
+    backendEvents.some((item) => item.metadata?.assunto === 'fora_escopo_vendas'),
+    false,
+    'venda de mercadoria não pode ser encaminhada como assunto fora de escopo'
+  );
+});
+
+test('pedido comercial pouco claro pede mais detalhes e não chama Marcelo automaticamente', async () => {
+  const phone = '5533923333412';
+
+  await bot.handleMessage({
+    phone,
+    text: 'Quero comprar uma mercadoria mas queria entender melhor o valor e como fica para pagar',
+    pushName: 'Cliente Comercial'
+  });
+
+  assert.match(sentTexts.at(-1).text, /Quero te ajudar com isso/i);
+  assert.match(sentTexts.at(-1).text, /produto ou da condição/i);
+  assert.equal(
+    backendEvents.some((item) => item.status === 'Aguardando retorno do Marcelo'),
+    false
+  );
+  assert.equal(bot.conversation(phone).marceloCallbackRequested, false);
+});
+
+test('áudio perguntando diretamente pelo Marcelo é reconhecido e responde com saudação', async () => {
+  const phone = '5533923333413';
+
+  audioTranscriptionText = 'Bom dia, tudo bem? Ô Marcelo, é com você que eu estou falando nesse número? Fala aqui comigo, por favor.';
+  mediaBase64Response = {
+    mimetype: 'audio/ogg; codecs=opus',
+    base64: 'T2dnUwBmYWtlLWF1ZGlvLW1hcmNlbG8='
+  };
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'AUDIO-MARCELO-DIRECT-1'
+      },
+      pushName: 'Rosilene',
+      message: {
+        audioMessage: {
+          mimetype: 'audio/ogg; codecs=opus',
+          seconds: 9,
+          ptt: true
+        }
+      }
+    }
+  });
+
+  assert.equal(result.audio, 'audio_transcribed');
+  assert.match(sentTexts.at(-1).text, /^Bom dia! 😊/i);
+  assert.match(sentTexts.at(-1).text, /O Marcelo está em outro atendimento/i);
+  assert.equal(backendEvents.at(-1).status, 'Aguardando retorno do Marcelo');
+});
+
 test('áudio enviado pela própria loja não é transcrito', async () => {
   const phone = '5533923333402';
 
@@ -2170,6 +2308,21 @@ test('perguntas sobre Emilly ou Luana informam que não trabalham mais na loja',
 test('"esse mês" não é confundido com referência a produto', () => {
   assert.equal(bot.asksThisShownProduct('esse mês vou te pagar somente 200'), false);
   assert.equal(bot.asksThisShownProduct('quanto fica esse em 10x no boleto?'), true);
+});
+
+test('classificação de assunto separa venda de operação interna', () => {
+  assert.equal(
+    bot.isCommercialTopic('Quero ver uma beliche e saber quanto fica no carnê'),
+    true
+  );
+  assert.equal(
+    bot.isCommercialTopic('Carro saindo às 11, rota completa, pode adiantar os pedidos'),
+    false
+  );
+  assert.equal(
+    bot.greetingForFallback('Pessoal, bom dia, tudo bem?'),
+    'Bom dia'
+  );
 });
 
 test('intenções financeiras e atendimento humano genérico continuam reconhecidas', () => {
