@@ -986,6 +986,33 @@ function greetingFromText(text) {
   return '';
 }
 
+function customerFirstName(pushName = '') {
+  const raw = String(pushName || '').trim();
+  if (!raw) return '';
+
+  const firstToken = raw.split(/\s+/)[0] || '';
+  const match = firstToken.match(/[\p{L}][\p{L}'’-]*/u);
+  if (!match) return '';
+
+  const first = match[0];
+  if (first.length < 2 || first.length > 30) return '';
+
+  const normalizedFirst = normalize(first);
+  const blocked = new Set([
+    'cliente', 'contato', 'usuario', 'user', 'whatsapp',
+    'loja', 'empresa', 'comercial', 'oficial', 'atendimento'
+  ]);
+  if (blocked.has(normalizedFirst)) return '';
+
+  const lower = first.toLocaleLowerCase('pt-BR');
+  return lower.charAt(0).toLocaleUpperCase('pt-BR') + lower.slice(1);
+}
+
+function personalizedGreeting(greeting, pushName = '') {
+  const firstName = customerFirstName(pushName);
+  return firstName ? `${greeting}, ${firstName}!` : `${greeting}!`;
+}
+
 function greetingForFallback(text) {
   const n = normalize(text)
     .replace(/[!?.,;:]+/g, ' ')
@@ -3280,7 +3307,7 @@ async function handleMessage({ phone, text, pushName = '' }) {
     if (greeting) {
       await sendText(
         phone,
-        `${greeting}! 😊 Tudo bem? Seja bem-vindo à Ariana Móveis. Vou verificar as opções disponíveis para você.`
+        `${personalizedGreeting(greeting, pushName)} 😊 Tudo bem? Seja bem-vindo à Ariana Móveis. Vou verificar as opções disponíveis para você.`
       );
     }
 
@@ -3316,7 +3343,7 @@ async function handleMessage({ phone, text, pushName = '' }) {
 
   if (isGreeting(text)) {
     const saudacao = greetingFromText(text) || 'Olá';
-    await sendText(phone, `${saudacao}! 😊 Tudo bem? Seja bem-vindo à Ariana Móveis. Como posso te ajudar hoje?`);
+    await sendText(phone, `${personalizedGreeting(saudacao, pushName)} 😊 Tudo bem? Seja bem-vindo à Ariana Móveis. Como posso te ajudar hoje?`);
     return;
   }
 
@@ -3691,6 +3718,8 @@ export const __test = {
   categoryAliases,
   detectCategory,
   greetingFromText,
+  customerFirstName,
+  personalizedGreeting,
   greetingForFallback,
   isCommercialTopic,
   isGreeting,
