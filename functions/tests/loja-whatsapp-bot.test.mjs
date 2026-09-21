@@ -2374,6 +2374,10 @@ test('emojis positivos, de dúvida e negativos têm comportamento próprio', asy
 
 test('pedido para falar com Marcelo ou receber ligação é reconhecido', () => {
   for (const value of [
+    'Marcelo',
+    'Marcelo?',
+    'Macelo',
+    'Marcello',
     'Oi Marcelo',
     'Olá Marcelo',
     'Bom dia Marcelo',
@@ -2429,6 +2433,25 @@ test('"o Marcelo está?" também recebe a resposta de retorno sem cair no fallba
   assert.match(sentTexts[0].text, /ele retorna seu contato/i);
   assert.doesNotMatch(sentTexts[0].text, /Me conta um pouco mais/i);
   assert.equal(backendEvents[0].status, 'Aguardando retorno do Marcelo');
+});
+
+
+test('"Marcelo" sozinho também chama o retorno humano', async () => {
+  const phone = '5533955555552';
+
+  await bot.handleMessage({
+    phone,
+    text: 'Marcelo',
+    pushName: 'Cliente Direto'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /O Marcelo está em outro atendimento no momento/i);
+  assert.match(sentTexts[0].text, /ele retorna seu contato/i);
+  assert.doesNotMatch(sentTexts[0].text, /Me conta um pouco mais/i);
+  assert.equal(backendEvents.length, 1);
+  assert.equal(backendEvents[0].status, 'Aguardando retorno do Marcelo');
+  assert.equal(bot.conversation(phone).marceloCallbackRequested, true);
 });
 
 test('pedido pelo Marcelo registra retorno sem desligar o atendimento automático', async () => {
