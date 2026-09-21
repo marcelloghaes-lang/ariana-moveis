@@ -1294,6 +1294,49 @@ function asksProductLink(text) {
   return /manda.{0,20}link|me passa.{0,20}link|envia.{0,20}link|link do produto|link desse|link dessa/.test(n);
 }
 
+function asksStoreAssortment(text) {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return (
+    /^(?:com\s+)?o?\s*que\s+voces?\s+(?:trabalha|trabalham|vende|vendem)$/.test(n) ||
+    /^voces?\s+(?:trabalha|trabalham|mexe|mexem)\s+com\s+(?:qual|quais|que)\s+produto(?:s)?$/.test(n) ||
+    /^voces?\s+(?:trabalha|trabalham|mexe|mexem)\s+com\s+o\s+que$/.test(n) ||
+    /^(?:o|oque)\s+que?\s*voces?\s+vendem$/.test(n) ||
+    /^o?que\s+voces?\s+vendem$/.test(n)
+  );
+}
+
+function asksHowToBuyFromStore(text) {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return (
+    /como\s+(?:eu\s+)?(?:faco|faço)?\s*(?:pra|para)?\s*comprar\s+(?:com|de)\s+voces?/.test(n) ||
+    /como\s+comprar\s+(?:com|de)\s+voces?/.test(n) ||
+    /(?:quero|quro)\s+comprar\s+(?:com|de)\s+voces?.{0,25}como\s+(?:eu\s+)?(?:faco|faço)/.test(n)
+  );
+}
+
+function asksGenericStorePurchase(text) {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return /^(?:eu\s+)?(?:quero|quro|queria|gostaria de)\s+comprar\s+(?:com|de)\s+voces?$/.test(n);
+}
+
+function isPixCopyPastePayload(text) {
+  const raw = String(text || '').replace(/\s+/g, '');
+  if (raw.length < 40) return false;
+  return /^000201/.test(raw) && /BR\.GOV\.BCB\.PIX/i.test(raw);
+}
+
 function asksDelivery(text) {
   const n = normalize(text);
   return /entrega|entregam|quando chega|chega que dia|manda pra|manda para/.test(n);
@@ -2880,6 +2923,39 @@ async function handleMessage({ phone, text, pushName = '' }) {
     return;
   }
 
+  if (isPixCopyPastePayload(text)) {
+    markPixContext(conv);
+    await sendText(
+      phone,
+      'Recebi um código *PIX copia e cola*. Por segurança, eu não confirmo pagamento somente pelo código. Se você já realizou o pagamento, me envie o *comprovante*. Se você quer pagar a Ariana Móveis, também posso te enviar nossa chave PIX oficial 😊'
+    );
+    return;
+  }
+
+  if (asksStoreAssortment(text)) {
+    await sendText(
+      phone,
+      'Trabalhamos com *móveis, eletrodomésticos, eletrônicos, celulares, informática e eletroportáteis* 😊\n\nMe diga o que você está procurando que eu consulto os produtos disponíveis no catálogo da Ariana Móveis.'
+    );
+    return;
+  }
+
+  if (asksHowToBuyFromStore(text)) {
+    await sendText(
+      phone,
+      'Claro 😊 Você pode comprar pelo site *arianamoveis.com.br* ou eu posso te ajudar por aqui a escolher o produto. Me diga o que você procura e eu te mostro as opções, preços e condições de pagamento. Depois que você escolher o produto, eu te passo o link correto para continuar a compra.'
+    );
+    return;
+  }
+
+  if (asksGenericStorePurchase(text)) {
+    await sendText(
+      phone,
+      'Ótimo 😊 Vou te ajudar. O que você está querendo comprar? Me diga o tipo de produto — por exemplo geladeira, TV, celular, sofá ou outro — que eu consulto as opções disponíveis para você.'
+    );
+    return;
+  }
+
   if (asksDelivery(text)) {
     const delivery = deliveryReply(text);
     await sendText(phone, delivery.text);
@@ -3239,12 +3315,12 @@ async function handleMessage({ phone, text, pushName = '' }) {
     return;
   }
 
-  if (/trabalha com|voces vendem|vocês vendem|o que voces vendem|o que vocês vendem/.test(n)) {
-    await sendText(phone, 'Trabalhamos com móveis, eletrodomésticos, eletrônicos, celulares e eletroportáteis 😊 Me diga o que você está procurando que eu consulto o que temos disponível no site agora.');
+  if (/trabalha com|voces vendem|vocês vendem|o que voces vendem|o que vocês vendem|voces mexem com|voces mexe com/.test(n)) {
+    await sendText(phone, 'Trabalhamos com móveis, eletrodomésticos, eletrônicos, celulares, informática e eletroportáteis 😊 Me diga o que você está procurando que eu consulto o que temos disponível no catálogo agora.');
     return;
   }
 
-  if (/quero comprar|gostei desse|gostei desta|vou ficar com esse|vou querer esse/.test(n)) {
+  if (/gostei desse|gostei desta|vou ficar com esse|vou ficar com esta|vou querer esse|vou querer esta|quero comprar esse|quero comprar esta/.test(n)) {
     const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
     if (product) {
       await sendText(phone, `Ótimo 😊 Você pode ver e comprar *${product.name}* por aqui: ${productLink(product)}\n\nSe preferir, me diga a forma de pagamento que você quer usar e eu te ajudo.`);
@@ -3641,6 +3717,10 @@ export const __test = {
   asksPixPrice,
   asksCashDiscount,
   asksProductLink,
+  asksStoreAssortment,
+  asksHowToBuyFromStore,
+  asksGenericStorePurchase,
+  isPixCopyPastePayload,
   asksDelivery,
   asksFinance,
   asksAttendantIdentity,
