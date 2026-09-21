@@ -352,13 +352,32 @@ test('entrega diferencia Guanhães de zona rural/outra cidade', () => {
   const city = bot.deliveryReply('Entrega aqui em Guanhães?');
   assert.equal(city.needsLogistics, false);
   assert.match(city.text, /24 horas/i);
+  assert.match(city.text, /segunda a sábado/i);
+  assert.match(city.text, /12h/i);
 
   const rural = bot.deliveryReply('Entrega na zona rural?');
   assert.equal(rural.needsLogistics, true);
   assert.match(rural.text, /consultar/i);
+  assert.match(rural.text, /segunda a sábado/i);
 
   const other = bot.deliveryReply('Vocês entregam em outra cidade?');
   assert.equal(other.needsLogistics, true);
+});
+
+test('entregas são de segunda a sábado até 12h e não ocorrem no domingo', async () => {
+  const phone = '5533977777756';
+
+  await bot.handleMessage({
+    phone,
+    text: 'vocês entregam sábado e domingo?',
+    pushName: 'Cliente Entrega'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /segunda a sábado/i);
+  assert.match(sentTexts[0].text, /12h/i);
+  assert.match(sentTexts[0].text, /domingo.*não realizamos entregas/i);
+  assert.doesNotMatch(sentTexts[0].text, /Me conta um pouco mais/i);
 });
 
 test('primeiro, segundo, terceiro e quarto mantêm índice correto', () => {
