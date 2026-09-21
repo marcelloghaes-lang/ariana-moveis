@@ -1131,10 +1131,14 @@ function isReferralOrPraise(text) {
 }
 
 function asksAttendantIdentity(text) {
-  const n = normalize(text);
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
   return (
-    /quem (ta|esta) falando/.test(n) ||
-    /com quem (eu )?(falo|estou falando)/.test(n) ||
+    /quem (ta|esta|to|estou) falando/.test(n) ||
+    /com quem (eu )?(falo|to falando|estou falando)/.test(n) ||
     /qual (e |eh )?(o )?seu nome/.test(n) ||
     /quem (e|eh) voce/.test(n) ||
     /quem fala/.test(n)
