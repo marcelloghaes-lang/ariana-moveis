@@ -1247,8 +1247,16 @@ function asksCardQuote(text) {
 }
 
 function asksPixPrice(text) {
-  const n = normalize(text);
-  return /(quanto|valor|fica|preco).{0,25}(no pix|pix)|(no pix|pix).{0,25}(quanto|valor|fica|preco)/.test(n);
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return (
+    /(quanto|qto|valor|fica|preco).{0,25}(no pix|pix)|(no pix|pix).{0,25}(quanto|qto|valor|fica|preco)/.test(n) ||
+    /(quanto|qto|valor|fica|preco|ta|esta).{0,25}(a vista|avista)|(a vista|avista).{0,25}(quanto|qto|valor|fica|preco|ta|esta)/.test(n) ||
+    /^(?:e\s+)?(?:a\s+vista|avista)$/.test(n)
+  );
 }
 
 function asksProductLink(text) {
@@ -2845,7 +2853,14 @@ async function handleMessage({ phone, text, pushName = '' }) {
       saveStateSoon();
     }
     if (!product) {
-      await sendText(phone, 'Claro 😊 Me diga qual produto você está olhando para eu te passar o valor no PIX.');
+      if (Array.isArray(conv.lastProducts) && conv.lastProducts.length > 1) {
+        await sendText(
+          phone,
+          'Claro 😊 Qual dessas opções você quer saber o valor à vista? Pode me dizer *“o primeiro”*, *“o segundo”*, *“o terceiro”* etc.'
+        );
+      } else {
+        await sendText(phone, 'Claro 😊 Me diga qual produto você está olhando para eu te passar o valor à vista no PIX.');
+      }
       return;
     }
     markPixContext(conv);
