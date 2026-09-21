@@ -2841,17 +2841,27 @@ test('consulta financeira sem vínculo seguro por telefone continua pedindo CPF'
 });
 
 test('quando perguntam quem está falando o atendente se apresenta como Gustavo', async () => {
+  for (const value of [
+    'Com quem eu estou falando?',
+    'com quem eu to falando?',
+    'com quem tô falando?',
+    'quem ta falando?'
+  ]) {
+    assert.equal(bot.asksAttendantIdentity(value), true, value);
+  }
+
   const phone = '5533988888830';
 
   await bot.handleMessage({
     phone,
-    text: 'Com quem eu estou falando?',
+    text: 'com quem eu to falando?',
     pushName: 'Cliente Identidade'
   });
 
   assert.equal(sentTexts.length, 1);
   assert.match(sentTexts[0].text, /Aqui é o Gustavo/i);
   assert.match(sentTexts[0].text, /Ariana Móveis/i);
+  assert.doesNotMatch(sentTexts[0].text, /Me conta um pouco mais/i);
 });
 
 test('perguntas sobre Emilly ou Luana informam que não trabalham mais na loja', async () => {
