@@ -921,7 +921,7 @@ test('fallback marca Revisar atendimento sem desligar o bot', async () => {
   });
 
   assert.equal(sentTexts.length, 1);
-  assert.match(sentTexts[0].text, /Quero te ajudar certinho/i);
+  assert.match(sentTexts[0].text, /Quero te ajudar com isso/i);
   assert.equal(backendEvents.length, 1);
   assert.equal(backendEvents[0].status, 'Revisar atendimento');
   assert.equal(backendEvents[0].metadata.reviewNeeded, true);
