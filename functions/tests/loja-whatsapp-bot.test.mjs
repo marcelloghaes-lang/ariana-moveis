@@ -604,7 +604,9 @@ test('"E no cartão?" continua no mesmo produto após cálculo do crediário', a
 
 
 test('catálogo público mantém PIX separado do preço cheio do cartão', async () => {
-  const compact = bot.compactProduct({
+  const phone = '5533977777749';
+
+  catalogRows = [{
     _id: 'tv-public-price-1',
     name: 'Smart TV LG 43 Polegadas',
     category: 'TVs',
@@ -617,17 +619,30 @@ test('catálogo público mantém PIX separado do preço cheio do cartão', async
     installmentCount: 12,
     stock: 3,
     imageUrl: 'https://img.test/tv-public-price-1.jpg'
+  }];
+
+  await bot.handleMessage({
+    phone,
+    text: 'Vocês têm TV?',
+    pushName: 'Cliente Preço'
   });
 
-  assert.equal(compact.pixPrice, 1825.17);
-  assert.equal(compact.price, 2199);
-  assert.equal(bot.productCashPrice(compact), 1825.17);
-  assert.equal(bot.productFullPrice(compact), 2199);
+  assert.equal(sentMedia.length, 1);
+  assert.match(sentMedia[0].caption || '', /PIX: \*R\$\s*1\.825,17\*/i);
+  assert.match(sentMedia[0].caption || '', /Cartão: até 12x de R\$\s*183,25/i);
+  assert.doesNotMatch(sentMedia[0].caption || '', /Cartão: até 12x de R\$\s*152,10/i);
 
-  const caption = bot.productCaption(compact);
-  assert.match(caption, /PIX: \*R\$\s*1\.825,17\*/i);
-  assert.match(caption, /Cartão: até 12x de R\$\s*183,25/i);
-  assert.doesNotMatch(caption, /Cartão: até 12x de R\$\s*152,10/i);
+  sentTexts = [];
+
+  await bot.handleMessage({
+    phone,
+    text: 'E no cartão?',
+    pushName: 'Cliente Preço'
+  });
+
+  assert.match(sentTexts.at(-1).text, /12x de R\$\s*183,25/i);
+  assert.match(sentTexts.at(-1).text, /total de \*R\$\s*2\.199,00\*/i);
+  assert.doesNotMatch(sentTexts.at(-1).text, /R\$\s*1\.825,17.*total/i);
 });
 
 
