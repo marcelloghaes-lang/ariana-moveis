@@ -1045,7 +1045,7 @@ function asksAttendantIdentity(text) {
 
 function formerEmployeeAsked(text) {
   const n = normalize(text);
-  const asksAboutPerson = /(cade|onde (ta|esta)|ta ai|esta ai|e a|eh a|falar com|posso falar com|chama|ainda trabalha|trabalha ai|quem e|quem eh)/.test(n);
+  const asksAboutPerson = /(cade|onde (ta|esta)|ta ai|esta ai|se encontra|encontra se|esta por ai|ta por ai|e a|eh a|falar com|posso falar com|chama|ainda trabalha|trabalha ai|quem e|quem eh)/.test(n);
   if (!asksAboutPerson) return '';
 
   const emilly = /\b(emilly|emily)\b/.test(n);
@@ -1769,6 +1769,20 @@ function asksLastShownProduct(text) {
     /\b(esse|essa)\s+(ultimo|ultima)\b/.test(n) ||
     /\b(ultimo|ultima)\s+(ai|produto|modelo|aparelho)\b/.test(n) ||
     /\b(o|a)\s+(ultimo|ultima)\s+(produto|modelo|aparelho|ai)\b/.test(n)
+  );
+}
+
+function asksThisShownProduct(text) {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (/\b(esse|este) mes\b/.test(n)) return false;
+
+  return (
+    /\b(esse|essa)\b.{0,28}\b(\d{1,2}\s*x|boleto|carne|crediario|cartao|pix|parcelado|parcela|valor|quanto fica)\b/.test(n) ||
+    /\b(quanto fica|qual o valor|valor)\b.{0,28}\b(esse|essa|desse|dessa)\b/.test(n)
   );
 }
 
@@ -2675,7 +2689,7 @@ async function handleMessage({ phone, text, pushName = '' }) {
       conv.selectedProduct = product;
       saveStateSoon();
     } else if (
-      asksLastShownProduct(text) &&
+      (asksLastShownProduct(text) || asksThisShownProduct(text)) &&
       Array.isArray(conv.lastProducts) &&
       conv.lastProducts.length
     ) {
@@ -3236,6 +3250,7 @@ export const __test = {
   parsePendingInstallments,
   asksAcceptedAlternative,
   asksLastShownProduct,
+  asksThisShownProduct,
   setAlternativeOffer,
   clearAlternativeOffer,
   parseInstallments,
