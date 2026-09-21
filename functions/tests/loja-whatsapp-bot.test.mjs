@@ -82,6 +82,10 @@ function product(id, name, options = {}) {
     brand: options.brand || '',
     price: options.price === undefined ? 1000 : options.price,
     pixPrice: options.pixPrice === undefined ? 900 : options.pixPrice,
+    cardPrice: options.cardPrice,
+    fullPrice: options.fullPrice,
+    marketplacePrice: options.marketplacePrice,
+    sellerBasePrice: options.sellerBasePrice,
     stock: options.stock === undefined ? 5 : options.stock,
     installmentCount: options.installmentCount || 12,
     imageUrl: options.imageUrl || ('https://img.test/' + id + '.jpg')
@@ -1569,7 +1573,8 @@ test('fallback marca Revisar atendimento sem desligar o bot', async () => {
   });
 
   assert.equal(sentTexts.length, 1);
-  assert.match(sentTexts[0].text, /Quero te ajudar com isso/i);
+  assert.match(sentTexts[0].text, /produto ou da condição/i);
+  assert.doesNotMatch(sentTexts[0].text, /^Claro\s*😊/i);
   assert.equal(backendEvents.length, 1);
   assert.equal(backendEvents[0].status, 'Revisar atendimento');
   assert.equal(backendEvents[0].metadata.reviewNeeded, true);
@@ -2121,8 +2126,8 @@ test('pedido comercial pouco claro pede mais detalhes e não chama Marcelo autom
     pushName: 'Cliente Comercial'
   });
 
-  assert.match(sentTexts.at(-1).text, /Quero te ajudar com isso/i);
   assert.match(sentTexts.at(-1).text, /produto ou da condição/i);
+  assert.doesNotMatch(sentTexts.at(-1).text, /^Claro\s*😊/i);
   assert.equal(
     backendEvents.some((item) => item.status === 'Aguardando retorno do Marcelo'),
     false
