@@ -2338,20 +2338,31 @@ function paymentMethodsReply() {
 
 function deliveryReply(text) {
   const n = normalize(text);
-  if (n.includes('zona rural') || /outra cidade|outra cidade|fora de guanhaes|outra regiao/.test(n)) {
+  const asksWeekend = /sabado|domingo|fim de semana/.test(n);
+
+  if (asksWeekend) {
     return {
-      text: 'Para zona rural ou outra cidade, preciso consultar nosso setor logístico para te passar o dia certinho da entrega. Vou deixar a consulta registrada para você.',
-      needsLogistics: true
-    };
-  }
-  if (n.includes('guanhaes') || /dentro da cidade|aqui na cidade|na cidade/.test(n)) {
-    return {
-      text: 'Para entregas dentro da cidade de Guanhães, normalmente conseguimos entregar em até *24 horas após a confirmação do pedido* 😊',
+      text: 'Entregamos de *segunda a sábado, até as 12h* 😊 Aos domingos não realizamos entregas. Se for dentro da cidade de Guanhães, normalmente conseguimos entregar em até *24 horas após a confirmação do pedido*, respeitando esse horário de entrega.',
       needsLogistics: false
     };
   }
+
+  if (n.includes('zona rural') || /outra cidade|outra cidade|fora de guanhaes|outra regiao/.test(n)) {
+    return {
+      text: 'Nossas entregas acontecem de *segunda a sábado, até as 12h*. Para zona rural ou outra cidade, preciso consultar nosso setor logístico para te passar o dia certinho da entrega. Vou deixar a consulta registrada para você.',
+      needsLogistics: true
+    };
+  }
+
+  if (n.includes('guanhaes') || /dentro da cidade|aqui na cidade|na cidade/.test(n)) {
+    return {
+      text: 'Para entregas dentro da cidade de Guanhães, normalmente conseguimos entregar em até *24 horas após a confirmação do pedido*, de *segunda a sábado, até as 12h* 😊',
+      needsLogistics: false
+    };
+  }
+
   return {
-    text: 'Entregamos sim 😊 Se for dentro da cidade de Guanhães, normalmente é em até *24 horas após a confirmação do pedido*. Para zona rural ou outra cidade, eu preciso consultar o setor logístico para te passar o dia certo. Sua entrega seria em Guanhães, zona rural ou outra cidade?',
+    text: 'Entregamos sim 😊 Nossas entregas acontecem de *segunda a sábado, até as 12h*. Se for dentro da cidade de Guanhães, normalmente conseguimos entregar em até *24 horas após a confirmação do pedido*. Para zona rural ou outra cidade, eu preciso consultar o setor logístico para te passar o dia certo. Sua entrega seria em Guanhães, zona rural ou outra cidade?',
     needsLogistics: false
   };
 }
