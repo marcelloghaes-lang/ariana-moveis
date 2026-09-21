@@ -422,6 +422,142 @@ test('camada semântica de baixa confiança não toma decisão sensível', async
   assert.doesNotMatch(sentTexts[0].text, /não consigo conceder desconto adicional/i);
 });
 
+test('cartão com várias opções pergunta qual item e mantém contexto para ordinal', async () => {
+  const phone = '5533977777768';
+  const first = bot.compactProduct(product('tv-card-1', 'Smart TV 50 A', {
+    category: 'TV',
+    pixPrice: 1700,
+    cardPrice: 2040,
+    installmentCount: 12
+  }));
+  const second = bot.compactProduct(product('tv-card-2', 'Smart TV 50 B', {
+    category: 'TV',
+    pixPrice: 1900,
+    cardPrice: 2280,
+    installmentCount: 12
+  }));
+  const third = bot.compactProduct(product('tv-card-3', 'Smart TV 43 C', {
+    category: 'TV',
+    pixPrice: 1825.17,
+    cardPrice: 2199.00,
+    installmentCount: 12
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: null,
+    lastProducts: [first, second, third],
+    lastIntent: 'produto'
+  });
+
+  bot.patchTestIntentClassification({
+    intent: 'PRECO_CARTAO',
+    confidence: 0.96,
+    category: '',
+    product_reference: '',
+    product_ordinal: 0,
+    installments: 0,
+    payment_method: 'cartao',
+    location_hint: ''
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'se eu pagar no crédito vocês dividem como?',
+    pushName: 'Marcelo Teste'
+  });
+
+  assert.equal(bot.conversation(phone).pendingAction, 'card_price_product');
+  assert.match(sentTexts.at(-1).text, /qual dessas opções/i);
+  assert.match(sentTexts.at(-1).text, /primeiro/i);
+
+  await bot.handleMessage({
+    phone,
+    text: 'o terceiro',
+    pushName: 'Marcelo Teste'
+  });
+
+  assert.equal(bot.conversation(phone).pendingAction, '');
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'tv-card-3');
+  assert.match(sentTexts.at(-1).text, /Smart TV 43 C/i);
+  assert.match(sentTexts.at(-1).text, /cartão/i);
+});
+
+test('pedido vago para melhorar condição é entendido sem inventar desconto', async () => {
+  const phone = '5533977777769';
+  const first = bot.compactProduct(product('tv-cond-1', 'Smart TV 50 A', {
+    category: 'TV',
+    pixPrice: 1700,
+    cardPrice: 2040
+  }));
+  const second = bot.compactProduct(product('tv-cond-2', 'Smart TV 50 B', {
+    category: 'TV',
+    pixPrice: 1900,
+    cardPrice: 2280
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: null,
+    lastProducts: [first, second],
+    lastIntent: 'produto',
+    pendingAction: 'card_price_product'
+  });
+
+  assert.equal(
+    bot.asksPaymentConditionAdjustment('e tem como ajeitar essa condição aí pra mim?', bot.conversation(phone)),
+    true
+  );
+
+  await bot.handleMessage({
+    phone,
+    text: 'e tem como ajeitar essa condição aí pra mim?',
+    pushName: 'Marcelo Teste'
+  });
+
+  assert.equal(bot.conversation(phone).pendingAction, 'special_condition_product');
+  assert.match(sentTexts.at(-1).text, /melhorar a condição de pagamento/i);
+  assert.match(sentTexts.at(-1).text, /Marcelo analisar/i);
+  assert.doesNotMatch(sentTexts.at(-1).text, /desconto aprovado|consigo fazer por/i);
+});
+
+test('repetir pedido de condição não devolve fallback genérico idêntico', async () => {
+  const phone = '5533977777770';
+  const first = bot.compactProduct(product('tv-cond-r1', 'Smart TV 50 A', {
+    category: 'TV',
+    pixPrice: 1700,
+    cardPrice: 2040
+  }));
+  const second = bot.compactProduct(product('tv-cond-r2', 'Smart TV 50 B', {
+    category: 'TV',
+    pixPrice: 1900,
+    cardPrice: 2280
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: null,
+    lastProducts: [first, second],
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'tem como ajeitar essa condição aí pra mim?',
+    pushName: 'Marcelo Teste'
+  });
+  const firstReply = sentTexts.at(-1).text;
+
+  await bot.handleMessage({
+    phone,
+    text: 'tem como ajeitar essa condição aí pra mim?',
+    pushName: 'Marcelo Teste'
+  });
+  const secondReply = sentTexts.at(-1).text;
+
+  assert.match(firstReply, /melhorar a condição de pagamento/i);
+  assert.match(secondReply, /qual opção|qual dessas opções|qual opção você gostou|qual dessas opções você gostou/i);
+  assert.notEqual(secondReply, firstReply);
+});
+
+
 test('interrogação e chamada de presença retomam conversa sem nova saudação', async () => {
   for (const value of ['?', '??', 'Tá aí?', 'Ainda está aí?', 'Oi, está aí?']) {
     assert.equal(bot.asksPresencePing(value), true, value);
