@@ -1303,6 +1303,33 @@ function asksPaymentExceptionForMarcelo(text) {
   return partialPayment && hardship;
 }
 
+function asksPaymentPromiseUpdate(text) {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const moneyContext =
+    /\b(dinheiro|pagamento|pagar|pago|parcela|prestacao|notinha|carne|boleto|pix|reais?)\b/.test(n) ||
+    /\b\d{2,6}(?:[.,]\d{1,2})?\b/.test(n);
+
+  const dateContext =
+    /\b(hoje|amanha|segunda|terca|quarta|quinta|sexta|sabado|domingo|semana|quinzena)\b/.test(n) ||
+    /\bdia\s+\d{1,2}\b/.test(n) ||
+    /\bate\s+(?:hoje|amanha|segunda|terca|quarta|quinta|sexta|sabado|domingo)\b/.test(n);
+
+  const promiseContext =
+    /\bsem falta\b/.test(n) ||
+    /\b(?:ta|esta) na mao\b/.test(n) ||
+    /\b(?:vou|vai)\s+(?:te\s+|me\s+)?(?:passar|passa|pagar|mandar|enviar)\b/.test(n) ||
+    /\b(?:nao|n) deu certo\b/.test(n) ||
+    /\bcaso (?:nao|n) der certo\b/.test(n) ||
+    /\bcontando com (?:um |o )?dinheiro\b/.test(n) ||
+    /\bminha quinzena\b/.test(n);
+
+  return moneyContext && dateContext && promiseContext;
+}
+
 function asksHowToBuyCredit(text) {
   const n = normalize(text);
 
@@ -2654,27 +2681,39 @@ async function handleMessage({ phone, text, pushName = '' }) {
     }
   }
 
-  if (asksPaymentExceptionForMarcelo(text)) {
-    conv.pendingAction = '';
-    conv.marceloCallbackRequested = true;
-    conv.marceloCallbackRequestedAt = Date.now();
-    saveStateSoon();
+  {
+    const paymentPromiseUpdate = asksPaymentPromiseUpdate(text);
+    const paymentException = asksPaymentExceptionForMarcelo(text);
 
-    await sendText(
-      phone,
-      'Ok 😊 Assim que o Marcelo chegar, eu peço para ele retornar para você por aqui.'
-    );
+    if (paymentPromiseUpdate || paymentException) {
+      conv.pendingAction = '';
+      conv.marceloCallbackRequested = true;
+      conv.marceloCallbackRequestedAt = Date.now();
+      saveStateSoon();
 
-    await syncTicket(phone, {
-      status: 'Aguardando retorno do Marcelo',
-      message: `Cliente informou que pretende pagar valor parcial neste mês e explicou dificuldade/imprevisto: ${String(text || '').trim()}`,
-      name: pushName,
-      metadata: {
-        assunto: 'negociacao_pagamento_parcial',
-        exigeConfirmacaoMarcelo: true
-      }
-    });
-    return;
+      await sendText(
+        phone,
+        paymentPromiseUpdate
+          ? 'Entendi 😊 Vou deixar essa atualização de pagamento registrada para o Marcelo acompanhar. Como envolve uma combinação de valor/data, ele confirma com você por aqui.'
+          : 'Ok 😊 Assim que o Marcelo chegar, eu peço para ele retornar para você por aqui.'
+      );
+
+      await syncTicket(phone, {
+        status: paymentPromiseUpdate
+          ? 'Aguardando Marcelo - confirmar pagamento/data'
+          : 'Aguardando retorno do Marcelo',
+        message: paymentPromiseUpdate
+          ? `Cliente informou nova previsão/combinação de pagamento e aguarda confirmação humana: ${String(text || '').trim()}`
+          : `Cliente informou que pretende pagar valor parcial neste mês e explicou dificuldade/imprevisto: ${String(text || '').trim()}`,
+        name: pushName,
+        metadata: {
+          assunto: paymentPromiseUpdate ? 'promessa_pagamento' : 'negociacao_pagamento_parcial',
+          exigeConfirmacaoMarcelo: true,
+          naoConfirmarAcordoAutomaticamente: true
+        }
+      });
+      return;
+    }
   }
 
   if (await handlePending(phone, text, conv)) return;
@@ -3538,6 +3577,7 @@ export const __test = {
   asksAttendantIdentity,
   formerEmployeeAsked,
   asksPaymentExceptionForMarcelo,
+  asksPaymentPromiseUpdate,
   asksHowToBuyCredit,
   asksToWriteOnCredit,
   asksMoreProducts,
