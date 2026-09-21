@@ -603,6 +603,34 @@ test('"E no cartão?" continua no mesmo produto após cálculo do crediário', a
 });
 
 
+test('catálogo público mantém PIX separado do preço cheio do cartão', async () => {
+  const compact = bot.compactProduct({
+    _id: 'tv-public-price-1',
+    name: 'Smart TV LG 43 Polegadas',
+    category: 'TVs',
+    price: 1825.17,
+    sellerBasePrice: 1825.17,
+    pixPrice: 1825.17,
+    marketplacePrice: 2199,
+    cardPrice: 2199,
+    fullPrice: 2199,
+    installmentCount: 12,
+    stock: 3,
+    imageUrl: 'https://img.test/tv-public-price-1.jpg'
+  });
+
+  assert.equal(compact.pixPrice, 1825.17);
+  assert.equal(compact.price, 2199);
+  assert.equal(bot.productCashPrice(compact), 1825.17);
+  assert.equal(bot.productFullPrice(compact), 2199);
+
+  const caption = bot.productCaption(compact);
+  assert.match(caption, /PIX: \*R\$\s*1\.825,17\*/i);
+  assert.match(caption, /Cartão: até 12x de R\$\s*183,25/i);
+  assert.doesNotMatch(caption, /Cartão: até 12x de R\$\s*152,10/i);
+});
+
+
 test('"esse último aí" seleciona o último produto antes de calcular o boleto', async () => {
   const phone = '5533977777732';
 
