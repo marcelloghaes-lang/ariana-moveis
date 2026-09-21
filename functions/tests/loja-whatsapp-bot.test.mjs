@@ -380,6 +380,100 @@ test('entregas são de segunda a sábado até 12h e não ocorrem no domingo', as
   assert.doesNotMatch(sentTexts[0].text, /Me conta um pouco mais/i);
 });
 
+test('perguntas gerais sobre o que a Ariana vende são reconhecidas em linguagem natural', async () => {
+  const examples = [
+    'com o que voces trabalha',
+    'voces trabalham com qual produto',
+    'voces mexe com que produto',
+    'oque voces vendem'
+  ];
+
+  for (const value of examples) {
+    assert.equal(bot.asksStoreAssortment(value), true, value);
+  }
+
+  const phone = '5533977777757';
+  await bot.handleMessage({
+    phone,
+    text: 'voces mexe com que produto',
+    pushName: 'Cliente Catálogo'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /móveis/i);
+  assert.match(sentTexts[0].text, /eletrodomésticos/i);
+  assert.match(sentTexts[0].text, /celulares/i);
+  assert.doesNotMatch(sentTexts[0].text, /Me conta um pouco mais/i);
+});
+
+test('como comprar com a Ariana explica o fluxo e tolera erro de digitação', async () => {
+  for (const value of [
+    'como faço pra comprar com voces',
+    'como eu compro com voces',
+    'quro comprar com voces como faco'
+  ]) {
+    assert.equal(bot.asksHowToBuyFromStore(value), true, value);
+  }
+
+  const phone = '5533977777758';
+  await bot.handleMessage({
+    phone,
+    text: 'quro comprar com voces como faco',
+    pushName: 'Cliente Compra'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /arianamoveis\.com\.br/i);
+  assert.match(sentTexts[0].text, /Me diga o que você procura/i);
+  assert.doesNotMatch(sentTexts[0].text, /Me conta um pouco mais/i);
+});
+
+test('"quero comprar com vocês" não reutiliza produto antigo da conversa', async () => {
+  const phone = '5533977777759';
+  const oldProduct = bot.compactProduct(product('old-fridge-purchase', 'Refrigerador Consul 451L Branco 110V', {
+    category: 'Geladeiras',
+    pixPrice: 3974,
+    price: 4787.95
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: oldProduct,
+    lastProducts: [oldProduct],
+    allProductResults: [oldProduct],
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'quero comprar com voces',
+    pushName: 'Cliente Compra'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /O que você está querendo comprar/i);
+  assert.doesNotMatch(sentTexts[0].text, /Refrigerador Consul/i);
+  assert.doesNotMatch(sentTexts[0].text, /produto\.html/i);
+});
+
+test('PIX copia e cola não cai no fallback de produto', async () => {
+  const phone = '5533977777760';
+  const payload = '00020101021226810014BR.GOV.BCB.PIX013656ca00e7-9171-45f5-a8df-d1e6b5e7028652020000530398654071665.475802BR5925NUBANK PAGAR FATURA6009Sao Paulo62100540900062140510ugTarPpqq6304E4C3';
+
+  assert.equal(bot.isPixCopyPastePayload(payload), true);
+
+  await bot.handleMessage({
+    phone,
+    text: payload,
+    pushName: 'Cliente PIX'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /PIX copia e cola/i);
+  assert.match(sentTexts[0].text, /comprovante/i);
+  assert.doesNotMatch(sentTexts[0].text, /Me conta um pouco mais/i);
+});
+
+
 test('primeiro, segundo, terceiro e quarto mantêm índice correto', () => {
   assert.equal(bot.ordinalIndex('O primeiro'), 0);
   assert.equal(bot.ordinalIndex('Gostei da segunda'), 1);
