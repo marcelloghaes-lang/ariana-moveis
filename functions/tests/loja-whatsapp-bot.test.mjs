@@ -418,6 +418,35 @@ test('pesquisa de celular não mistura caixa de som nem acessórios', async () =
   assert.deepEqual(rows.map((p) => p.id).sort(), ['phone1', 'phone2']);
 });
 
+test('"tem celular?" consulta o catálogo em vez de cair no fallback', async () => {
+  const phone = '5533977777750';
+
+  catalogRows = [
+    product('moto-g06-short', 'Smartphone Motorola Moto G06 128GB', {
+      category: 'Celulares',
+      brand: 'Motorola',
+      pixPrice: 899,
+      price: 1083
+    }),
+    product('sound-short', 'Caixa de Som Bluetooth', {
+      category: 'Áudio',
+      pixPrice: 399,
+      price: 480
+    })
+  ];
+
+  await bot.handleMessage({
+    phone,
+    text: 'tem celular?',
+    pushName: 'Cliente Celular'
+  });
+
+  assert.equal(sentMedia.length, 1);
+  assert.match(sentMedia[0].caption || '', /Moto G06/i);
+  assert.doesNotMatch(sentTexts.map((item) => item.text).join('\n'), /Me conta um pouco mais/i);
+});
+
+
 test('pedido de iPhone não retorna Android nem caixa de som', async () => {
   catalogRows = [
     product('iphone1', 'Apple iPhone 15 128GB', { category: 'Celulares', brand: 'Apple' }),
@@ -600,6 +629,79 @@ test('"E no cartão?" continua no mesmo produto após cálculo do crediário', a
   assert.match(sentTexts.at(-1).text, /Smart TV LG 43 Polegadas/i);
   assert.doesNotMatch(sentTexts.at(-1).text, /Me conta um pouco mais/i);
   assert.equal(backendEvents.at(-1).metadata.paymentMode, 'cartao');
+});
+
+
+test('nome/modelo recente identifica Moto G06 e calcula cartão sem pedir produto de novo', async () => {
+  const phone = '5533977777751';
+
+  const moto = bot.compactProduct(product('moto-g06-card', 'Smartphone Motorola Moto G06 128GB', {
+    category: 'Celulares',
+    brand: 'Motorola',
+    pixPrice: 899,
+    price: 1083,
+    installmentCount: 12
+  }));
+  const samsung = bot.compactProduct(product('samsung-a17-card', 'Smartphone Samsung Galaxy A17 128GB', {
+    category: 'Celulares',
+    brand: 'Samsung',
+    pixPrice: 1191.01,
+    price: 1434.96,
+    installmentCount: 12
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastProducts: [moto, samsung],
+    allProductResults: [moto, samsung],
+    selectedProduct: samsung,
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'esse moto g06 qual o valor dele no cartão?',
+    pushName: 'Cliente Moto'
+  });
+
+  assert.match(sentTexts.at(-1).text, /No cartão/i);
+  assert.match(sentTexts.at(-1).text, /Moto G06/i);
+  assert.doesNotMatch(sentTexts.at(-1).text, /Me diga qual produto/i);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'moto-g06-card');
+  assert.equal(backendEvents.at(-1).metadata.productId, 'moto-g06-card');
+});
+
+test('nome/modelo sozinho seleciona produto recente da conversa', async () => {
+  const phone = '5533977777752';
+
+  const moto = bot.compactProduct(product('moto-g06-select', 'Smartphone Motorola Moto G06 128GB', {
+    category: 'Celulares',
+    brand: 'Motorola',
+    pixPrice: 899,
+    price: 1083
+  }));
+  const samsung = bot.compactProduct(product('samsung-a17-select', 'Smartphone Samsung Galaxy A17 128GB', {
+    category: 'Celulares',
+    brand: 'Samsung',
+    pixPrice: 1191.01,
+    price: 1434.96
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastProducts: [moto, samsung],
+    allProductResults: [moto, samsung],
+    selectedProduct: null,
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'moto g06',
+    pushName: 'Cliente Moto'
+  });
+
+  assert.match(sentTexts.at(-1).text, /Você está falando de/i);
+  assert.match(sentTexts.at(-1).text, /Moto G06/i);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'moto-g06-select');
 });
 
 
