@@ -1259,6 +1259,21 @@ function asksPixPrice(text) {
   );
 }
 
+function asksCashDiscount(text) {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const cashContext = /\b(a vista|avista|pix)\b/.test(n);
+  const discountContext =
+    /\b(desconto|descontinho)\b/.test(n) ||
+    /\b(melhora|melhorar|abaixa|abaixar|baixa|baixar|reduz|reduzir)\b.{0,25}\b(valor|preco)\b/.test(n) ||
+    /\b(valor|preco)\b.{0,25}\b(melhora|melhorar|abaixa|abaixar|baixa|baixar|reduz|reduzir)\b/.test(n);
+
+  return cashContext && discountContext;
+}
+
 function asksProductLink(text) {
   const n = normalize(text);
   return /manda.{0,20}link|me passa.{0,20}link|envia.{0,20}link|link do produto|link desse|link dessa/.test(n);
@@ -2922,6 +2937,27 @@ async function handleMessage({ phone, text, pushName = '' }) {
     return;
   }
 
+  if (asksCashDiscount(text)) {
+    const product = mentionedProduct || conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
+
+    await sendText(
+      phone,
+      'Olha 😊 Esse valor no PIX já é o valor com desconto para pagamento à vista. Por esse motivo, não consigo mexer nesse valor.'
+    );
+
+    if (product) {
+      await markConversationStatus(
+        phone,
+        conv,
+        'Venda em andamento',
+        `Cliente perguntou sobre desconto adicional à vista de: ${product.name}`,
+        pushName,
+        { paymentMode: 'pix', productId: productId(product), extraDiscountRequested: true }
+      );
+    }
+    return;
+  }
+
   if (asksPixPrice(text)) {
     const product = mentionedProduct || conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
     if (mentionedProduct) {
@@ -3571,6 +3607,7 @@ export const __test = {
   patchTestVisionBudget,
   asksCardQuote,
   asksPixPrice,
+  asksCashDiscount,
   asksProductLink,
   asksDelivery,
   asksFinance,
