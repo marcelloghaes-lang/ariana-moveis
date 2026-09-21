@@ -330,6 +330,8 @@ function conversation(phone) {
       reviewMessage: '',
       reviewMarkedAt: 0,
       reviewCount: 0,
+      marceloCallbackRequested: false,
+      marceloCallbackRequestedAt: 0,
       creditOrderWaitingMarcelo: false,
       lastIntent: ''
     };
@@ -341,6 +343,8 @@ function conversation(phone) {
   if (!Number.isFinite(Number(conv.reviewCount))) conv.reviewCount = 0;
   if (typeof conv.reviewReason !== 'string') conv.reviewReason = '';
   if (typeof conv.reviewMessage !== 'string') conv.reviewMessage = '';
+  if (typeof conv.marceloCallbackRequested !== 'boolean') conv.marceloCallbackRequested = false;
+  if (!Number.isFinite(Number(conv.marceloCallbackRequestedAt))) conv.marceloCallbackRequestedAt = 0;
 
   if (
     conv.reviewNeeded &&
@@ -1011,6 +1015,17 @@ function isCommercialTopic(text, conv = {}) {
 
   if (
     /\b(produto|produtos|mercadoria|mercadorias|comprar|compra|compras|vender|vende|vendem|preco|precos|valor|valores|estoque|disponivel|disponibilidade|modelo|modelos|foto|fotos|promocao|oferta|desconto|parcelado|parcelar|parcela|parcelas|cartao|pix|carne|crediario|boleto|entrega|frete|notinha|notinhas|garantia)\b/.test(n)
+  ) {
+    return true;
+  }
+
+  // Referências vagas a algo que o cliente já queria/viu/comentou podem ser
+  // continuação de uma venda. Mantemos no atendimento comercial para pedir
+  // mais detalhes e marcar revisão, em vez de encaminhar ao Marcelo como
+  // assunto externo sem necessidade.
+  if (
+    /\b(aquele|aquela|esse|essa|o|a)\b.{0,22}\b(negocio|trem|coisa)\b.{0,45}\b(queria|quero|falei|falamos|conversamos|vi|olhei|mostrou|mostraram)\b/.test(n) ||
+    /\b(negocio|trem|coisa)\b.{0,45}\b(que )?(eu )?(queria|quero|te falei|falei|vi|olhei)\b/.test(n)
   ) {
     return true;
   }
