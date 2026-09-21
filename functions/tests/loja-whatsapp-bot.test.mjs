@@ -281,6 +281,143 @@ test('saudação junto com consulta de produto também usa somente o primeiro no
 });
 
 
+
+test('personalidade do Gustavo mantém tom natural sem depender sempre de "Claro"', () => {
+  assert.equal(bot.GUSTAVO_PERSONA.name, 'Gustavo');
+  assert.equal(bot.GUSTAVO_PERSONA.company, 'Ariana Móveis');
+  assert.ok(bot.GUSTAVO_PERSONA.style.includes('não inventar informação'));
+
+  const samples = new Set(
+    ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((seed) => bot.gustavoLead(seed, 'helpful'))
+  );
+  assert.ok(samples.size >= 2, 'as aberturas naturais devem variar de forma determinística');
+});
+
+test('camada semântica entende formulação nova de identidade sem nova regex', async () => {
+  const phone = '5533977777764';
+  bot.patchTestIntentClassification({
+    intent: 'IDENTIDADE_ATENDENTE',
+    confidence: 0.97,
+    category: '',
+    product_reference: '',
+    product_ordinal: 0,
+    installments: 0,
+    payment_method: 'unknown',
+    location_hint: ''
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'quem é que tá do outro lado aí falando comigo?',
+    pushName: 'Gaby Marcionilo Cliente'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Aqui é o Gustavo/i);
+  assert.match(sentTexts[0].text, /Ariana Móveis/i);
+  assert.doesNotMatch(sentTexts[0].text, /Me conta um pouco mais/i);
+});
+
+test('camada semântica busca categoria real e deixa preço/estoque para o catálogo', async () => {
+  const phone = '5533977777765';
+  catalogRows = [
+    product('tv-sem-1', 'Smart TV Samsung 50', { category: 'TV', stock: 2 }),
+    product('rack-sem-1', 'Rack para TV', { category: 'Móveis', stock: 3 })
+  ];
+
+  bot.patchTestIntentClassification({
+    intent: 'BUSCAR_PRODUTO',
+    confidence: 0.96,
+    category: 'tv',
+    product_reference: '',
+    product_ordinal: 0,
+    installments: 0,
+    payment_method: 'unknown',
+    location_hint: ''
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'tô atrás de uma tela grande pra sala, tem alguma coisa aí?',
+    pushName: 'Cliente Semântico'
+  });
+
+  assert.equal(sentMedia.length, 1);
+  assert.match(sentMedia[0].caption || '', /Smart TV Samsung 50/i);
+  assert.doesNotMatch(sentMedia[0].caption || '', /Rack para TV/i);
+});
+
+test('camada semântica usa calculadora oficial do cartão em vez de inventar valor', async () => {
+  const phone = '5533977777766';
+  const chosen = bot.compactProduct(product('phone-sem-card', 'Moto G Semântico', {
+    category: 'Celulares',
+    pixPrice: 827.20,
+    price: 1000,
+    cardPrice: 1200,
+    installmentCount: 12
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: chosen,
+    lastProducts: [chosen],
+    lastIntent: 'produto'
+  });
+
+  bot.patchTestIntentClassification({
+    intent: 'PRECO_CARTAO',
+    confidence: 0.96,
+    category: '',
+    product_reference: 'Moto G Semântico',
+    product_ordinal: 0,
+    installments: 0,
+    payment_method: 'cartao',
+    location_hint: ''
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'e se eu passar isso no crédito como é que fica pra mim?',
+    pushName: 'Cliente Semântico'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /12x de R\$\s*100,00/i);
+  assert.match(sentTexts[0].text, /total de R\$\s*1\.200,00/i);
+});
+
+test('camada semântica de baixa confiança não toma decisão sensível', async () => {
+  const phone = '5533977777767';
+  const chosen = bot.compactProduct(product('low-confidence-1', 'Produto Teste', {
+    pixPrice: 500,
+    price: 700
+  }));
+  bot.patchTestConversation(phone, {
+    selectedProduct: chosen,
+    lastProducts: [chosen],
+    lastIntent: 'produto'
+  });
+
+  bot.patchTestIntentClassification({
+    intent: 'PEDIDO_DESCONTO',
+    confidence: 0.60,
+    category: '',
+    product_reference: 'Produto Teste',
+    product_ordinal: 0,
+    installments: 0,
+    payment_method: 'pix',
+    location_hint: ''
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'tem como ajeitar essa condição aí pra mim?',
+    pushName: 'Cliente Semântico'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.doesNotMatch(sentTexts[0].text, /não consigo conceder desconto adicional/i);
+});
+
 test('interrogação e chamada de presença retomam conversa sem nova saudação', async () => {
   for (const value of ['?', '??', 'Tá aí?', 'Ainda está aí?', 'Oi, está aí?']) {
     assert.equal(bot.asksPresencePing(value), true, value);
