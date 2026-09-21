@@ -386,7 +386,7 @@ test('camada semântica usa calculadora oficial do cartão em vez de inventar va
 
   assert.equal(sentTexts.length, 1);
   assert.match(sentTexts[0].text, /12x de R\$\s*100,00/i);
-  assert.match(sentTexts[0].text, /total de R\$\s*1\.200,00/i);
+  assert.match(sentTexts[0].text, /total de \*?R\$\s*1\.200,00\*?/i);
 });
 
 test('camada semântica de baixa confiança não toma decisão sensível', async () => {
