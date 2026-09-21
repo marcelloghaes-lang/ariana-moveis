@@ -1095,9 +1095,13 @@ function asksMarceloOrCallback(text) {
   const asksIfAvailable =
     /^(?:o\s+)?(?:marcelo|macelo|marcello)\s+(?:ta|esta)(?:\s+(?:ai|por ai))?$/.test(n);
 
+  const directName =
+    /^(?:o\s+)?(?:marcelo|macelo|marcello)$/.test(n);
+
   return (
     directGreeting ||
     asksIfAvailable ||
+    directName ||
     new RegExp('(falar|conversar).{0,20}(com )?(o )?' + marcelo).test(n) ||
     new RegExp(marcelo + '.{0,50}(esta ai|ta ai|pode falar|preciso falar|quero falar|precisando falar|me liga|me ligue)').test(n) ||
     new RegExp('(preciso|precisando|precisava|queria|quero|gostaria|to precisando|estou precisando).{0,30}falar.{0,20}(com )?(voce|' + marcelo + ')').test(n) ||
