@@ -1273,7 +1273,16 @@ async function handleGeneralIntent({
 
   if (intent === 'PRECO_CARTAO') {
     if (!product) {
-      await sendText(phone, 'Consigo calcular 😊 Me diga qual produto você está olhando.');
+      if (Array.isArray(conv.lastProducts) && conv.lastProducts.length > 1) {
+        conv.pendingAction = 'card_price_product';
+        saveStateSoon();
+        await sendText(
+          phone,
+          'Consigo calcular 😊 Qual dessas opções você quer consultar no cartão? Pode me dizer *“o primeiro”*, *“o segundo”*, *“o terceiro”* ou o nome/modelo.'
+        );
+      } else {
+        await sendText(phone, 'Consigo calcular 😊 Me diga qual produto você está olhando.');
+      }
       return true;
     }
     conv.selectedProduct = product;
@@ -1942,6 +1951,27 @@ function asksCashDiscount(text) {
     /\b(valor|preco)\b.{0,25}\b(melhora|melhorar|abaixa|abaixar|baixa|baixar|reduz|reduzir)\b/.test(n);
 
   return cashContext && discountContext;
+}
+
+function asksPaymentConditionAdjustment(text, conv = {}) {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const asksAdjustment =
+    /\b(ajeitar|ajustar|melhorar|melhora|negociar|mudar|alterar)\b.{0,35}\b(condicao|condicoes|pagamento|parcela|parcelas|valor)\b/.test(n) ||
+    /\b(condicao|condicoes|pagamento|parcela|parcelas|valor)\b.{0,35}\b(ajeitar|ajustar|melhorar|melhora|negociar|mudar|alterar)\b/.test(n) ||
+    /\b(tem|da|daria)\s+como\b.{0,25}\b(fazer|ficar)\b.{0,15}\b(melhor|diferente)\b/.test(n);
+
+  if (!asksAdjustment) return false;
+
+  return Boolean(
+    conv?.selectedProduct ||
+    (Array.isArray(conv?.lastProducts) && conv.lastProducts.length) ||
+    conv?.lastIntent === 'produto' ||
+    /\b(condicao|condicoes|pagamento|parcela|parcelas|cartao|credito|crediario|carne|boleto|pix|valor)\b/.test(n)
+  );
 }
 
 function asksProductLink(text) {
@@ -3207,6 +3237,89 @@ function parseFullName(text) {
 }
 
 async function handlePending(phone, text, conv) {
+  if (conv.pendingAction === 'card_price_product') {
+    if (asksPaymentConditionAdjustment(text, conv)) {
+      conv.pendingAction = 'special_condition_product';
+      saveStateSoon();
+      await sendText(
+        phone,
+        'Entendi 😊 Você quer ver se dá para melhorar a condição de pagamento. Eu consigo te passar as condições oficiais certinhas; para qualquer condição diferente, preciso deixar para análise do Marcelo. Qual dessas opções você gostou? Pode me dizer *“o primeiro”*, *“o segundo”*, *“o terceiro”* ou o nome/modelo.'
+      );
+      return true;
+    }
+
+    const ord = ordinalIndex(text);
+    let product = null;
+
+    if (ord >= 0 && Array.isArray(conv.lastProducts) && conv.lastProducts[ord]) {
+      product = conv.lastProducts[ord];
+    } else if (asksLastShownProduct(text) && Array.isArray(conv.lastProducts) && conv.lastProducts.length) {
+      product = conv.lastProducts[conv.lastProducts.length - 1];
+    } else {
+      product = findConversationProductByText(conv, text);
+    }
+
+    if (!product) {
+      await sendText(
+        phone,
+        'Qual dessas opções você quer consultar no cartão? Pode me dizer *“o primeiro”*, *“o segundo”*, *“o terceiro”* ou o nome/modelo.'
+      );
+      return true;
+    }
+
+    conv.selectedProduct = product;
+    conv.pendingAction = '';
+    saveStateSoon();
+
+    const full = productFullPrice(product);
+    const count = Math.max(1, Number(product.installmentCount || 12));
+    await sendText(
+      phone,
+      `No cartão, *${product.name}* fica em até *${count}x de ${money(full / count)}*, total de *${money(full)}*.`
+    );
+    await markConversationStatus(
+      phone,
+      conv,
+      'Venda em andamento',
+      `Cliente escolheu o produto e consultou parcelamento no cartão: ${product.name}`,
+      '',
+      { paymentMode: 'cartao', productId: productId(product) }
+    );
+    return true;
+  }
+
+  if (conv.pendingAction === 'special_condition_product') {
+    const ord = ordinalIndex(text);
+    let product = null;
+
+    if (ord >= 0 && Array.isArray(conv.lastProducts) && conv.lastProducts[ord]) {
+      product = conv.lastProducts[ord];
+    } else if (asksLastShownProduct(text) && Array.isArray(conv.lastProducts) && conv.lastProducts.length) {
+      product = conv.lastProducts[conv.lastProducts.length - 1];
+    } else {
+      product = findConversationProductByText(conv, text);
+    }
+
+    if (!product) {
+      await sendText(
+        phone,
+        'Só preciso saber qual opção você gostou para falar da condição certa 😊 Pode me dizer *“o primeiro”*, *“o segundo”*, *“o terceiro”* ou o nome/modelo.'
+      );
+      return true;
+    }
+
+    conv.selectedProduct = product;
+    conv.pendingAction = '';
+    saveStateSoon();
+
+    const full = productFullPrice(product);
+    const count = Math.max(1, Number(product.installmentCount || 12));
+    await sendText(
+      phone,
+      `Certo 😊 Para *${product.name}*, no PIX fica *${money(productCashPrice(product))}* e no cartão em até *${count}x de ${money(full / count)}*, total de *${money(full)}*. Se você estiver querendo uma condição diferente dessas, eu posso deixar para o Marcelo analisar com você.`
+    );
+    return true;
+  }
   if (conv.pendingAction === 'cash_price_product') {
     const ord = ordinalIndex(text);
     let product = null;
@@ -3992,6 +4105,42 @@ async function handleMessage({ phone, text, pushName = '' }) {
     }
   }
 
+  if (asksPaymentConditionAdjustment(text, conv)) {
+    if (Array.isArray(conv.lastProducts) && conv.lastProducts.length > 1 && !conv.selectedProduct) {
+      conv.pendingAction = 'special_condition_product';
+      saveStateSoon();
+      await sendText(
+        phone,
+        'Entendi 😊 Você quer ver se dá para melhorar a condição de pagamento. Eu consigo te passar as condições oficiais certinhas; para qualquer condição diferente, preciso deixar para análise do Marcelo. Qual dessas opções você gostou? Pode me dizer *“o primeiro”*, *“o segundo”*, *“o terceiro”* ou o nome/modelo.'
+      );
+      return;
+    }
+
+    const product = mentionedProduct || conv.selectedProduct || (
+      Array.isArray(conv.lastProducts) && conv.lastProducts.length === 1
+        ? conv.lastProducts[0]
+        : null
+    );
+
+    if (product) {
+      conv.selectedProduct = product;
+      saveStateSoon();
+      const full = productFullPrice(product);
+      const count = Math.max(1, Number(product.installmentCount || 12));
+      await sendText(
+        phone,
+        `Entendi 😊 Para *${product.name}*, as condições oficiais são PIX por *${money(productCashPrice(product))}* ou cartão em até *${count}x de ${money(full / count)}*, total de *${money(full)}*. Se você estiver querendo uma condição diferente dessas, eu posso deixar para o Marcelo analisar com você.`
+      );
+      return;
+    }
+
+    await sendText(
+      phone,
+      'Entendi 😊 Você quer tentar melhorar a condição de pagamento. Me diga qual produto você está olhando para eu primeiro conferir as condições oficiais e não te passar nada errado.'
+    );
+    return;
+  }
+
   const semanticIntent = await classifyGeneralIntent(text, conv);
   if (
     semanticIntent &&
@@ -4398,6 +4547,7 @@ export const __test = {
   asksCardQuote,
   asksPixPrice,
   asksCashDiscount,
+  asksPaymentConditionAdjustment,
   asksProductLink,
   asksStoreAssortment,
   asksHowToBuyFromStore,
