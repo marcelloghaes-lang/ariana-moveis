@@ -1427,6 +1427,7 @@ function findConversationProductByText(conv, text = '') {
 
   if (input.length < 2) return null;
 
+  const paddedInput = ` ${input} `;
   const inputTokens = new Set(input.split(' ').filter(Boolean));
   const matches = [];
 
@@ -1439,32 +1440,16 @@ function findConversationProductByText(conv, text = '') {
     if (!name) continue;
     const tokens = name.split(' ').filter(Boolean);
     let bestScore = 0;
-    let bestPhrase = '';
 
     for (let size = Math.min(5, tokens.length); size >= 2; size -= 1) {
-      for (let start = 0; start <= tokens.length - size; start += 1) {
-        const window = tokens.slice(start, start + size);
+      for (let offset = 0; offset <= tokens.length - size; offset += 1) {
+        const window = tokens.slice(offset, offset + size);
         if (!window.some((token) => /\d/.test(token))) continue;
         const phrase = window.join(' ');
-        const escaped = phrase.replace(/[|\\{}()[\]^$+*?.-]/g, '\\function findConversationProduct(conv, id = '') {
-  const wanted = String(id || '').trim();
-  if (!wanted) return null;
 
-  const candidates = [
-    conv?.selectedProduct,
-    ...(Array.isArray(conv?.lastProducts) ? conv.lastProducts : []),
-    ...(Array.isArray(conv?.allProductResults) ? conv.allProductResults : [])
-  ].filter(Boolean);
-
-  return candidates.find((product) => productId(product) === wanted) || null;
-}
-');
-        if (new RegExp(`(^|\\s)${escaped}(\\s|$)`).test(input)) {
+        if (paddedInput.includes(` ${phrase} `)) {
           const score = size * 100 + phrase.length;
-          if (score > bestScore) {
-            bestScore = score;
-            bestPhrase = phrase;
-          }
+          if (score > bestScore) bestScore = score;
         }
       }
     }
@@ -1472,15 +1457,10 @@ function findConversationProductByText(conv, text = '') {
     for (const token of tokens) {
       if (token.length < 3 || !/\d/.test(token) || !inputTokens.has(token)) continue;
       const score = 50 + token.length;
-      if (score > bestScore) {
-        bestScore = score;
-        bestPhrase = token;
-      }
+      if (score > bestScore) bestScore = score;
     }
 
-    if (bestScore > 0) {
-      matches.push({ product, score: bestScore, phrase: bestPhrase });
-    }
+    if (bestScore > 0) matches.push({ product, score: bestScore });
   }
 
   if (!matches.length) return null;
