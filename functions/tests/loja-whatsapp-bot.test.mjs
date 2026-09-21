@@ -2374,6 +2374,12 @@ test('emojis positivos, de dúvida e negativos têm comportamento próprio', asy
 
 test('pedido para falar com Marcelo ou receber ligação é reconhecido', () => {
   for (const value of [
+    'Oi Marcelo',
+    'Olá Marcelo',
+    'Bom dia Marcelo',
+    'Boa tarde Marcelo',
+    'O Marcelo está?',
+    'Marcelo tá?',
     'Oi Marcelo tudo bem? Tô precisando falar com você',
     'Oi macelo tudo bem teria mim ligar aqui',
     'Quero falar com o Marcelo',
@@ -2386,6 +2392,43 @@ test('pedido para falar com Marcelo ou receber ligação é reconhecido', () => 
   ]) {
     assert.equal(bot.asksMarceloOrCallback(value), true, value);
   }
+});
+
+test('"Oi Marcelo" recebe imediatamente a resposta de retorno do Marcelo', async () => {
+  const phone = '5533955555554';
+
+  await bot.handleMessage({
+    phone,
+    text: 'Oi Marcelo',
+    pushName: 'Cliente Direto'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.equal(
+    sentTexts[0].text,
+    'O Marcelo está em outro atendimento no momento. Assim que ele terminar, ele retorna seu contato 😊\n\nEnquanto você aguarda, gostaria de dar uma olhada em alguma coisa? Posso te mostrar fotos de produtos, preços e condições de pagamento.'
+  );
+  assert.doesNotMatch(sentTexts[0].text, /Me conta um pouco mais/i);
+
+  assert.equal(backendEvents.length, 1);
+  assert.equal(backendEvents[0].status, 'Aguardando retorno do Marcelo');
+  assert.equal(bot.conversation(phone).marceloCallbackRequested, true);
+});
+
+test('"o Marcelo está?" também recebe a resposta de retorno sem cair no fallback', async () => {
+  const phone = '5533955555553';
+
+  await bot.handleMessage({
+    phone,
+    text: 'o marcelo está?',
+    pushName: 'Cliente Direto'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /O Marcelo está em outro atendimento no momento/i);
+  assert.match(sentTexts[0].text, /ele retorna seu contato/i);
+  assert.doesNotMatch(sentTexts[0].text, /Me conta um pouco mais/i);
+  assert.equal(backendEvents[0].status, 'Aguardando retorno do Marcelo');
 });
 
 test('pedido pelo Marcelo registra retorno sem desligar o atendimento automático', async () => {
