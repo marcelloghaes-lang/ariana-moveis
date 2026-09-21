@@ -39,6 +39,7 @@ let requestLog = [];
 let messageSeq = 0;
 let catalogResponseStatus = 200;
 let financeResponseStatus = 200;
+let creditAnalysisExisting = false;
 let financeResponse = {
   ok: true,
   fonteFinanceira: 'ariana_erp_financeiro_cobrancas',
@@ -107,7 +108,7 @@ function installFetchMock() {
     }
 
     if (href === 'https://backend.test/api/bot/crediario/analises/loja') {
-      return jsonResponse({ ok: true, existing: false });
+      return jsonResponse({ ok: true, existing: creditAnalysisExisting });
     }
 
     if (href === 'https://backend.test/api/bot/financeiro/contas-receber') {
@@ -163,6 +164,7 @@ beforeEach(() => {
   messageSeq = 0;
   catalogResponseStatus = 200;
   financeResponseStatus = 200;
+  creditAnalysisExisting = false;
   financeResponse = {
     ok: true,
     fonteFinanceira: 'ariana_erp_financeiro_cobrancas',
@@ -1015,6 +1017,45 @@ test('início do carnê é classificado como Crediário / análise', async () =>
   assert.equal(backendEvents.length, 1);
   assert.equal(backendEvents[0].status, 'Crediário / análise');
   assert.match(backendEvents[0].mensagem, /Geladeira Teste/i);
+});
+
+test('envio para análise orienta cliente novo e cliente já cadastrado', async () => {
+  const phone = '5533977777758';
+  const chosen = bot.compactProduct(product('credit-guide-1', 'Sofá Retrátil Teste', {
+    category: 'Sofá',
+    price: 1800,
+    pixPrice: 1500
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: chosen,
+    lastProducts: [chosen],
+    lastIntent: 'produto',
+    customerName: 'Cliente Completo'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'Quero fazer no carnê',
+    pushName: 'Cliente Completo'
+  });
+
+  assert.match(sentTexts.at(-1).text, /encaminhada para análise de crédito/i);
+  assert.match(sentTexts.at(-1).text, /já é cliente da Ariana Móveis.*aguardar a aprovação da compra/is);
+  assert.match(sentTexts.at(-1).text, /ainda não é cliente.*dados e documentos.*Crediário Ariana Móveis.*abertura do seu crédito/is);
+
+  sentTexts = [];
+  creditAnalysisExisting = true;
+
+  await bot.handleMessage({
+    phone,
+    text: 'Quero fazer no carnê',
+    pushName: 'Cliente Completo'
+  });
+
+  assert.match(sentTexts.at(-1).text, /solicitação de crediário já está aberta/i);
+  assert.match(sentTexts.at(-1).text, /já é cliente da Ariana Móveis.*aguardar a aprovação da compra/is);
+  assert.match(sentTexts.at(-1).text, /ainda não é cliente.*dados e documentos.*Crediário Ariana Móveis.*abertura do seu crédito/is);
 });
 
 test('resposta manual do Marcelo limpa revisão e registra atendimento humano', async () => {
