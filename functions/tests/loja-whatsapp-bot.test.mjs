@@ -2400,6 +2400,64 @@ test('motivos comuns de dificuldade com pagamento parcial são reconhecidos', ()
   );
 });
 
+test('promessas de pagamento com valor e nova data são reconhecidas sem confirmar acordo', () => {
+  const examples = [
+    'O dinheiro aq n deu certo mas essa semana e minha quinzena na sábado sem falta o 500 ta na mão fecho',
+    'Tava contando com um dinheiro aq so q o cara vai me passa ate quarta, caso n der certo dnv sábado sem falta',
+    'Não deu certo hoje, mas sábado sem falta te passo 500'
+  ];
+
+  for (const value of examples) {
+    assert.equal(bot.asksPaymentPromiseUpdate(value), true, value);
+  }
+
+  assert.equal(
+    bot.asksPaymentPromiseUpdate('Quanto tenho que te passar esse mês?'),
+    false,
+    'consulta normal de valor não pode virar promessa de pagamento'
+  );
+});
+
+test('atualização real de promessa de pagamento vai ao Marcelo e não cai no fallback comercial', async () => {
+  const phone = '5533988888821';
+
+  await bot.handleMessage({
+    phone,
+    text: 'O dinheiro aq n deu certo mas essa semana e minha quinzena na sábado sem falta o 500 ta na mão fecho',
+    pushName: 'Toco'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /atualização de pagamento registrada/i);
+  assert.match(sentTexts[0].text, /Marcelo/i);
+  assert.doesNotMatch(sentTexts[0].text, /produto ou da condição/i);
+  assert.doesNotMatch(sentTexts[0].text, /Não consigo te ajudar com esse assunto/i);
+
+  assert.equal(backendEvents.length, 1);
+  assert.equal(backendEvents[0].status, 'Aguardando Marcelo - confirmar pagamento/data');
+  assert.equal(backendEvents[0].metadata.assunto, 'promessa_pagamento');
+  assert.equal(backendEvents[0].metadata.exigeConfirmacaoMarcelo, true);
+  assert.equal(backendEvents[0].metadata.naoConfirmarAcordoAutomaticamente, true);
+
+  const financeCall = requestLog.find((item) =>
+    item.href === 'https://backend.test/api/bot/financeiro/contas-receber'
+  );
+  assert.equal(financeCall, undefined, 'não deve consultar nem alterar financeiro nessa combinação');
+
+  sentTexts = [];
+
+  await bot.handleMessage({
+    phone,
+    text: 'Tava contando com um dinheiro aq so q o cara vai me passa ate quarta, caso n der certo dnv sábado sem falta',
+    pushName: 'Toco'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /atualização de pagamento registrada/i);
+  assert.doesNotMatch(sentTexts[0].text, /produto ou da condição/i);
+});
+
+
 test('consulta financeira usa Contas a Receber do Ariana ERP e responde parcela do mês', async () => {
   const phone = '5533988888810';
   const now = new Date();
