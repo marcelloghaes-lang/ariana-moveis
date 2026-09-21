@@ -1402,6 +1402,97 @@ function findConversationProduct(conv, id = '') {
   return candidates.find((product) => productId(product) === wanted) || null;
 }
 
+function conversationProductCandidates(conv = {}) {
+  const rows = [
+    conv?.selectedProduct,
+    ...(Array.isArray(conv?.lastProducts) ? conv.lastProducts : []),
+    ...(Array.isArray(conv?.allProductResults) ? conv.allProductResults : [])
+  ].filter(Boolean);
+
+  const seen = new Set();
+  return rows.filter((product) => {
+    const id = productId(product);
+    const key = id || normalize(product?.name || '');
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function findConversationProductByText(conv, text = '') {
+  const input = normalize(text)
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (input.length < 2) return null;
+
+  const inputTokens = new Set(input.split(' ').filter(Boolean));
+  const matches = [];
+
+  for (const product of conversationProductCandidates(conv)) {
+    const name = normalize(product?.name || '')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!name) continue;
+    const tokens = name.split(' ').filter(Boolean);
+    let bestScore = 0;
+    let bestPhrase = '';
+
+    for (let size = Math.min(5, tokens.length); size >= 2; size -= 1) {
+      for (let start = 0; start <= tokens.length - size; start += 1) {
+        const window = tokens.slice(start, start + size);
+        if (!window.some((token) => /\d/.test(token))) continue;
+        const phrase = window.join(' ');
+        const escaped = phrase.replace(/[|\\{}()[\]^$+*?.-]/g, '\\function findConversationProduct(conv, id = '') {
+  const wanted = String(id || '').trim();
+  if (!wanted) return null;
+
+  const candidates = [
+    conv?.selectedProduct,
+    ...(Array.isArray(conv?.lastProducts) ? conv.lastProducts : []),
+    ...(Array.isArray(conv?.allProductResults) ? conv.allProductResults : [])
+  ].filter(Boolean);
+
+  return candidates.find((product) => productId(product) === wanted) || null;
+}
+');
+        if (new RegExp(`(^|\\s)${escaped}(\\s|$)`).test(input)) {
+          const score = size * 100 + phrase.length;
+          if (score > bestScore) {
+            bestScore = score;
+            bestPhrase = phrase;
+          }
+        }
+      }
+    }
+
+    for (const token of tokens) {
+      if (token.length < 3 || !/\d/.test(token) || !inputTokens.has(token)) continue;
+      const score = 50 + token.length;
+      if (score > bestScore) {
+        bestScore = score;
+        bestPhrase = token;
+      }
+    }
+
+    if (bestScore > 0) {
+      matches.push({ product, score: bestScore, phrase: bestPhrase });
+    }
+  }
+
+  if (!matches.length) return null;
+  matches.sort((a, b) => b.score - a.score);
+
+  if (matches.length > 1 && matches[0].score === matches[1].score) {
+    return null;
+  }
+
+  return matches[0].product;
+}
+
 function setPendingCreditInstallments(conv, product) {
   conv.pendingAction = 'credit_installments';
   conv.pendingCreditProductId = productId(product);
@@ -2460,6 +2551,7 @@ async function handlePending(phone, text, conv) {
 async function handleMessage({ phone, text, pushName = '' }) {
   const conv = conversation(phone);
   const n = normalize(text);
+  const mentionedProduct = findConversationProductByText(conv, text);
 
   if (conv.humanUntil && Date.now() < Number(conv.humanUntil)) {
     return;
@@ -2729,7 +2821,11 @@ async function handleMessage({ phone, text, pushName = '' }) {
   }
 
   if (asksProductLink(text)) {
-    const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
+    const product = mentionedProduct || conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
+    if (mentionedProduct) {
+      conv.selectedProduct = mentionedProduct;
+      saveStateSoon();
+    }
     if (!product) {
       await sendText(phone, 'Claro 😊 Me diga qual produto você quer que eu te mande o link.');
     } else {
@@ -2739,7 +2835,11 @@ async function handleMessage({ phone, text, pushName = '' }) {
   }
 
   if (asksCardQuote(text)) {
-    const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
+    const product = mentionedProduct || conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
+    if (mentionedProduct) {
+      conv.selectedProduct = mentionedProduct;
+      saveStateSoon();
+    }
     if (!product) {
       await sendText(phone, 'Consigo calcular sim 😊 Me diga qual produto você está olhando.');
       return;
@@ -2759,7 +2859,11 @@ async function handleMessage({ phone, text, pushName = '' }) {
   }
 
   if (asksPixPrice(text)) {
-    const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
+    const product = mentionedProduct || conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
+    if (mentionedProduct) {
+      conv.selectedProduct = mentionedProduct;
+      saveStateSoon();
+    }
     if (!product) {
       await sendText(phone, 'Claro 😊 Me diga qual produto você está olhando para eu te passar o valor no PIX.');
       return;
@@ -2796,6 +2900,10 @@ async function handleMessage({ phone, text, pushName = '' }) {
       conv.lastProducts.length
     ) {
       product = conv.lastProducts[conv.lastProducts.length - 1];
+      conv.selectedProduct = product;
+      saveStateSoon();
+    } else if (mentionedProduct) {
+      product = mentionedProduct;
       conv.selectedProduct = product;
       saveStateSoon();
     } else {
@@ -2863,6 +2971,7 @@ async function handleMessage({ phone, text, pushName = '' }) {
     (
       (ord >= 0 && Array.isArray(conv.lastProducts) && conv.lastProducts[ord]) ||
       (asksLastShownProduct(text) && Array.isArray(conv.lastProducts) && conv.lastProducts.length) ||
+      mentionedProduct ||
       conv.selectedProduct
     )
   ) {
@@ -2870,7 +2979,7 @@ async function handleMessage({ phone, text, pushName = '' }) {
       ? conv.lastProducts[ord]
       : asksLastShownProduct(text) && conv.lastProducts.length
         ? conv.lastProducts[conv.lastProducts.length - 1]
-        : conv.selectedProduct;
+        : mentionedProduct || conv.selectedProduct;
 
     conv.selectedProduct = product;
     saveStateSoon();
@@ -2922,6 +3031,24 @@ async function handleMessage({ phone, text, pushName = '' }) {
   if (asksHowToBuyCredit(text) || (conv.lastCreditPlan && /quero|pode fazer|vamos fazer|pode iniciar|pode abrir/.test(n) && /carne|crediario|boleto/.test(n))) {
     markCreditContext(conv);
     await startCreditApplication(phone, conv);
+    return;
+  }
+
+  if (mentionedProduct) {
+    conv.selectedProduct = mentionedProduct;
+    saveStateSoon();
+    await sendText(
+      phone,
+      `Perfeito 😊 Você está falando de *${mentionedProduct.name}*. O que você gostaria de saber dele: cartão, PIX, carnê, entrega ou quer comprar?`
+    );
+    await markConversationStatus(
+      phone,
+      conv,
+      'Venda em andamento',
+      `Cliente selecionou o produto pelo nome/modelo: ${mentionedProduct.name}`,
+      pushName,
+      { productId: productId(mentionedProduct), selectionMode: 'nome_modelo' }
+    );
     return;
   }
 
@@ -3396,6 +3523,7 @@ export const __test = {
   productFullPrice,
   productLink,
   compactProduct,
+  findConversationProductByText,
   isPlaceholderProductImage,
   matchesRequestedProductType,
   requestedTvInches,
