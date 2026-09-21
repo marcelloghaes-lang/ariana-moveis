@@ -2434,6 +2434,43 @@ function parseFullName(text) {
 }
 
 async function handlePending(phone, text, conv) {
+  if (conv.pendingAction === 'cash_price_product') {
+    const ord = ordinalIndex(text);
+    let product = null;
+
+    if (ord >= 0 && Array.isArray(conv.lastProducts) && conv.lastProducts[ord]) {
+      product = conv.lastProducts[ord];
+    } else if (asksLastShownProduct(text) && Array.isArray(conv.lastProducts) && conv.lastProducts.length) {
+      product = conv.lastProducts[conv.lastProducts.length - 1];
+    } else {
+      product = findConversationProductByText(conv, text);
+    }
+
+    if (!product) {
+      await sendText(
+        phone,
+        'Qual deles você quer saber o valor à vista? Pode me dizer *“o primeiro”*, *“o segundo”*, *“o terceiro”* ou o nome/modelo.'
+      );
+      return true;
+    }
+
+    conv.selectedProduct = product;
+    conv.pendingAction = '';
+    markPixContext(conv);
+    saveStateSoon();
+
+    await sendText(phone, `No PIX, *${product.name}* fica por *${money(productCashPrice(product))}*.`);
+    await markConversationStatus(
+      phone,
+      conv,
+      'Venda em andamento',
+      `Cliente consultou preço no PIX de: ${product.name}`,
+      '',
+      { paymentMode: 'pix', productId: productId(product) }
+    );
+    return true;
+  }
+
   if (conv.pendingAction === 'credit_installments') {
     if (conv.pendingCreditUntil && Date.now() >= Number(conv.pendingCreditUntil)) {
       clearPendingCreditInstallments(conv);
@@ -2854,6 +2891,8 @@ async function handleMessage({ phone, text, pushName = '' }) {
     }
     if (!product) {
       if (Array.isArray(conv.lastProducts) && conv.lastProducts.length > 1) {
+        conv.pendingAction = 'cash_price_product';
+        saveStateSoon();
         await sendText(
           phone,
           'Claro 😊 Qual dessas opções você quer saber o valor à vista? Pode me dizer *“o primeiro”*, *“o segundo”*, *“o terceiro”* etc.'
