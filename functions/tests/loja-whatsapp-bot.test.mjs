@@ -216,6 +216,71 @@ test('saudação natural reconhece frases comuns', () => {
   }
 });
 
+test('saudação usa somente o primeiro nome e ignora observações do contato', async () => {
+  const cases = [
+    ['Gaby Marcionilo Cliente', 'Gaby'],
+    ['Leandro Gaby Irmã', 'Leandro'],
+    ['Fátima, Gaby', 'Fátima'],
+    ['Andre Gaby💥', 'Andre'],
+    ['MARCELO NUNES SILVA', 'Marcelo']
+  ];
+
+  for (const [pushName, expected] of cases) {
+    assert.equal(bot.customerFirstName(pushName), expected, pushName);
+  }
+
+  assert.equal(bot.customerFirstName('31985147119'), '');
+  assert.equal(bot.customerFirstName('+55 33 98514-7119'), '');
+  assert.equal(bot.customerFirstName('Cliente'), '');
+  assert.equal(bot.customerFirstName(''), '');
+
+  const phoneNamed = '5533977777761';
+  await bot.handleMessage({
+    phone: phoneNamed,
+    text: 'Boa noite',
+    pushName: 'Gaby Marcionilo Cliente'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /^Boa noite, Gaby! 😊/i);
+  assert.doesNotMatch(sentTexts[0].text, /Marcionilo|Cliente/i);
+
+  sentTexts = [];
+
+  const phoneNumberOnly = '5533977777762';
+  await bot.handleMessage({
+    phone: phoneNumberOnly,
+    text: 'Boa noite',
+    pushName: '31985147119'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /^Boa noite! 😊/i);
+  assert.doesNotMatch(sentTexts[0].text, /31985147119/);
+});
+
+test('saudação junto com consulta de produto também usa somente o primeiro nome', async () => {
+  const phone = '5533977777763';
+
+  catalogRows = [
+    product('tv-greet-name-1', 'Smart TV Samsung 50', {
+      category: 'TV',
+      brand: 'Samsung'
+    })
+  ];
+
+  await bot.handleMessage({
+    phone,
+    text: 'Boa tarde, vocês têm TV?',
+    pushName: 'Gaby Marcionilo Cliente'
+  });
+
+  assert.ok(sentTexts.length >= 1);
+  assert.match(sentTexts[0].text, /^Boa tarde, Gaby! 😊/i);
+  assert.doesNotMatch(sentTexts[0].text, /Marcionilo|Cliente/i);
+});
+
+
 test('interrogação e chamada de presença retomam conversa sem nova saudação', async () => {
   for (const value of ['?', '??', 'Tá aí?', 'Ainda está aí?', 'Oi, está aí?']) {
     assert.equal(bot.asksPresencePing(value), true, value);
