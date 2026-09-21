@@ -499,6 +499,49 @@ test('"A vista tá qto?" mantém contexto da lista e pede qual produto', async (
 });
 
 
+test('"à vista não tem desconto não?" explica que o PIX já contém o desconto', async () => {
+  const phone = '5533977777754';
+  const chosen = bot.compactProduct(product('discount-pix-1', 'Refrigerador Consul 451L Branco 110V', {
+    category: 'Geladeiras',
+    pixPrice: 3974,
+    price: 4787.95,
+    installmentCount: 12
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: chosen,
+    lastProducts: [chosen],
+    lastIntent: 'produto'
+  });
+
+  for (const value of [
+    'A vista não tem desconto não?',
+    'No pix não tem desconto?',
+    'Consegue melhorar esse valor à vista?'
+  ]) {
+    assert.equal(bot.asksCashDiscount(value), true, value);
+  }
+
+  await bot.handleMessage({
+    phone,
+    text: 'A vista não tem desconto não?',
+    pushName: 'Cliente Desconto'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /valor no PIX já é o valor com desconto/i);
+  assert.match(sentTexts[0].text, /pagamento à vista/i);
+  assert.match(sentTexts[0].text, /não consigo mexer nesse valor/i);
+  assert.doesNotMatch(sentTexts[0].text, /Me conta um pouco mais/i);
+
+  assert.equal(backendEvents.length, 1);
+  assert.equal(backendEvents[0].status, 'Venda em andamento');
+  assert.equal(backendEvents[0].metadata.paymentMode, 'pix');
+  assert.equal(backendEvents[0].metadata.productId, 'discount-pix-1');
+  assert.equal(backendEvents[0].metadata.extraDiscountRequested, true);
+});
+
+
 test('pedido de iPhone não retorna Android nem caixa de som', async () => {
   catalogRows = [
     product('iphone1', 'Apple iPhone 15 128GB', { category: 'Celulares', brand: 'Apple' }),
