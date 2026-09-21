@@ -447,6 +447,43 @@ test('"tem celular?" consulta o catálogo em vez de cair no fallback', async () 
 });
 
 
+test('"A vista tá qto?" mantém contexto da lista e pede qual produto', async () => {
+  const phone = '5533977777753';
+
+  const first = bot.compactProduct(product('fridge-cash-1', 'Geladeira Inox 300L', {
+    category: 'Geladeiras',
+    pixPrice: 1999,
+    price: 2408
+  }));
+  const second = bot.compactProduct(product('fridge-cash-2', 'Geladeira Inox 400L', {
+    category: 'Geladeiras',
+    pixPrice: 2197.40,
+    price: 2647.47
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastProducts: [first, second],
+    allProductResults: [first, second],
+    selectedProduct: null,
+    lastIntent: 'produto'
+  });
+
+  assert.equal(bot.asksPixPrice('A vista tá qto?'), true);
+
+  await bot.handleMessage({
+    phone,
+    text: 'A vista tá qto?',
+    pushName: 'Cliente Geladeira'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /qual dessas opções/i);
+  assert.match(sentTexts[0].text, /primeiro/i);
+  assert.doesNotMatch(sentTexts[0].text, /Me conta um pouco mais/i);
+  assert.equal(bot.conversation(phone).lastProducts.length, 2);
+});
+
+
 test('pedido de iPhone não retorna Android nem caixa de som', async () => {
   catalogRows = [
     product('iphone1', 'Apple iPhone 15 128GB', { category: 'Celulares', brand: 'Apple' }),
