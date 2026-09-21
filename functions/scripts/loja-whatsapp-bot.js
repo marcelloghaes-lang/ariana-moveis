@@ -382,13 +382,25 @@ function productLink(product = {}) {
 }
 
 function compactProduct(product = {}) {
+  const rawBasePrice = Number(product.sellerBasePrice || product.pixPrice || product.price || 0);
+  const rawFullPrice = Number(
+    product.cardPrice ||
+    product.fullPrice ||
+    product.marketplacePrice ||
+    product.price ||
+    rawBasePrice ||
+    0
+  );
+
   return {
     id: productId(product),
     name: String(product.name || 'Produto').trim(),
     brand: String(product.brand || '').trim(),
     category: String(product.category || product.categoryName || '').trim(),
-    price: Number(product.price || 0),
-    pixPrice: Number(product.pixPrice || 0),
+    // No endpoint público, "price" é o preço-base do seller/PIX.
+    // O preço cheio do cartão vem explicitamente em cardPrice/fullPrice/marketplacePrice.
+    price: rawFullPrice,
+    pixPrice: rawBasePrice,
     oldPrice: Number(product.oldPrice || 0),
     installmentCount: Number(product.installmentCount || 12),
     stock: Number(product.stock || 0),
