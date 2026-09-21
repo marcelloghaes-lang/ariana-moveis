@@ -559,6 +559,50 @@ test('"quanto fica esse em 10x no boleto" usa o último produto mostrado', async
   assert.equal(bot.conversation(phone).lastCreditPlan.count, 10);
 });
 
+test('"E no cartão?" continua no mesmo produto após cálculo do crediário', async () => {
+  const phone = '5533977777739';
+
+  const first = bot.compactProduct(product('tv-card-1', 'Smart TV 32 Polegadas', {
+    category: 'TVs',
+    pixPrice: 1400,
+    price: 1680
+  }));
+  const last = bot.compactProduct(product('tv-card-2', 'Smart TV LG 43 Polegadas', {
+    category: 'TVs',
+    pixPrice: 1825.17,
+    price: 2190,
+    installmentCount: 12
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastProducts: [first, last],
+    selectedProduct: null,
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'Quanto fica esse último aí em 10x no boleto?',
+    pushName: 'Cliente Cartão'
+  });
+
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'tv-card-2');
+  assert.match(sentTexts.at(-1).text, /crediário próprio/i);
+  assert.match(sentTexts.at(-1).text, /Smart TV LG 43 Polegadas/i);
+
+  await bot.handleMessage({
+    phone,
+    text: 'E no cartão?',
+    pushName: 'Cliente Cartão'
+  });
+
+  assert.match(sentTexts.at(-1).text, /No cartão/i);
+  assert.match(sentTexts.at(-1).text, /Smart TV LG 43 Polegadas/i);
+  assert.doesNotMatch(sentTexts.at(-1).text, /Me conta um pouco mais/i);
+  assert.equal(backendEvents.at(-1).metadata.paymentMode, 'cartao');
+});
+
+
 test('"esse último aí" seleciona o último produto antes de calcular o boleto', async () => {
   const phone = '5533977777732';
 
