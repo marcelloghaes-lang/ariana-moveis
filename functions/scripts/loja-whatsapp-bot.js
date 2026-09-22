@@ -3614,16 +3614,25 @@ async function handleMessage({ phone, text, pushName = '' }) {
   }
 
   if ((hasSpecialConditionMarceloContext(conv) || conv.pendingAction === 'special_condition_product') && asksMarceloAfterCondition(text)) {
+    const hadSpecialContext = hasSpecialConditionMarceloContext(conv);
+    const alreadyWaitingMarcelo = Boolean(
+      hadSpecialContext &&
+      conv.marceloCallbackRequested &&
+      Number(conv.marceloCallbackRequestedAt || 0) > Date.now() - SPECIAL_CONDITION_MARCELO_TTL_MS
+    );
+
     conv.pendingAction = '';
     conv.humanUntil = 0;
-    clearSpecialConditionMarceloContext(conv);
+    markSpecialConditionMarceloContext(conv);
     conv.marceloCallbackRequested = true;
     conv.marceloCallbackRequestedAt = Date.now();
     saveStateSoon();
 
     await sendText(
       phone,
-      'Vou precisar que você aguarde um instante 😊 O Marcelo precisou fazer um trabalho na rua e já já está de volta para terminar de te atender. Enquanto isso, gostaria de olhar mais algum produto?'
+      alreadyWaitingMarcelo
+        ? 'Sim 😊 Já deixei seu atendimento sinalizado para o Marcelo. Assim que ele voltar, continua com você por aqui. Enquanto isso, posso te mostrar mais algum produto.'
+        : 'Vou precisar que você aguarde um instante 😊 O Marcelo precisou fazer um trabalho na rua e já já está de volta para terminar de te atender. Enquanto isso, gostaria de olhar mais algum produto?'
     );
 
     await syncTicket(phone, {
@@ -3632,7 +3641,8 @@ async function handleMessage({ phone, text, pushName = '' }) {
       name: pushName,
       metadata: {
         assunto: 'condicao_especial_aguardando_marcelo',
-        atendimentoAutomaticoContinua: true
+        atendimentoAutomaticoContinua: true,
+        pedidoRepetido: alreadyWaitingMarcelo
       }
     });
     return;
