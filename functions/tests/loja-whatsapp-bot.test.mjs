@@ -2519,6 +2519,52 @@ test('áudio recebido do cliente é transcrito e segue o mesmo atendimento de te
   assert.equal(budget.usedBrl, 0.0036);
 });
 
+test('áudio com promessa condicional de pagamento é registrado para o Marcelo e não cai no fallback', async () => {
+  const phone = '5533923333499';
+
+  audioTranscriptionText = 'Marcelo, boa tarde. Olha, a mamãe falou que se ela pegar um dinheiro da Danda, tá lá que ela deixou para você, e o dia que eu receber aqui, meu amor, eu já mando para você, viu?';
+  mediaBase64Response = {
+    mimetype: 'audio/ogg; codecs=opus',
+    base64: 'T2dnUwBmYWtlLWF1ZGlvLXByb21lc3Nh'
+  };
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'AUDIO-PAYMENT-PROMISE-1'
+      },
+      pushName: 'Leiliane Keyla',
+      message: {
+        audioMessage: {
+          mimetype: 'audio/ogg; codecs=opus',
+          seconds: 9,
+          ptt: true
+        }
+      }
+    }
+  });
+
+  assert.equal(result.audio, 'audio_transcribed');
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /atualização de pagamento registrada/i);
+  assert.match(sentTexts[0].text, /Marcelo/i);
+  assert.doesNotMatch(sentTexts[0].text, /Não consigo te ajudar com esse assunto|fotos de produtos|carnê/i);
+
+  assert.equal(backendEvents.length, 1);
+  assert.equal(backendEvents[0].status, 'Aguardando Marcelo - confirmar pagamento/data');
+  assert.equal(backendEvents[0].metadata.assunto, 'promessa_pagamento');
+  assert.equal(backendEvents[0].metadata.exigeConfirmacaoMarcelo, true);
+  assert.equal(backendEvents[0].metadata.naoConfirmarAcordoAutomaticamente, true);
+
+  const financeCall = requestLog.find((item) =>
+    item.href === 'https://backend.test/api/bot/financeiro/contas-receber'
+  );
+  assert.equal(financeCall, undefined, 'promessa não deve alterar nem consultar o financeiro automaticamente');
+});
+
 test('áudio fora de venda recebe saudação e fica aguardando retorno do Marcelo', async () => {
   const phone = '5533923333410';
 
@@ -3370,7 +3416,10 @@ test('promessas de pagamento com valor e nova data são reconhecidas sem confirm
   const examples = [
     'O dinheiro aq n deu certo mas essa semana e minha quinzena na sábado sem falta o 500 ta na mão fecho',
     'Tava contando com um dinheiro aq so q o cara vai me passa ate quarta, caso n der certo dnv sábado sem falta',
-    'Não deu certo hoje, mas sábado sem falta te passo 500'
+    'Não deu certo hoje, mas sábado sem falta te passo 500',
+    'Marcelo, boa tarde. A mamãe falou que se ela pegar um dinheiro da Danda, e o dia que eu receber aqui, eu já mando para você, viu?',
+    'Assim que o dinheiro cair eu te mando',
+    'Quando eu receber o pagamento eu já pago para você'
   ];
 
   for (const value of examples) {
