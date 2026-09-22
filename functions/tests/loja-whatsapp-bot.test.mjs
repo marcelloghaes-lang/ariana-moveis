@@ -3926,3 +3926,56 @@ test('Gustavo responde chave PIX no contexto da parcela do dia sem iniciar atend
   assert.match(sentTexts[0].text, /MARCELO NUNES SILVA/i);
   assert.doesNotMatch(sentTexts[0].text, /produto|catálogo/i);
 });
+
+
+test('contexto da cobrança sai automaticamente quando cliente inicia nova consulta clara de produto', async () => {
+  const phone = '5533977777793';
+  catalogRows = [
+    product('geladeira-venda-apos-cobranca', 'Geladeira Consul 386L', {
+      category: 'Geladeira',
+      brand: 'Consul',
+      stock: 3
+    })
+  ];
+
+  bot.patchTestConversation(phone, {
+    dailyDueContextUntil: Date.now() + (6 * 60 * 60 * 1000),
+    dailyDueReminderAt: Date.now(),
+    pendingAction: 'daily_due_finance_cpf'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'vocês têm geladeira?',
+    pushName: 'Cliente Cobrança'
+  });
+
+  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), false);
+  assert.notEqual(bot.conversation(phone).pendingAction, 'daily_due_finance_cpf');
+  assert.equal(sentMedia.length, 1);
+  assert.match(sentMedia[0].caption || '', /Geladeira Consul 386L/i);
+  assert.doesNotMatch(sentTexts.map((item) => item.text).join('\n'), /CPF do titular|parcela que vence hoje/i);
+});
+
+test('citar o produto dentro da pergunta da parcela não tira o cliente do contexto de cobrança', () => {
+  assert.equal(
+    bot.asksDailyDueSubjectChange('qual o valor da parcela da geladeira que vence hoje?'),
+    false
+  );
+  assert.equal(
+    bot.asksDailyDueSubjectChange('essa parcela da TV é a que vence hoje?'),
+    false
+  );
+  assert.equal(
+    bot.asksDailyDueSubjectChange('vocês têm geladeira?'),
+    true
+  );
+  assert.equal(
+    bot.asksDailyDueSubjectChange('quanto está a TV de 50 polegadas?'),
+    true
+  );
+  assert.equal(
+    bot.asksDailyDueSubjectChange('quero comprar um sofá no crediário'),
+    true
+  );
+});

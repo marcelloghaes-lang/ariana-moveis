@@ -2411,12 +2411,56 @@ function hasDailyDueCollectionContext(conv) {
 }
 
 function asksDailyDueSubjectChange(text) {
-  const n = normalize(text);
-  return (
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n) return false;
+
+  if (
     /\b(mudando|mudar|trocar) de assunto\b/.test(n) ||
-    /\b(outro assunto|outra coisa)\b/.test(n) ||
-    /\bquero (?:ver|comprar|procurar)\b.{0,55}\b(produto|geladeira|tv|sofa|cama|celular|fogao|mesa|cadeira|guarda roupa|armario|maquina|lavadora|freezer)\b/.test(n)
-  );
+    /\b(outro assunto|outra coisa)\b/.test(n)
+  ) {
+    return true;
+  }
+
+  // Se a frase ainda fala claramente da parcela/cobrança atual, ela continua
+  // no contexto financeiro mesmo que cite o produto comprado.
+  const collectionTerms =
+    /\b(parcela|parcelas|prestacao|prestacoes|vencimento|vence|vencendo|cobranca|cobrar|notinha|nota|carne|boleto|pagamento|pagar|paguei|pix|comprovante|baixa)\b/.test(n);
+
+  const explicitNewPurchase =
+    /\b(quero|queria|gostaria|vou|pretendo)\b.{0,30}\b(comprar|levar|pegar|adquirir)\b/.test(n) ||
+    /\b(nova compra|comprar outro|comprar outra|pegar outro|pegar outra)\b/.test(n) ||
+    /\b(comprar|pegar|levar)\b.{0,35}\b(no carne|no crediario|parcelado|no cartao|no pix)\b/.test(n);
+
+  const catalogRequest =
+    /\b(me mostra|mostra|me manda|manda|quero ver|queria ver|tem|tem ai|voces tem|voces trabalham com|voces vendem|vende|vendem)\b/.test(n) &&
+    Boolean(detectCategory(text) || /\b(produto|produtos|modelo|modelos|opcao|opcoes)\b/.test(n));
+
+  const productPriceOrStock =
+    Boolean(detectCategory(text)) &&
+    (
+      /\b(quanto|qto|preco|valor)\b.{0,30}\b(ta|esta|fica|custa|sai)\b/.test(n) ||
+      /\b(quanto|qto|preco|valor)\b/.test(n) ||
+      /\b(tem|tem ai|disponivel|disponibilidade|estoque|em estoque)\b/.test(n)
+    );
+
+  const deliveryForProduct =
+    Boolean(detectCategory(text)) &&
+    /\b(entrega|entregam|entregar|frete)\b/.test(n);
+
+  const explicitCommercial =
+    explicitNewPurchase ||
+    catalogRequest ||
+    productPriceOrStock ||
+    deliveryForProduct ||
+    asksStoreAssortment(text) ||
+    asksHowToBuyFromStore(text) ||
+    asksGenericStorePurchase(text);
+
+  return explicitCommercial && !collectionTerms;
 }
 
 function asksDailyDueAmount(text) {
@@ -2507,6 +2551,13 @@ function dailyDueFinancialReply(data = {}) {
 async function handleDailyDueCollectionContext({ phone, text, pushName = '', conv }) {
   if (!hasDailyDueCollectionContext(conv)) return false;
 
+  // Uma intenção comercial clara encerra apenas o contexto da cobrança e
+  // devolve a mensagem ao fluxo normal de vendas do Gustavo.
+  if (asksDailyDueSubjectChange(text)) {
+    clearDailyDueCollectionContext(conv);
+    return false;
+  }
+
   if (conv.pendingAction === 'daily_due_finance_cpf') {
     const cpf = digits(text);
     if (cpf.length !== 11) {
@@ -2532,11 +2583,6 @@ async function handleDailyDueCollectionContext({ phone, text, pushName = '', con
       });
     }
     return true;
-  }
-
-  if (asksDailyDueSubjectChange(text)) {
-    clearDailyDueCollectionContext(conv);
-    return false;
   }
 
   conv.dailyDueReplyCount = Math.max(0, Number(conv.dailyDueReplyCount || 0)) + 1;
@@ -5471,6 +5517,7 @@ export const __test = {
   asksDelivery,
   asksFinance,
   isDailyDueReminderOutbound,
+  asksDailyDueSubjectChange,
   markDailyDueCollectionContext,
   clearDailyDueCollectionContext,
   hasDailyDueCollectionContext,
