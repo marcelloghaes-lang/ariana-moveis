@@ -2801,12 +2801,19 @@ async function handleDailyDueCollectionContext({ phone, text, pushName = '', con
   const courtesyIntent = dailyDueCourtesyIntent(text);
   if (courtesyIntent) {
     const now = Date.now();
-    const lastCourtesyAt = Number(conv.dailyDueCourtesyAt || 0);
     const suppressWindowMs = 6 * 60 * 60 * 1000;
+    const aliases = brazilWhatsappPhoneAliases(phone);
+    const conversations = aliases.map((alias) => conversation(alias));
+    const lastCourtesyAt = Math.max(
+      0,
+      ...conversations.map((item) => Number(item.dailyDueCourtesyAt || 0))
+    );
     const shouldReply = !lastCourtesyAt || now - lastCourtesyAt >= suppressWindowMs;
 
-    conv.dailyDueCourtesyAt = now;
-    conv.dailyDueCourtesyCount = Math.max(0, Number(conv.dailyDueCourtesyCount || 0)) + 1;
+    for (const item of conversations) {
+      item.dailyDueCourtesyAt = now;
+      item.dailyDueCourtesyCount = Math.max(0, Number(item.dailyDueCourtesyCount || 0)) + 1;
+    }
     saveStateSoon();
 
     if (shouldReply) {
@@ -5395,6 +5402,7 @@ async function handleWebhook(payload) {
       return {
         ok: true,
         dailyDueReminder: true,
+        skipLegacy: true,
         contextHours: Math.round(DAILY_DUE_CONTEXT_TTL_MS / 3600000)
       };
     }
@@ -5442,6 +5450,8 @@ async function handleWebhook(payload) {
 
   await syncDailyDueContextFromBackend(incoming.phone, conv, incoming.text);
 
+  const dailyDueContextAtStart = hasDailyDueCollectionContext(conv);
+
   const supplierInbound = await handleSupplierInbound(incoming, conv);
   if (supplierInbound.handled) {
     return {
@@ -5470,6 +5480,7 @@ async function handleWebhook(payload) {
         ok: true,
         media: true,
         collectionContext: true,
+        skipLegacy: true,
         collectionMedia: collectionMedia.kind || 'handled',
         confidence: Number(collectionMedia.confidence || 0)
       };
@@ -5508,7 +5519,16 @@ async function handleWebhook(payload) {
 
   try {
     await handleMessage(incoming);
-    return { ok: true };
+
+    const changedToSales =
+      dailyDueContextAtStart &&
+      asksDailyDueSubjectChange(incoming.text);
+
+    return {
+      ok: true,
+      collectionContext: dailyDueContextAtStart && !changedToSales,
+      skipLegacy: dailyDueContextAtStart && !changedToSales
+    };
   } catch (error) {
     console.error('[loja-bot] erro ao processar mensagem:', error?.stack || error?.message || error);
     await markReviewNeeded(
@@ -5623,15 +5643,21 @@ const server = http.createServer((req, res) => {
     }
 
     sendJson(res, 200, { ok: true, received: true });
-    Promise.allSettled([
-      handleWebhook(payload),
-      forwardLegacyWebhook(payload)
-    ]).then((results) => {
-      const botResult = results[0];
-      if (botResult?.status === 'rejected') {
-        console.error('[loja-bot] webhook:', botResult.reason?.stack || botResult.reason?.message || botResult.reason);
-      }
-    });
+
+    Promise.resolve()
+      .then(async () => {
+        const botResult = await handleWebhook(payload);
+
+        if (botResult?.skipLegacy) {
+          return { botResult, legacyResult: { skipped: true, reason: 'daily_due_context' } };
+        }
+
+        const legacyResult = await forwardLegacyWebhook(payload);
+        return { botResult, legacyResult };
+      })
+      .catch((error) => {
+        console.error('[loja-bot] webhook:', error?.stack || error?.message || error);
+      });
   });
 });
 
