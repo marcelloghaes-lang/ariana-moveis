@@ -1742,6 +1742,20 @@ function asksPresencePing(text) {
   );
 }
 
+function asksMarceloAfterCondition(text) {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return (
+    /\b(eu\s+)?(posso|poderia|consigo|conseguiria)\s+falar\s+com\s+(ele|o\s+marcelo|marcelo|o\s+macelo|macelo|o\s+marcello|marcello)\b/.test(n) ||
+    /\b(quero|queria|gostaria)\s+falar\s+com\s+(ele|o\s+marcelo|marcelo|o\s+macelo|macelo|o\s+marcello|marcello)\b/.test(n) ||
+    /\b(voce|vc)?\s*(pode\s+)?(chama|chamar|chame)\s+(o\s+)?(marcelo|macelo|marcello)\b/.test(n) ||
+    /\b(consegue|poderia)\s+chamar\s+(o\s+)?(marcelo|macelo|marcello)\b/.test(n)
+  );
+}
+
 function asksMarceloOrCallback(text) {
   const n = normalize(text)
     .replace(/[!?.,;:]+/g, ' ')
@@ -3289,6 +3303,28 @@ async function handlePending(phone, text, conv) {
   }
 
   if (conv.pendingAction === 'special_condition_product') {
+    if (asksMarceloAfterCondition(text)) {
+      conv.pendingAction = '';
+      conv.marceloCallbackRequested = true;
+      conv.marceloCallbackRequestedAt = Date.now();
+      saveStateSoon();
+
+      await sendText(
+        phone,
+        'Vou precisar que você aguarde um instante 😊 O Marcelo precisou fazer um trabalho na rua e já já está de volta para terminar de te atender. Enquanto isso, gostaria de olhar mais algum produto?'
+      );
+
+      await syncTicket(phone, {
+        status: 'Aguardando retorno do Marcelo',
+        message: text,
+        metadata: {
+          assunto: 'condicao_especial_aguardando_marcelo',
+          atendimentoAutomaticoContinua: true
+        }
+      });
+      return true;
+    }
+
     const ord = ordinalIndex(text);
     let product = null;
 
@@ -4522,6 +4558,7 @@ export const __test = {
   isGreeting,
   asksPresencePing,
   asksMarceloOrCallback,
+  asksMarceloAfterCondition,
   isReferralOrPraise,
   wantsHuman,
   asksPaymentMethods,
