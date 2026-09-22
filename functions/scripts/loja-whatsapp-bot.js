@@ -2311,6 +2311,16 @@ function asksBotWellbeingQuestion(text = '') {
   );
 }
 
+function asksBackWellbeing(text = '') {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n) return false;
+  return /\be\s+(?:voce|vc)$/.test(n);
+}
+
 function isPositiveWellbeingReply(text = '') {
   const n = normalize(text)
     .replace(/[!?.,;:]+/g, ' ')
@@ -5310,7 +5320,12 @@ async function handleMessage({ phone, text, pushName = '' }) {
 
     if (isPositiveWellbeingReply(text)) {
       clearCourtesyGreetingContext(conv);
-      await sendText(phone, 'Ah, que bom 😊 O que você tá precisando pra hoje?');
+      await sendText(
+        phone,
+        asksBackWellbeing(text)
+          ? 'Que bom 😊 Por aqui tá tudo ótimo também. O que você tá precisando pra hoje?'
+          : 'Ah, que bom 😊 O que você tá precisando pra hoje?'
+      );
       return;
     }
 
@@ -6958,6 +6973,7 @@ export const __test = {
   isGreeting,
   isCourtesyGreeting,
   asksBotWellbeingQuestion,
+  asksBackWellbeing,
   isPositiveWellbeingReply,
   isClearlyNegativeWellbeingReply,
   isNonPositiveWellbeingReply,
