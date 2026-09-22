@@ -466,6 +466,56 @@ function productLink(product = {}) {
   return id ? `${SITE_URL}/produto.html?id=${encodeURIComponent(id)}` : SITE_URL;
 }
 
+function productImageValue(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'object') {
+    return String(
+      value.url ||
+      value.imageUrl ||
+      value.downloadURL ||
+      value.src ||
+      value.secure_url ||
+      ''
+    ).trim();
+  }
+  return '';
+}
+
+function productPrimaryImage(product = {}) {
+  const galleries = [
+    product.images,
+    product.imagens,
+    product.gallery,
+    product.galeria
+  ];
+
+  for (const gallery of galleries) {
+    const items = Array.isArray(gallery)
+      ? gallery
+      : gallery && typeof gallery === 'object'
+        ? Object.values(gallery)
+        : [];
+
+    for (const item of items) {
+      const url = productImageValue(item);
+      if (url && !isPlaceholderProductImage(url)) return url;
+    }
+  }
+
+  for (const candidate of [
+    product.imageUrl,
+    product.mainImageUrl,
+    product.image,
+    product.imagem
+  ]) {
+    const url = productImageValue(candidate);
+    if (url) return url;
+  }
+
+  return '';
+}
+
 function compactProduct(product = {}) {
   const rawBasePrice = Number(product.sellerBasePrice || product.pixPrice || product.price || 0);
   const rawFullPrice = Number(
@@ -489,7 +539,7 @@ function compactProduct(product = {}) {
     oldPrice: Number(product.oldPrice || 0),
     installmentCount: Number(product.installmentCount || 12),
     stock: Number(product.stock || 0),
-    imageUrl: String(product.imageUrl || '').trim()
+    imageUrl: productPrimaryImage(product)
   };
 }
 
@@ -1690,7 +1740,7 @@ function isSupplierContactSignal({ phone = '', text = '', pushName = '' } = {}) 
   const name = normalize(pushName);
   const n = normalize(text);
   const supplierName =
-    /\b(vendas|representante|representacao|distribuidora|distribuidor|atacado|fabrica|industria)\b/.test(name);
+    /\b(vendas|consultora|consultor|consultoria|representante|representacao|distribuidora|distribuidor|atacado|fabrica|industria|executiva de vendas|executivo de vendas|promotora|promotor)\b/.test(name);
 
   const strongB2b =
     /\blojista\b/.test(n) ||
@@ -1701,7 +1751,11 @@ function isSupplierContactSignal({ phone = '', text = '', pushName = '' } = {}) 
     /\bpreco de revenda\b|\btabela de atacado\b/.test(n) ||
     /\b(?:mix|estoque) da loja\b/.test(n) ||
     /\bquantas pecas (?:eu )?(?:te |lhe )?(?:mando|envio)\b/.test(n) ||
-    /\brepresentante comercial\b/.test(n);
+    /\brepresentante comercial\b/.test(n) ||
+    /\bdemandas? de pedidos?\b/.test(n) ||
+    /\bpreco a partir de (?:1|uma) peca\b/.test(n) ||
+    /\bboas vendas\b/.test(n) ||
+    /\bconsultor(?:a)? comercial\b/.test(n);
 
   const b2bContext =
     /\b(lojista|revenda|atacado|estoque|pecas|fabrica|pedido minimo|mix da loja)\b/.test(n);
@@ -1753,6 +1807,45 @@ function markContactRole(conv, role) {
   if (!conv) return;
   conv.contactRole = String(role || '').trim();
   conv.contactRoleAt = Date.now();
+}
+
+async function handleSupplierInbound({ phone = '', text = '', pushName = '' } = {}, conv) {
+  if (!conv) return { handled: false };
+
+  if (isSupplierContactSignal({ phone, text, pushName })) {
+    markContactRole(conv, 'supplier');
+    saveStateSoon();
+  }
+
+  if (conv.contactRole !== 'supplier') return { handled: false };
+
+  if (isExternalAutomationMessage(text)) {
+    return { handled: true, kind: 'supplier_automation' };
+  }
+
+  const alreadyAcknowledged =
+    Number(conv.supplierAcknowledgedAt || 0) > Date.now() - 12 * 60 * 60 * 1000;
+
+  await syncTicket(phone, {
+    status: 'Fornecedor / Compras',
+    message: text || 'Fornecedor enviou mídia/proposta comercial.',
+    name: pushName,
+    metadata: {
+      assunto: 'fornecedor',
+      atendimentoAutomaticoVendas: false
+    }
+  });
+
+  if (!alreadyAcknowledged) {
+    conv.supplierAcknowledgedAt = Date.now();
+    saveStateSoon();
+    await sendText(
+      phone,
+      'Recebi sua proposta comercial 😊 Vou deixar para o Marcelo analisar com a área de compras. Assim que ele puder, continua com você por aqui.'
+    );
+  }
+
+  return { handled: true, kind: 'supplier' };
 }
 
 function isCommercialTopic(text, conv = {}) {
@@ -3684,37 +3777,9 @@ async function handleMessage({ phone, text, pushName = '' }) {
   if (isKnownInternalContact(pushName)) {
     markContactRole(conv, 'internal');
     saveStateSoon();
-  } else if (isSupplierContactSignal({ phone, text, pushName })) {
-    markContactRole(conv, 'supplier');
-    saveStateSoon();
   }
 
-  if (conv.contactRole === 'supplier') {
-    if (isExternalAutomationMessage(text)) {
-      return;
-    }
-
-    const alreadyAcknowledged =
-      Number(conv.supplierAcknowledgedAt || 0) > Date.now() - 12 * 60 * 60 * 1000;
-
-    await syncTicket(phone, {
-      status: 'Fornecedor / Compras',
-      message: text,
-      name: pushName,
-      metadata: {
-        assunto: 'fornecedor',
-        atendimentoAutomaticoVendas: false
-      }
-    });
-
-    if (!alreadyAcknowledged) {
-      conv.supplierAcknowledgedAt = Date.now();
-      saveStateSoon();
-      await sendText(
-        phone,
-        'Recebi sua proposta comercial 😊 Vou deixar para o Marcelo analisar com a área de compras. Assim que ele puder, continua com você por aqui.'
-      );
-    }
+  if ((await handleSupplierInbound({ phone, text, pushName }, conv)).handled) {
     return;
   }
 
@@ -4654,6 +4719,15 @@ async function handleWebhook(payload) {
     return { ignored: 'manual_human_mode' };
   }
 
+  const supplierInbound = await handleSupplierInbound(incoming, conv);
+  if (supplierInbound.handled) {
+    return {
+      ok: true,
+      supplier: true,
+      supplierKind: supplierInbound.kind
+    };
+  }
+
   if (incoming.mediaType === 'audio') {
     const audio = await handleIncomingAudio(incoming, conv);
     if (audio?.handled) {
@@ -4823,6 +4897,7 @@ export const __test = {
   isConfiguredSupplier,
   isKnownInternalContact,
   isSupplierContactSignal,
+  handleSupplierInbound,
   isExternalAutomationMessage,
   isCasualSmallTalk,
   isPersonalAdministrativeMessage,
@@ -4890,6 +4965,7 @@ export const __test = {
   productCashPrice,
   productFullPrice,
   productLink,
+  productPrimaryImage,
   compactProduct,
   findConversationProductByText,
   isPlaceholderProductImage,
