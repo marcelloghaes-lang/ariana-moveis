@@ -105,6 +105,7 @@ const COMMERCIAL_MEMORY_TTL_MS = Math.max(7, Number(process.env.LOJA_COMMERCIAL_
 const COMMERCIAL_PROFILE_TTL_MS = Math.max(30, Number(process.env.LOJA_COMMERCIAL_PROFILE_DAYS || 180)) * 24 * 60 * 60 * 1000;
 const COMMERCIAL_RESUME_MIN_GAP_MS = Math.max(1, Number(process.env.LOJA_COMMERCIAL_RESUME_HOURS || 8)) * 60 * 60 * 1000;
 const COMMERCIAL_RESUME_COOLDOWN_MS = Math.max(1, Number(process.env.LOJA_COMMERCIAL_RESUME_COOLDOWN_DAYS || 7)) * 24 * 60 * 60 * 1000;
+const COURTESY_GREETING_TTL_MS = Math.max(1, Number(process.env.LOJA_COURTESY_GREETING_MINUTES || 15)) * 60 * 1000;
 const SUPPLIER_PHONES = new Set(
   String(process.env.LOJA_SUPPLIER_PHONES || '')
     .split(',')
@@ -671,6 +672,8 @@ function conversation(phone) {
       dailyDueLookupActive: false,
       dailyDueCourtesyAt: 0,
       dailyDueCourtesyCount: 0,
+      courtesyGreetingUntil: 0,
+      courtesyGreetingStartedAt: 0,
       lastBudgetLimit: 0,
       lastIntent: ''
     };
@@ -696,6 +699,8 @@ function conversation(phone) {
   if (typeof conv.dailyDueLookupActive !== 'boolean') conv.dailyDueLookupActive = false;
   if (!Number.isFinite(Number(conv.dailyDueCourtesyAt))) conv.dailyDueCourtesyAt = 0;
   if (!Number.isFinite(Number(conv.dailyDueCourtesyCount))) conv.dailyDueCourtesyCount = 0;
+  if (!Number.isFinite(Number(conv.courtesyGreetingUntil))) conv.courtesyGreetingUntil = 0;
+  if (!Number.isFinite(Number(conv.courtesyGreetingStartedAt))) conv.courtesyGreetingStartedAt = 0;
   if (!Number.isFinite(Number(conv.lastBudgetLimit))) conv.lastBudgetLimit = 0;
 
   if (
@@ -2274,6 +2279,68 @@ function isCommercialTopic(text, conv = {}) {
   );
 }
 
+function isCourtesyGreeting(text = '') {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n) return false;
+  if (isGreeting(text)) return true;
+
+  return /^(?:(?:oi+|oie+|ola+)\s+)?(?:bom dia|boa tarde|boa noite|oi+|oie+|ola+)\s+(?:o\s+)?(?:marcelo|macelo|marcello)\s+(?:tudo bem|td bem|como vai)$/.test(n);
+}
+
+function isPositiveWellbeingReply(text = '') {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n || /\b(nao|ruim|mal|mais ou menos|doente|passando mal)\b/.test(n)) return false;
+
+  return (
+    /^(?:eu\s+)?(?:to|tou|estou|ta|esta)?\s*(?:bem|otimo|otima)(?:\s+(?:tambem|tbm))?(?:\s+gracas a deus)?(?:\s+(?:obrigado|obrigada))?(?:\s+e (?:voce|vc))?$/.test(n) ||
+    /^(?:tudo\s+)?(?:bem|otimo|otima|certo|tranquilo|joia|beleza)(?:\s+(?:tambem|tbm))?(?:\s+gracas a deus)?(?:\s+(?:obrigado|obrigada))?(?:\s+e (?:voce|vc))?$/.test(n) ||
+    /^gracas a deus(?:\s+(?:estou|to))?\s+(?:bem|otimo|otima)$/.test(n)
+  );
+}
+
+function storeDaypartGreeting(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    hour: '2-digit',
+    hour12: false
+  }).formatToParts(now);
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value || 0);
+
+  if (hour >= 5 && hour < 12) return 'Bom dia';
+  if (hour >= 12 && hour < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
+function courtesyGreetingLabel(text = '') {
+  const explicit = greetingFromText(text);
+  if (explicit && explicit !== 'Olá') return explicit;
+  return storeDaypartGreeting();
+}
+
+function hasCourtesyGreetingContext(conv = {}) {
+  return Number(conv?.courtesyGreetingUntil || 0) > Date.now();
+}
+
+function startCourtesyGreetingContext(conv = {}) {
+  conv.courtesyGreetingStartedAt = Date.now();
+  conv.courtesyGreetingUntil = Date.now() + COURTESY_GREETING_TTL_MS;
+  saveStateSoon();
+}
+
+function clearCourtesyGreetingContext(conv = {}) {
+  conv.courtesyGreetingUntil = 0;
+  conv.courtesyGreetingStartedAt = 0;
+  saveStateSoon();
+}
+
 function isGreeting(text) {
   const n = normalize(text)
     .replace(/[!?.,;:]+/g, ' ')
@@ -2374,7 +2441,7 @@ function asksMarceloOrCallback(text) {
   const marcelo = '(?:marcelo|macelo|marcello)';
 
   const directGreeting =
-    /^(?:(?:oi+|oie+|ola+|bom dia|boa tarde|boa noite)(?: tudo bem)?\s+)(?:o\s+)?(?:marcelo|macelo|marcello)(?:\s+tudo bem)?$/.test(n);
+    /^(?:(?:oi+|oie+|ola+|bom dia|boa tarde|boa noite)\s+)(?:o\s+)?(?:marcelo|macelo|marcello)$/.test(n);
 
   const asksIfAvailable =
     /^(?:o\s+)?(?:marcelo|macelo|marcello)\s+(?:ta|esta)(?:\s+(?:ai|por ai))?$/.test(n);
@@ -5044,6 +5111,10 @@ async function handleMessage({ phone, text, pushName = '' }) {
     clearDailyDueCollectionContext(conv);
   }
 
+  if (conv.courtesyGreetingUntil && Date.now() >= Number(conv.courtesyGreetingUntil)) {
+    clearCourtesyGreetingContext(conv);
+  }
+
   if (hasDailyDueCollectionContext(conv)) {
     const handledDailyDue = await handleDailyDueCollectionContext({ phone, text, pushName, conv });
     if (handledDailyDue) return;
@@ -5106,6 +5177,28 @@ async function handleMessage({ phone, text, pushName = '' }) {
         atendimentoAutomaticoVendas: false
       }
     });
+    return;
+  }
+
+  if (hasCourtesyGreetingContext(conv)) {
+    if (isPositiveWellbeingReply(text)) {
+      clearCourtesyGreetingContext(conv);
+      await sendText(phone, 'Ah, que bom 😊 O que você tá precisando pra hoje?');
+      return;
+    }
+
+    clearCourtesyGreetingContext(conv);
+  }
+
+  if (isCourtesyGreeting(text)) {
+    const greeting = courtesyGreetingLabel(text);
+    const firstName = customerFirstName(pushName);
+    startCourtesyGreetingContext(conv);
+
+    await sendText(
+      phone,
+      `${greeting}${firstName ? `, ${firstName}` : ''}! 😊 Tudo ótimo, e você?`
+    );
     return;
   }
 
@@ -5248,31 +5341,6 @@ async function handleMessage({ phone, text, pushName = '' }) {
         pushName,
         { productId: productId(rememberedReferenceProduct), memoryResume: true }
       );
-      return;
-    }
-  }
-
-  if (isGreeting(text)) {
-    const resume = commercialResumeCandidate(phone, conv);
-    if (resume?.product) {
-      markCommercialResume(phone);
-      const greeting = greetingFromText(text) || 'Olá';
-      const firstName = customerFirstName(pushName);
-      await sendText(
-        phone,
-        `${greeting}${firstName ? `, ${firstName}` : ''}! 😊 Lembro que você estava olhando *${resume.product.name}*. Se quiser, a gente continua por ele; se estiver procurando outra coisa, é só me falar.`
-      );
-      await syncTicket(phone, {
-        status: 'Venda em acompanhamento',
-        message: `Cliente retornou após demonstrar interesse em: ${resume.product.name}`,
-        name: pushName,
-        metadata: {
-          assunto: 'retomada_comercial',
-          productId: productId(resume.product),
-          commercialStage: resume.stage,
-          proactiveMessage: false
-        }
-      });
       return;
     }
   }
@@ -6043,8 +6111,9 @@ ${productCaption(product)}`
   }
 
   if (isGreeting(text)) {
-    const saudacao = greetingFromText(text) || 'Olá';
-    await sendText(phone, `${personalizedGreeting(saudacao, pushName)} 😊 Tudo bem? Seja bem-vindo à Ariana Móveis. Como posso te ajudar hoje?`);
+    const saudacao = courtesyGreetingLabel(text);
+    startCourtesyGreetingContext(conv);
+    await sendText(phone, `${personalizedGreeting(saudacao, pushName)} 😊 Tudo ótimo, e você?`);
     return;
   }
 
@@ -6704,6 +6773,11 @@ export const __test = {
   commercialResumeCandidate,
   markCommercialResume,
   isGreeting,
+  isCourtesyGreeting,
+  isPositiveWellbeingReply,
+  storeDaypartGreeting,
+  courtesyGreetingLabel,
+  hasCourtesyGreetingContext,
   asksPresencePing,
   asksMarceloOrCallback,
   asksMarceloAfterCondition,
