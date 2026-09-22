@@ -3835,6 +3835,199 @@ test('intenções financeiras e atendimento humano genérico continuam reconheci
 });
 
 
+test('memória comercial leve sobrevive ao descarte da conversa curta sem guardar transcrição', async () => {
+  const phone = '5533977777900';
+  const item = bot.compactProduct(product('mem-tv-1', 'SMART TV LG 50 4K', {
+    category: 'TV',
+    pixPrice: 2199,
+    cardPrice: 2649
+  }));
+
+  const conv = bot.patchTestConversation(phone, {
+    selectedProduct: item,
+    lastProducts: [item],
+    lastIntent: 'produto'
+  });
+
+  await bot.markConversationStatus(
+    phone,
+    conv,
+    'Venda em andamento',
+    'Cliente gostou da TV e perguntou condições.',
+    'Cliente Teste',
+    { productId: item.id, paymentMode: 'cartao' }
+  );
+
+  const before = bot.commercialProfileSnapshot(phone);
+  assert.equal(before.lastProduct.name, 'SMART TV LG 50 4K');
+  assert.equal(before.contactRole, 'customer');
+  assert.equal(before.salesStage, 'payment_consideration');
+  assert.equal('message' in before, false);
+  assert.equal('text' in before, false);
+
+  bot.dropTestConversation(phone);
+  const fresh = bot.conversation(phone);
+
+  assert.equal(fresh.selectedProduct, null, 'memória longa não deve injetar produto velho automaticamente');
+  assert.equal(fresh.contactRole, 'customer');
+  assert.equal(bot.commercialProfileSnapshot(phone).lastProduct.name, 'SMART TV LG 50 4K');
+});
+
+test('referência vaga recupera produto antigo depois que a conversa curta expirou', async () => {
+  const phone = '5533977777901';
+  const item = bot.compactProduct(product('mem-caixa-1', 'CAIXA AMP PHILIPS PARTY X4000 1500W', {
+    category: 'Caixa de som',
+    pixPrice: 1155.85,
+    cardPrice: 1392.59
+  }));
+
+  const conv = bot.patchTestConversation(phone, {
+    selectedProduct: item,
+    lastProducts: [item],
+    lastIntent: 'produto'
+  });
+  bot.rememberCommercialInterest(phone, conv, {
+    product: item,
+    category: 'Caixa de som',
+    stage: 'considering',
+    source: 'test'
+  });
+  bot.dropTestConversation(phone);
+
+  await bot.handleMessage({
+    phone,
+    text: 'quanto fica aquele que eu tava olhando no cartão?',
+    pushName: 'Cliente Teste'
+  });
+
+  assert.equal(bot.conversation(phone).selectedProduct.id, item.id);
+  assert.match(sentTexts.at(-1).text, /CAIXA AMP PHILIPS PARTY X4000/i);
+  assert.match(sentTexts.at(-1).text, /cartão/i);
+  assert.doesNotMatch(sentTexts.at(-1).text, /me diga qual produto/i);
+});
+
+test('referência vaga sozinha confirma o produto lembrado de forma natural', async () => {
+  const phone = '5533977777902';
+  const item = bot.compactProduct(product('mem-geladeira-1', 'REFRIGERADOR CONSUL 451L', {
+    category: 'Geladeira',
+    pixPrice: 3974,
+    cardPrice: 4787.95
+  }));
+
+  const conv = bot.patchTestConversation(phone, {});
+  bot.rememberCommercialInterest(phone, conv, {
+    product: item,
+    category: 'Geladeira',
+    stage: 'considering'
+  });
+  bot.dropTestConversation(phone);
+
+  await bot.handleMessage({
+    phone,
+    text: 'aquele que eu te falei',
+    pushName: 'Cliente Teste'
+  });
+
+  assert.match(sentTexts.at(-1).text, /Você está falando de.*REFRIGERADOR CONSUL 451L/i);
+  assert.match(sentTexts.at(-1).text, /Eu lembro dele/i);
+  assert.equal(bot.conversation(phone).selectedProduct.id, item.id);
+});
+
+test('"o outro" recupera o interesse anterior sem confundir com o produto mais recente', async () => {
+  const phone = '5533977777903';
+  const tv = bot.compactProduct(product('mem-tv-old', 'SMART TV LG 43', {
+    category: 'TV',
+    pixPrice: 1825.17,
+    cardPrice: 2199
+  }));
+  const caixa = bot.compactProduct(product('mem-caixa-new', 'CAIXA AMP PHILIPS PARTY X4000 1500W', {
+    category: 'Caixa de som',
+    pixPrice: 1155.85,
+    cardPrice: 1392.59
+  }));
+
+  const conv = bot.patchTestConversation(phone, {});
+  bot.rememberCommercialInterest(phone, conv, { product: tv, category: 'TV', stage: 'considering' });
+  bot.rememberCommercialInterest(phone, conv, { product: caixa, category: 'Caixa de som', stage: 'considering' });
+  bot.dropTestConversation(phone);
+
+  await bot.handleMessage({
+    phone,
+    text: 'e o outro que eu tava olhando?',
+    pushName: 'Cliente Teste'
+  });
+
+  assert.match(sentTexts.at(-1).text, /SMART TV LG 43/i);
+  assert.equal(bot.conversation(phone).selectedProduct.id, tv.id);
+});
+
+test('tipo fornecedor permanece identificado mesmo após conversa curta ser descartada', async () => {
+  const phone = '5533977777904';
+
+  await bot.handleMessage({
+    phone,
+    text: 'Sou consultora comercial. Tenho preço direto de fábrica e condição para lojista.',
+    pushName: 'Samira Consultora'
+  });
+
+  assert.equal(bot.commercialProfileSnapshot(phone).contactRole, 'supplier');
+  bot.dropTestConversation(phone);
+  sentTexts = [];
+
+  await bot.handleMessage({
+    phone,
+    text: 'Aguardando atendimento...',
+    pushName: 'Samira'
+  });
+
+  assert.equal(bot.conversation(phone).contactRole, 'supplier');
+  assert.equal(sentTexts.length, 0, 'fornecedor persistido não deve cair no atendimento de varejo');
+});
+
+test('cliente que retorna depois recebe uma retomada comercial curta apenas uma vez no cooldown', async () => {
+  const phone = '5533977777905';
+  const item = bot.compactProduct(product('mem-sofa-1', 'SOFÁ RETRÁTIL 3 LUGARES', {
+    category: 'Sofá',
+    pixPrice: 1899,
+    cardPrice: 2287.95
+  }));
+
+  bot.patchTestCommercialProfile(phone, {
+    contactRole: 'customer',
+    contactRoleAt: Date.now() - 2 * 24 * 60 * 60 * 1000,
+    lastProduct: item,
+    lastProductAt: Date.now() - 24 * 60 * 60 * 1000,
+    interests: [{ product: item, category: 'Sofá', at: Date.now() - 24 * 60 * 60 * 1000, source: 'test' }],
+    salesStage: 'considering',
+    salesStageAt: Date.now() - 24 * 60 * 60 * 1000,
+    lastCommercialAt: Date.now() - 24 * 60 * 60 * 1000,
+    lastResumeAt: 0
+  });
+  bot.dropTestConversation(phone);
+
+  await bot.handleMessage({
+    phone,
+    text: 'boa tarde',
+    pushName: 'Mariana Cliente'
+  });
+
+  assert.match(sentTexts.at(-1).text, /Mariana/i);
+  assert.match(sentTexts.at(-1).text, /Lembro que você estava olhando.*SOFÁ RETRÁTIL 3 LUGARES/i);
+  assert.equal(backendEvents.at(-1).status, 'Venda em acompanhamento');
+  assert.equal(backendEvents.at(-1).metadata.proactiveMessage, false);
+
+  sentTexts = [];
+  await bot.handleMessage({
+    phone,
+    text: 'boa tarde',
+    pushName: 'Mariana Cliente'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.doesNotMatch(sentTexts[0].text, /Lembro que você estava olhando/i);
+  assert.match(sentTexts[0].text, /Seja bem-vindo à Ariana Móveis/i);
+});
+
 test('lembrete automático de vencimento abre contexto de cobrança sem pausar Gustavo como atendimento manual', async () => {
   const phone = '5533977777790';
   const reminder = [
