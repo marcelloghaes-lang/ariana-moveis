@@ -4102,6 +4102,53 @@ test('orçamento filtra catálogo e mostra somente produtos dentro do limite', a
   assert.doesNotMatch(sentMedia.map((item) => item.caption).join('\n'), /Freezer/i);
 });
 
+test('"quero sim" após orçamento sem resultado mostra opções acima do limite sem cair no fallback', async () => {
+  const phone = '5533977777917';
+  catalogRows = [
+    product('budget-above-1', 'Geladeira HQ 230 Litros', {
+      category: 'Geladeiras',
+      pixPrice: 2197.40,
+      cardPrice: 2647
+    }),
+    product('budget-above-2', 'Geladeira Consul 300 Litros', {
+      category: 'Geladeiras',
+      pixPrice: 2499,
+      cardPrice: 3010
+    }),
+    product('budget-freezer-ignore', 'Freezer Horizontal 200 Litros', {
+      category: 'Freezers',
+      pixPrice: 1899,
+      cardPrice: 2287
+    })
+  ];
+
+  await bot.handleMessage({
+    phone,
+    text: 'tenho até 2 mil para uma geladeira',
+    pushName: 'Cliente Orçamento'
+  });
+
+  assert.equal(sentMedia.length, 0);
+  assert.match(sentTexts.at(-1).text, /não encontrei.*geladeira.*R\$\s*2\.000,00/i);
+  assert.equal(bot.conversation(phone).pendingAlternativeCategory, 'geladeira');
+
+  sentTexts = [];
+  sentMedia = [];
+
+  await bot.handleMessage({
+    phone,
+    text: 'quero sim',
+    pushName: 'Cliente Orçamento'
+  });
+
+  assert.equal(bot.conversation(phone).pendingAlternativeCategory, '');
+  assert.equal(sentMedia.length, 2);
+  assert.match(sentMedia[0].caption, /Geladeira HQ 230 Litros/i);
+  assert.match(sentMedia[1].caption, /Geladeira Consul 300 Litros/i);
+  assert.doesNotMatch(sentMedia.map((item) => item.caption).join('\n'), /Freezer/i);
+  assert.doesNotMatch(sentTexts.map((item) => item.text).join('\n'), /Só para eu pegar certinho|Me conta um pouco mais/i);
+});
+
 test('objeção de preço procura alternativas realmente mais baratas da mesma categoria', async () => {
   const phone = '5533977777911';
   const chosen = bot.compactProduct(product('cheap-base', 'Geladeira Consul 451 Litros', {
