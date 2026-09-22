@@ -524,13 +524,16 @@ function rememberedProductReferenceIntent(text = '') {
     .replace(/\s+/g, ' ')
     .trim();
 
-  const vague =
-    /\b(aquele|aquela|daquele|daquela|aquele de antes|aquela de antes|o de antes|a de antes)\b/.test(n) ||
+  const directReference =
+    /\b(aquele de antes|aquela de antes|o de antes|a de antes)\b/.test(n) ||
     /\b(o|a) que (eu )?(vi|olhei|gostei|te falei|falei|tava olhando|estava olhando)\b/.test(n) ||
     /\bproduto que (eu )?(vi|olhei|gostei|tava olhando|estava olhando)\b/.test(n) ||
     /\b(o outro|a outra|outro que|outra que)\b/.test(n);
 
-  return vague;
+  const demonstrativeWithProduct =
+    /\b(aquele|aquela|daquele|daquela)\b.{0,45}\b(produto|modelo|tv|televisao|geladeira|refrigerador|celular|smartphone|sofa|cama|beliche|fogao|microondas|caixa|som|guarda roupa|armario|mesa|cadeira)\b/.test(n);
+
+  return directReference || demonstrativeWithProduct;
 }
 
 function resolveRememberedProductReference(phone, text, conv = {}) {
@@ -581,7 +584,7 @@ function commercialResumeCandidate(phone, conv = {}) {
   if (!profile.lastProduct || !productAt || now - productAt > COMMERCIAL_MEMORY_TTL_MS) return null;
   if (!commercialAt || now - commercialAt < COMMERCIAL_RESUME_MIN_GAP_MS) return null;
   if (resumeAt && now - resumeAt < COMMERCIAL_RESUME_COOLDOWN_MS) return null;
-  if (['completed', 'cancelled'].includes(String(profile.salesStage || ''))) return null;
+  if (!['considering', 'payment_consideration', 'purchase_intent'].includes(String(profile.salesStage || ''))) return null;
   if (conv?.dailyDueContextUntil && Number(conv.dailyDueContextUntil) > now) return null;
 
   return {
