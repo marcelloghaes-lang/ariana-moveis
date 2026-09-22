@@ -1845,46 +1845,52 @@ async function loadPaymentsSettingsForProduct() {
         }
 
         function applyDetailPricingToUI(pricing) {
-            // O valor "original" desta tela é o preço vigente no cartão/a prazo.
-            // Não deve aparecer riscado como se fosse um preço antigo/promocional.
             const oldPriceEl = document.getElementById('product-old-price');
             if (oldPriceEl) {
-                oldPriceEl.textContent = '';
-                oldPriceEl.style.display = 'none';
+                oldPriceEl.innerHTML = `
+                    <span class="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Preço no cartão</span>
+                    <span class="ml-1 text-sm text-gray-500 font-semibold">${pricing.originalFormatted}</span>
+                `;
+                oldPriceEl.className = 'leading-tight';
+                oldPriceEl.style.display = 'block';
                 oldPriceEl.style.textDecoration = 'none';
             }
 
-            // Padrão de marketplace: preço à vista em destaque e desconto
-            // explicitamente vinculado ao PIX, evitando "OFF" genérico.
             const priceFullEl = document.getElementById('product-price-full');
             if (priceFullEl) {
                 const pixBadge = (pricing.discountPercent > 0)
-                    ? `<span class="inline-flex items-center text-green-600 text-sm sm:text-base ml-2 font-semibold">${pricing.discountPercent}% OFF no Pix</span>`
+                    ? `<span class="inline-flex items-center text-green-600 text-sm sm:text-base ml-2 font-bold">${pricing.discountPercent}% OFF no Pix ou boleto</span>`
                     : '';
 
                 priceFullEl.innerHTML = `
                     <span class="text-2xl font-normal mr-1">R$</span>
-                    ${pricing.cashValueFormatted.replace('R$', '').trim()}
+                    <span class="font-extrabold">${pricing.cashValueFormatted.replace('R$', '').trim()}</span>
                     ${pixBadge}
                 `;
             }
 
-            // Evita repetir o mesmo valor em duas linhas. Mantém apenas
-            // a identificação inequívoca da condição à vista.
             const priceCashEl = document.getElementById('product-price-cash');
             if (priceCashEl) {
-                priceCashEl.innerHTML = '<span class="font-semibold">à vista no Pix</span>';
+                priceCashEl.innerHTML = '<span class="font-semibold">à vista no Pix ou boleto</span>';
                 priceCashEl.className = 'text-sm text-green-600 font-semibold';
                 priceCashEl.style.display = 'block';
             }
 
-            // Mostra primeiro o total vigente no cartão e depois a parcela.
-            // Assim o consumidor vê, sem fazer conta, quanto custa em cada forma.
             const installmentsEl = document.getElementById('product-price-installments');
             if (installmentsEl) {
+                const installmentValue = pricing.original > 0 ? (pricing.original / 12) : 0;
+                const installmentFormatted = formatCurrency(installmentValue).replace('R$', '').trim();
+
                 installmentsEl.innerHTML = `
-                    <span class="block text-gray-700">ou <strong>${pricing.originalFormatted}</strong> no cartão</span>
-                    <span class="block mt-1 text-gray-700">${pricing.installmentsText.replace(/^ou\s+/i, '')}</span>
+                    <span class="block text-gray-700 leading-tight">
+                        ou 12x de
+                        <span class="inline-flex items-baseline ml-1 text-primary-blue">
+                            <span class="text-base font-semibold mr-1">R$</span>
+                            <strong class="text-2xl sm:text-3xl font-extrabold">${installmentFormatted}</strong>
+                        </span>
+                    </span>
+                    <span class="block mt-1 text-sm font-semibold text-gray-700">sem juros no cartão</span>
+                    <span class="block mt-1 text-xs text-gray-500">Valor total parcelado: ${pricing.originalFormatted}</span>
                 `;
             }
         }
