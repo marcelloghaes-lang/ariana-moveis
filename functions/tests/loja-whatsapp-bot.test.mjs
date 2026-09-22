@@ -2693,7 +2693,7 @@ test('intervenção manual pausa o bot por 60 minutos', async () => {
   });
 
   assert.equal(sentTexts.length, 1);
-  assert.match(sentTexts[0].text, /Ariana Móveis/i);
+  assert.match(sentTexts[0].text, /^Boa (?:dia|tarde|noite)! 😊 Tudo ótimo, e você\?/i);
 });
 
 test('mensagem enviada pelo próprio bot não ativa pausa humana', async () => {
