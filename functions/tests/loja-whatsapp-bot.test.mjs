@@ -520,6 +520,57 @@ test('pedido vago para melhorar condição é entendido sem inventar desconto', 
   assert.doesNotMatch(sentTexts.at(-1).text, /desconto aprovado|consigo fazer por/i);
 });
 
+test('pedido para falar com Marcelo após condição especial usa resposta contextual e mantém bot ativo', async () => {
+  const phrases = [
+    'eu posso falar com ele?',
+    'eu posso falar com o Marcelo?',
+    'você chama o Marcelo pra mim?'
+  ];
+
+  for (let i = 0; i < phrases.length; i += 1) {
+    sentTexts = [];
+    backendEvents = [];
+
+    const phone = '55339777778' + String(10 + i);
+    const first = bot.compactProduct(product('tv-marcelo-' + i + '-1', 'Smart TV A', {
+      category: 'TV',
+      pixPrice: 1700,
+      cardPrice: 2040
+    }));
+    const second = bot.compactProduct(product('tv-marcelo-' + i + '-2', 'Smart TV B', {
+      category: 'TV',
+      pixPrice: 1900,
+      cardPrice: 2280
+    }));
+
+    bot.patchTestConversation(phone, {
+      selectedProduct: null,
+      lastProducts: [first, second],
+      lastIntent: 'produto',
+      pendingAction: 'special_condition_product'
+    });
+
+    assert.equal(bot.asksMarceloAfterCondition(phrases[i]), true, phrases[i]);
+
+    await bot.handleMessage({
+      phone,
+      text: phrases[i],
+      pushName: 'Cliente Teste'
+    });
+
+    const conv = bot.conversation(phone);
+    assert.equal(conv.pendingAction, '');
+    assert.equal(conv.marceloCallbackRequested, true);
+    assert.equal(Boolean(conv.humanUntil && conv.humanUntil > Date.now()), false);
+    assert.match(sentTexts.at(-1).text, /aguarde um instante/i);
+    assert.match(sentTexts.at(-1).text, /trabalho na rua/i);
+    assert.match(sentTexts.at(-1).text, /já já está de volta/i);
+    assert.match(sentTexts.at(-1).text, /olhar mais algum produto/i);
+    assert.equal(backendEvents.at(-1).status, 'Aguardando retorno do Marcelo');
+    assert.equal(backendEvents.at(-1).metadata.atendimentoAutomaticoContinua, true);
+  }
+});
+
 test('repetir pedido de condição não devolve fallback genérico idêntico', async () => {
   const phone = '5533977777770';
   const first = bot.compactProduct(product('tv-cond-r1', 'Smart TV 50 A', {
