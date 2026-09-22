@@ -3827,3 +3827,102 @@ test('intenções financeiras e atendimento humano genérico continuam reconheci
   assert.equal(bot.wantsHuman('Quero falar com uma pessoa'), true);
   assert.equal(bot.wantsHuman('Quero falar com o Marcelo'), false);
 });
+
+
+test('lembrete automático de vencimento abre contexto de cobrança sem pausar Gustavo como atendimento manual', async () => {
+  const phone = '5533977777790';
+  const reminder = [
+    'Bom dia, Cliente! Tudo bem?',
+    '',
+    'Passando para lembrar que hoje vence uma parcela referente à sua compra realizada aqui na Ariana Móveis.',
+    '',
+    'Se o pagamento já tiver sido realizado, por favor desconsidere esta mensagem.',
+    '',
+    'Qualquer dúvida, estamos à disposição. 💙',
+    '',
+    'Marcelo'
+  ].join('\n');
+
+  const outbound = await bot.handleWebhook({
+    event: 'messages.upsert',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: true,
+        id: 'DAILY-DUE-REMINDER-1'
+      },
+      pushName: 'Cliente Cobrança',
+      message: { conversation: reminder }
+    }
+  });
+
+  assert.equal(outbound.dailyDueReminder, true);
+  assert.equal(bot.conversation(phone).manualHumanUntil, 0);
+  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), true);
+
+  sentTexts = [];
+
+  await bot.handleWebhook({
+    event: 'messages.upsert',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'DAILY-DUE-REPLY-1'
+      },
+      pushName: 'Cliente Cobrança',
+      message: { conversation: 'Bom dia' }
+    }
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /parcela que vence hoje/i);
+  assert.doesNotMatch(sentTexts[0].text, /Seja bem-vindo|o que você está procurando|produtos, preços/i);
+});
+
+test('Gustavo mantém negociação de nova data dentro da cobrança e encaminha ao Marcelo sem prometer acordo', async () => {
+  const phone = '5533977777791';
+  bot.patchTestConversation(phone, {
+    dailyDueContextUntil: Date.now() + (6 * 60 * 60 * 1000),
+    dailyDueReminderAt: Date.now(),
+    manualHumanUntil: 0,
+    humanUntil: 0
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'Hoje não consigo, posso pagar amanhã?',
+    pushName: 'Cliente Cobrança'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /parcela que vence hoje/i);
+  assert.match(sentTexts[0].text, /Marcelo/i);
+  assert.match(sentTexts[0].text, /confirma/i);
+  assert.doesNotMatch(sentTexts[0].text, /produto|catálogo|comprar/i);
+
+  const event = backendEvents.at(-1);
+  assert.equal(event.status, 'Cobrança do dia - aguardando Marcelo');
+  assert.equal(event.metadata.contextoCobranca, true);
+  assert.equal(event.metadata.naoConfirmarAcordoAutomaticamente, true);
+});
+
+test('Gustavo responde chave PIX no contexto da parcela do dia sem iniciar atendimento comercial', async () => {
+  const phone = '5533977777792';
+  bot.patchTestConversation(phone, {
+    dailyDueContextUntil: Date.now() + (6 * 60 * 60 * 1000),
+    dailyDueReminderAt: Date.now()
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'me manda a chave pix para pagar essa parcela',
+    pushName: 'Cliente Cobrança'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Para a parcela que vence hoje/i);
+  assert.match(sentTexts[0].text, /31985147119/);
+  assert.match(sentTexts[0].text, /MARCELO NUNES SILVA/i);
+  assert.doesNotMatch(sentTexts[0].text, /produto|catálogo/i);
+});
