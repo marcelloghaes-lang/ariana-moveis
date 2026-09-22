@@ -1689,6 +1689,86 @@ test('"esse último aí" seleciona o último produto antes de calcular o boleto'
   assert.equal(bot.conversation(phone).selectedProduct.id, 'last-2');
 });
 
+test('"essa sai por quantos no prazo?" mantém o último produto mostrado e pergunta cartão ou crediário', async () => {
+  const phone = '5533977777918';
+  const first = bot.compactProduct(product('prazo-1', 'Geladeira Consul 300 Litros', {
+    category: 'Geladeiras',
+    pixPrice: 2499,
+    cardPrice: 3010
+  }));
+  const last = bot.compactProduct(product('prazo-4', 'Geladeira HQ Defrost 230 Litros Branca HQ-230RDF BRANCO', {
+    category: 'Geladeiras',
+    pixPrice: 2197.40,
+    cardPrice: 2647.40
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastProducts: [first, last],
+    allProductResults: [first, last],
+    lastProductQuery: 'geladeira',
+    selectedProduct: null,
+    lastIntent: 'produto'
+  });
+
+  assert.equal(bot.asksGenericInstallmentQuote('essa sai por quantos no prazo?'), true);
+  assert.equal(bot.asksThisShownProduct('essa sai por quantos no prazo?'), true);
+
+  await bot.handleMessage({
+    phone,
+    text: 'essa sai por quantos no prazo?',
+    pushName: 'Cliente Prazo'
+  });
+
+  assert.equal(bot.conversation(phone).selectedProduct.id, last.id);
+  assert.match(sentTexts.at(-1).text, /Geladeira HQ Defrost 230 Litros/i);
+  assert.match(sentTexts.at(-1).text, /cartão.*crediário\/carnê/i);
+  assert.equal(sentMedia.length, 0);
+  assert.doesNotMatch(sentTexts.at(-1).text, /Me conta um pouco mais|Encontrei .*opções/i);
+});
+
+test('"essa geladeira aí que você mandou qual o valor da prestação dela" não refaz a busca do catálogo', async () => {
+  const phone = '5533977777919';
+  const first = bot.compactProduct(product('prestacao-1', 'Geladeira Consul 300 Litros', {
+    category: 'Geladeiras',
+    pixPrice: 2499,
+    cardPrice: 3010
+  }));
+  const last = bot.compactProduct(product('prestacao-4', 'Geladeira HQ Defrost 230 Litros Branca HQ-230RDF BRANCO', {
+    category: 'Geladeiras',
+    pixPrice: 2197.40,
+    cardPrice: 2647.40
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastProducts: [first, last],
+    allProductResults: [first, last],
+    lastProductQuery: 'geladeira',
+    selectedProduct: null,
+    lastIntent: 'produto'
+  });
+
+  assert.equal(
+    bot.asksGenericInstallmentQuote('essa geladeira aí que voce mandou qual o valor da prestação dela'),
+    true
+  );
+  assert.equal(
+    bot.asksThisShownProduct('essa geladeira aí que voce mandou qual o valor da prestação dela'),
+    true
+  );
+
+  await bot.handleMessage({
+    phone,
+    text: 'essa geladeira aí que voce mandou qual o valor da prestação dela',
+    pushName: 'Cliente Prestação'
+  });
+
+  assert.equal(bot.conversation(phone).selectedProduct.id, last.id);
+  assert.match(sentTexts.at(-1).text, /Geladeira HQ Defrost 230 Litros/i);
+  assert.match(sentTexts.at(-1).text, /cartão.*crediário\/carnê/i);
+  assert.equal(sentMedia.length, 0);
+  assert.doesNotMatch(sentTexts.map((item) => item.text).join('\n'), /Encontrei 9 opções|Me conta um pouco mais/i);
+});
+
 test('"esse último aí qual o valor dele parcelado" pergunta cartão ou crediário sem perder o produto', async () => {
   const phone = '5533977777740';
 
