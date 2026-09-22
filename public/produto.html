@@ -242,25 +242,272 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
             transform: rotate(180deg);
         }
 
-        /* --- ESTILOS DA GALERIA DE MINIATURAS --- */
-        .thumbnail-image {
-            cursor: pointer;
-            border: 2px solid transparent;
-            transition: border-color 0.2s;
+        /* --- GALERIA DE PRODUTO: PADRÃO MARKETPLACE (INSPIRADO NA EXPERIÊNCIA MAGALU) --- */
+        .product-left-col {
+            width: 100%;
+            min-width: 0;
+        }
+
+        .product-gallery-shell {
+            width: 100%;
+            min-width: 0;
+            display: grid;
+            grid-template-columns: 78px minmax(0, 1fr);
+            grid-template-areas: "thumbs main";
+            gap: 14px;
+            align-items: start;
+        }
+
+        #thumbnail-gallery {
+            grid-area: thumbs;
+            width: 100%;
+            max-width: 78px;
+            max-height: 520px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow-x: hidden;
+            overflow-y: auto;
             padding: 2px;
-            border-radius: 4px;
-            width: 80px;
-            height: 80px;
+            scrollbar-width: thin;
+            scroll-behavior: smooth;
+        }
+
+        .thumbnail-image {
+            display: block;
+            flex: 0 0 72px;
+            width: 72px;
+            height: 72px;
+            min-width: 72px;
+            min-height: 72px;
+            box-sizing: border-box;
+            cursor: pointer;
+            border: 2px solid #e5e7eb;
+            background: #ffffff;
+            padding: 6px;
+            border-radius: 8px;
             object-fit: contain;
+            object-position: center;
+            transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+            outline: none;
+        }
+
+        .thumbnail-image:hover {
+            border-color: #93c5fd;
+        }
+
+        .thumbnail-image:focus-visible {
+            border-color: #2E6DA4;
+            box-shadow: 0 0 0 3px rgba(46,109,164,.16);
         }
 
         .thumbnail-image.active {
             border-color: #2E6DA4;
+            box-shadow: 0 0 0 1px #2E6DA4;
         }
 
-        #thumbnail-gallery {
-            max-width: 100%;
+        .product-main-media {
+            grid-area: main;
+            position: relative;
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            min-width: 0;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            cursor: zoom-in;
+            box-shadow: 0 1px 3px rgba(15,23,42,.06);
         }
+
+        #main-product-image {
+            display: block;
+            width: 100% !important;
+            height: 100% !important;
+            max-width: 100% !important;
+            max-height: 100% !important;
+            object-fit: contain !important;
+            object-position: center !important;
+            cursor: zoom-in;
+            transition: opacity .14s ease;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        #main-product-image.is-changing {
+            opacity: .55;
+        }
+
+        .gallery-main-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 42px;
+            height: 42px;
+            border-radius: 9999px;
+            border: 1px solid #e5e7eb;
+            background: rgba(255,255,255,.96);
+            color: #334155;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 4;
+            box-shadow: 0 4px 14px rgba(15,23,42,.12);
+            transition: background .18s ease, box-shadow .18s ease, transform .18s ease;
+        }
+
+        .gallery-main-nav:hover {
+            background: #ffffff;
+            box-shadow: 0 6px 18px rgba(15,23,42,.18);
+        }
+
+        .gallery-main-nav.prev { left: 12px; }
+        .gallery-main-nav.next { right: 12px; }
+
+        .gallery-image-counter {
+            position: absolute;
+            right: 12px;
+            bottom: 12px;
+            min-width: 44px;
+            height: 28px;
+            padding: 0 10px;
+            border-radius: 9999px;
+            background: rgba(17,24,39,.72);
+            color: #ffffff;
+            font-size: 12px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        .gallery-image-counter.is-single {
+            display: none;
+        }
+
+        /* Visualização ampliada: área estável, produto inteiro e navegação limpa */
+        .lightbox {
+            background-color: rgba(15, 23, 42, .84);
+            backdrop-filter: blur(2px);
+        }
+
+        .lightbox-content {
+            width: min(94vw, 1080px);
+            height: min(88vh, 860px);
+            max-height: none;
+            padding: 34px 68px;
+            border-radius: 12px;
+            box-shadow: 0 25px 70px rgba(0,0,0,.34);
+        }
+
+        .lightbox-content img {
+            width: 100%;
+            height: 100%;
+            max-height: none;
+            object-fit: contain;
+            object-position: center;
+            border-radius: 0;
+        }
+
+        .lightbox-nav {
+            width: 44px;
+            height: 44px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,.97);
+            color: #334155;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 4px 14px rgba(15,23,42,.14);
+        }
+
+        .lightbox-nav:hover {
+            background: #ffffff;
+        }
+
+        .lightbox-nav-prev { left: 14px; }
+        .lightbox-nav-next { right: 14px; }
+
+        body.gallery-lightbox-open {
+            overflow: hidden !important;
+        }
+
+        @media (max-width: 767px) {
+            .product-gallery-shell {
+                grid-template-columns: minmax(0, 1fr);
+                grid-template-areas:
+                    "main"
+                    "thumbs";
+                gap: 12px;
+            }
+
+            .product-main-media {
+                width: 100%;
+                aspect-ratio: 1 / 1;
+                padding: 14px;
+                border-radius: 10px;
+            }
+
+            #thumbnail-gallery {
+                width: 100%;
+                max-width: 100%;
+                max-height: none;
+                flex-direction: row;
+                gap: 8px;
+                overflow-x: auto;
+                overflow-y: hidden;
+                padding: 2px 2px 6px;
+                scroll-snap-type: x proximity;
+            }
+
+            .thumbnail-image {
+                flex: 0 0 64px;
+                width: 64px;
+                height: 64px;
+                min-width: 64px;
+                min-height: 64px;
+                padding: 5px;
+                scroll-snap-align: start;
+            }
+
+            .gallery-main-nav {
+                width: 38px;
+                height: 38px;
+            }
+
+            .gallery-main-nav.prev { left: 8px; }
+            .gallery-main-nav.next { right: 8px; }
+
+            .gallery-image-counter {
+                right: 9px;
+                bottom: 9px;
+            }
+
+            .lightbox-content {
+                width: 96vw;
+                height: min(82vh, 720px);
+                padding: 26px 46px;
+                border-radius: 10px;
+            }
+
+            .lightbox-nav {
+                width: 38px;
+                height: 38px;
+            }
+
+            .lightbox-nav-prev { left: 6px; }
+            .lightbox-nav-next { right: 6px; }
+        }
+
+
 /* Estilo para os Banners */
         .banner-placeholder {
             min-height: 150px;
@@ -556,12 +803,33 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
 <div id="product-details-container" class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start" style="display:none;">
 
   <div class="lg:col-span-2 product-main-cols grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-  <div class="lg:col-span-1 self-start product-left-col flex flex-col items-start">
-    <div class="w-full h-auto bg-white p-6 rounded-lg shadow-md mb-4 flex items-center justify-center image-flex-container border border-gray-200" onclick="window.openLightbox(0)">
-      <img id="main-product-image" src="https://placehold.co/500x500/cccccc/333333?text=Carregando" alt="Imagem principal do produto" class="max-w-full max-h-full object-contain cursor-zoom-in" loading="lazy">
+  <div class="lg:col-span-1 self-start product-left-col">
+    <div class="product-gallery-shell" id="product-gallery-shell">
+      <div id="thumbnail-gallery" aria-label="Miniaturas do produto"></div>
+
+      <div class="product-main-media" onclick="window.openCurrentProductImage()" role="button" tabindex="0" aria-label="Ampliar imagem do produto">
+        <button id="gallery-prev" type="button" class="gallery-main-nav prev" aria-label="Imagem anterior"
+          onclick="event.stopPropagation(); window.changeProductGalleryImage(-1)">
+          <i class="fas fa-chevron-left" aria-hidden="true"></i>
+        </button>
+
+        <img id="main-product-image"
+          src="https://placehold.co/500x500/cccccc/333333?text=Carregando"
+          alt="Imagem principal do produto"
+          loading="eager"
+          fetchpriority="high"
+          decoding="async">
+
+        <button id="gallery-next" type="button" class="gallery-main-nav next" aria-label="Próxima imagem"
+          onclick="event.stopPropagation(); window.changeProductGalleryImage(1)">
+          <i class="fas fa-chevron-right" aria-hidden="true"></i>
+        </button>
+
+        <div id="gallery-image-counter" class="gallery-image-counter is-single" aria-live="polite">1 / 1</div>
+      </div>
     </div>
-  <div id="thumbnail-gallery" class="flex space-x-2 overflow-x-auto pb-2 w-full justify-start"></div>
-</div>
+  </div>
+
 
 <div class="lg:col-span-1 space-y-6 product-middle-col">
   <div class="bg-white p-6 border border-gray-200 rounded-lg shadow-sm space-y-4 relative">
@@ -943,6 +1211,78 @@ async function loadPaymentsSettingsForProduct() {
         let cartItems = [];
         let isFavorite = false;
 
+        function normalizeProductGalleryIndex(index) {
+            const total = productImages.length;
+            if (!total) return 0;
+            const parsed = Number.isFinite(Number(index)) ? Number(index) : 0;
+            return ((parsed % total) + total) % total;
+        }
+
+        function syncProductGallery(index, options = {}) {
+            if (!productImages.length) return;
+
+            const { ensureVisible = false } = options;
+            currentImageIndex = normalizeProductGalleryIndex(index);
+
+            const mainImg = document.getElementById('main-product-image');
+            const selectedSrc = productImages[currentImageIndex];
+
+            if (mainImg && selectedSrc) {
+                mainImg.classList.add('is-changing');
+
+                const finishSwap = () => {
+                    mainImg.classList.remove('is-changing');
+                    mainImg.removeEventListener('load', finishSwap);
+                    mainImg.removeEventListener('error', finishSwap);
+                };
+
+                mainImg.addEventListener('load', finishSwap, { once: true });
+                mainImg.addEventListener('error', finishSwap, { once: true });
+                mainImg.src = selectedSrc;
+                mainImg.alt = `${productData?.name || productData?.nome || 'Produto'} - foto ${currentImageIndex + 1}`;
+
+                window.setTimeout(() => mainImg.classList.remove('is-changing'), 450);
+            }
+
+            const thumbs = Array.from(document.querySelectorAll('.thumbnail-image'));
+            thumbs.forEach((thumb, idx) => {
+                const active = idx === currentImageIndex;
+                thumb.classList.toggle('active', active);
+                thumb.setAttribute('aria-current', active ? 'true' : 'false');
+
+                if (active && ensureVisible) {
+                    try {
+                        thumb.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+                    } catch (_) {}
+                }
+            });
+
+            const total = productImages.length;
+            const counter = document.getElementById('gallery-image-counter');
+            if (counter) {
+                counter.textContent = `${currentImageIndex + 1} / ${total}`;
+                counter.classList.toggle('is-single', total <= 1);
+            }
+
+            const hasMultiple = total > 1;
+            const prev = document.getElementById('gallery-prev');
+            const next = document.getElementById('gallery-next');
+            if (prev) prev.style.display = hasMultiple ? 'flex' : 'none';
+            if (next) next.style.display = hasMultiple ? 'flex' : 'none';
+        }
+
+        window.selectProductGalleryImage = (index) => {
+            syncProductGallery(index, { ensureVisible: true });
+        };
+
+        window.changeProductGalleryImage = (direction) => {
+            syncProductGallery(currentImageIndex + Number(direction || 0), { ensureVisible: true });
+        };
+
+        window.openCurrentProductImage = () => {
+            window.openLightbox(currentImageIndex);
+        };
+
         async function loadProductDetails() {
             const params = new URLSearchParams(window.location.search);
             const productId = params.get('id');
@@ -1158,32 +1498,53 @@ async function loadPaymentsSettingsForProduct() {
 
                 productImages = [];
                 if (Array.isArray(productData.images)) {
-                    productImages = productData.images.map(img => typeof img === 'string' ? img : (img?.url || img?.imageUrl || img?.src || '')).filter(Boolean);
+                    productImages = productData.images
+                        .map(img => typeof img === 'string' ? img : (img?.url || img?.imageUrl || img?.src || ''))
+                        .filter(Boolean);
                 } else if (productData.images && typeof productData.images === 'object') {
-                    productImages = Object.values(productData.images).map(img => typeof img === 'string' ? img : (img?.url || img?.imageUrl || img?.src || '')).filter(Boolean);
+                    productImages = Object.values(productData.images)
+                        .map(img => typeof img === 'string' ? img : (img?.url || img?.imageUrl || img?.src || ''))
+                        .filter(Boolean);
                 }
+
                 if (!productImages.length) {
                     const fallbackImage = productData.imageUrl || productData.mainImageUrl || productData.image || 'https://placehold.co/600';
                     productImages = [fallbackImage];
                 }
 
-                const mainImg = byId('main-product-image');
-                if (mainImg) mainImg.src = productImages[0];
                 const gallery = byId('thumbnail-gallery');
                 if (gallery) {
                     gallery.innerHTML = '';
+
                     productImages.forEach((url, idx) => {
                         const imgThumb = document.createElement('img');
                         imgThumb.src = url;
                         imgThumb.className = 'thumbnail-image' + (idx === 0 ? ' active' : '');
-                        imgThumb.onclick = () => {
-                            if (mainImg) mainImg.src = url;
-                            document.querySelectorAll('.thumbnail-image').forEach(t => t.classList.remove('active'));
-                            imgThumb.classList.add('active');
-                        };
+                        imgThumb.alt = `${nome} - miniatura ${idx + 1}`;
+                        imgThumb.loading = idx < 4 ? 'eager' : 'lazy';
+                        imgThumb.decoding = 'async';
+                        imgThumb.tabIndex = 0;
+                        imgThumb.setAttribute('role', 'button');
+                        imgThumb.setAttribute('aria-label', `Ver foto ${idx + 1} de ${productImages.length}`);
+                        imgThumb.setAttribute('aria-current', idx === 0 ? 'true' : 'false');
+
+                        imgThumb.addEventListener('click', () => {
+                            window.selectProductGalleryImage(idx);
+                        });
+
+                        imgThumb.addEventListener('keydown', (event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                window.selectProductGalleryImage(idx);
+                            }
+                        });
+
                         gallery.appendChild(imgThumb);
                     });
                 }
+
+                syncProductGallery(0);
+
 
                 const loadingMessage = byId('loading-message');
                 const productGrid = byId('product-details-container') || byId('product-content-grid');
@@ -1432,24 +1793,58 @@ async function loadPaymentsSettingsForProduct() {
             }, 3000);
         }
 
-        window.openLightbox = (index) => {
+        window.openLightbox = (index = currentImageIndex) => {
             if (productImages.length === 0) return;
-            currentImageIndex = index;
+
+            currentImageIndex = normalizeProductGalleryIndex(index);
+
             const lightbox = document.getElementById('product-lightbox');
             const lightboxImage = document.getElementById('lightbox-image');
+            if (!lightbox || !lightboxImage) return;
+
             lightboxImage.src = productImages[currentImageIndex];
+            lightboxImage.alt = `${productData?.name || productData?.nome || 'Produto'} - foto ampliada ${currentImageIndex + 1}`;
             lightbox.classList.add('active');
-        }
+            document.body.classList.add('gallery-lightbox-open');
+        };
 
         window.closeLightbox = () => {
-            document.getElementById('product-lightbox').classList.remove('active');
-        }
+            const lightbox = document.getElementById('product-lightbox');
+            if (lightbox) lightbox.classList.remove('active');
+            document.body.classList.remove('gallery-lightbox-open');
+        };
 
         window.navigateLightbox = (direction) => {
             if (productImages.length === 0) return;
-            currentImageIndex = (currentImageIndex + direction + productImages.length) % productImages.length;
-            document.getElementById('lightbox-image').src = productImages[currentImageIndex];
-        }
+
+            currentImageIndex = normalizeProductGalleryIndex(currentImageIndex + Number(direction || 0));
+            const lightboxImage = document.getElementById('lightbox-image');
+            if (lightboxImage) {
+                lightboxImage.src = productImages[currentImageIndex];
+                lightboxImage.alt = `${productData?.name || productData?.nome || 'Produto'} - foto ampliada ${currentImageIndex + 1}`;
+            }
+
+            syncProductGallery(currentImageIndex, { ensureVisible: true });
+        };
+
+        document.addEventListener('keydown', (event) => {
+            const lightbox = document.getElementById('product-lightbox');
+            const isLightboxOpen = !!lightbox?.classList.contains('active');
+
+            if (isLightboxOpen) {
+                if (event.key === 'Escape') window.closeLightbox();
+                if (event.key === 'ArrowLeft') window.navigateLightbox(-1);
+                if (event.key === 'ArrowRight') window.navigateLightbox(1);
+                return;
+            }
+
+            const galleryMedia = document.querySelector('.product-main-media');
+            if (document.activeElement === galleryMedia && (event.key === 'Enter' || event.key === ' ')) {
+                event.preventDefault();
+                window.openCurrentProductImage();
+            }
+        });
+
 
         
 window.toggleProductDescription = () => {
