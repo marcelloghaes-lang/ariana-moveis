@@ -2148,6 +2148,16 @@ test('fornecedor é identificado e respostas automáticas do sistema dele não g
   });
 
   assert.equal(sentTexts.length, 1, 'mensagens automáticas do fornecedor não devem receber resposta');
+
+  const legacyPhone = '5533977777847';
+  await bot.handleMessage({
+    phone: legacyPhone,
+    pushName: 'Mueller Vendas',
+    text: 'Aguardando atendimento...'
+  });
+
+  assert.equal(bot.conversation(legacyPhone).contactRole, 'supplier');
+  assert.equal(sentTexts.length, 1, 'nome comercial forte deve impedir resposta ao robô mesmo em conversa antiga');
 });
 
 test('conversa casual e pergunta pessoal não caem no discurso comercial', async () => {
