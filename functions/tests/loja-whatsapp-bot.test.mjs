@@ -271,7 +271,7 @@ test('saudação usa somente o primeiro nome e ignora observações do contato',
 
 test('saudação simples abre conversa humana e resposta de bem-estar pergunta o que precisa hoje', async () => {
   const examples = [
-    ['Bom dia tudo bem?', 'João Cliente', /^Bom dia, João! 😊 Tudo ótimo, e você\?/i, 'ta bem graças a deus'],
+    ['Bom dia tudo bem?', 'João Cliente', /^Bom dia, João! 😊 Tudo ótimo, e você\?/i, 'tô bem graças a Deus'],
     ['Bom dia', 'Maria Cliente', /^Bom dia, Maria! 😊 Tudo ótimo, e você\?/i, 'estou bem'],
     ['Oi bom dia', 'Paulo Cliente', /^Bom dia, Paulo! 😊 Tudo ótimo, e você\?/i, 'bem também'],
     ['Oi', 'Carla Cliente', /^(?:Bom dia|Boa tarde|Boa noite), Carla! 😊 Tudo ótimo, e você\?/i, 'bem obrigado'],
@@ -307,15 +307,18 @@ test('saudação simples abre conversa humana e resposta de bem-estar pergunta o
   }
 });
 
-test('resposta negativa ou neutra ao "Tudo ótimo, e você?" não recebe "Ah, que bom"', async () => {
+test('resposta neutra ao "Tudo ótimo, e você?" usa acolhimento curto sem "Ah, que bom"', async () => {
   const replies = [
     'mais ou menos',
-    'to indo',
     'tô indo',
     'vou levando',
-    'não muito',
-    'to meio ruim',
-    'estou mal'
+    'não muito bem',
+    'estou indo',
+    'tô levando',
+    'mais ou menos, né',
+    'podia estar melhor',
+    'já estive melhor',
+    'levando a vida'
   ];
 
   for (let i = 0; i < replies.length; i += 1) {
@@ -340,12 +343,87 @@ test('resposta negativa ou neutra ao "Tudo ótimo, e você?" não recebe "Ah, qu
     });
 
     assert.equal(bot.isNonPositiveWellbeingReply(replies[i]), true, replies[i]);
+    assert.equal(bot.isClearlyNegativeWellbeingReply(replies[i]), false, replies[i]);
     assert.equal(sentTexts.length, 1);
     assert.match(sentTexts[0].text, /^Entendi 😊/i);
+    assert.match(sentTexts[0].text, /O que você tá precisando pra hoje\?/i);
+    assert.doesNotMatch(sentTexts[0].text, /Ah, que bom|Espero que melhore/i);
+    assert.equal(bot.hasCourtesyGreetingContext(bot.conversation(phone)), false);
+  }
+});
+
+test('resposta claramente negativa ao "Tudo ótimo, e você?" deseja melhora sem fazer interrogatório', async () => {
+  const replies = [
+    'tô mal',
+    'não tô bem',
+    'passando mal',
+    'estou mal',
+    'tô meio ruim',
+    'hoje não tô legal'
+  ];
+
+  for (let i = 0; i < replies.length; i += 1) {
+    const phone = '553397777796' + String(i);
+
+    sentTexts = [];
+    await bot.handleMessage({
+      phone,
+      text: 'Boa noite',
+      pushName: 'Cliente Teste'
+    });
+
+    assert.equal(bot.hasCourtesyGreetingContext(bot.conversation(phone)), true);
+
+    sentTexts = [];
+    await bot.handleMessage({
+      phone,
+      text: replies[i],
+      pushName: 'Cliente Teste'
+    });
+
+    assert.equal(bot.isClearlyNegativeWellbeingReply(replies[i]), true, replies[i]);
+    assert.equal(bot.isNonPositiveWellbeingReply(replies[i]), true, replies[i]);
+    assert.equal(sentTexts.length, 1);
+    assert.match(sentTexts[0].text, /^Poxa, entendi\. Espero que melhore 😊/i);
     assert.match(sentTexts[0].text, /O que você tá precisando pra hoje\?/i);
     assert.doesNotMatch(sentTexts[0].text, /Ah, que bom/i);
     assert.equal(bot.hasCourtesyGreetingContext(bot.conversation(phone)), false);
   }
+});
+
+test('bem-estar junto com pedido de geladeira encerra cortesia e segue direto para vendas', async () => {
+  const phone = '5533977777970';
+  catalogRows = [
+    product('courtesy-fridge-1', 'Geladeira Consul 340L', {
+      category: 'Geladeira',
+      pixPrice: 1899,
+      cardPrice: 2287
+    })
+  ];
+
+  await bot.handleMessage({
+    phone,
+    text: 'Boa tarde',
+    pushName: 'Cliente Teste'
+  });
+
+  assert.equal(bot.hasCourtesyGreetingContext(bot.conversation(phone)), true);
+
+  sentTexts = [];
+  sentMedia = [];
+
+  await bot.handleMessage({
+    phone,
+    text: 'mais ou menos, tô precisando de uma geladeira',
+    pushName: 'Cliente Teste'
+  });
+
+  assert.equal(bot.hasCourtesyGreetingContext(bot.conversation(phone)), false);
+  assert.ok(sentTexts.some((item) => /^Entendi 😊/i.test(item.text || '')));
+  assert.ok(sentTexts.every((item) => !/O que você tá precisando pra hoje\?/i.test(item.text || '')));
+  assert.equal(sentMedia.length, 1);
+  assert.match(sentMedia[0].caption || '', /Geladeira Consul 340L/i);
+  assert.equal(bot.conversation(phone).lastIntent, 'produto');
 });
 
 test('"bom dia Marcelo tudo bem?" é cortesia, mas "Oi Marcelo" continua pedindo o Marcelo', async () => {
