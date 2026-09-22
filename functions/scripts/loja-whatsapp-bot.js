@@ -402,6 +402,7 @@ function conversation(phone) {
       marceloCallbackRequested: false,
       marceloCallbackRequestedAt: 0,
       specialConditionMarceloUntil: 0,
+      specialConditionMarceloHandoffAt: 0,
       creditOrderWaitingMarcelo: false,
       lastIntent: ''
     };
@@ -416,6 +417,7 @@ function conversation(phone) {
   if (typeof conv.marceloCallbackRequested !== 'boolean') conv.marceloCallbackRequested = false;
   if (!Number.isFinite(Number(conv.marceloCallbackRequestedAt))) conv.marceloCallbackRequestedAt = 0;
   if (!Number.isFinite(Number(conv.specialConditionMarceloUntil))) conv.specialConditionMarceloUntil = 0;
+  if (!Number.isFinite(Number(conv.specialConditionMarceloHandoffAt))) conv.specialConditionMarceloHandoffAt = 0;
 
   if (
     conv.reviewNeeded &&
@@ -1745,18 +1747,45 @@ function asksPresencePing(text) {
   );
 }
 
-function markSpecialConditionMarceloContext(conv) {
+function markSpecialConditionMarceloContext(conv, { resetHandoff = false } = {}) {
   if (!conv) return;
   conv.specialConditionMarceloUntil = Date.now() + SPECIAL_CONDITION_MARCELO_TTL_MS;
+  if (resetHandoff) conv.specialConditionMarceloHandoffAt = 0;
 }
 
 function hasSpecialConditionMarceloContext(conv) {
   return Number(conv?.specialConditionMarceloUntil || 0) > Date.now();
 }
 
+function specialConditionMarceloAlreadyNotified(conv) {
+  return Boolean(
+    hasSpecialConditionMarceloContext(conv) &&
+    Number(conv?.specialConditionMarceloHandoffAt || 0) > 0 &&
+    Date.now() - Number(conv.specialConditionMarceloHandoffAt) < SPECIAL_CONDITION_MARCELO_TTL_MS
+  );
+}
+
 function clearSpecialConditionMarceloContext(conv) {
   if (!conv) return;
   conv.specialConditionMarceloUntil = 0;
+  conv.specialConditionMarceloHandoffAt = 0;
+}
+
+function asksMarceloWaitingFollowup(text) {
+  const raw = String(text || '').trim();
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (/^\?+$/.test(raw)) return true;
+
+  return (
+    /^(o que|oque) houve$/.test(n) ||
+    /^(e ai|eai|e agora)$/.test(n) ||
+    /^(ele|o marcelo|marcelo) (ja )?(voltou|chegou)$/.test(n) ||
+    /^(vai|vai demorar|demora|demora muito)$/.test(n)
+  );
 }
 
 function asksMarceloAfterCondition(text) {
@@ -3276,7 +3305,7 @@ async function handlePending(phone, text, conv) {
   if (conv.pendingAction === 'card_price_product') {
     if (asksPaymentConditionAdjustment(text, conv)) {
       conv.pendingAction = 'special_condition_product';
-      markSpecialConditionMarceloContext(conv);
+      markSpecialConditionMarceloContext(conv, { resetHandoff: true });
       saveStateSoon();
       await sendText(
         phone,
@@ -3347,7 +3376,7 @@ async function handlePending(phone, text, conv) {
 
     conv.selectedProduct = product;
     conv.pendingAction = '';
-    markSpecialConditionMarceloContext(conv);
+    markSpecialConditionMarceloContext(conv, { resetHandoff: true });
     saveStateSoon();
 
     const full = productFullPrice(product);
@@ -3535,6 +3564,23 @@ async function handleMessage({ phone, text, pushName = '' }) {
     return;
   }
 
+  if (
+    specialConditionMarceloAlreadyNotified(conv) &&
+    (asksMarceloWaitingFollowup(text) || asksPresencePing(text))
+  ) {
+    markSpecialConditionMarceloContext(conv);
+    saveStateSoon();
+
+    const nWaiting = normalize(text);
+    await sendText(
+      phone,
+      /(o que|oque) houve/.test(nWaiting)
+        ? 'Nada de errado 😊 O Marcelo só ainda não voltou do trabalho na rua. Seu atendimento já está sinalizado para ele e, assim que chegar, continua com você por aqui.'
+        : 'Sim, estou aqui 😊 O Marcelo ainda não voltou, mas seu atendimento já está sinalizado para ele. Assim que chegar, continua com você por aqui.'
+    );
+    return;
+  }
+
   const emojiIntent = emojiOnlyIntent(text);
   if (emojiIntent === 'positive') {
     return;
@@ -3614,16 +3660,12 @@ async function handleMessage({ phone, text, pushName = '' }) {
   }
 
   if ((hasSpecialConditionMarceloContext(conv) || conv.pendingAction === 'special_condition_product') && asksMarceloAfterCondition(text)) {
-    const hadSpecialContext = hasSpecialConditionMarceloContext(conv);
-    const alreadyWaitingMarcelo = Boolean(
-      hadSpecialContext &&
-      conv.marceloCallbackRequested &&
-      Number(conv.marceloCallbackRequestedAt || 0) > Date.now() - SPECIAL_CONDITION_MARCELO_TTL_MS
-    );
+    const alreadyWaitingMarcelo = specialConditionMarceloAlreadyNotified(conv);
 
     conv.pendingAction = '';
     conv.humanUntil = 0;
     markSpecialConditionMarceloContext(conv);
+    conv.specialConditionMarceloHandoffAt = Date.now();
     conv.marceloCallbackRequested = true;
     conv.marceloCallbackRequestedAt = Date.now();
     saveStateSoon();
@@ -4181,7 +4223,7 @@ async function handleMessage({ phone, text, pushName = '' }) {
   if (asksPaymentConditionAdjustment(text, conv)) {
     if (Array.isArray(conv.lastProducts) && conv.lastProducts.length > 1 && !conv.selectedProduct) {
       conv.pendingAction = 'special_condition_product';
-      markSpecialConditionMarceloContext(conv);
+      markSpecialConditionMarceloContext(conv, { resetHandoff: true });
       saveStateSoon();
       await sendText(
         phone,
@@ -4198,7 +4240,7 @@ async function handleMessage({ phone, text, pushName = '' }) {
 
     if (product) {
       conv.selectedProduct = product;
-      markSpecialConditionMarceloContext(conv);
+      markSpecialConditionMarceloContext(conv, { resetHandoff: true });
       saveStateSoon();
       const full = productFullPrice(product);
       const count = Math.max(1, Number(product.installmentCount || 12));
@@ -4600,6 +4642,8 @@ export const __test = {
   asksMarceloAfterCondition,
   markSpecialConditionMarceloContext,
   hasSpecialConditionMarceloContext,
+  specialConditionMarceloAlreadyNotified,
+  asksMarceloWaitingFollowup,
   isReferralOrPraise,
   wantsHuman,
   asksPaymentMethods,
