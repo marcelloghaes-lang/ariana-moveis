@@ -4644,6 +4644,75 @@ function parseFullName(text) {
 }
 
 async function handlePending(phone, text, conv) {
+  if (conv.pendingAction === 'installment_payment_method') {
+    const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
+    if (!product) {
+      conv.pendingAction = '';
+      saveStateSoon();
+      await sendText(phone, 'Não consegui recuperar o produto desse cálculo. Me diga qual produto você está olhando e eu calculo novamente para você.');
+      return true;
+    }
+
+    const method = purchasePaymentMethod(text);
+    if (!method) {
+      await sendText(
+        phone,
+        `Para calcular *${product.name}*, você quer ver no *cartão* ou no *crediário/carnê*?`
+      );
+      return true;
+    }
+
+    if (method === 'card') {
+      conv.pendingAction = '';
+      const full = productFullPrice(product);
+      const count = Math.max(1, Number(product.installmentCount || 12));
+      saveStateSoon();
+
+      await sendText(
+        phone,
+        `No cartão, *${product.name}* fica em até *${count}x de ${money(full / count)}*, total de *${money(full)}*.`
+      );
+      await markConversationStatus(
+        phone,
+        conv,
+        'Venda em andamento',
+        `Cliente escolheu cartão após pedir valor parcelado de: ${product.name}`,
+        '',
+        { paymentMode: 'cartao', productId: productId(product) }
+      );
+      return true;
+    }
+
+    if (method === 'credit') {
+      markCreditContext(conv);
+      setPendingCreditInstallments(conv, product);
+      const plan = creditPlan(product, 0);
+
+      await sendText(
+        phone,
+        `Claro 😊 Para *${product.name}*, consigo calcular no crediário próprio em até *${plan.max}x*. Em quantas vezes você gostaria?`
+      );
+      await markConversationStatus(
+        phone,
+        conv,
+        'Venda em andamento',
+        `Cliente escolheu crediário após pedir valor parcelado de: ${product.name}`,
+        '',
+        { paymentMode: 'crediario', productId: productId(product), awaitingInstallments: true }
+      );
+      return true;
+    }
+
+    conv.pendingAction = '';
+    markPixContext(conv);
+    saveStateSoon();
+    await sendText(
+      phone,
+      `À vista no PIX, *${product.name}* fica por *${money(productCashPrice(product))}*.`
+    );
+    return true;
+  }
+
   if (conv.pendingAction === 'purchase_payment_method') {
     const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
     if (!product) {
@@ -5862,6 +5931,7 @@ ${productCaption(product)}`
         : mentionedProduct || conv.selectedProduct;
 
     conv.selectedProduct = product;
+    conv.pendingAction = 'installment_payment_method';
     saveStateSoon();
     await sendText(
       phone,
