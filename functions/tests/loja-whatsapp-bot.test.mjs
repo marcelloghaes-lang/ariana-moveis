@@ -1132,6 +1132,40 @@ test('"tem celular?" consulta o catálogo em vez de cair no fallback', async () 
 });
 
 
+test('pedido "manda foto dela pra eu ver" envia foto do produto já selecionado sem cair no fallback', async () => {
+  const phone = '5533977777860';
+  const selected = bot.compactProduct(product('party-x4000-selected', 'CAIXA AMP PHILIPS PARTY X4000 1500W', {
+    category: 'Caixa de som',
+    pixPrice: 1155.85,
+    cardPrice: 1392.59,
+    imageUrl: 'https://res.cloudinary.com/ariana/image/upload/v1790000000/ariana_moveis/produtos/party-x4000.webp'
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: selected,
+    lastProducts: [selected],
+    lastIntent: 'produto'
+  });
+
+  assert.equal(bot.asksSelectedProductPhoto('manda foto dela pra eu ver'), true);
+  assert.equal(bot.asksSelectedProductPhoto('me manda uma foto dele'), true);
+  assert.equal(bot.asksSelectedProductPhoto('quero ver a foto dela'), true);
+
+  await bot.handleMessage({
+    phone,
+    text: 'manda foto dela pra eu ver',
+    pushName: 'Cliente Teste'
+  });
+
+  assert.equal(sentMedia.length, 1);
+  assert.match(sentMedia[0].media, /c_pad,w_1000,h_1000,g_center,b_white,q_auto:good,f_jpg/);
+  assert.match(sentMedia[0].caption, /CAIXA AMP PHILIPS PARTY X4000 1500W/i);
+  assert.equal(sentTexts.length, 0);
+  assert.equal(bot.conversation(phone).selectedProduct.id, selected.id);
+  assert.equal(backendEvents.at(-1).status, 'Venda em andamento');
+  assert.equal(backendEvents.at(-1).metadata.requestedProductPhoto, true);
+});
+
 test('"A vista tá qto?" mantém contexto da lista e pede qual produto', async () => {
   const phone = '5533977777753';
 
