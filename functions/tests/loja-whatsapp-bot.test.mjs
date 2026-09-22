@@ -1795,7 +1795,7 @@ test('"crediário lógico" continua a pergunta "cartão ou crediário" no mesmo 
   assert.equal(bot.conversation(phone).selectedProduct.id, last.id);
   assert.equal(bot.conversation(phone).pendingAction, 'credit_installments');
   assert.match(sentTexts.at(-1).text, /Geladeira HQ Defrost 230 Litros/i);
-  assert.match(sentTexts.at(-1).text, /crediário próprio em até 12x/i);
+  assert.match(sentTexts.at(-1).text, /crediário próprio em até \*?12x\*?/i);
   assert.match(sentTexts.at(-1).text, /Em quantas vezes/i);
   assert.doesNotMatch(sentTexts.at(-1).text, /Me conta um pouco mais|pegar certinho/i);
 });
