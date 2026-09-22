@@ -3933,6 +3933,28 @@ test('referência vaga sozinha confirma o produto lembrado de forma natural', as
   assert.equal(bot.conversation(phone).selectedProduct.id, item.id);
 });
 
+test('memória comercial não confunde "aquele dia" com referência a produto antigo', () => {
+  const phone = '5533977777906';
+  const item = bot.compactProduct(product('mem-safe-1', 'SMART TV LG 50 4K', {
+    category: 'TV',
+    pixPrice: 2199,
+    cardPrice: 2649
+  }));
+
+  const conv = bot.patchTestConversation(phone, {});
+  bot.rememberCommercialInterest(phone, conv, {
+    product: item,
+    category: 'TV',
+    stage: 'considering'
+  });
+
+  assert.equal(bot.rememberedProductReferenceIntent('aquele dia foi corrido demais'), false);
+  assert.equal(
+    bot.resolveRememberedProductReference(phone, 'aquele dia foi corrido demais', conv),
+    null
+  );
+});
+
 test('"o outro" recupera o interesse anterior sem confundir com o produto mais recente', async () => {
   const phone = '5533977777903';
   const tv = bot.compactProduct(product('mem-tv-old', 'SMART TV LG 43', {
