@@ -23,6 +23,16 @@ export function localDateKey(date = new Date(), timeZone = 'America/Sao_Paulo') 
   return `${pick('year')}-${pick('month')}-${pick('day')}`;
 }
 
+function dueDateKey(value, timeZone = 'America/Sao_Paulo') {
+  const raw = String(value || '').trim();
+  const isoDate = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoDate) return isoDate[1];
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return localDateKey(date, timeZone);
+}
+
 function localMinutes(date = new Date(), timeZone = 'America/Sao_Paulo') {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone,
@@ -123,8 +133,7 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
 
   const dueRows = (data.receivables || []).filter((row) => {
     if (!isOpenDueRow(row)) return false;
-    const due = row.dueAt ? new Date(row.dueAt) : null;
-    return due && !Number.isNaN(due.getTime()) && localDateKey(due, timeZone) === today;
+    return dueDateKey(row.dueAt, timeZone) === today;
   });
 
   const groups = new Map();
