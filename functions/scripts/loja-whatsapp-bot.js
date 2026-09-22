@@ -565,6 +565,28 @@ function resolveRememberedProductReference(phone, text, conv = {}) {
   return candidates[0]?.product || null;
 }
 
+function rememberedProductPaymentIntent(text = '') {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n) return '';
+
+  const asksValue = /\b(quanto|qto|valor|preco|fica|ficaria|parcelado|parcelamento|parcela|parcelas)\b/.test(n);
+
+  if (asksValue && /\b(cartao|credito)\b/.test(n)) return 'card';
+  if (asksValue && /\b(pix|a vista|avista)\b/.test(n)) return 'pix';
+  if (
+    /\b(boleto|carne|crediario)\b/.test(n) &&
+    (asksValue || /\b\d{1,2}\s*x\b/.test(n) || /\b\d{1,2}\s*(vezes|parcelas)\b/.test(n))
+  ) {
+    return 'credit';
+  }
+
+  return '';
+}
+
 function isBareRememberedProductReference(text = '') {
   const n = normalize(text);
   if (!rememberedProductReferenceIntent(text)) return false;
@@ -4741,6 +4763,90 @@ async function handleMessage({ phone, text, pushName = '' }) {
       source: 'vague_reference'
     });
 
+    const rememberedPaymentIntent = rememberedProductPaymentIntent(text);
+
+    if (rememberedPaymentIntent === 'card') {
+      const full = productFullPrice(rememberedReferenceProduct);
+      const count = Math.max(1, Number(rememberedReferenceProduct.installmentCount || 12));
+      await sendText(
+        phone,
+        `No cartão, *${rememberedReferenceProduct.name}* fica em até *${count}x de ${money(full / count)}*, total de *${money(full)}*.`
+      );
+      await markConversationStatus(
+        phone,
+        conv,
+        'Venda em andamento',
+        `Cliente retomou produto lembrado e consultou cartão: ${rememberedReferenceProduct.name}`,
+        pushName,
+        { paymentMode: 'cartao', productId: productId(rememberedReferenceProduct), memoryResume: true }
+      );
+      return;
+    }
+
+    if (rememberedPaymentIntent === 'pix') {
+      markPixContext(conv);
+      await sendText(
+        phone,
+        `No PIX, *${rememberedReferenceProduct.name}* fica por *${money(productCashPrice(rememberedReferenceProduct))}*.`
+      );
+      await markConversationStatus(
+        phone,
+        conv,
+        'Venda em andamento',
+        `Cliente retomou produto lembrado e consultou PIX: ${rememberedReferenceProduct.name}`,
+        pushName,
+        { paymentMode: 'pix', productId: productId(rememberedReferenceProduct), memoryResume: true }
+      );
+      return;
+    }
+
+    if (rememberedPaymentIntent === 'credit') {
+      markCreditContext(conv);
+      const count = parseInstallments(text);
+      const plan = creditPlan(rememberedReferenceProduct, count);
+
+      if (!count) {
+        setPendingCreditInstallments(conv, rememberedReferenceProduct);
+        await sendText(
+          phone,
+          `Para *${rememberedReferenceProduct.name}*, consigo fazer no crediário próprio em até *${plan.max}x*. Em quantas vezes você gostaria que eu calculasse?`
+        );
+        return;
+      }
+
+      if (plan.invalid) {
+        await sendText(
+          phone,
+          `Para esse produto, o máximo no crediário é *${plan.max}x*. Posso calcular em qualquer quantidade até esse limite.`
+        );
+        return;
+      }
+
+      conv.lastCreditPlan = {
+        productId: productId(rememberedReferenceProduct),
+        count,
+        divisor: plan.divisor,
+        total: plan.total,
+        installment: plan.installment
+      };
+      clearPendingCreditInstallments(conv);
+      saveStateSoon();
+
+      await sendText(
+        phone,
+        `No crediário próprio, para *${rememberedReferenceProduct.name}*, em *${count}x* fica aproximadamente *${count}x de ${money(plan.installment)}*, total de *${money(plan.total)}*. A compra no carnê é sujeita à análise de crédito.`
+      );
+      await markConversationStatus(
+        phone,
+        conv,
+        'Venda em andamento',
+        `Cliente retomou produto lembrado e consultou crediário: ${rememberedReferenceProduct.name}`,
+        pushName,
+        { paymentMode: 'crediario', productId: productId(rememberedReferenceProduct), memoryResume: true, installments: count }
+      );
+      return;
+    }
+
     if (isBareRememberedProductReference(text)) {
       await sendText(
         phone,
@@ -6091,6 +6197,7 @@ export const __test = {
   rememberedProductReferenceIntent,
   resolveRememberedProductReference,
   isBareRememberedProductReference,
+  rememberedProductPaymentIntent,
   commercialResumeCandidate,
   markCommercialResume,
   isGreeting,
