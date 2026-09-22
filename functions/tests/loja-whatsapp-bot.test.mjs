@@ -307,6 +307,47 @@ test('saudação simples abre conversa humana e resposta de bem-estar pergunta o
   }
 });
 
+test('resposta negativa ou neutra ao "Tudo ótimo, e você?" não recebe "Ah, que bom"', async () => {
+  const replies = [
+    'mais ou menos',
+    'to indo',
+    'tô indo',
+    'vou levando',
+    'não muito',
+    'to meio ruim',
+    'estou mal'
+  ];
+
+  for (let i = 0; i < replies.length; i += 1) {
+    const phone = '553397777794' + String(i);
+
+    sentTexts = [];
+    await bot.handleMessage({
+      phone,
+      text: 'Boa tarde',
+      pushName: 'Cliente Teste'
+    });
+
+    assert.equal(sentTexts.length, 1);
+    assert.match(sentTexts[0].text, /Tudo ótimo, e você\?/i);
+    assert.equal(bot.hasCourtesyGreetingContext(bot.conversation(phone)), true);
+
+    sentTexts = [];
+    await bot.handleMessage({
+      phone,
+      text: replies[i],
+      pushName: 'Cliente Teste'
+    });
+
+    assert.equal(bot.isNonPositiveWellbeingReply(replies[i]), true, replies[i]);
+    assert.equal(sentTexts.length, 1);
+    assert.match(sentTexts[0].text, /^Entendi 😊/i);
+    assert.match(sentTexts[0].text, /O que você tá precisando pra hoje\?/i);
+    assert.doesNotMatch(sentTexts[0].text, /Ah, que bom/i);
+    assert.equal(bot.hasCourtesyGreetingContext(bot.conversation(phone)), false);
+  }
+});
+
 test('"bom dia Marcelo tudo bem?" é cortesia, mas "Oi Marcelo" continua pedindo o Marcelo', async () => {
   const courtesyPhone = '5533977777935';
 
