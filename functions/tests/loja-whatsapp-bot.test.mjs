@@ -39,6 +39,7 @@ let requestLog = [];
 let messageSeq = 0;
 let catalogResponseStatus = 200;
 let financeResponseStatus = 200;
+let dailyDueContextResponse = { ok: true, active: false, date: '2026-09-22', status: '' };
 let creditAnalysisExisting = false;
 let financeResponse = {
   ok: true,
@@ -119,6 +120,10 @@ function installFetchMock() {
       return jsonResponse(financeResponse, financeResponseStatus);
     }
 
+    if (href === 'https://backend.test/api/bot/financeiro/vencimento-hoje/contexto') {
+      return jsonResponse(dailyDueContextResponse, 200);
+    }
+
     if (href.startsWith('https://evolution.test/message/sendText/')) {
       const body = options.body ? JSON.parse(options.body) : {};
       const id = 'BOT-TEXT-' + (++messageSeq);
@@ -168,6 +173,7 @@ beforeEach(() => {
   messageSeq = 0;
   catalogResponseStatus = 200;
   financeResponseStatus = 200;
+  dailyDueContextResponse = { ok: true, active: false, date: '2026-09-22', status: '' };
   creditAnalysisExisting = false;
   financeResponse = {
     ok: true,
@@ -3978,4 +3984,73 @@ test('citar o produto dentro da pergunta da parcela não tira o cliente do conte
     bot.asksDailyDueSubjectChange('quero comprar um sofá no crediário'),
     true
   );
+});
+
+
+test('Gustavo recupera do backend o contexto de cobrança do dia mesmo sem evento outbound do WhatsApp', async () => {
+  const phone = '5533977777794';
+  dailyDueContextResponse = {
+    ok: true,
+    active: true,
+    date: '2026-09-22',
+    status: 'sent',
+    sentAt: '2026-09-22T12:00:00.000Z'
+  };
+
+  await bot.handleWebhook({
+    event: 'messages.upsert',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'DAILY-DUE-BACKEND-CONTEXT-1'
+      },
+      pushName: 'Cliente Cobrança',
+      message: { conversation: 'ok' }
+    }
+  });
+
+  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), true);
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /parcela que vence hoje/i);
+  assert.doesNotMatch(sentTexts[0].text, /produto ou da condição que você precisa|Seja bem-vindo/i);
+
+  const lookup = requestLog.find((item) =>
+    item.href === 'https://backend.test/api/bot/financeiro/vencimento-hoje/contexto'
+  );
+  assert.ok(lookup, 'deve consultar contexto protegido no backend');
+  assert.equal(lookup.options.headers['x-loja-bot-token'], 'test-loja-token');
+});
+
+test('consulta de venda clara não é capturada pela sincronização da cobrança do dia', async () => {
+  const phone = '5533977777795';
+  dailyDueContextResponse = {
+    ok: true,
+    active: true,
+    date: '2026-09-22',
+    status: 'sent'
+  };
+  catalogRows = [
+    product('geladeira-backend-context-1', 'Geladeira Brastemp 375L', {
+      category: 'Geladeira',
+      stock: 2
+    })
+  ];
+
+  await bot.handleWebhook({
+    event: 'messages.upsert',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'DAILY-DUE-BACKEND-SALES-1'
+      },
+      pushName: 'Cliente Cobrança',
+      message: { conversation: 'vocês têm geladeira?' }
+    }
+  });
+
+  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), false);
+  assert.equal(sentMedia.length, 1);
+  assert.match(sentMedia[0].caption || '', /Geladeira Brastemp 375L/i);
 });
