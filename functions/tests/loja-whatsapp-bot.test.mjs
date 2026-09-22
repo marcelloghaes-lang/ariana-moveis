@@ -271,22 +271,16 @@ test('saudação usa somente o primeiro nome e ignora observações do contato',
 
 test('saudação simples abre conversa humana e resposta de bem-estar pergunta o que precisa hoje', async () => {
   const examples = [
-    ['Bom dia tudo bem?', 'João Cliente', /^Bom dia, João! 😊 Tudo ótimo, e você\?/i],
-    ['Bom dia', 'Maria Cliente', /^Bom dia, Maria! 😊 Tudo ótimo, e você\?/i],
-    ['Oi bom dia', 'Paulo Cliente', /^Bom dia, Paulo! 😊 Tudo ótimo, e você\?/i]
-  ];
-
-  const wellbeingReplies = [
-    'ta bem graças a deus',
-    'estou bem',
-    'bem também',
-    'bem obrigado',
-    'tudo bem',
-    'tudo ótimo'
+    ['Bom dia tudo bem?', 'João Cliente', /^Bom dia, João! 😊 Tudo ótimo, e você\?/i, 'ta bem graças a deus'],
+    ['Bom dia', 'Maria Cliente', /^Bom dia, Maria! 😊 Tudo ótimo, e você\?/i, 'estou bem'],
+    ['Oi bom dia', 'Paulo Cliente', /^Bom dia, Paulo! 😊 Tudo ótimo, e você\?/i, 'bem também'],
+    ['Oi', 'Carla Cliente', /^(?:Bom dia|Boa tarde|Boa noite), Carla! 😊 Tudo ótimo, e você\?/i, 'bem obrigado'],
+    ['Oii', 'Rafael Cliente', /^(?:Bom dia|Boa tarde|Boa noite), Rafael! 😊 Tudo ótimo, e você\?/i, 'tudo bem'],
+    ['Boa tarde', 'Lúcia Cliente', /^Boa tarde, Lúcia! 😊 Tudo ótimo, e você\?/i, 'tudo ótimo']
   ];
 
   for (let i = 0; i < examples.length; i += 1) {
-    const [textValue, pushName, expected] = examples[i];
+    const [textValue, pushName, expected, wellbeingReply] = examples[i];
     const phone = '553397777793' + String(i);
 
     sentTexts = [];
@@ -298,7 +292,7 @@ test('saudação simples abre conversa humana e resposta de bem-estar pergunta o
     sentTexts = [];
     await bot.handleMessage({
       phone,
-      text: wellbeingReplies[i],
+      text: wellbeingReply,
       pushName
     });
 
@@ -308,7 +302,7 @@ test('saudação simples abre conversa humana e resposta de bem-estar pergunta o
     assert.equal(bot.hasCourtesyGreetingContext(bot.conversation(phone)), false);
   }
 
-  for (const value of wellbeingReplies) {
+  for (const value of examples.map((item) => item[3])) {
     assert.equal(bot.isPositiveWellbeingReply(value), true, value);
   }
 });
