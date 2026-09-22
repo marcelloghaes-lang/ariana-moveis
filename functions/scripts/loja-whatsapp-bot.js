@@ -438,6 +438,8 @@ function conversation(phone) {
       dailyDueReplyCount: 0,
       dailyDueLookupAt: 0,
       dailyDueLookupActive: false,
+      dailyDueCourtesyAt: 0,
+      dailyDueCourtesyCount: 0,
       lastIntent: ''
     };
   }
@@ -460,6 +462,8 @@ function conversation(phone) {
   if (!Number.isFinite(Number(conv.dailyDueReplyCount))) conv.dailyDueReplyCount = 0;
   if (!Number.isFinite(Number(conv.dailyDueLookupAt))) conv.dailyDueLookupAt = 0;
   if (typeof conv.dailyDueLookupActive !== 'boolean') conv.dailyDueLookupActive = false;
+  if (!Number.isFinite(Number(conv.dailyDueCourtesyAt))) conv.dailyDueCourtesyAt = 0;
+  if (!Number.isFinite(Number(conv.dailyDueCourtesyCount))) conv.dailyDueCourtesyCount = 0;
 
   if (
     conv.reviewNeeded &&
@@ -2580,6 +2584,24 @@ function dailyDuePoliteReply(text) {
   return /^(bom dia|boa tarde|boa noite|ok|okay|certo|beleza|entendi|obrigado|obrigada|valeu|vlw|ta bom|tudo bem|sim|blz)$/.test(n);
 }
 
+function dailyDueCourtesyIntent(text) {
+  const emojiIntent = emojiOnlyIntent(text);
+  if (emojiIntent === 'positive') return 'positive_emoji';
+
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (
+    /^(ok|okay|certo|beleza|entendi|obrigado|obrigada|valeu|vlw|ta bom|blz)( (obrigado|obrigada|valeu))?$/.test(n)
+  ) {
+    return 'positive_text';
+  }
+
+  return '';
+}
+
 function dailyDueAmountOf(p = {}) {
   return Number(
     p?.atualizacaoFinanceira?.valorAtualizado ??
@@ -2773,6 +2795,24 @@ async function handleDailyDueCollectionContext({ phone, text, pushName = '', con
 
   if (asksAttendantIdentity(text)) {
     await sendText(phone, 'Aqui é o Gustavo 😊 Estou acompanhando o lembrete da parcela que vence hoje. Posso te ajudar com o valor, a chave PIX ou o comprovante.');
+    return true;
+  }
+
+  const courtesyIntent = dailyDueCourtesyIntent(text);
+  if (courtesyIntent) {
+    const now = Date.now();
+    const lastCourtesyAt = Number(conv.dailyDueCourtesyAt || 0);
+    const suppressWindowMs = 6 * 60 * 60 * 1000;
+    const shouldReply = !lastCourtesyAt || now - lastCourtesyAt >= suppressWindowMs;
+
+    conv.dailyDueCourtesyAt = now;
+    conv.dailyDueCourtesyCount = Math.max(0, Number(conv.dailyDueCourtesyCount || 0)) + 1;
+    saveStateSoon();
+
+    if (shouldReply) {
+      await sendText(phone, 'Por nada 😊 Qualquer coisa estou por aqui.');
+    }
+
     return true;
   }
 
@@ -5698,6 +5738,7 @@ export const __test = {
   clearDailyDueCollectionContext,
   hasDailyDueCollectionContext,
   asksDailyDueAmount,
+  dailyDueCourtesyIntent,
   dailyDueFinancialReply,
   handleDailyDueCollectionContext,
   handleDailyDueCollectionMedia,

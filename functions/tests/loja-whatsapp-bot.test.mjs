@@ -4012,7 +4012,7 @@ test('Gustavo recupera do backend o contexto de cobrança do dia mesmo sem event
 
   assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), true);
   assert.equal(sentTexts.length, 1);
-  assert.match(sentTexts[0].text, /parcela que vence hoje/i);
+  assert.equal(sentTexts[0].text, 'Por nada 😊 Qualquer coisa estou por aqui.');
   assert.doesNotMatch(sentTexts[0].text, /produto ou da condição que você precisa|Seja bem-vindo/i);
 
   const lookup = requestLog.find((item) =>
@@ -4104,7 +4104,7 @@ test('contexto de cobrança funciona em conversa LID usando remoteJidAlt do tele
 
   assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), true);
   assert.equal(sentTexts.length, 1);
-  assert.match(sentTexts[0].text, /parcela que vence hoje/i);
+  assert.equal(sentTexts[0].text, 'Por nada 😊 Qualquer coisa estou por aqui.');
   assert.doesNotMatch(sentTexts[0].text, /produto ou da condição que você precisa/i);
 
   const lookup = requestLog.find((item) =>
@@ -4146,4 +4146,52 @@ test('JID legado sem o nono dígito resolve sem alterar o número recebido pela 
   assert.ok(
     bot.brazilWhatsappPhoneAliases('553388905282').includes('5533988905282')
   );
+});
+
+
+test('emojis positivos comuns da cobrança recebem uma resposta curta sem repetir o texto financeiro', async () => {
+  const phone = '5533977777796';
+  bot.patchTestConversation(phone, {
+    dailyDueContextUntil: Date.now() + (6 * 60 * 60 * 1000),
+    dailyDueReminderAt: Date.now(),
+    dailyDueCourtesyAt: 0,
+    dailyDueCourtesyCount: 0
+  });
+
+  assert.equal(bot.dailyDueCourtesyIntent('😊'), 'positive_emoji');
+  assert.equal(bot.dailyDueCourtesyIntent('🙏'), 'positive_emoji');
+  assert.equal(bot.dailyDueCourtesyIntent('🥰'), 'positive_emoji');
+  assert.equal(bot.dailyDueCourtesyIntent('😍'), 'positive_emoji');
+  assert.equal(bot.dailyDueCourtesyIntent('❤️'), 'positive_emoji');
+  assert.equal(bot.dailyDueCourtesyIntent('🙌'), 'positive_emoji');
+  assert.equal(bot.dailyDueCourtesyIntent('👍'), 'positive_emoji');
+
+  await bot.handleMessage({
+    phone,
+    text: '🙏',
+    pushName: 'Cliente Cobrança'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.equal(sentTexts[0].text, 'Por nada 😊 Qualquer coisa estou por aqui.');
+  assert.doesNotMatch(sentTexts[0].text, /valor|chave PIX|comprovante|previsão de pagamento/i);
+});
+
+test('sequência de emojis positivos na cobrança não gera uma resposta para cada emoji', async () => {
+  const phone = '5533977777797';
+  bot.patchTestConversation(phone, {
+    dailyDueContextUntil: Date.now() + (6 * 60 * 60 * 1000),
+    dailyDueReminderAt: Date.now(),
+    dailyDueCourtesyAt: 0,
+    dailyDueCourtesyCount: 0
+  });
+
+  await bot.handleMessage({ phone, text: '😊', pushName: 'Cliente Cobrança' });
+  await bot.handleMessage({ phone, text: '❤️', pushName: 'Cliente Cobrança' });
+  await bot.handleMessage({ phone, text: '👍', pushName: 'Cliente Cobrança' });
+
+  assert.equal(sentTexts.length, 1);
+  assert.equal(sentTexts[0].text, 'Por nada 😊 Qualquer coisa estou por aqui.');
+  assert.equal(bot.conversation(phone).dailyDueCourtesyCount, 3);
+  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), true);
 });
