@@ -4164,7 +4164,7 @@ test('comparação de dois produtos usa dados objetivos e não inventa vencedor 
   assert.match(reply, /Geladeira Consul 451 Litros/i);
   assert.match(reply, /230 L/i);
   assert.match(reply, /451 L/i);
-  assert.match(reply, /prioridade for gastar menos/i);
+  assert.match(reply, /prioridade for \*?gastar menos\*?/i);
   assert.match(reply, /sem inventar especificação/i);
   assert.equal(backendEvents.at(-1).metadata.productComparison, true);
 });
@@ -4242,7 +4242,7 @@ test('fechamento no cartão usa preço oficial, manda link e mantém intenção 
 
   const reply = sentTexts.at(-1).text;
   assert.match(reply, /12x de R\$\s*116,05/i);
-  assert.match(reply, /total de R\$\s*1\.392,59/i);
+  assert.match(reply, /total de \*?R\$\s*1\.392,59\*?/i);
   assert.match(reply, /arianamoveis\.com\.br\/produto\.html\?id=close-card-1/i);
   assert.equal(bot.conversation(phone).pendingAction, '');
   assert.equal(backendEvents.at(-1).metadata.purchaseIntent, true);
