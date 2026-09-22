@@ -5552,7 +5552,7 @@ async function handleMessage({ phone, text, pushName = '' }) {
       const greeting = greetingFromText(text);
       await sendText(
         phone,
-        `${greeting ? `${greeting}! 😊 ` : 'Entendi 😊 '}Vou deixar essa informação de pagamento registrada para o Marcelo conferir. Como envolve dinheiro/valor de prestação, a baixa só fica confirmada depois da conferência.`
+        `${greeting ? `${greeting}! 😊 ` : 'Entendi 😊 '}Vou deixar essa informação de pagamento registrada para o Marcelo conferir. Como envolve um pagamento em dinheiro, a baixa só fica confirmada depois da conferência.`
       );
 
       await syncTicket(phone, {
