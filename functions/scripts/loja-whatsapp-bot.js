@@ -3430,7 +3430,7 @@ function parseCommercialMoneyValue(value = '') {
   raw = raw.replace(/\bmil\b/g, '').replace(/r\$/g, '').replace(/\s+/g, '');
 
   if (isThousandsWord) {
-    const decimal = Number(raw.replace('.', '').replace(',', '.'));
+    const decimal = Number(raw.replace(',', '.'));
     return Number.isFinite(decimal) && decimal > 0 ? decimal * 1000 : 0;
   }
 
@@ -3452,7 +3452,7 @@ function extractBudgetLimit(text = '') {
     .replace(/\s+/g, ' ')
     .trim();
 
-  const budgetLead = '(?:ate|no maximo|maximo|orcamento(?: de)?|tenho(?: ate)?|posso gastar(?: ate)?|quero gastar(?: ate)?|meu limite(?: e| eh| de)?|limite de)';
+  const budgetLead = '(?:ate|no maximo|maximo|orcamento(?: e)?(?: de)?|tenho(?: ate)?|posso gastar(?: ate)?|quero gastar(?: ate)?|meu limite(?: e| eh)?(?: de)?|limite de)';
   const thousands = n.match(new RegExp(`\\b${budgetLead}\\s*(?:r\\$\\s*)?(\\d+(?:[.,]\\d+)?)\\s*mil\\b`));
   if (thousands) return parseCommercialMoneyValue(`${thousands[1]} mil`);
 
