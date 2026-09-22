@@ -1706,7 +1706,7 @@ function isSupplierContactSignal({ phone = '', text = '', pushName = '' } = {}) 
   const b2bContext =
     /\b(lojista|revenda|atacado|estoque|pecas|fabrica|pedido minimo|mix da loja)\b/.test(n);
 
-  return strongB2b || (supplierName && b2bContext) || (supplierName && !n);
+  return strongB2b || supplierName;
 }
 
 function isExternalAutomationMessage(text) {
@@ -3707,7 +3707,7 @@ async function handleMessage({ phone, text, pushName = '' }) {
       saveStateSoon();
       await sendText(
         phone,
-        'Recebi sua mensagem comercial 😊 Vou deixar essa proposta para o Marcelo analisar com a área de compras. Para evitar desencontro, não vou seguir com o atendimento automático de vendas nesta conversa.'
+        'Recebi sua proposta comercial 😊 Vou deixar para o Marcelo analisar com a área de compras. Assim que ele puder, continua com você por aqui.'
       );
     }
     return;
