@@ -119,14 +119,14 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
     return { ok: false, skipped: true, reason: 'dependencies_missing' };
   }
 
-  const enabled = String(process.env.FINANCEIRO_REGUA_WHATSAPP_ENABLED || 'false').toLowerCase() === 'true';
+  const enabled = String(process.env.ERP_DAILY_DUE_WHATSAPP_ENABLED || 'false').toLowerCase() === 'true';
   if (!enabled && !force) return { ok: true, skipped: true, reason: 'disabled' };
 
   if (mongoose && mongoose.connection?.readyState !== 1) {
     return { ok: false, skipped: true, reason: 'database_not_ready' };
   }
 
-  const timeZone = String(process.env.FINANCEIRO_AUTOMACAO_TIMEZONE || 'America/Sao_Paulo').trim();
+  const timeZone = String(process.env.ERP_DAILY_DUE_WHATSAPP_TIMEZONE || process.env.FINANCEIRO_AUTOMACAO_TIMEZONE || 'America/Sao_Paulo').trim();
   const today = localDateKey(now, timeZone);
   const finance = createErpFinanceService({ Order, IntegrationAuditLog, toJSON, redact });
   const data = await finance.list({});
@@ -194,7 +194,7 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
       const result = await waSendTextMessage({
         number: group.phone,
         text: message,
-        delay: Math.max(0, Number(process.env.FINANCEIRO_REGUA_WHATSAPP_DELAY_MS || 900) || 900)
+        delay: Math.max(0, Number(process.env.ERP_DAILY_DUE_WHATSAPP_DELAY_MS || 900) || 900)
       });
 
       const sentAt = new Date();
@@ -270,10 +270,10 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
 }
 
 export function startErpDailyDueWhatsappWorker(context = {}) {
-  const enabled = String(process.env.FINANCEIRO_REGUA_WHATSAPP_ENABLED || 'false').toLowerCase() === 'true';
-  const timeZone = String(process.env.FINANCEIRO_AUTOMACAO_TIMEZONE || 'America/Sao_Paulo').trim();
-  const schedule = String(process.env.FINANCEIRO_REGUA_WHATSAPP_HORA || '09:00').trim();
-  const sweepMinutes = Math.max(5, Number(process.env.FINANCEIRO_REGUA_WHATSAPP_SWEEP_MINUTES || 10) || 10);
+  const enabled = String(process.env.ERP_DAILY_DUE_WHATSAPP_ENABLED || 'false').toLowerCase() === 'true';
+  const timeZone = String(process.env.ERP_DAILY_DUE_WHATSAPP_TIMEZONE || process.env.FINANCEIRO_AUTOMACAO_TIMEZONE || 'America/Sao_Paulo').trim();
+  const schedule = String(process.env.ERP_DAILY_DUE_WHATSAPP_HORA || '09:00').trim();
+  const sweepMinutes = Math.max(5, Number(process.env.ERP_DAILY_DUE_WHATSAPP_SWEEP_MINUTES || 10) || 10);
 
   if (!enabled) {
     console.log('📵 Lembrete ERP de vencimentos do dia: desativado.');
