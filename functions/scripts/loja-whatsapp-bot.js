@@ -1629,6 +1629,8 @@ function emojiOnlyIntent(text) {
   const raw = String(text || '')
     .replace(/\s+/g, '')
     .replace(/\uFE0F/g, '')
+    .replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, '')
+    .replace(/\u200D/g, '')
     .replace(/[\u{1F3FB}-\u{1F3FF}]/gu, '');
 
   if (!raw) return '';
@@ -2358,7 +2360,9 @@ function asksStoreAssortment(text) {
     /^voces?\s+(?:trabalha|trabalham|mexe|mexem)\s+com\s+(?:qual|quais|que)\s+produto(?:s)?$/.test(n) ||
     /^voces?\s+(?:trabalha|trabalham|mexe|mexem)\s+com\s+o\s+que$/.test(n) ||
     /^(?:o|oque)\s+que?\s*voces?\s+vendem$/.test(n) ||
-    /^o?que\s+voces?\s+vendem$/.test(n)
+    /^o?que\s+voces?\s+vendem$/.test(n) ||
+    /^(?:eu\s+)?(?:quero|queria|gostaria(?:\s+de)?)\s+(?:ver|olhar|conhecer)\s+(?:sobre\s+)?(?:os\s+)?produto(?:s)?$/.test(n) ||
+    /^(?:eu\s+)?(?:quero|queria|gostaria(?:\s+de)?)\s+(?:ver|olhar)\s+(?:as\s+)?(?:opcoes|opcao|modelos|modelo)$/.test(n)
   );
 }
 
@@ -2584,9 +2588,25 @@ function dailyDuePoliteReply(text) {
   return /^(bom dia|boa tarde|boa noite|ok|okay|certo|beleza|entendi|obrigado|obrigada|valeu|vlw|ta bom|tudo bem|sim|blz)$/.test(n);
 }
 
+function dailyDueGreetingLabel(text) {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n) return '';
+  if (/\bbom dia\b/.test(n)) return 'Bom dia';
+  if (/\bboa tarde\b|\bbopa tarde\b/.test(n)) return 'Boa tarde';
+  if (/\bboa noite\b/.test(n)) return 'Boa noite';
+  if (/^(?:oi+|oie+|ola+)\b/.test(n)) return 'Olá';
+  return '';
+}
+
 function dailyDueCourtesyIntent(text) {
   const emojiIntent = emojiOnlyIntent(text);
   if (emojiIntent === 'positive') return 'positive_emoji';
+
+  if (dailyDueGreetingLabel(text)) return 'greeting';
 
   const n = normalize(text)
     .replace(/[!?.,;:]+/g, ' ')
@@ -2800,6 +2820,15 @@ async function handleDailyDueCollectionContext({ phone, text, pushName = '', con
 
   const courtesyIntent = dailyDueCourtesyIntent(text);
   if (courtesyIntent) {
+    if (courtesyIntent === 'greeting') {
+      const greeting = dailyDueGreetingLabel(text) || 'Olá';
+      await sendText(
+        phone,
+        `${greeting} 😊 Estou por aqui. Se precisar de algo sobre a parcela que vence hoje, é só me falar.`
+      );
+      return true;
+    }
+
     const now = Date.now();
     const suppressWindowMs = 6 * 60 * 60 * 1000;
     const aliases = brazilWhatsappPhoneAliases(phone);
@@ -5765,6 +5794,7 @@ export const __test = {
   hasDailyDueCollectionContext,
   asksDailyDueAmount,
   dailyDueCourtesyIntent,
+  dailyDueGreetingLabel,
   dailyDueFinancialReply,
   handleDailyDueCollectionContext,
   handleDailyDueCollectionMedia,
