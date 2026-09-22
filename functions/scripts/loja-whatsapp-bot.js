@@ -2306,6 +2306,22 @@ function isPositiveWellbeingReply(text = '') {
   );
 }
 
+function isNonPositiveWellbeingReply(text = '') {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n) return false;
+
+  return (
+    /^(?:to|tou|estou)?\s*(?:mais ou menos|mais pra menos|meio assim|meio ruim|ruim|mal)$/i.test(n) ||
+    /^(?:to|tou|estou)?\s*(?:indo|levando|na luta|sobrevivendo)$/i.test(n) ||
+    /^(?:vou|to|tou|estou)\s+(?:indo|levando)$/i.test(n) ||
+    /^(?:nao|não)\s+(?:muito|muito bem|to muito bem|estou muito bem)$/i.test(n)
+  );
+}
+
 function storeDaypartGreeting(now = new Date()) {
   const parts = new Intl.DateTimeFormat('pt-BR', {
     timeZone: 'America/Sao_Paulo',
@@ -5187,6 +5203,12 @@ async function handleMessage({ phone, text, pushName = '' }) {
       return;
     }
 
+    if (isNonPositiveWellbeingReply(text)) {
+      clearCourtesyGreetingContext(conv);
+      await sendText(phone, 'Entendi 😊 O que você tá precisando pra hoje?');
+      return;
+    }
+
     clearCourtesyGreetingContext(conv);
   }
 
@@ -6775,6 +6797,7 @@ export const __test = {
   isGreeting,
   isCourtesyGreeting,
   isPositiveWellbeingReply,
+  isNonPositiveWellbeingReply,
   storeDaypartGreeting,
   courtesyGreetingLabel,
   hasCourtesyGreetingContext,
