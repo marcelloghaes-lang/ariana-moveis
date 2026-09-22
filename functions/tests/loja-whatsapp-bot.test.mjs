@@ -919,6 +919,23 @@ test('entrega diferencia Guanhães de zona rural/outra cidade', () => {
   assert.equal(other.needsLogistics, true);
 });
 
+test('entreguei exame na contabilidade não é confundido com entrega de mercadoria', async () => {
+  assert.equal(bot.asksDelivery('Já entreguei o exame na contabilidade.'), false);
+
+  const phone = '5533977777840';
+  await bot.handleMessage({
+    phone,
+    text: 'Bom dia Marcelo tudo bem? Já entreguei o exame na contabilidade.',
+    pushName: 'Emilly'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /deixar essa mensagem para o Marcelo/i);
+  assert.doesNotMatch(sentTexts[0].text, /segunda a sábado|24 horas|entregas acontecem/i);
+  assert.equal(bot.conversation(phone).contactRole, 'internal');
+  assert.equal(backendEvents.at(-1).status, 'Mensagem interna / administrativa');
+});
+
 test('entregas são de segunda a sábado até 12h e não ocorrem no domingo', async () => {
   const phone = '5533977777756';
 
@@ -2085,6 +2102,118 @@ test('resposta manual do Marcelo limpa revisão e registra atendimento humano', 
   assert.equal(backendEvents.at(-1).status, 'Em atendimento pelo Marcelo');
   assert.equal(backendEvents.at(-1).metadata.reviewNeeded, false);
   assert.equal(backendEvents.at(-1).metadata.manualHuman, true);
+});
+
+test('fornecedor é identificado e respostas automáticas do sistema dele não geram conversa entre bots', async () => {
+  const phone = '5533977777841';
+
+  assert.equal(
+    bot.isSupplierContactSignal({
+      phone,
+      pushName: 'Mueller Vendas',
+      text: 'Lojista, oportunidade para abastecer seu estoque. Condição especial direto de fábrica. Quantas peças eu te mando?'
+    }),
+    true
+  );
+  assert.equal(
+    bot.isSupplierContactSignal({
+      phone: '5533977777842',
+      pushName: 'Douglas Modesto',
+      text: 'Bom dia, uma ótima terça-feira para nós'
+    }),
+    false
+  );
+
+  await bot.handleMessage({
+    phone,
+    pushName: 'Mueller Vendas',
+    text: 'Lojista, olha essa oportunidade de abastecer seu estoque. Condição especial direto de fábrica. Quantas peças eu te mando?'
+  });
+
+  assert.equal(bot.conversation(phone).contactRole, 'supplier');
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /proposta.*Marcelo.*compras/is);
+  assert.doesNotMatch(sentTexts[0].text, /fotos de produtos|crediário|carnê/i);
+  assert.equal(backendEvents.at(-1).status, 'Fornecedor / Compras');
+
+  await bot.handleMessage({
+    phone,
+    pushName: 'Mueller Vendas',
+    text: 'Em breve você será atendido 💜'
+  });
+  await bot.handleMessage({
+    phone,
+    pushName: 'Mueller Vendas',
+    text: 'Aguardando atendimento...'
+  });
+
+  assert.equal(sentTexts.length, 1, 'mensagens automáticas do fornecedor não devem receber resposta');
+});
+
+test('conversa casual e pergunta pessoal não caem no discurso comercial', async () => {
+  const casualPhone = '5533977777843';
+  await bot.handleMessage({
+    phone: casualPhone,
+    pushName: 'Contato',
+    text: 'bom demais?'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Tudo certo por aqui/i);
+  assert.doesNotMatch(sentTexts[0].text, /fotos de produtos|carnê|não consigo te ajudar/i);
+
+  sentTexts = [];
+  const personalPhone = '5533977777844';
+  await bot.handleMessage({
+    phone: personalPhone,
+    pushName: 'Contato',
+    text: 'Victor te chamou?'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /deixar essa mensagem para o Marcelo/i);
+  assert.doesNotMatch(sentTexts[0].text, /fotos de produtos|carnê|condições de pagamento/i);
+  assert.equal(backendEvents.at(-1).status, 'Mensagem interna / administrativa');
+});
+
+test('evento vazio sem mídia não inventa que recebeu foto ou arquivo', async () => {
+  const phone = '5533977777845';
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPDATE',
+    data: {
+      key: { remoteJid: phone + '@s.whatsapp.net', fromMe: false, id: 'EDIT-EMPTY-1' },
+      pushName: 'Emilly',
+      update: {}
+    }
+  });
+
+  assert.equal(result.ignored, 'empty_non_media');
+  assert.equal(sentTexts.length, 0);
+});
+
+test('texto de mensagem editada é extraído quando o webhook traz editedMessage', async () => {
+  const phone = '5533977777846';
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPDATE',
+    data: {
+      key: { remoteJid: phone + '@s.whatsapp.net', fromMe: false, id: 'EDIT-TEXT-1' },
+      pushName: 'Emilly',
+      message: {
+        protocolMessage: {
+          editedMessage: {
+            conversation: 'Já entreguei o exame na contabilidade.'
+          }
+        }
+      }
+    }
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /deixar essa mensagem para o Marcelo/i);
+  assert.doesNotMatch(sentTexts[0].text, /arquivo|foto|segunda a sábado/i);
 });
 
 test('falha total do catálogo não deixa cliente sem resposta e marca revisão', async () => {
