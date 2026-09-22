@@ -671,6 +671,7 @@ function conversation(phone) {
       dailyDueLookupActive: false,
       dailyDueCourtesyAt: 0,
       dailyDueCourtesyCount: 0,
+      lastBudgetLimit: 0,
       lastIntent: ''
     };
   }
@@ -695,6 +696,7 @@ function conversation(phone) {
   if (typeof conv.dailyDueLookupActive !== 'boolean') conv.dailyDueLookupActive = false;
   if (!Number.isFinite(Number(conv.dailyDueCourtesyAt))) conv.dailyDueCourtesyAt = 0;
   if (!Number.isFinite(Number(conv.dailyDueCourtesyCount))) conv.dailyDueCourtesyCount = 0;
+  if (!Number.isFinite(Number(conv.lastBudgetLimit))) conv.lastBudgetLimit = 0;
 
   if (
     conv.reviewNeeded &&
@@ -3420,6 +3422,221 @@ function asksGenericInstallmentQuote(text) {
   return mentionsInstallment && !explicitMethod;
 }
 
+function parseCommercialMoneyValue(value = '') {
+  let raw = String(value || '').trim().toLowerCase();
+  if (!raw) return 0;
+
+  const isThousandsWord = /\bmil\b/.test(raw);
+  raw = raw.replace(/\bmil\b/g, '').replace(/r\$/g, '').replace(/\s+/g, '');
+
+  if (isThousandsWord) {
+    const decimal = Number(raw.replace('.', '').replace(',', '.'));
+    return Number.isFinite(decimal) && decimal > 0 ? decimal * 1000 : 0;
+  }
+
+  if (/^\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?$/.test(raw)) {
+    raw = raw.replace(/\./g, '').replace(',', '.');
+  } else if (/^\d+(?:,\d{1,2})$/.test(raw)) {
+    raw = raw.replace(',', '.');
+  } else {
+    raw = raw.replace(/[^\d.]/g, '');
+  }
+
+  const amount = Number(raw);
+  return Number.isFinite(amount) && amount > 0 ? amount : 0;
+}
+
+function extractBudgetLimit(text = '') {
+  const n = normalize(text)
+    .replace(/[!?;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const budgetLead = '(?:ate|no maximo|maximo|orcamento(?: de)?|tenho(?: ate)?|posso gastar(?: ate)?|quero gastar(?: ate)?|meu limite(?: e| eh| de)?|limite de)';
+  const thousands = n.match(new RegExp(`\\b${budgetLead}\\s*(?:r\\$\\s*)?(\\d+(?:[.,]\\d+)?)\\s*mil\\b`));
+  if (thousands) return parseCommercialMoneyValue(`${thousands[1]} mil`);
+
+  const direct = n.match(new RegExp(`\\b${budgetLead}\\s*(?:r\\$\\s*)?(\\d{1,3}(?:\\.\\d{3})+(?:,\\d{1,2})?|\\d{3,6}(?:,\\d{1,2})?)\\s*(?:reais)?\\b`));
+  if (direct) return parseCommercialMoneyValue(direct[1]);
+
+  const currency = n.match(/\br\$\s*(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d{3,6}(?:,\d{1,2})?)\b/);
+  if (
+    currency &&
+    /\b(ate|orcamento|limite|maximo|gastar|tenho)\b/.test(n)
+  ) {
+    return parseCommercialMoneyValue(currency[1]);
+  }
+
+  return 0;
+}
+
+function asksPriceObjection(text = '') {
+  const n = normalize(text);
+  return (
+    /\b(ta|esta|achei|ficou)\s+(muito\s+)?caro\b/.test(n) ||
+    /\bpreco\s+(ta|esta)\s+(muito\s+)?alto\b/.test(n) ||
+    /\bacima do meu orcamento\b/.test(n) ||
+    /\b(tem|teria|mostra|me mostra|quero)\b.{0,35}\b(mais barato|mais barata|mais em conta|baratinho|baratinha)\b/.test(n)
+  );
+}
+
+function asksProductComparison(text = '') {
+  const n = normalize(text);
+  return (
+    /\b(compara|compare|comparar|comparacao)\b/.test(n) ||
+    /\bdiferenca\b.{0,30}\b(entre|desses|dessas|dois|duas)\b/.test(n) ||
+    /\bqual\b.{0,35}\b(melhor|mais em conta|vale mais a pena)\b/.test(n)
+  );
+}
+
+function comparisonOrdinalIndexes(text = '') {
+  const n = normalize(text);
+  const groups = [
+    [0, /\b(primeiro|primeira|1º|1o)\b/],
+    [1, /\b(segundo|segunda|2º|2o)\b/],
+    [2, /\b(terceiro|terceira|3º|3o)\b/],
+    [3, /\b(quarto|quarta|4º|4o)\b/]
+  ];
+  return groups.filter(([, pattern]) => pattern.test(n)).map(([index]) => index);
+}
+
+function resolveComparisonProducts(conv = {}, text = '') {
+  const rows = Array.isArray(conv.lastProducts) ? conv.lastProducts.filter(Boolean) : [];
+  const indexes = comparisonOrdinalIndexes(text);
+  if (indexes.length >= 2) {
+    const pair = indexes.slice(0, 2).map((index) => rows[index]).filter(Boolean);
+    if (pair.length === 2 && productId(pair[0]) !== productId(pair[1])) return pair;
+  }
+
+  if (rows.length === 2 && productId(rows[0]) !== productId(rows[1])) {
+    return rows;
+  }
+
+  return [];
+}
+
+function productObjectiveFacts(product = {}) {
+  const name = normalize(product.name || '');
+  const facts = [];
+
+  const liters = name.match(/\b(\d{2,4})\s*(?:l|litro|litros)\b/);
+  if (liters) facts.push(`${liters[1]} L`);
+
+  const watts = name.match(/\b(\d{2,5})\s*w\b/);
+  if (watts) facts.push(`${watts[1]} W`);
+
+  const category = detectCategory([product.name, product.category].filter(Boolean).join(' '));
+  if (category === 'tv') {
+    const inches = productTvInches(product);
+    if (inches) facts.push(`${inches} polegadas`);
+  }
+
+  return facts;
+}
+
+function productComparisonReply(first = {}, second = {}) {
+  const rows = [first, second];
+  const lines = ['Posso comparar pelo que consta no catálogo 😊'];
+
+  rows.forEach((product, index) => {
+    const full = productFullPrice(product);
+    const count = Math.max(1, Number(product.installmentCount || 12));
+    const facts = productObjectiveFacts(product);
+    lines.push('');
+    lines.push(`*${index + 1}. ${product.name}*`);
+    if (facts.length) lines.push(`• Informação objetiva no modelo: ${facts.join(' • ')}`);
+    lines.push(`• PIX: *${money(productCashPrice(product))}*`);
+    lines.push(`• Cartão: até ${count}x de ${money(full / count)}, total de ${money(full)}`);
+  });
+
+  const firstCash = productCashPrice(first);
+  const secondCash = productCashPrice(second);
+  if (firstCash !== secondCash) {
+    const cheaper = firstCash < secondCash ? first : second;
+    const difference = Math.abs(firstCash - secondCash);
+    lines.push('');
+    lines.push(`Se a prioridade for *gastar menos*, *${cheaper.name}* está ${money(difference)} mais barato no PIX entre esses dois.`);
+  } else {
+    lines.push('');
+    lines.push('No PIX, os dois estão com o mesmo preço no catálogo.');
+  }
+
+  lines.push('Se sua prioridade for capacidade, tamanho, potência ou outra característica específica, me diga qual é e eu comparo somente com informação confirmada — sem inventar especificação.');
+  return lines.join('\n');
+}
+
+function asksPausePurchaseDecision(text = '') {
+  const n = normalize(text);
+  return /\b(vou pensar|vou dar uma pensada|vou pensar um pouco|depois eu vejo|vou ver e te falo|mais tarde eu vejo|so estou olhando|so olhando)\b/.test(n);
+}
+
+function asksPurchaseClosing(text = '') {
+  const n = normalize(text);
+  if (asksPausePurchaseDecision(text)) return false;
+
+  return (
+    /\b(gostei desse|gostei dessa|gostei dele|gostei dela)\b/.test(n) ||
+    /\b(quero esse|quero essa|quero ele|quero ela)\b/.test(n) ||
+    /\b(vou levar|pode fechar|fecha pra mim|vamos fechar)\b/.test(n) ||
+    /\bquero comprar\b.{0,25}\b(esse|essa|ele|ela|produto)\b/.test(n) ||
+    /\bcomo\b.{0,15}\b(compro|comprar|faco para comprar|faco pra comprar)\b.{0,25}\b(esse|essa|ele|ela)\b/.test(n)
+  );
+}
+
+function purchasePaymentMethod(text = '') {
+  const n = normalize(text);
+  if (/\b(pix|a vista|avista)\b/.test(n)) return 'pix';
+  if (/\b(cartao|credito)\b/.test(n)) return 'card';
+  if (/\b(carne|crediario|boleto)\b/.test(n)) return 'credit';
+  return '';
+}
+
+async function showCheaperAlternatives(phone, conv, product, pushName = '') {
+  const category = detectCategory([product?.name, product?.category, conv?.lastProductQuery].filter(Boolean).join(' ')) ||
+    String(conv?.lastProductQuery || '').trim();
+
+  if (!category) {
+    await sendText(phone, 'Consigo procurar uma opção mais em conta 😊 Só me diga qual tipo de produto você quer comparar.');
+    return;
+  }
+
+  const currentPrice = productCashPrice(product);
+  const rows = (await searchProducts(category, 'mais barato'))
+    .filter((candidate) => productId(candidate) !== productId(product))
+    .filter((candidate) => productCashPrice(candidate) < currentPrice)
+    .sort((a, b) => productCashPrice(a) - productCashPrice(b));
+
+  if (!rows.length) {
+    await sendText(
+      phone,
+      `Entendi 😊 Pelo catálogo atual, não encontrei outra opção de *${category}* em estoque com preço no PIX menor que *${money(currentPrice)}*. Se quiser, posso te mostrar outras opções da categoria para comparar.`
+    );
+    return;
+  }
+
+  conv.allProductResults = rows;
+  conv.productResultOffset = 0;
+  conv.lastProductQuery = category;
+  conv.lastBudgetLimit = 0;
+  conv.selectedProduct = null;
+  saveStateSoon();
+
+  await sendText(
+    phone,
+    `Entendi 😊 Encontrei *${rows.length} opção(ões)* da mesma categoria com preço no PIX menor que *${money(currentPrice)}*. Vou te mostrar as mais em conta:`
+  );
+  await sendProductPage(phone, conv, { announce: false });
+
+  await markConversationStatus(
+    phone,
+    conv,
+    'Venda em andamento',
+    `Cliente pediu alternativa mais barata para: ${product.name}`,
+    pushName,
+    { productId: productId(product), cheaperAlternativeRequested: true }
+  );
+}
+
 function creditDivisor(count) {
   if (count >= 1 && count <= 4) return 0.80;
   if (count <= 6) return 0.75;
@@ -3659,7 +3876,13 @@ async function searchProducts(query, originalText = '') {
   });
 
   const n = normalize(originalText);
-  if (/mais barato|baratinho|menor preco|mais em conta/.test(n)) {
+  const budget = extractBudgetLimit(originalText);
+
+  if (budget > 0) {
+    products = products
+      .filter((product) => productCashPrice(product) <= budget)
+      .sort((a, b) => productCashPrice(a) - productCashPrice(b));
+  } else if (/mais barato|baratinho|menor preco|mais em conta/.test(n)) {
     products = products.sort((a, b) => productCashPrice(a) - productCashPrice(b));
   }
   return products;
@@ -3682,14 +3905,22 @@ async function sendProductPage(phone, conv, { announce = true } = {}) {
   saveStateSoon();
 
   if (announce) {
+    const budget = Math.max(0, Number(conv.lastBudgetLimit || 0));
     if (all.length === 1) {
-      await sendText(phone, 'Encontrei este produto disponível no momento 😊');
+      await sendText(
+        phone,
+        budget > 0
+          ? `Encontrei *1 opção dentro do seu orçamento de até ${money(budget)}* 😊`
+          : 'Encontrei este produto disponível no momento 😊'
+      );
     } else if (offset === 0) {
       await sendText(
         phone,
-        all.length > 4
-          ? `Encontrei *${all.length} opções disponíveis* no catálogo. Vou te mostrar as primeiras 4:`
-          : `Encontrei *${all.length} opções disponíveis* no momento. Vou te mostrar:`
+        budget > 0
+          ? `Encontrei *${all.length} opções dentro do seu orçamento de até ${money(budget)}*. Vou mostrar primeiro as de menor preço:`
+          : all.length > 4
+            ? `Encontrei *${all.length} opções disponíveis* no catálogo. Vou te mostrar as primeiras 4:`
+            : `Encontrei *${all.length} opções disponíveis* no momento. Vou te mostrar:`
       );
     } else {
       await sendText(phone, `Claro 😊 Aqui vão mais ${page.length} opções:`);
@@ -3712,8 +3943,17 @@ async function sendProductPage(phone, conv, { announce = true } = {}) {
 
 async function showProducts(phone, conv, query, originalText) {
   clearAlternativeOffer(conv);
+  const budget = extractBudgetLimit(originalText);
+  conv.lastBudgetLimit = budget;
   const products = await searchProducts(query, originalText);
   if (!products.length) {
+    if (budget > 0) {
+      await sendText(
+        phone,
+        `No momento não encontrei *${query}* em estoque dentro do limite de *${money(budget)}*. Se quiser, posso te mostrar opções acima desse valor ou procurar outra categoria 😊`
+      );
+      return;
+    }
     const tvInches = normalize(query) === 'tv' ? requestedTvInches(originalText) : 0;
     const askedIphone = normalize(query) === 'celular' && /\biphone\b/.test(normalize(originalText));
 
@@ -4401,6 +4641,82 @@ function parseFullName(text) {
 }
 
 async function handlePending(phone, text, conv) {
+  if (conv.pendingAction === 'purchase_payment_method') {
+    const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
+    if (!product) {
+      conv.pendingAction = '';
+      saveStateSoon();
+      await sendText(phone, 'Não consegui recuperar o produto escolhido. Me diga qual produto você quer comprar e eu continuo com você.');
+      return true;
+    }
+
+    const method = purchasePaymentMethod(text);
+    if (!method) {
+      await sendText(phone, 'Para continuar com *' + product.name + '*, você prefere *PIX*, *cartão* ou *crediário/carnê*?');
+      return true;
+    }
+
+    conv.pendingAction = '';
+
+    if (method === 'pix') {
+      markPixContext(conv);
+      saveStateSoon();
+      await sendText(
+        phone,
+        `Perfeito 😊 No PIX, *${product.name}* fica por *${money(productCashPrice(product))}*.
+
+Você pode continuar a compra pelo link: ${productLink(product)}
+
+Se quiser, também posso conferir a entrega com você.`
+      );
+      await markConversationStatus(
+        phone,
+        conv,
+        'Venda em andamento',
+        `Cliente decidiu comprar no PIX: ${product.name}`,
+        '',
+        { purchaseIntent: true, paymentMode: 'pix', productId: productId(product) }
+      );
+      return true;
+    }
+
+    if (method === 'card') {
+      const full = productFullPrice(product);
+      const count = Math.max(1, Number(product.installmentCount || 12));
+      saveStateSoon();
+      await sendText(
+        phone,
+        `Perfeito 😊 No cartão, *${product.name}* fica em até *${count}x de ${money(full / count)}*, total de *${money(full)}*.
+
+Você pode continuar a compra pelo link: ${productLink(product)}
+
+Se quiser, também posso conferir a entrega com você.`
+      );
+      await markConversationStatus(
+        phone,
+        conv,
+        'Venda em andamento',
+        `Cliente decidiu comprar no cartão: ${product.name}`,
+        '',
+        { purchaseIntent: true, paymentMode: 'cartao', productId: productId(product) }
+      );
+      return true;
+    }
+
+    markCreditContext(conv);
+    saveStateSoon();
+    await markConversationStatus(
+      phone,
+      conv,
+      'Venda em andamento',
+      `Cliente decidiu seguir no crediário: ${product.name}`,
+      '',
+      { purchaseIntent: true, paymentMode: 'crediario', productId: productId(product) }
+    );
+    await startCreditApplication(phone, conv);
+    return true;
+  }
+
   if (conv.pendingAction === 'card_price_product') {
     if (asksPaymentConditionAdjustment(text, conv)) {
       conv.pendingAction = 'special_condition_product';
@@ -5167,6 +5483,120 @@ async function handleMessage({ phone, text, pushName = '' }) {
   }
 
   {
+    const pair = asksProductComparison(text) ? resolveComparisonProducts(conv, text) : [];
+    if (pair.length === 2) {
+      await sendText(phone, productComparisonReply(pair[0], pair[1]));
+      await markConversationStatus(
+        phone,
+        conv,
+        'Venda em andamento',
+        `Cliente comparou dois produtos: ${pair[0].name} x ${pair[1].name}`,
+        pushName,
+        {
+          productComparison: true,
+          productIds: pair.map((product) => productId(product))
+        }
+      );
+      return;
+    }
+
+    if (asksProductComparison(text) && Array.isArray(conv.lastProducts) && conv.lastProducts.length > 2) {
+      await sendText(
+        phone,
+        'Comparo para você 😊 Me diga quais dois — por exemplo *“o primeiro e o segundo”* — que eu coloco preço e condições lado a lado sem inventar especificação.'
+      );
+      return;
+    }
+  }
+
+  if (asksPausePurchaseDecision(text)) {
+    const product = mentionedProduct || conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
+    if (product) {
+      conv.selectedProduct = product;
+      conv.pendingAction = '';
+      saveStateSoon();
+      rememberCommercialInterest(phone, conv, {
+        product,
+        category: product.category || conv.lastProductQuery || '',
+        stage: 'considering',
+        source: 'customer_thinking'
+      });
+      await sendText(
+        phone,
+        `Tudo bem 😊 Fica à vontade. Vou deixar *${product.name}* como referência por aqui; quando quiser voltar, eu continuo com você de onde paramos.`
+      );
+      return;
+    }
+  }
+
+  if (
+    asksPurchaseClosing(text) &&
+    !asksCardQuote(text) &&
+    !asksPixPrice(text) &&
+    !asksCreditQuote(text)
+  ) {
+    const product = mentionedProduct || conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
+    if (!product) {
+      await sendText(phone, 'Ótimo 😊 Só me diga qual produto você escolheu — pode falar “o primeiro”, “o segundo” ou o nome/modelo — que eu continuo a compra com você.');
+      return;
+    }
+
+    conv.selectedProduct = product;
+    conv.pendingAction = 'purchase_payment_method';
+    conv.lastIntent = 'produto';
+    saveStateSoon();
+
+    await sendText(
+      phone,
+      `Ótimo 😊 Você escolheu *${product.name}*. Para continuar, você prefere pagar no *PIX*, *cartão* ou *crediário/carnê*?`
+    );
+    await markConversationStatus(
+      phone,
+      conv,
+      'Venda em andamento',
+      `Cliente demonstrou intenção de fechar a compra de: ${product.name}`,
+      pushName,
+      { purchaseIntent: true, productId: productId(product) }
+    );
+    return;
+  }
+
+  if (asksPriceObjection(text)) {
+    const product = mentionedProduct || conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
+    if (product) {
+      await showCheaperAlternatives(phone, conv, product, pushName);
+      return;
+    }
+  }
+
+  {
+    const budget = extractBudgetLimit(text);
+    const explicitCategory = detectCategory(text);
+    if (budget > 0 && !explicitCategory && conv.lastIntent === 'produto') {
+      const categoryFromLast = detectCategory([
+        conv.selectedProduct?.name,
+        conv.selectedProduct?.category,
+        conv.lastProductQuery,
+        conv.lastProducts?.[0]?.name,
+        conv.lastProducts?.[0]?.category
+      ].filter(Boolean).join(' ')) || conv.lastProductQuery;
+
+      if (categoryFromLast) {
+        await showProducts(phone, conv, categoryFromLast, text);
+        await markConversationStatus(
+          phone,
+          conv,
+          'Atendimento normal',
+          `Cliente informou orçamento de até ${money(budget)} para ${categoryFromLast}.`,
+          pushName,
+          { intent: 'orcamento', category: categoryFromLast, budgetLimit: budget }
+        );
+        return;
+      }
+    }
+  }
+
+  {
     const visualCategory = recentVisualCategory(conv);
     const wantsSimilar = asksSimilarVisualProducts(text);
     const confirmsSimilar = Boolean(
@@ -5526,8 +5956,8 @@ ${productCaption(product)}`
     return;
   }
 
-  if (/mais barato|mais em conta|baratinho|menor preco/.test(n) && conv.lastIntent === 'produto') {
-    const categoryFromLast = conv.lastProductQuery || conv.lastProducts?.[0]?.category || conv.lastProducts?.[0]?.name || '';
+  if (/mais barato|mais barata|mais em conta|baratinho|baratinha|menor preco/.test(n) && conv.lastIntent === 'produto') {
+    const categoryFromLast = conv.lastProductQuery || detectCategory(conv.lastProducts?.[0]?.name || '') || conv.lastProducts?.[0]?.category || '';
     if (categoryFromLast) {
       await showProducts(phone, conv, categoryFromLast, text);
       return;
@@ -6239,6 +6669,18 @@ export const __test = {
   asksStoreAssortment,
   asksHowToBuyFromStore,
   asksGenericStorePurchase,
+  parseCommercialMoneyValue,
+  extractBudgetLimit,
+  asksPriceObjection,
+  asksProductComparison,
+  comparisonOrdinalIndexes,
+  resolveComparisonProducts,
+  productObjectiveFacts,
+  productComparisonReply,
+  asksPausePurchaseDecision,
+  asksPurchaseClosing,
+  purchasePaymentMethod,
+  showCheaperAlternatives,
   isPixCopyPastePayload,
   asksExistingOrderStatus,
   asksDelivery,
