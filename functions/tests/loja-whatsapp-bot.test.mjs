@@ -4299,3 +4299,86 @@ test('nova intenção de venda após cobrança continua liberada e não força s
   assert.equal(sentMedia.length, 1);
   assert.match(sentMedia[0].caption || '', /Geladeira Electrolux 400L/i);
 });
+
+
+test('saudação natural dentro da cobrança responde curto e permanece no contexto financeiro', async () => {
+  const phone = '5533977777799';
+  bot.patchTestConversation(phone, {
+    dailyDueContextUntil: Date.now() + (6 * 60 * 60 * 1000),
+    dailyDueReminderAt: Date.now()
+  });
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'DAILY-DUE-GREETING-1'
+      },
+      pushName: 'Cliente Cobrança',
+      message: { conversation: 'oi boa tarde' }
+    }
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.collectionContext, true);
+  assert.equal(result.skipLegacy, true);
+  assert.equal(sentTexts.length, 1);
+  assert.equal(
+    sentTexts[0].text,
+    'Boa tarde 😊 Estou por aqui. Se precisar de algo sobre a parcela que vence hoje, é só me falar.'
+  );
+  assert.doesNotMatch(sentTexts[0].text, /valor, a chave PIX, o comprovante/i);
+});
+
+test('saudação com typo comum bopa tarde continua curta dentro da cobrança', async () => {
+  const phone = '5533977777800';
+  bot.patchTestConversation(phone, {
+    dailyDueContextUntil: Date.now() + (6 * 60 * 60 * 1000),
+    dailyDueReminderAt: Date.now()
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'oi bopa tarde',
+    pushName: 'Cliente Cobrança'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /^Boa tarde 😊 Estou por aqui\./);
+  assert.doesNotMatch(sentTexts[0].text, /valor, a chave PIX, o comprovante/i);
+});
+
+test('pedido genérico para ver produtos sai da cobrança e entra no atendimento de vendas', async () => {
+  const phone = '5533977777801';
+  bot.patchTestConversation(phone, {
+    dailyDueContextUntil: Date.now() + (6 * 60 * 60 * 1000),
+    dailyDueReminderAt: Date.now()
+  });
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'DAILY-DUE-GENERIC-CATALOG-1'
+      },
+      pushName: 'Cliente Cobrança',
+      message: { conversation: 'queria ver sobre produtos' }
+    }
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.skipLegacy, false);
+  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), false);
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Trabalhamos com \*móveis, eletrodomésticos, eletrônicos, celulares, informática e eletroportáteis\*/i);
+  assert.doesNotMatch(sentTexts[0].text, /Me conta um pouco mais do produto ou da condição/i);
+});
+
+test('emoji positivo com caractere invisível continua reconhecido como reação positiva', () => {
+  assert.equal(bot.emojiOnlyIntent('\u200e😊\u200f'), 'positive');
+  assert.equal(bot.emojiOnlyIntent('\u2060🙏\u2060'), 'positive');
+});
