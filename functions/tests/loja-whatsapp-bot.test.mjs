@@ -514,8 +514,9 @@ test('pedido vago para melhorar condição é entendido sem inventar desconto', 
   });
 
   assert.equal(bot.conversation(phone).pendingAction, 'special_condition_product');
-  assert.match(sentTexts.at(-1).text, /melhorar a condição de pagamento/i);
-  assert.match(sentTexts.at(-1).text, /análise do Marcelo|Marcelo analisar/i);
+  assert.match(sentTexts.at(-1).text, /melhorar essa condição/i);
+  assert.match(sentTexts.at(-1).text, /Marcelo analisar/i);
+  assert.ok(sentTexts.at(-1).text.length < 320, 'resposta deve ser curta e conversacional');
   assert.doesNotMatch(sentTexts.at(-1).text, /desconto aprovado|consigo fazer por/i);
 });
 
@@ -552,7 +553,7 @@ test('repetir pedido de condição não devolve fallback genérico idêntico', a
   });
   const secondReply = sentTexts.at(-1).text;
 
-  assert.match(firstReply, /melhorar a condição de pagamento/i);
+  assert.match(firstReply, /melhorar essa condição/i);
   assert.match(secondReply, /qual opção|qual dessas opções|qual opção você gostou|qual dessas opções você gostou/i);
   assert.notEqual(secondReply, firstReply);
 });
