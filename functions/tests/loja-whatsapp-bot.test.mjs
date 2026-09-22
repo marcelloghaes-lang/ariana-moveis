@@ -4054,3 +4054,62 @@ test('consulta de venda clara não é capturada pela sincronização da cobranç
   assert.equal(sentMedia.length, 1);
   assert.match(sentMedia[0].caption || '', /Geladeira Brastemp 375L/i);
 });
+
+
+test('resolveIncomingPhone prefere o telefone real quando remoteJid usa @lid', () => {
+  assert.equal(
+    bot.resolveIncomingPhone({
+      remoteJid: '229999999999999@lid',
+      key: { remoteJidAlt: '5533988905282@s.whatsapp.net' },
+      data: {},
+      payload: {}
+    }),
+    '5533988905282'
+  );
+
+  assert.equal(
+    bot.resolveIncomingPhone({
+      remoteJid: '229999999999999@lid',
+      key: {},
+      data: { senderPn: '5533988905282@s.whatsapp.net' },
+      payload: {}
+    }),
+    '5533988905282'
+  );
+});
+
+test('contexto de cobrança funciona em conversa LID usando remoteJidAlt do telefone real', async () => {
+  const phone = '5533988905282';
+  dailyDueContextResponse = {
+    ok: true,
+    active: true,
+    date: '2026-09-22',
+    status: 'sent',
+    sentAt: '2026-09-22T14:00:00.000Z'
+  };
+
+  await bot.handleWebhook({
+    event: 'messages.upsert',
+    data: {
+      key: {
+        remoteJid: '229999999999999@lid',
+        remoteJidAlt: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'LID-DAILY-DUE-1'
+      },
+      pushName: 'Marcelo Teste',
+      message: { conversation: 'ok' }
+    }
+  });
+
+  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), true);
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /parcela que vence hoje/i);
+  assert.doesNotMatch(sentTexts[0].text, /produto ou da condição que você precisa/i);
+
+  const lookup = requestLog.find((item) =>
+    item.href === 'https://backend.test/api/bot/financeiro/vencimento-hoje/contexto'
+  );
+  assert.ok(lookup, 'deve consultar o contexto pelo telefone real');
+  assert.match(String(lookup.options.body || ''), /5533988905282/);
+});
