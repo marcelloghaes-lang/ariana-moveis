@@ -5130,6 +5130,50 @@ ${productCaption(product)}`
   });
 }
 
+function phoneFromWhatsappAddress(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (raw.includes('@g.us') || raw.includes('status@broadcast') || raw.endsWith('@lid')) return '';
+
+  const localPart = raw.includes('@') ? raw.split('@')[0] : raw;
+  const valueDigits = digits(localPart);
+
+  return valueDigits.length >= 10 && valueDigits.length <= 13 ? valueDigits : '';
+}
+
+function resolveIncomingPhone({ remoteJid = '', key = {}, data = {}, payload = {} } = {}) {
+  const directPhone = phoneFromWhatsappAddress(remoteJid);
+
+  const alternateCandidates = [
+    key?.remoteJidAlt,
+    data?.remoteJidAlt,
+    payload?.remoteJidAlt,
+    key?.participantAlt,
+    data?.participantAlt,
+    payload?.participantAlt,
+    key?.senderPn,
+    data?.senderPn,
+    payload?.senderPn,
+    key?.participantPn,
+    data?.participantPn,
+    payload?.participantPn,
+    data?.sender,
+    payload?.sender
+  ];
+
+  const alternatePhone = alternateCandidates
+    .map(phoneFromWhatsappAddress)
+    .find(Boolean) || '';
+
+  // Em conversas LID, o número presente em remoteJid é um identificador interno
+  // do WhatsApp e não deve ser usado como telefone do cliente.
+  if (String(remoteJid || '').endsWith('@lid')) {
+    return alternatePhone;
+  }
+
+  return directPhone || alternatePhone;
+}
+
 function extractIncoming(payload = {}) {
   const data = payload?.data || payload;
   const key = data?.key || payload?.key || {};
@@ -5192,9 +5236,11 @@ function extractIncoming(payload = {}) {
     )
   );
 
+  const phone = resolveIncomingPhone({ remoteJid, key, data, payload });
+
   return {
     remoteJid,
-    phone: digits(remoteJid.split('@')[0]),
+    phone,
     fromMe,
     id,
     pushName,
@@ -5617,6 +5663,8 @@ export const __test = {
   asksDelivery,
   asksFinance,
   isDailyDueReminderOutbound,
+  phoneFromWhatsappAddress,
+  resolveIncomingPhone,
   fetchDailyDueReminderContext,
   syncDailyDueContextFromBackend,
   asksDailyDueSubjectChange,
