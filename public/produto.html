@@ -83,11 +83,11 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
 <style>
 
 #product-old-price {
-    color: #999;
-    font-weight: 400;
-    font-size: 16px;
-    text-decoration: line-through;
-    display: none; /* Ele começa escondido e o JS mostra se houver preço */
+    color: #6b7280;
+    font-weight: 500;
+    font-size: 14px;
+    text-decoration: none;
+    display: none;
 }
 
         /* CORREÇÃO PROVISÓRIA PARA A SOBRA LATERAL */
@@ -1845,39 +1845,47 @@ async function loadPaymentsSettingsForProduct() {
         }
 
         function applyDetailPricingToUI(pricing) {
-            // O valor cheio é o preço total no cartão, não um preço antigo.
+            // O valor "original" desta tela é o preço vigente no cartão/a prazo.
+            // Não deve aparecer riscado como se fosse um preço antigo/promocional.
             const oldPriceEl = document.getElementById('product-old-price');
             if (oldPriceEl) {
-                if (pricing.discountPercent > 0 && pricing.original > pricing.cash) {
-                    oldPriceEl.innerText = `Preço no cartão: ${pricing.originalFormatted}`;
-                    oldPriceEl.className = 'text-sm text-gray-500 font-semibold';
-                    oldPriceEl.style.display = 'block';
-                } else {
-                    oldPriceEl.style.display = 'none';
-                }
+                oldPriceEl.textContent = '';
+                oldPriceEl.style.display = 'none';
+                oldPriceEl.style.textDecoration = 'none';
             }
 
-            // Preço Principal (Grande)
+            // Padrão de marketplace: preço à vista em destaque e desconto
+            // explicitamente vinculado ao PIX, evitando "OFF" genérico.
             const priceFullEl = document.getElementById('product-price-full');
             if (priceFullEl) {
-                const off = (pricing.discountPercent > 0) ? `${pricing.discountPercent}% OFF` : '';
+                const pixBadge = (pricing.discountPercent > 0)
+                    ? `<span class="inline-flex items-center text-green-600 text-sm sm:text-base ml-2 font-semibold">${pricing.discountPercent}% OFF no Pix</span>`
+                    : '';
+
                 priceFullEl.innerHTML = `
                     <span class="text-2xl font-normal mr-1">R$</span>
                     ${pricing.cashValueFormatted.replace('R$', '').trim()}
-                    ${off ? `<span class="text-green-500 text-lg ml-2 font-semibold">${off}</span>` : ``}
+                    ${pixBadge}
                 `;
             }
 
-            // Texto do PIX
+            // Evita repetir o mesmo valor em duas linhas. Mantém apenas
+            // a identificação inequívoca da condição à vista.
             const priceCashEl = document.getElementById('product-price-cash');
             if (priceCashEl) {
-                priceCashEl.innerHTML = `<i class="fas fa-bolt mr-1"></i> ${pricing.cashValueFormatted} no PIX à vista`;
+                priceCashEl.innerHTML = '<span class="font-semibold">à vista no Pix</span>';
+                priceCashEl.className = 'text-sm text-green-600 font-semibold';
+                priceCashEl.style.display = 'block';
             }
 
-            // Parcelamento abaixo do preço principal/PIX, calculado pelo valor cheio/a prazo.
+            // Mostra primeiro o total vigente no cartão e depois a parcela.
+            // Assim o consumidor vê, sem fazer conta, quanto custa em cada forma.
             const installmentsEl = document.getElementById('product-price-installments');
             if (installmentsEl) {
-                installmentsEl.innerHTML = `${pricing.installmentsText}<br><span class="text-gray-500 text-sm">${pricing.totalPrazoText}</span>`;
+                installmentsEl.innerHTML = `
+                    <span class="block text-gray-700">ou <strong>${pricing.originalFormatted}</strong> no cartão</span>
+                    <span class="block mt-1 text-gray-700">${pricing.installmentsText.replace(/^ou\s+/i, '')}</span>
+                `;
             }
         }
 
