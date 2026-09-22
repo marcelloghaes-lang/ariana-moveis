@@ -3906,6 +3906,28 @@ test('referência vaga recupera produto antigo depois que a conversa curta expir
   assert.doesNotMatch(sentTexts.at(-1).text, /me diga qual produto/i);
 });
 
+test('memória comercial entende cotação de cartão mesmo com referência longa ao produto', () => {
+  assert.equal(
+    bot.rememberedProductPaymentIntent('quanto fica aquele que eu tava olhando no cartão?'),
+    'card'
+  );
+  assert.equal(
+    bot.rememberedProductPaymentIntent('qual o valor daquela geladeira que eu gostei no crédito?'),
+    'card'
+  );
+});
+
+test('memória comercial entende PIX e crediário em referências longas', () => {
+  assert.equal(
+    bot.rememberedProductPaymentIntent('quanto fica aquele que eu te falei no pix?'),
+    'pix'
+  );
+  assert.equal(
+    bot.rememberedProductPaymentIntent('aquele sofá que eu tava olhando em 10x no carnê'),
+    'credit'
+  );
+});
+
 test('referência vaga sozinha confirma o produto lembrado de forma natural', async () => {
   const phone = '5533977777902';
   const item = bot.compactProduct(product('mem-geladeira-1', 'REFRIGERADOR CONSUL 451L', {
