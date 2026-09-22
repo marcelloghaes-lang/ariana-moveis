@@ -2317,7 +2317,7 @@ function isPositiveWellbeingReply(text = '') {
     .replace(/\s+/g, ' ')
     .trim();
 
-  if (!n || /\b(nao|ruim|mal|mais ou menos|doente|passando mal)\b/.test(n)) return false;
+  if (!n || asksBotWellbeingQuestion(text) || /\b(nao|ruim|mal|mais ou menos|doente|passando mal)\b/.test(n)) return false;
 
   return (
     /^(?:eu\s+)?(?:to|tou|estou|ta|esta)?\s*(?:bem|otimo|otima)(?:\s+(?:tambem|tbm))?(?:\s+gracas a deus)?(?:\s+(?:obrigado|obrigada))?(?:\s+e (?:voce|vc))?$/.test(n) ||
