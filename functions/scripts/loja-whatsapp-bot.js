@@ -3243,7 +3243,7 @@ async function handlePending(phone, text, conv) {
       saveStateSoon();
       await sendText(
         phone,
-        'Entendi 😊 Você quer ver se dá para melhorar a condição de pagamento. Eu consigo te passar as condições oficiais certinhas; para qualquer condição diferente, preciso deixar para análise do Marcelo. Qual dessas opções você gostou? Pode me dizer *“o primeiro”*, *“o segundo”*, *“o terceiro”* ou o nome/modelo.'
+        'Entendi 😊 Você quer ver se consigo melhorar essa condição. Me fala qual dessas opções você gostou — pode ser *“a primeira”*, *“a segunda”*, *“a terceira”* ou o nome do modelo. Aí eu confiro as condições certinhas para você. Se precisar de algo diferente do padrão, deixo para o Marcelo analisar.'
       );
       return true;
     }
@@ -4111,7 +4111,7 @@ async function handleMessage({ phone, text, pushName = '' }) {
       saveStateSoon();
       await sendText(
         phone,
-        'Entendi 😊 Você quer ver se dá para melhorar a condição de pagamento. Eu consigo te passar as condições oficiais certinhas; para qualquer condição diferente, preciso deixar para análise do Marcelo. Qual dessas opções você gostou? Pode me dizer *“o primeiro”*, *“o segundo”*, *“o terceiro”* ou o nome/modelo.'
+        'Entendi 😊 Você quer ver se consigo melhorar essa condição. Me fala qual dessas opções você gostou — pode ser *“a primeira”*, *“a segunda”*, *“a terceira”* ou o nome do modelo. Aí eu confiro as condições certinhas para você. Se precisar de algo diferente do padrão, deixo para o Marcelo analisar.'
       );
       return;
     }
