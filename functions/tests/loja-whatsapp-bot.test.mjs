@@ -386,6 +386,152 @@ test('resposta positiva com "e você?" responde ao cliente antes de seguir para 
   }
 });
 
+test('contexto curto é limitado, estruturado e não guarda transcrição bruta de áudio', () => {
+  const phone = '5533977777935';
+  const conv = bot.conversation(phone);
+
+  bot.rememberShortConversationTurn(conv, 'oi boa noite');
+  bot.rememberShortConversationTurn(conv, 'tô bem');
+  bot.rememberShortConversationTurn(conv, 'quero uma tv');
+  bot.rememberShortConversationTurn(conv, 'a primeira');
+  bot.rememberShortConversationTurn(conv, 'e no cartão?');
+  bot.rememberShortConversationTurn(conv, 'não, a outra');
+  bot.rememberShortConversationTurn(
+    conv,
+    'não deu pra mandar no PIX, é o dinheiro da prestação',
+    { source: 'audio' }
+  );
+
+  const turns = bot.recentShortConversationTurns(conv);
+  assert.equal(turns.length, 6);
+  assert.equal(turns.at(-1).source, 'audio');
+  assert.equal(turns.at(-1).kind, 'finance');
+  assert.equal(turns.at(-1).paymentMethod, 'pix');
+  assert.equal(turns.at(-1).excerpt, '');
+  assert.equal(turns.some((turn) => /dinheiro da prestação/i.test(turn.excerpt || '')), false);
+
+  const semanticContext = bot.intentConversationContext(conv, { excludeLatest: true });
+  assert.equal(semanticContext.recentTurns.length, 5);
+  assert.equal(
+    semanticContext.recentTurns.some((turn) => turn.reference === 'other'),
+    true
+  );
+});
+
+test('conversa longa mantém continuidade entre saudação, áudio, produto, troca de opção e pagamentos', async () => {
+  const phone = '5533977777934';
+
+  catalogRows = [
+    product('tv-long-1', 'Smart TV 50 LG 4K', {
+      category: 'TV',
+      pixPrice: 1999,
+      cardPrice: 2400,
+      stock: 3
+    }),
+    product('tv-long-2', 'Smart TV 50 Samsung Crystal', {
+      category: 'TV',
+      pixPrice: 2199,
+      cardPrice: 2640,
+      stock: 2
+    })
+  ];
+
+  await bot.handleMessage({
+    phone,
+    text: 'oi boa noite',
+    pushName: 'Cliente Longo'
+  });
+  assert.match(sentTexts.at(-1).text, /^Boa noite, Cliente! 😊 Tudo bem\?/i);
+
+  await bot.handleMessage({
+    phone,
+    text: 'beleza e você?',
+    pushName: 'Cliente Longo'
+  });
+  assert.match(sentTexts.at(-1).text, /Por aqui tá tudo ótimo também/i);
+
+  audioTranscriptionText = 'Quero olhar uma TV de 50 polegadas';
+  mediaBase64Response = {
+    mimetype: 'audio/ogg; codecs=opus',
+    base64: 'T2dnUwBmYWtlLWF1ZGlvLWxvbmc='
+  };
+
+  const audioResult = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'AUDIO-LONG-DIALOG-1'
+      },
+      pushName: 'Cliente Longo',
+      message: {
+        audioMessage: {
+          mimetype: 'audio/ogg; codecs=opus',
+          seconds: 8,
+          ptt: true
+        }
+      }
+    }
+  });
+
+  assert.equal(audioResult.audio, 'audio_transcribed');
+  assert.equal(bot.conversation(phone).lastProducts.length, 2);
+
+  await bot.handleMessage({ phone, text: 'a primeira', pushName: 'Cliente Longo' });
+  assert.match(sentTexts.at(-1).text, /Smart TV 50 LG 4K/i);
+
+  await bot.handleMessage({ phone, text: 'quanto fica no pix?', pushName: 'Cliente Longo' });
+  assert.match(sentTexts.at(-1).text, /Smart TV 50 LG 4K/i);
+  assert.match(sentTexts.at(-1).text, /R\$ 1\.999,00/i);
+
+  await bot.handleMessage({ phone, text: 'e no cartão?', pushName: 'Cliente Longo' });
+  assert.match(sentTexts.at(-1).text, /Smart TV 50 LG 4K/i);
+
+  await bot.handleMessage({ phone, text: 'não, a outra', pushName: 'Cliente Longo' });
+  assert.match(sentTexts.at(-1).text, /outra opção/i);
+  assert.match(sentTexts.at(-1).text, /Smart TV 50 Samsung Crystal/i);
+  assert.equal(bot.conversation(phone).selectedProduct.name, 'Smart TV 50 Samsung Crystal');
+
+  await bot.handleMessage({ phone, text: 'e no cartão?', pushName: 'Cliente Longo' });
+  assert.match(sentTexts.at(-1).text, /Smart TV 50 Samsung Crystal/i);
+
+  await bot.handleMessage({ phone, text: 'e no boleto?', pushName: 'Cliente Longo' });
+  assert.match(sentTexts.at(-1).text, /Em quantas vezes/i);
+
+  await bot.handleMessage({ phone, text: '10x', pushName: 'Cliente Longo' });
+  assert.match(sentTexts.at(-1).text, /Smart TV 50 Samsung Crystal/i);
+  assert.match(sentTexts.at(-1).text, /10x/i);
+
+  const mediaBefore = sentMedia.length;
+  await bot.handleMessage({ phone, text: 'manda foto dela pra eu ver', pushName: 'Cliente Longo' });
+  assert.equal(sentMedia.length, mediaBefore + 1);
+  assert.match(sentMedia.at(-1).caption || '', /Smart TV 50 Samsung Crystal/i);
+
+  await bot.handleMessage({ phone, text: 'vou pensar', pushName: 'Cliente Longo' });
+  assert.match(sentTexts.at(-1).text, /continuo com você de onde paramos/i);
+
+  await bot.handleMessage({ phone, text: 'oi', pushName: 'Cliente Longo' });
+  assert.match(sentTexts.at(-1).text, /Tudo bem\?/i);
+
+  await bot.handleMessage({ phone, text: 'tô bem', pushName: 'Cliente Longo' });
+  assert.match(sentTexts.at(-1).text, /O que você tá precisando pra hoje/i);
+
+  await bot.handleMessage({ phone, text: 'aquele que eu vi', pushName: 'Cliente Longo' });
+  assert.match(sentTexts.at(-1).text, /Smart TV 50 Samsung Crystal/i);
+
+  await bot.handleMessage({ phone, text: 'e no pix?', pushName: 'Cliente Longo' });
+  assert.match(sentTexts.at(-1).text, /Smart TV 50 Samsung Crystal/i);
+  assert.match(sentTexts.at(-1).text, /R\$ 2\.199,00/i);
+
+  assert.equal(
+    sentTexts.some((item) => /me conta um pouco mais do produto ou da condição/i.test(item.text || '')),
+    false,
+    'conversa longa não deve perder contexto e cair no fallback genérico'
+  );
+  assert.ok(bot.recentShortConversationTurns(bot.conversation(phone)).length <= 6);
+});
+
 test('resposta neutra à pergunta de cortesia usa acolhimento curto sem "Ah, que bom"', async () => {
   const replies = [
     'mais ou menos',
