@@ -4199,12 +4199,15 @@ test('sequência de emojis positivos na cobrança não gera uma resposta para ca
 
 test('cobrança do dia sinaliza skipLegacy para impedir segunda resposta do fluxo antigo', async () => {
   const phone = '5533988905282';
-  bot.patchTestConversation(phone, {
+  const alias = '553388905282';
+  const contextPatch = {
     dailyDueContextUntil: Date.now() + (6 * 60 * 60 * 1000),
     dailyDueReminderAt: Date.now(),
     dailyDueCourtesyAt: 0,
     dailyDueCourtesyCount: 0
-  });
+  };
+  bot.patchTestConversation(phone, contextPatch);
+  bot.patchTestConversation(alias, contextPatch);
 
   const result = await bot.handleWebhook({
     event: 'MESSAGES_UPSERT',
