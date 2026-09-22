@@ -1,0 +1,6 @@
+# Netlify intentionally disabled for Git-triggered builds.
+# Production frontend is served by the Render Static Site: ariana-moveis-oficial.
+# This prevents duplicate Netlify production/preview deploys while preserving
+# the existing Netlify project until it can be disconnected at account level.
+[build]
+  ignore = "exit 0"
