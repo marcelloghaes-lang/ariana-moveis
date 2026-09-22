@@ -99,6 +99,7 @@ const STATE_FILE = String(process.env.LOJA_BOT_STATE_FILE || '/root/loja-bot-sta
 const HUMAN_TTL_MS = Math.max(1, Number(process.env.LOJA_HUMAN_TTL_HOURS || 12)) * 60 * 60 * 1000;
 const MANUAL_HUMAN_PAUSE_MS = Math.max(1, Number(process.env.LOJA_MANUAL_HUMAN_PAUSE_MINUTES || 60)) * 60 * 1000;
 const REVIEW_CONTEXT_TTL_MS = Math.max(1, Number(process.env.LOJA_REVIEW_CONTEXT_HOURS || 12)) * 60 * 60 * 1000;
+const SPECIAL_CONDITION_MARCELO_TTL_MS = Math.max(1, Number(process.env.LOJA_SPECIAL_CONDITION_MARCELO_MINUTES || 10)) * 60 * 1000;
 const LEGACY_WEBHOOK_URL = String(process.env.LOJA_LEGACY_WEBHOOK_URL || '').trim();
 const LEGACY_WEBHOOK_BY_EVENTS = ['1', 'true', 'yes', 'on'].includes(
   String(process.env.LOJA_LEGACY_WEBHOOK_BY_EVENTS || '').trim().toLowerCase()
@@ -400,6 +401,7 @@ function conversation(phone) {
       reviewCount: 0,
       marceloCallbackRequested: false,
       marceloCallbackRequestedAt: 0,
+      specialConditionMarceloUntil: 0,
       creditOrderWaitingMarcelo: false,
       lastIntent: ''
     };
@@ -413,6 +415,7 @@ function conversation(phone) {
   if (typeof conv.reviewMessage !== 'string') conv.reviewMessage = '';
   if (typeof conv.marceloCallbackRequested !== 'boolean') conv.marceloCallbackRequested = false;
   if (!Number.isFinite(Number(conv.marceloCallbackRequestedAt))) conv.marceloCallbackRequestedAt = 0;
+  if (!Number.isFinite(Number(conv.specialConditionMarceloUntil))) conv.specialConditionMarceloUntil = 0;
 
   if (
     conv.reviewNeeded &&
@@ -1742,17 +1745,36 @@ function asksPresencePing(text) {
   );
 }
 
+function markSpecialConditionMarceloContext(conv) {
+  if (!conv) return;
+  conv.specialConditionMarceloUntil = Date.now() + SPECIAL_CONDITION_MARCELO_TTL_MS;
+}
+
+function hasSpecialConditionMarceloContext(conv) {
+  return Number(conv?.specialConditionMarceloUntil || 0) > Date.now();
+}
+
+function clearSpecialConditionMarceloContext(conv) {
+  if (!conv) return;
+  conv.specialConditionMarceloUntil = 0;
+}
+
 function asksMarceloAfterCondition(text) {
   const n = normalize(text)
     .replace(/[!?.,;:]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
+  const person = '(?:ele|o\\s+marcelo|marcelo|o\\s+macelo|macelo|o\\s+marcello|marcello)';
+
   return (
-    /\b(eu\s+)?(posso|poderia|consigo|conseguiria)\s+falar\s+com\s+(ele|o\s+marcelo|marcelo|o\s+macelo|macelo|o\s+marcello|marcello)\b/.test(n) ||
-    /\b(quero|queria|gostaria)\s+falar\s+com\s+(ele|o\s+marcelo|marcelo|o\s+macelo|macelo|o\s+marcello|marcello)\b/.test(n) ||
-    /\b(voce|vc)?\s*(pode\s+)?(chama|chamar|chame)\s+(o\s+)?(marcelo|macelo|marcello)\b/.test(n) ||
-    /\b(consegue|poderia)\s+chamar\s+(o\s+)?(marcelo|macelo|marcello)\b/.test(n)
+    new RegExp('\\b(?:eu\\s+)?(?:posso|poderia|consigo|conseguiria)\\s+falar\\s+com\\s+' + person + '\\b').test(n) ||
+    new RegExp('\\b(?:quero|queria|gostaria)\\s+falar\\s+com\\s+' + person + '\\b').test(n) ||
+    new RegExp('\\b(?:deixa|deixe|deixar|me\\s+deixa|me\\s+deixe)\\s+(?:eu\\s+)?falar\\s+com\\s+' + person + '\\b').test(n) ||
+    new RegExp('^falar\\s+com\\s+' + person + '$').test(n) ||
+    new RegExp('\\b(?:voce|vc)?\\s*(?:pode\\s+)?(?:chama|chamar|chame)\\s+(?:o\\s+)?(?:marcelo|macelo|marcello)\\b').test(n) ||
+    /\b(?:voce|vc)?\s*(?:pode\s+)?(?:chama|chamar|chame)\s+ele\b/.test(n) ||
+    /\b(?:consegue|poderia)\s+chamar\s+(?:o\s+)?(?:marcelo|macelo|marcello)\b/.test(n)
   );
 }
 
@@ -3254,6 +3276,7 @@ async function handlePending(phone, text, conv) {
   if (conv.pendingAction === 'card_price_product') {
     if (asksPaymentConditionAdjustment(text, conv)) {
       conv.pendingAction = 'special_condition_product';
+      markSpecialConditionMarceloContext(conv);
       saveStateSoon();
       await sendText(
         phone,
@@ -3303,28 +3326,6 @@ async function handlePending(phone, text, conv) {
   }
 
   if (conv.pendingAction === 'special_condition_product') {
-    if (asksMarceloAfterCondition(text)) {
-      conv.pendingAction = '';
-      conv.marceloCallbackRequested = true;
-      conv.marceloCallbackRequestedAt = Date.now();
-      saveStateSoon();
-
-      await sendText(
-        phone,
-        'Vou precisar que você aguarde um instante 😊 O Marcelo precisou fazer um trabalho na rua e já já está de volta para terminar de te atender. Enquanto isso, gostaria de olhar mais algum produto?'
-      );
-
-      await syncTicket(phone, {
-        status: 'Aguardando retorno do Marcelo',
-        message: text,
-        metadata: {
-          assunto: 'condicao_especial_aguardando_marcelo',
-          atendimentoAutomaticoContinua: true
-        }
-      });
-      return true;
-    }
-
     const ord = ordinalIndex(text);
     let product = null;
 
@@ -3346,6 +3347,7 @@ async function handlePending(phone, text, conv) {
 
     conv.selectedProduct = product;
     conv.pendingAction = '';
+    markSpecialConditionMarceloContext(conv);
     saveStateSoon();
 
     const full = productFullPrice(product);
@@ -3609,6 +3611,31 @@ async function handleMessage({ phone, text, pushName = '' }) {
       });
       return;
     }
+  }
+
+  if (hasSpecialConditionMarceloContext(conv) && asksMarceloAfterCondition(text)) {
+    conv.pendingAction = '';
+    conv.humanUntil = 0;
+    clearSpecialConditionMarceloContext(conv);
+    conv.marceloCallbackRequested = true;
+    conv.marceloCallbackRequestedAt = Date.now();
+    saveStateSoon();
+
+    await sendText(
+      phone,
+      'Vou precisar que você aguarde um instante 😊 O Marcelo precisou fazer um trabalho na rua e já já está de volta para terminar de te atender. Enquanto isso, gostaria de olhar mais algum produto?'
+    );
+
+    await syncTicket(phone, {
+      status: 'Aguardando retorno do Marcelo',
+      message: text,
+      name: pushName,
+      metadata: {
+        assunto: 'condicao_especial_aguardando_marcelo',
+        atendimentoAutomaticoContinua: true
+      }
+    });
+    return;
   }
 
   if (await handlePending(phone, text, conv)) return;
@@ -4144,6 +4171,7 @@ async function handleMessage({ phone, text, pushName = '' }) {
   if (asksPaymentConditionAdjustment(text, conv)) {
     if (Array.isArray(conv.lastProducts) && conv.lastProducts.length > 1 && !conv.selectedProduct) {
       conv.pendingAction = 'special_condition_product';
+      markSpecialConditionMarceloContext(conv);
       saveStateSoon();
       await sendText(
         phone,
@@ -4160,6 +4188,7 @@ async function handleMessage({ phone, text, pushName = '' }) {
 
     if (product) {
       conv.selectedProduct = product;
+      markSpecialConditionMarceloContext(conv);
       saveStateSoon();
       const full = productFullPrice(product);
       const count = Math.max(1, Number(product.installmentCount || 12));
@@ -4559,6 +4588,8 @@ export const __test = {
   asksPresencePing,
   asksMarceloOrCallback,
   asksMarceloAfterCondition,
+  markSpecialConditionMarceloContext,
+  hasSpecialConditionMarceloContext,
   isReferralOrPraise,
   wantsHuman,
   asksPaymentMethods,
