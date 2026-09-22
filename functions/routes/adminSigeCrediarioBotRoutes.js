@@ -11971,6 +11971,50 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     }
   }
 
+  function botSaoPauloDateKey(date = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(date);
+    const pick = (type) => parts.find((part) => part.type === type)?.value || '';
+    return `${pick('year')}-${pick('month')}-${pick('day')}`;
+  }
+
+  app.post('/api/bot/financeiro/vencimento-hoje/contexto', lojaBotAccessRequired, async (req, res) => {
+    try {
+      const phone = normalizePhone(
+        req.body?.phone || req.body?.telefone || req.body?.number || '',
+        '55'
+      );
+
+      if (!phone) {
+        return res.status(400).json({ ok: false, error: 'Telefone inválido.' });
+      }
+
+      const date = botSaoPauloDateKey(new Date());
+      const key = `erp_daily_due_whatsapp:${date}:${phone}`;
+      const setting = await Setting.findOne({ key }).lean().catch(() => null);
+      const status = String(setting?.value?.status || '').trim().toLowerCase();
+      const active = ['sending', 'sent'].includes(status);
+
+      return res.json({
+        ok: true,
+        active,
+        date,
+        status: active ? status : '',
+        sentAt: active ? (setting?.value?.sentAt || setting?.value?.attemptedAt || null) : null
+      });
+    } catch (error) {
+      console.error('[bot:loja] erro ao verificar contexto de vencimento do dia:', error);
+      return res.status(500).json({
+        ok: false,
+        error: error.message || 'Erro ao verificar contexto do vencimento do dia.'
+      });
+    }
+  });
+
   app.get('/api/bot/financeiro/contas-receber', lojaBotAccessRequired, botFinanceiroContasReceberHandler);
   app.post('/api/bot/financeiro/contas-receber', lojaBotAccessRequired, botFinanceiroContasReceberHandler);
 
