@@ -11982,6 +11982,23 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     return `${pick('year')}-${pick('month')}-${pick('day')}`;
   }
 
+  function botBrazilWhatsappPhoneAliases(value = '') {
+    const phone = String(value || '').replace(/\D/g, '');
+    if (!phone) return [];
+
+    const aliases = new Set([phone]);
+
+    if (phone.startsWith('55')) {
+      if (phone.length === 13 && phone[4] === '9') {
+        aliases.add(phone.slice(0, 4) + phone.slice(5));
+      } else if (phone.length === 12 && /[6-9]/.test(phone[4] || '')) {
+        aliases.add(phone.slice(0, 4) + '9' + phone.slice(4));
+      }
+    }
+
+    return [...aliases];
+  }
+
   app.post('/api/bot/financeiro/vencimento-hoje/contexto', lojaBotAccessRequired, async (req, res) => {
     try {
       const phone = normalizePhone(
@@ -11994,8 +12011,12 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       }
 
       const date = botSaoPauloDateKey(new Date());
-      const key = `erp_daily_due_whatsapp:${date}:${phone}`;
-      const setting = await Setting.findOne({ key }).lean().catch(() => null);
+      const aliases = botBrazilWhatsappPhoneAliases(phone);
+      const keys = aliases.map((alias) => `erp_daily_due_whatsapp:${date}:${alias}`);
+      const settings = await Setting.find({ key: { $in: keys } }).lean().catch(() => []);
+      const setting = settings.find((item) =>
+        ['sending', 'sent'].includes(String(item?.value?.status || '').trim().toLowerCase())
+      ) || settings[0] || null;
       const status = String(setting?.value?.status || '').trim().toLowerCase();
       const active = ['sending', 'sent'].includes(status);
 
