@@ -3186,6 +3186,13 @@ test('áudio com promessa condicional de pagamento é registrado para o Marcelo 
   const phone = '5533923333499';
 
   audioTranscriptionText = 'Marcelo, boa tarde. Olha, a mamãe falou que se ela pegar um dinheiro da Danda, tá lá que ela deixou para você, e o dia que eu receber aqui, meu amor, eu já mando para você, viu?';
+
+  assert.equal(
+    bot.isPaymentHandoffNotice(audioTranscriptionText),
+    false,
+    'promessa futura não pode ser confundida com dinheiro já entregue'
+  );
+
   mediaBase64Response = {
     mimetype: 'audio/ogg; codecs=opus',
     base64: 'T2dnUwBmYWtlLWF1ZGlvLXByb21lc3Nh'
