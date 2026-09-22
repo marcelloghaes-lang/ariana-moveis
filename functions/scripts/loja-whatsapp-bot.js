@@ -3417,7 +3417,9 @@ function clearPendingCreditInstallments(conv) {
 
 function asksGenericInstallmentQuote(text) {
   const n = normalize(text);
-  const mentionsInstallment = /\b(parcelado|parcelada|parcelar|parcelamento|parcelas|prestacoes)\b/.test(n);
+  const mentionsInstallment =
+    /\b(parcelado|parcelada|parcelar|parcelamento|parcela|parcelas|prestacao|prestacoes)\b/.test(n) ||
+    /\b(no prazo|a prazo)\b/.test(n);
   const explicitMethod = /\b(cartao|boleto|carne|crediario|pix)\b/.test(n);
   return mentionsInstallment && !explicitMethod;
 }
@@ -4124,8 +4126,8 @@ function asksThisShownProduct(text) {
   if (/\b(esse|este) mes\b/.test(n)) return false;
 
   return (
-    /\b(esse|essa)\b.{0,28}\b(\d{1,2}\s*x|boleto|carne|crediario|cartao|pix|parcelado|parcela|valor|quanto fica)\b/.test(n) ||
-    /\b(quanto fica|qual o valor|valor)\b.{0,28}\b(esse|essa|desse|dessa)\b/.test(n)
+    /\b(esse|essa)\b.{0,80}\b(\d{1,2}\s*x|boleto|carne|crediario|cartao|pix|parcelado|parcela|parcelas|prestacao|prestacoes|valor|quanto fica|no prazo|a prazo)\b/.test(n) ||
+    /\b(quanto fica|qual o valor|valor|prestacao|prestacoes|parcela|parcelas)\b.{0,50}\b(esse|essa|desse|dessa|dele|dela)\b/.test(n)
   );
 }
 
@@ -5848,14 +5850,14 @@ ${productCaption(product)}`
     asksGenericInstallmentQuote(text) &&
     (
       (ord >= 0 && Array.isArray(conv.lastProducts) && conv.lastProducts[ord]) ||
-      (asksLastShownProduct(text) && Array.isArray(conv.lastProducts) && conv.lastProducts.length) ||
+      ((asksLastShownProduct(text) || asksThisShownProduct(text)) && Array.isArray(conv.lastProducts) && conv.lastProducts.length) ||
       mentionedProduct ||
       conv.selectedProduct
     )
   ) {
     const product = ord >= 0 && conv.lastProducts[ord]
       ? conv.lastProducts[ord]
-      : asksLastShownProduct(text) && conv.lastProducts.length
+      : (asksLastShownProduct(text) || asksThisShownProduct(text)) && conv.lastProducts.length
         ? conv.lastProducts[conv.lastProducts.length - 1]
         : mentionedProduct || conv.selectedProduct;
 
