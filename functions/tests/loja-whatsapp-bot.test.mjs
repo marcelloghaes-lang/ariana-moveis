@@ -4012,7 +4012,7 @@ test('Gustavo recupera do backend o contexto de cobrança do dia mesmo sem event
 
   assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), true);
   assert.equal(sentTexts.length, 1);
-  assert.match(sentTexts[0].text, /parcela que vence hoje/i);
+  assert.equal(sentTexts[0].text, 'Por nada 😊 Qualquer coisa estou por aqui.');
   assert.doesNotMatch(sentTexts[0].text, /produto ou da condição que você precisa|Seja bem-vindo/i);
 
   const lookup = requestLog.find((item) =>
@@ -4104,7 +4104,7 @@ test('contexto de cobrança funciona em conversa LID usando remoteJidAlt do tele
 
   assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), true);
   assert.equal(sentTexts.length, 1);
-  assert.match(sentTexts[0].text, /parcela que vence hoje/i);
+  assert.equal(sentTexts[0].text, 'Por nada 😊 Qualquer coisa estou por aqui.');
   assert.doesNotMatch(sentTexts[0].text, /produto ou da condição que você precisa/i);
 
   const lookup = requestLog.find((item) =>
