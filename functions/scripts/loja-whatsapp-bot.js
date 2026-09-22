@@ -2232,21 +2232,26 @@ function asksPaymentPromiseUpdate(text) {
     /\b(dinheiro|pagamento|pagar|pago|parcela|prestacao|notinha|carne|boleto|pix|reais?)\b/.test(n) ||
     /\b\d{2,6}(?:[.,]\d{1,2})?\b/.test(n);
 
-  const dateContext =
+  const fixedDateContext =
     /\b(hoje|amanha|segunda|terca|quarta|quinta|sexta|sabado|domingo|semana|quinzena)\b/.test(n) ||
     /\bdia\s+\d{1,2}\b/.test(n) ||
     /\bate\s+(?:hoje|amanha|segunda|terca|quarta|quinta|sexta|sabado|domingo)\b/.test(n);
 
-  const promiseContext =
+  const conditionalDateContext =
+    /\b(?:quando|assim que|no dia que|o dia que)\b.{0,40}\b(?:receber|recebo|cair|cai|entrar|entra|pegar|pego)\b/.test(n) ||
+    /\b(?:se|quando)\b.{0,35}\b(?:pegar|receber|cair|entrar)\b.{0,30}\bdinheiro\b/.test(n);
+
+  const explicitPromise =
     /\bsem falta\b/.test(n) ||
     /\b(?:ta|esta) na mao\b/.test(n) ||
     /\b(?:vou|vai)\s+(?:te\s+|me\s+)?(?:passar|passa|pagar|mandar|enviar)\b/.test(n) ||
+    /\b(?:eu\s+)?(?:ja\s+)?(?:mando|pago|passo|envio)\s+(?:pra|para|a)?\s*(?:voce|vc|te)?\b/.test(n) ||
     /\b(?:nao|n) deu certo\b/.test(n) ||
     /\bcaso (?:nao|n) der certo\b/.test(n) ||
     /\bcontando com (?:um |o )?dinheiro\b/.test(n) ||
     /\bminha quinzena\b/.test(n);
 
-  return moneyContext && dateContext && promiseContext;
+  return moneyContext && (fixedDateContext || conditionalDateContext) && explicitPromise;
 }
 
 function asksHowToBuyCredit(text) {
