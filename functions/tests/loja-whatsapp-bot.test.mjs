@@ -571,6 +571,64 @@ test('pedido para falar com Marcelo após condição especial usa resposta conte
   }
 });
 
+test('produto já selecionado mantém contexto do Marcelo e entende ele/deixa/falar/chama sem pausar o bot', async () => {
+  const phrases = [
+    'eu posso falar com ele?',
+    'deixa eu falar com ele',
+    'falar com o marcelo',
+    'chama ele pra mim'
+  ];
+
+  for (let i = 0; i < phrases.length; i += 1) {
+    sentTexts = [];
+    backendEvents = [];
+
+    const phone = '55339777779' + String(20 + i);
+    const chosen = bot.compactProduct(product('geladeira-marcelo-' + i, 'REFRIGERADOR CONSUL 451L BRANCO 110V', {
+      category: 'Geladeira',
+      pixPrice: 3974,
+      cardPrice: 4787.95
+    }));
+
+    bot.patchTestConversation(phone, {
+      selectedProduct: chosen,
+      lastProducts: [chosen],
+      lastIntent: 'produto',
+      pendingAction: '',
+      humanUntil: 0,
+      specialConditionMarceloUntil: 0
+    });
+
+    await bot.handleMessage({
+      phone,
+      text: 'tem como ajeitar essa condição aí pra mim?',
+      pushName: 'Cliente Teste'
+    });
+
+    assert.equal(bot.hasSpecialConditionMarceloContext(bot.conversation(phone)), true);
+    assert.match(sentTexts.at(-1).text, /Marcelo analisar/i);
+
+    await bot.handleMessage({
+      phone,
+      text: phrases[i],
+      pushName: 'Cliente Teste'
+    });
+
+    const conv = bot.conversation(phone);
+    assert.equal(conv.pendingAction, '');
+    assert.equal(conv.humanUntil, 0);
+    assert.equal(conv.marceloCallbackRequested, true);
+    assert.equal(bot.hasSpecialConditionMarceloContext(conv), false);
+    assert.match(sentTexts.at(-1).text, /aguarde um instante/i);
+    assert.match(sentTexts.at(-1).text, /trabalho na rua/i);
+    assert.match(sentTexts.at(-1).text, /já já está de volta/i);
+    assert.match(sentTexts.at(-1).text, /olhar mais algum produto/i);
+    assert.doesNotMatch(sentTexts.at(-1).text, /atendimento humano/i);
+    assert.equal(backendEvents.at(-1).status, 'Aguardando retorno do Marcelo');
+    assert.equal(backendEvents.at(-1).metadata.atendimentoAutomaticoContinua, true);
+  }
+});
+
 test('repetir pedido de condição não devolve fallback genérico idêntico', async () => {
   const phone = '5533977777770';
   const first = bot.compactProduct(product('tv-cond-r1', 'Smart TV 50 A', {
