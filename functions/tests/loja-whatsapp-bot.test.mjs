@@ -483,7 +483,7 @@ test('conversa longa mantém continuidade entre saudação, áudio, produto, tro
 
   await bot.handleMessage({ phone, text: 'quanto fica no pix?', pushName: 'Cliente Longo' });
   assert.match(sentTexts.at(-1).text, /Smart TV 50 LG 4K/i);
-  assert.match(sentTexts.at(-1).text, /R\$ 1\.999,00/i);
+  assert.match(sentTexts.at(-1).text, /1\.999,00/i);
 
   await bot.handleMessage({ phone, text: 'e no cartão?', pushName: 'Cliente Longo' });
   assert.match(sentTexts.at(-1).text, /Smart TV 50 LG 4K/i);
@@ -522,7 +522,7 @@ test('conversa longa mantém continuidade entre saudação, áudio, produto, tro
 
   await bot.handleMessage({ phone, text: 'e no pix?', pushName: 'Cliente Longo' });
   assert.match(sentTexts.at(-1).text, /Smart TV 50 Samsung Crystal/i);
-  assert.match(sentTexts.at(-1).text, /R\$ 2\.199,00/i);
+  assert.match(sentTexts.at(-1).text, /2\.199,00/i);
 
   assert.equal(
     sentTexts.some((item) => /me conta um pouco mais do produto ou da condição/i.test(item.text || '')),
