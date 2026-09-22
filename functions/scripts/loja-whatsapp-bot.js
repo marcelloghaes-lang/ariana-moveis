@@ -100,6 +100,12 @@ const HUMAN_TTL_MS = Math.max(1, Number(process.env.LOJA_HUMAN_TTL_HOURS || 12))
 const MANUAL_HUMAN_PAUSE_MS = Math.max(1, Number(process.env.LOJA_MANUAL_HUMAN_PAUSE_MINUTES || 60)) * 60 * 1000;
 const REVIEW_CONTEXT_TTL_MS = Math.max(1, Number(process.env.LOJA_REVIEW_CONTEXT_HOURS || 12)) * 60 * 60 * 1000;
 const SPECIAL_CONDITION_MARCELO_TTL_MS = Math.max(1, Number(process.env.LOJA_SPECIAL_CONDITION_MARCELO_MINUTES || 10)) * 60 * 1000;
+const SUPPLIER_PHONES = new Set(
+  String(process.env.LOJA_SUPPLIER_PHONES || '')
+    .split(',')
+    .map((value) => digits(value))
+    .filter(Boolean)
+);
 const LEGACY_WEBHOOK_URL = String(process.env.LOJA_LEGACY_WEBHOOK_URL || '').trim();
 const LEGACY_WEBHOOK_BY_EVENTS = ['1', 'true', 'yes', 'on'].includes(
   String(process.env.LOJA_LEGACY_WEBHOOK_BY_EVENTS || '').trim().toLowerCase()
@@ -403,6 +409,9 @@ function conversation(phone) {
       marceloCallbackRequestedAt: 0,
       specialConditionMarceloUntil: 0,
       specialConditionMarceloHandoffAt: 0,
+      contactRole: '',
+      contactRoleAt: 0,
+      supplierAcknowledgedAt: 0,
       creditOrderWaitingMarcelo: false,
       lastIntent: ''
     };
@@ -418,6 +427,9 @@ function conversation(phone) {
   if (!Number.isFinite(Number(conv.marceloCallbackRequestedAt))) conv.marceloCallbackRequestedAt = 0;
   if (!Number.isFinite(Number(conv.specialConditionMarceloUntil))) conv.specialConditionMarceloUntil = 0;
   if (!Number.isFinite(Number(conv.specialConditionMarceloHandoffAt))) conv.specialConditionMarceloHandoffAt = 0;
+  if (typeof conv.contactRole !== 'string') conv.contactRole = '';
+  if (!Number.isFinite(Number(conv.contactRoleAt))) conv.contactRoleAt = 0;
+  if (!Number.isFinite(Number(conv.supplierAcknowledgedAt))) conv.supplierAcknowledgedAt = 0;
 
   if (
     conv.reviewNeeded &&
@@ -1663,6 +1675,86 @@ function greetingForFallback(text) {
   return 'Olá';
 }
 
+function isConfiguredSupplier(phone) {
+  return SUPPLIER_PHONES.has(digits(phone));
+}
+
+function isKnownInternalContact(pushName = '') {
+  const n = normalize(pushName);
+  return /\b(emilly|emily|luana)\b/.test(n);
+}
+
+function isSupplierContactSignal({ phone = '', text = '', pushName = '' } = {}) {
+  if (isConfiguredSupplier(phone)) return true;
+
+  const name = normalize(pushName);
+  const n = normalize(text);
+  const supplierName =
+    /\b(vendas|representante|representacao|distribuidora|distribuidor|atacado|fabrica|industria)\b/.test(name);
+
+  const strongB2b =
+    /\blojista\b/.test(n) ||
+    /\b(?:abastecer|repor) (?:o |seu )?estoque\b/.test(n) ||
+    /\bcondicao especial direto de fabrica\b/.test(n) ||
+    /\b(?:direto|direta) de fabrica\b/.test(n) ||
+    /\bpedido minimo\b/.test(n) ||
+    /\bpreco de revenda\b|\btabela de atacado\b/.test(n) ||
+    /\b(?:mix|estoque) da loja\b/.test(n) ||
+    /\bquantas pecas (?:eu )?(?:te |lhe )?(?:mando|envio)\b/.test(n) ||
+    /\brepresentante comercial\b/.test(n);
+
+  const b2bContext =
+    /\b(lojista|revenda|atacado|estoque|pecas|fabrica|pedido minimo|mix da loja)\b/.test(n);
+
+  return strongB2b || (supplierName && b2bContext) || (supplierName && !n);
+}
+
+function isExternalAutomationMessage(text) {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return (
+    /^em breve voce sera atendido\b/.test(n) ||
+    /^aguardando atendimento\b/.test(n) ||
+    /^aguarde.*(?:atendente|atendimento)\b/.test(n) ||
+    /^seu atendimento.*(?:fila|aguarde)\b/.test(n) ||
+    /^estamos transferindo.*(?:atendente|setor)\b/.test(n)
+  );
+}
+
+function isCasualSmallTalk(text) {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return (
+    /^(bom demais|tudo certo|tudo tranquilo|tudo joia|tudo beleza|beleza demais|joia demais)$/.test(n) ||
+    /^(e voce|e vc|e por ai|como voces estao|como voce esta)$/.test(n)
+  );
+}
+
+function isPersonalAdministrativeMessage(text) {
+  const n = normalize(text);
+
+  return (
+    /\bcontabilidade\b/.test(n) ||
+    /\bexame\b/.test(n) ||
+    /\b(?:te|lhe) chamou\b/.test(n) ||
+    /\b(?:te|lhe) ligou\b/.test(n) ||
+    /\bmandou recado\b|\bdeixou recado\b/.test(n) ||
+    /\bfalou com voce\b/.test(n)
+  );
+}
+
+function markContactRole(conv, role) {
+  if (!conv) return;
+  conv.contactRole = String(role || '').trim();
+  conv.contactRoleAt = Date.now();
+}
+
 function isCommercialTopic(text, conv = {}) {
   const n = normalize(text);
   if (!n) return false;
@@ -2090,7 +2182,10 @@ function isPixCopyPastePayload(text) {
 
 function asksDelivery(text) {
   const n = normalize(text);
-  return /entrega|entregam|quando chega|chega que dia|manda pra|manda para/.test(n);
+  return (
+    /\b(entrega|entregas|entregam|entregar|entregue|entregou|entregaram|entregando)\b/.test(n) ||
+    /\bquando chega\b|\bchega que dia\b|\bmanda pra\b|\bmanda para\b/.test(n)
+  );
 }
 
 function asksFinance(text) {
@@ -3581,6 +3676,71 @@ async function handleMessage({ phone, text, pushName = '' }) {
     return;
   }
 
+  if (isKnownInternalContact(pushName)) {
+    markContactRole(conv, 'internal');
+    saveStateSoon();
+  } else if (isSupplierContactSignal({ phone, text, pushName })) {
+    markContactRole(conv, 'supplier');
+    saveStateSoon();
+  }
+
+  if (conv.contactRole === 'supplier') {
+    if (isExternalAutomationMessage(text)) {
+      return;
+    }
+
+    const alreadyAcknowledged =
+      Number(conv.supplierAcknowledgedAt || 0) > Date.now() - 12 * 60 * 60 * 1000;
+
+    await syncTicket(phone, {
+      status: 'Fornecedor / Compras',
+      message: text,
+      name: pushName,
+      metadata: {
+        assunto: 'fornecedor',
+        atendimentoAutomaticoVendas: false
+      }
+    });
+
+    if (!alreadyAcknowledged) {
+      conv.supplierAcknowledgedAt = Date.now();
+      saveStateSoon();
+      await sendText(
+        phone,
+        'Recebi sua mensagem comercial 😊 Vou deixar essa proposta para o Marcelo analisar com a área de compras. Para evitar desencontro, não vou seguir com o atendimento automático de vendas nesta conversa.'
+      );
+    }
+    return;
+  }
+
+  if (conv.contactRole === 'internal' || isPersonalAdministrativeMessage(text)) {
+    conv.pendingAction = '';
+    conv.marceloCallbackRequested = true;
+    conv.marceloCallbackRequestedAt = Date.now();
+    saveStateSoon();
+
+    await sendText(
+      phone,
+      'Certo 😊 Vou deixar essa mensagem para o Marcelo acompanhar por aqui.'
+    );
+
+    await syncTicket(phone, {
+      status: 'Mensagem interna / administrativa',
+      message: text,
+      name: pushName,
+      metadata: {
+        assunto: 'interno_administrativo',
+        atendimentoAutomaticoVendas: false
+      }
+    });
+    return;
+  }
+
+  if (isCasualSmallTalk(text)) {
+    await sendText(phone, 'Tudo certo por aqui 😊 E por aí?');
+    return;
+  }
+
   const emojiIntent = emojiOnlyIntent(text);
   if (emojiIntent === 'positive') {
     return;
@@ -4322,9 +4482,18 @@ function extractIncoming(payload = {}) {
   const fromMe = key?.fromMe === true || data?.fromMe === true || payload?.fromMe === true;
   const id = String(key?.id || data?.id || payload?.id || data?.messageId || '');
   const pushName = String(data?.pushName || payload?.pushName || '');
+  const editedMessage =
+    message?.protocolMessage?.editedMessage ||
+    message?.editedMessage?.message ||
+    data?.update?.message?.protocolMessage?.editedMessage ||
+    data?.update?.message?.editedMessage?.message ||
+    {};
+
   const text = String(
     message?.conversation ||
     message?.extendedTextMessage?.text ||
+    editedMessage?.conversation ||
+    editedMessage?.extendedTextMessage?.text ||
     message?.imageMessage?.caption ||
     message?.documentMessage?.caption ||
     data?.body ||
@@ -4505,9 +4674,19 @@ async function handleWebhook(payload) {
   }
 
   if (!incoming.text) {
+    if (!incoming.hasMedia) {
+      return { ignored: 'empty_non_media' };
+    }
+
+    const mediaLabel = incoming.mediaType === 'image'
+      ? 'sua foto'
+      : incoming.mediaType === 'document'
+        ? 'seu arquivo'
+        : 'sua mídia';
+
     await sendText(
       incoming.phone,
-      'Recebi seu arquivo/foto 😊 Me diga em uma frase o que você gostaria de saber sobre ele. Se precisar, eu encaminho para o atendimento humano.'
+      `Recebi ${mediaLabel} 😊 Me diga em uma frase o que você gostaria de saber sobre ele. Se precisar, eu encaminho para o atendimento humano.`
     );
     return { ok: true, media: true };
   }
@@ -4636,6 +4815,13 @@ export const __test = {
   patchTestIntentClassification,
   greetingForFallback,
   isCommercialTopic,
+  isConfiguredSupplier,
+  isKnownInternalContact,
+  isSupplierContactSignal,
+  isExternalAutomationMessage,
+  isCasualSmallTalk,
+  isPersonalAdministrativeMessage,
+  markContactRole,
   isGreeting,
   asksPresencePing,
   asksMarceloOrCallback,
