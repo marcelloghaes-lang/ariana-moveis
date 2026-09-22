@@ -1809,6 +1809,22 @@ test('WhatsApp usa a primeira imagem da galeria real antes do imageUrl legado', 
   );
 });
 
+test('foto Cloudinary enviada ao WhatsApp ganha quadro quadrado sem deformar o produto', () => {
+  const original = 'https://res.cloudinary.com/ariana/image/upload/v1790000000/ariana_moveis/produtos/party-x4000.webp';
+  const prepared = bot.whatsappProductImageUrl(original);
+
+  assert.match(
+    prepared,
+    /\/image\/upload\/c_pad,w_1000,h_1000,g_center,b_white,q_auto:good,f_jpg\//
+  );
+  assert.match(prepared, /\/v1790000000\/ariana_moveis\/produtos\/party-x4000\.webp$/);
+  assert.equal(
+    bot.whatsappProductImageUrl('https://cdn.test/produto.jpg'),
+    'https://cdn.test/produto.jpg',
+    'URL que não é Cloudinary deve continuar intacta'
+  );
+});
+
 test('produto sem foto real não gera card cinza de link preview', async () => {
   const phone = '5533977777733';
 
