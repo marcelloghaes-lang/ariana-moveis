@@ -903,6 +903,45 @@ test('cálculo do crediário segue divisores e limites definidos', () => {
   assert.equal(p15.max, 15);
 });
 
+test('consulta sobre pedido/encomenda aguardando vai para Marcelo sem pesquisar catálogo', async () => {
+  const examples = [
+    'Oi bom dia vc saber q dia a beliche chega',
+    'que dia minha encomenda chega?',
+    'meu pedido já chegou?',
+    'tem previsão do meu pedido?',
+    'sabe quando a minha compra chega?'
+  ];
+
+  for (let i = 0; i < examples.length; i += 1) {
+    sentTexts = [];
+    backendEvents = [];
+    requestLog = [];
+
+    const phone = '553397777787' + String(i);
+    assert.equal(bot.asksExistingOrderStatus(examples[i]), true, examples[i]);
+
+    await bot.handleMessage({
+      phone,
+      text: examples[i],
+      pushName: 'Cliente Teste'
+    });
+
+    assert.equal(sentTexts.length, 1);
+    assert.match(sentTexts[0].text, /Marcelo está em outro atendimento/i);
+    assert.match(sentTexts[0].text, /te dá um parecer.*seu pedido/i);
+    assert.doesNotMatch(sentTexts[0].text, /Encontrei|catálogo|produto disponível/i);
+    assert.equal(backendEvents.at(-1).status, 'Aguardando Marcelo - pedido/encomenda');
+    assert.equal(backendEvents.at(-1).metadata.exigeParecerMarcelo, true);
+    assert.equal(bot.conversation(phone).humanUntil || 0, 0);
+  }
+});
+
+test('pergunta de frete antes da compra continua no fluxo normal de entrega', () => {
+  assert.equal(bot.asksExistingOrderStatus('vocês entregam em Guanhães?'), false);
+  assert.equal(bot.asksExistingOrderStatus('qual o valor do frete para zona rural?'), false);
+  assert.equal(bot.asksDelivery('vocês entregam em Guanhães?'), true);
+});
+
 test('entrega diferencia Guanhães de zona rural/outra cidade', () => {
   const city = bot.deliveryReply('Entrega aqui em Guanhães?');
   assert.equal(city.needsLogistics, false);
