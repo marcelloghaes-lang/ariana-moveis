@@ -252,7 +252,7 @@ test('saudação usa somente o primeiro nome e ignora observações do contato',
   });
 
   assert.equal(sentTexts.length, 1);
-  assert.match(sentTexts[0].text, /^Boa noite, Gaby! 😊/i);
+  assert.match(sentTexts[0].text, /^Boa noite, Gaby! 😊 Tudo ótimo, e você\?/i);
   assert.doesNotMatch(sentTexts[0].text, /Marcionilo|Cliente/i);
 
   sentTexts = [];
@@ -265,8 +265,107 @@ test('saudação usa somente o primeiro nome e ignora observações do contato',
   });
 
   assert.equal(sentTexts.length, 1);
-  assert.match(sentTexts[0].text, /^Boa noite! 😊/i);
+  assert.match(sentTexts[0].text, /^Boa noite! 😊 Tudo ótimo, e você\?/i);
   assert.doesNotMatch(sentTexts[0].text, /31985147119/);
+});
+
+test('saudação simples abre conversa humana e resposta de bem-estar pergunta o que precisa hoje', async () => {
+  const examples = [
+    ['Bom dia tudo bem?', 'João Cliente', /^Bom dia, João! 😊 Tudo ótimo, e você\?/i],
+    ['Bom dia', 'Maria Cliente', /^Bom dia, Maria! 😊 Tudo ótimo, e você\?/i],
+    ['Oi bom dia', 'Paulo Cliente', /^Bom dia, Paulo! 😊 Tudo ótimo, e você\?/i]
+  ];
+
+  const wellbeingReplies = [
+    'ta bem graças a deus',
+    'estou bem',
+    'bem também',
+    'bem obrigado',
+    'tudo bem',
+    'tudo ótimo'
+  ];
+
+  for (let i = 0; i < examples.length; i += 1) {
+    const [textValue, pushName, expected] = examples[i];
+    const phone = '553397777793' + String(i);
+
+    sentTexts = [];
+    await bot.handleMessage({ phone, text: textValue, pushName });
+    assert.equal(sentTexts.length, 1);
+    assert.match(sentTexts[0].text, expected);
+    assert.equal(bot.hasCourtesyGreetingContext(bot.conversation(phone)), true);
+
+    sentTexts = [];
+    await bot.handleMessage({
+      phone,
+      text: wellbeingReplies[i],
+      pushName
+    });
+
+    assert.equal(sentTexts.length, 1);
+    assert.match(sentTexts[0].text, /^Ah, que bom 😊/i);
+    assert.match(sentTexts[0].text, /O que você tá precisando pra hoje\?/i);
+    assert.equal(bot.hasCourtesyGreetingContext(bot.conversation(phone)), false);
+  }
+
+  for (const value of wellbeingReplies) {
+    assert.equal(bot.isPositiveWellbeingReply(value), true, value);
+  }
+});
+
+test('"bom dia Marcelo tudo bem?" é cortesia, mas "Oi Marcelo" continua pedindo o Marcelo', async () => {
+  const courtesyPhone = '5533977777935';
+
+  assert.equal(bot.isCourtesyGreeting('Bom dia Marcelo tudo bem?'), true);
+  assert.equal(bot.asksMarceloOrCallback('Bom dia Marcelo tudo bem?'), false);
+
+  await bot.handleMessage({
+    phone: courtesyPhone,
+    text: 'Bom dia Marcelo tudo bem?',
+    pushName: 'Carlos Cliente'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /^Bom dia, Carlos! 😊 Tudo ótimo, e você\?/i);
+  assert.equal(bot.conversation(courtesyPhone).marceloCallbackRequested, false);
+
+  sentTexts = [];
+  backendEvents = [];
+
+  const marceloPhone = '5533977777936';
+  assert.equal(bot.asksMarceloOrCallback('Oi Marcelo'), true);
+
+  await bot.handleMessage({
+    phone: marceloPhone,
+    text: 'Oi Marcelo',
+    pushName: 'Carlos Cliente'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Marcelo está em outro atendimento/i);
+  assert.equal(bot.conversation(marceloPhone).marceloCallbackRequested, true);
+});
+
+test('saudação com assunto comercial junto não cria etapa de cortesia antes do catálogo', async () => {
+  const phone = '5533977777937';
+  catalogRows = [
+    product('greet-direct-tv-1', 'Smart TV Samsung 50', {
+      category: 'TV',
+      brand: 'Samsung'
+    })
+  ];
+
+  await bot.handleMessage({
+    phone,
+    text: 'Bom dia, vocês têm TV?',
+    pushName: 'Ana Cliente'
+  });
+
+  assert.ok(sentTexts.length >= 2);
+  assert.match(sentTexts[0].text, /^Bom dia, Ana! 😊/i);
+  assert.doesNotMatch(sentTexts[0].text, /Tudo ótimo, e você/i);
+  assert.equal(bot.hasCourtesyGreetingContext(bot.conversation(phone)), false);
+  assert.equal(sentMedia.length, 1);
 });
 
 test('saudação junto com consulta de produto também usa somente o primeiro nome', async () => {
@@ -3560,6 +3659,9 @@ test('pedido para falar com Marcelo ou receber ligação é reconhecido', () => 
   ]) {
     assert.equal(bot.asksMarceloOrCallback(value), true, value);
   }
+
+  assert.equal(bot.asksMarceloOrCallback('Bom dia Marcelo tudo bem?'), false);
+  assert.equal(bot.asksMarceloOrCallback('Oi Marcelo tudo bem? Tô precisando falar com você'), true);
 });
 
 test('"Oi Marcelo" recebe imediatamente a resposta de retorno do Marcelo', async () => {
@@ -4168,7 +4270,7 @@ test('tipo fornecedor permanece identificado mesmo após conversa curta ser desc
   assert.equal(sentTexts.length, 0, 'fornecedor persistido não deve cair no atendimento de varejo');
 });
 
-test('cliente que retorna depois recebe uma retomada comercial curta apenas uma vez no cooldown', async () => {
+test('cliente com memória comercial recebe cortesia primeiro sem perder o produto lembrado', async () => {
   const phone = '5533977777905';
   const item = bot.compactProduct(product('mem-sofa-1', 'SOFÁ RETRÁTIL 3 LUGARES', {
     category: 'Sofá',
@@ -4195,21 +4297,22 @@ test('cliente que retorna depois recebe uma retomada comercial curta apenas uma 
     pushName: 'Mariana Cliente'
   });
 
-  assert.match(sentTexts.at(-1).text, /Mariana/i);
-  assert.match(sentTexts.at(-1).text, /Lembro que você estava olhando.*SOFÁ RETRÁTIL 3 LUGARES/i);
-  assert.equal(backendEvents.at(-1).status, 'Venda em acompanhamento');
-  assert.equal(backendEvents.at(-1).metadata.proactiveMessage, false);
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /^Boa tarde, Mariana! 😊 Tudo ótimo, e você\?/i);
+  assert.doesNotMatch(sentTexts[0].text, /Lembro que você estava olhando/i);
+  assert.equal(bot.commercialProfileSnapshot(phone).lastProduct.id, item.id);
 
   sentTexts = [];
   await bot.handleMessage({
     phone,
-    text: 'boa tarde',
+    text: 'estou bem também',
     pushName: 'Mariana Cliente'
   });
 
   assert.equal(sentTexts.length, 1);
-  assert.doesNotMatch(sentTexts[0].text, /Lembro que você estava olhando/i);
-  assert.match(sentTexts[0].text, /Seja bem-vindo à Ariana Móveis/i);
+  assert.match(sentTexts[0].text, /Ah, que bom/i);
+  assert.match(sentTexts[0].text, /O que você tá precisando pra hoje/i);
+  assert.equal(bot.commercialProfileSnapshot(phone).lastProduct.id, item.id);
 });
 
 test('orçamento em linguagem natural é extraído sem confundir números comuns', () => {
