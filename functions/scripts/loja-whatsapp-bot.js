@@ -2245,7 +2245,7 @@ function asksPaymentPromiseUpdate(text) {
     /\bsem falta\b/.test(n) ||
     /\b(?:ta|esta) na mao\b/.test(n) ||
     /\b(?:vou|vai)\s+(?:te\s+|me\s+)?(?:passar|passa|pagar|mandar|enviar)\b/.test(n) ||
-    /\b(?:eu\s+)?(?:ja\s+)?(?:mando|pago|passo|envio)\s+(?:pra|para|a)?\s*(?:voce|vc|te)?\b/.test(n) ||
+    /\b(?:eu\s+)?(?:ja\s+)?(?:te\s+)?(?:mando|pago|passo|envio)\s*(?:(?:pra|para|a)\s+(?:voce|vc))?\b/.test(n) ||
     /\b(?:nao|n) deu certo\b/.test(n) ||
     /\bcaso (?:nao|n) der certo\b/.test(n) ||
     /\bcontando com (?:um |o )?dinheiro\b/.test(n) ||
