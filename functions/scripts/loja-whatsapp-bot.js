@@ -100,6 +100,7 @@ const HUMAN_TTL_MS = Math.max(1, Number(process.env.LOJA_HUMAN_TTL_HOURS || 12))
 const MANUAL_HUMAN_PAUSE_MS = Math.max(1, Number(process.env.LOJA_MANUAL_HUMAN_PAUSE_MINUTES || 60)) * 60 * 1000;
 const REVIEW_CONTEXT_TTL_MS = Math.max(1, Number(process.env.LOJA_REVIEW_CONTEXT_HOURS || 12)) * 60 * 60 * 1000;
 const SPECIAL_CONDITION_MARCELO_TTL_MS = Math.max(1, Number(process.env.LOJA_SPECIAL_CONDITION_MARCELO_MINUTES || 10)) * 60 * 1000;
+const DAILY_DUE_CONTEXT_TTL_MS = Math.max(1, Number(process.env.LOJA_DAILY_DUE_CONTEXT_HOURS || 36)) * 60 * 60 * 1000;
 const SUPPLIER_PHONES = new Set(
   String(process.env.LOJA_SUPPLIER_PHONES || '')
     .split(',')
@@ -413,6 +414,9 @@ function conversation(phone) {
       contactRoleAt: 0,
       supplierAcknowledgedAt: 0,
       creditOrderWaitingMarcelo: false,
+      dailyDueContextUntil: 0,
+      dailyDueReminderAt: 0,
+      dailyDueReplyCount: 0,
       lastIntent: ''
     };
   }
@@ -430,6 +434,9 @@ function conversation(phone) {
   if (typeof conv.contactRole !== 'string') conv.contactRole = '';
   if (!Number.isFinite(Number(conv.contactRoleAt))) conv.contactRoleAt = 0;
   if (!Number.isFinite(Number(conv.supplierAcknowledgedAt))) conv.supplierAcknowledgedAt = 0;
+  if (!Number.isFinite(Number(conv.dailyDueContextUntil))) conv.dailyDueContextUntil = 0;
+  if (!Number.isFinite(Number(conv.dailyDueReminderAt))) conv.dailyDueReminderAt = 0;
+  if (!Number.isFinite(Number(conv.dailyDueReplyCount))) conv.dailyDueReplyCount = 0;
 
   if (
     conv.reviewNeeded &&
@@ -2350,6 +2357,363 @@ function asksFinance(text) {
   );
 }
 
+
+function saoPauloDateKey(value = new Date()) {
+  const raw = String(value ?? '').trim();
+  const iso = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (iso) return iso[1];
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+  const pick = (type) => parts.find((part) => part.type === type)?.value || '';
+  return `${pick('year')}-${pick('month')}-${pick('day')}`;
+}
+
+function isDailyDueReminderOutbound(text) {
+  const n = normalize(text);
+  return (
+    /passando para lembrar que hoje venc(?:e|em)\b/.test(n) &&
+    /\bparcelas?\b/.test(n) &&
+    /ariana moveis/.test(n) &&
+    /desconsidere esta mensagem/.test(n)
+  );
+}
+
+function markDailyDueCollectionContext(conv) {
+  if (!conv) return;
+  conv.dailyDueContextUntil = Date.now() + DAILY_DUE_CONTEXT_TTL_MS;
+  conv.dailyDueReminderAt = Date.now();
+  conv.dailyDueReplyCount = 0;
+  conv.pendingAction = '';
+  conv.humanUntil = 0;
+  conv.manualHumanUntil = 0;
+  saveStateSoon();
+}
+
+function clearDailyDueCollectionContext(conv) {
+  if (!conv) return;
+  conv.dailyDueContextUntil = 0;
+  conv.dailyDueReminderAt = 0;
+  conv.dailyDueReplyCount = 0;
+  if (conv.pendingAction === 'daily_due_finance_cpf') conv.pendingAction = '';
+  saveStateSoon();
+}
+
+function hasDailyDueCollectionContext(conv) {
+  return Number(conv?.dailyDueContextUntil || 0) > Date.now();
+}
+
+function asksDailyDueSubjectChange(text) {
+  const n = normalize(text);
+  return (
+    /\b(mudando|mudar|trocar) de assunto\b/.test(n) ||
+    /\b(outro assunto|outra coisa)\b/.test(n) ||
+    /\bquero (?:ver|comprar|procurar)\b.{0,55}\b(produto|geladeira|tv|sofa|cama|celular|fogao|mesa|cadeira|guarda roupa|armario|maquina|lavadora|freezer)\b/.test(n)
+  );
+}
+
+function asksDailyDueAmount(text) {
+  const n = normalize(text);
+  return (
+    asksFinance(text) ||
+    /\b(qual|quanto|qto)\b.{0,35}\b(valor|parcela|vence|vencimento|pagar hoje)\b/.test(n) ||
+    /\b(que|qual) parcela\b/.test(n) ||
+    /\b(essa|esta) cobranca\b/.test(n) ||
+    /\b(essa|esta) mensagem\b.{0,25}\b(parcela|vencimento|cobranca)\b/.test(n)
+  );
+}
+
+function dailyDuePaidAlready(text) {
+  const n = normalize(text);
+  return /\b(ja )?(paguei|quitei|fiz o pix|fiz o pagamento|pagamento feito|pix feito|ja foi pago|foi pago)\b/.test(n);
+}
+
+function dailyDueFuturePayment(text) {
+  const n = normalize(text);
+  const payment = /\b(pagar|pago|pago|pix|mandar|passar|enviar|pagamento|parcela)\b/.test(n);
+  const future = /\b(amanha|depois|segunda|terca|quarta|quinta|sexta|sabado|domingo|semana que vem|dia \d{1,2})\b/.test(n);
+  const cannotToday = /\b(nao consigo|nao vou conseguir|nao da|nao tenho como)\b.{0,35}\b(hoje|pagar|pix|pagamento)\b/.test(n);
+  return (payment && future) || cannotToday;
+}
+
+function dailyDuePaysToday(text) {
+  const n = normalize(text);
+  if (dailyDueFuturePayment(text)) return false;
+  return (
+    /\b(vou|posso|consigo)\b.{0,20}\b(pagar|fazer o pix|mandar|passar|enviar)\b.{0,25}\b(hoje|mais tarde)\b/.test(n) ||
+    /\b(pago|mando|passo|envio)\b.{0,15}\b(hoje|mais tarde)\b/.test(n) ||
+    /\b(mais tarde|ate o fim do dia|ate hoje)\b/.test(n) ||
+    /^\s*(vou pagar|vou fazer o pix|vou mandar|vou passar)\s*[.!]?\s*$/.test(n)
+  );
+}
+
+function dailyDuePoliteReply(text) {
+  const n = normalize(text).replace(/[!?.,;:]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return /^(bom dia|boa tarde|boa noite|ok|okay|certo|beleza|entendi|obrigado|obrigada|valeu|vlw|ta bom|tudo bem|sim|blz)$/.test(n);
+}
+
+function dailyDueAmountOf(p = {}) {
+  return Number(
+    p?.atualizacaoFinanceira?.valorAtualizado ??
+    p?.saldoParcela ??
+    p?.valorParcela ??
+    0
+  );
+}
+
+function dailyDueFinancialReply(data = {}) {
+  const parcelas = Array.isArray(data.parcelas) ? data.parcelas : [];
+  const today = saoPauloDateKey(new Date());
+  const dueToday = parcelas.filter((p) => {
+    const status = normalize(p.status);
+    const open = p.quitado !== true && !['paga', 'pago', 'quitada', 'quitado', 'paid'].includes(status);
+    return open && saoPauloDateKey(p.dataVencimento) === today;
+  });
+  const firstName = String(data?.cliente?.nome || '').trim().split(/\s+/)[0];
+
+  if (!dueToday.length) {
+    return `Não consegui localizar com segurança uma parcela com vencimento hoje${firstName ? ` para ${firstName}` : ''}. Vou deixar essa cobrança sinalizada para o Marcelo conferir antes de te passar qualquer valor.`;
+  }
+
+  const total = dueToday.reduce((sum, p) => sum + dailyDueAmountOf(p), 0);
+
+  if (dueToday.length === 1) {
+    const p = dueToday[0];
+    const label = String(p.parcelaLabel || '').trim();
+    return [
+      `${firstName ? `${firstName}, ` : ''}a parcela que vence hoje é de *${money(total)}*.`,
+      label ? `Referência: *${label}*.` : '',
+      'Se quiser, também posso te passar a chave PIX para o pagamento.'
+    ].filter(Boolean).join('\n');
+  }
+
+  const lines = [
+    `${firstName ? `${firstName}, ` : ''}hoje vencem *${dueToday.length} parcelas*, totalizando *${money(total)}*.`
+  ];
+  for (const p of dueToday.slice(0, 5)) {
+    lines.push(`• ${p.parcelaLabel || 'Parcela'} — *${money(dailyDueAmountOf(p))}*`);
+  }
+  lines.push('Se quiser, também posso te passar a chave PIX para o pagamento.');
+  return lines.join('\n');
+}
+
+async function handleDailyDueCollectionContext({ phone, text, pushName = '', conv }) {
+  if (!hasDailyDueCollectionContext(conv)) return false;
+
+  if (conv.pendingAction === 'daily_due_finance_cpf') {
+    const cpf = digits(text);
+    if (cpf.length !== 11) {
+      await sendText(phone, 'Para eu conferir somente a parcela que vence hoje, me envie o *CPF do titular com 11 números*, por favor.');
+      return true;
+    }
+
+    try {
+      const data = await consultFinance(phone, cpf);
+      conv.pendingAction = '';
+      conv.dailyDueReplyCount = Math.max(0, Number(conv.dailyDueReplyCount || 0)) + 1;
+      saveStateSoon();
+      await sendText(phone, dailyDueFinancialReply(data));
+    } catch (error) {
+      conv.pendingAction = '';
+      saveStateSoon();
+      await sendText(phone, 'Não consegui confirmar o valor da parcela de hoje com segurança agora. Vou deixar para o Marcelo conferir e te responder por aqui.');
+      await syncTicket(phone, {
+        status: 'Cobrança do dia - conferir valor',
+        message: 'Cliente respondeu ao lembrete e a consulta da parcela de hoje não pôde ser confirmada.',
+        name: pushName,
+        metadata: { assunto: 'vencimento_do_dia', contextoCobranca: true }
+      });
+    }
+    return true;
+  }
+
+  if (asksDailyDueSubjectChange(text)) {
+    clearDailyDueCollectionContext(conv);
+    return false;
+  }
+
+  conv.dailyDueReplyCount = Math.max(0, Number(conv.dailyDueReplyCount || 0)) + 1;
+  conv.lastAt = Date.now();
+  saveStateSoon();
+
+  if (asksPixKey(text)) {
+    markPixContext(conv);
+    await sendText(
+      phone,
+      [
+        'Claro 😊 Para a parcela que vence hoje, você pode fazer o pagamento por PIX:',
+        '',
+        `*PIX:* ${PIX_KEY}`,
+        `*Banco:* ${PIX_BANK}`,
+        `*Titular:* ${PIX_HOLDER}`,
+        '',
+        '⚠️ Antes de confirmar, confira se o favorecido é *MARCELO NUNES SILVA*.',
+        'Depois do pagamento, pode enviar o comprovante por aqui para conferência da baixa.'
+      ].join('\n')
+    );
+    return true;
+  }
+
+  if (dailyDuePaidAlready(text) || asksPaymentProofText(text)) {
+    await sendText(
+      phone,
+      'Obrigado por avisar 😊 Para conferirmos a baixa da parcela de hoje, pode enviar o comprovante por aqui. O pagamento só é considerado baixado depois da conferência.'
+    );
+    await syncTicket(phone, {
+      status: 'Cobrança do dia - cliente informou pagamento',
+      message: String(text || '').trim(),
+      name: pushName,
+      metadata: { assunto: 'vencimento_do_dia', contextoCobranca: true, conferirBaixa: true }
+    });
+    return true;
+  }
+
+  if (asksDailyDueAmount(text)) {
+    try {
+      const data = await consultFinance(phone);
+      await sendText(phone, dailyDueFinancialReply(data));
+    } catch (error) {
+      if (error?.status === 409 || error?.data?.identityRequired) {
+        conv.pendingAction = 'daily_due_finance_cpf';
+        saveStateSoon();
+        await sendText(phone, 'Para eu conferir somente o valor da parcela que vence hoje, me envie o *CPF do titular com 11 números*, por favor.');
+      } else {
+        await sendText(phone, 'Não consegui confirmar o valor da parcela de hoje com segurança agora. Vou deixar para o Marcelo conferir e te responder por aqui.');
+        await syncTicket(phone, {
+          status: 'Cobrança do dia - conferir valor',
+          message: String(text || '').trim(),
+          name: pushName,
+          metadata: { assunto: 'vencimento_do_dia', contextoCobranca: true }
+        });
+      }
+    }
+    return true;
+  }
+
+  if (dailyDueFuturePayment(text) || asksPaymentExceptionForMarcelo(text)) {
+    conv.marceloCallbackRequested = true;
+    conv.marceloCallbackRequestedAt = Date.now();
+    saveStateSoon();
+
+    await sendText(
+      phone,
+      'Entendi 😊 Como isso muda a data ou a condição da parcela que vence hoje, vou deixar sua mensagem para o Marcelo acompanhar. Ele confirma com você por aqui, tudo bem?'
+    );
+    await syncTicket(phone, {
+      status: 'Cobrança do dia - aguardando Marcelo',
+      message: String(text || '').trim(),
+      name: pushName,
+      metadata: {
+        assunto: 'vencimento_do_dia',
+        contextoCobranca: true,
+        exigeConfirmacaoMarcelo: true,
+        naoConfirmarAcordoAutomaticamente: true
+      }
+    });
+    return true;
+  }
+
+  if (dailyDuePaysToday(text)) {
+    await sendText(
+      phone,
+      'Perfeito, obrigado por avisar 😊 Quando fizer o pagamento da parcela de hoje, pode enviar o comprovante por aqui para conferirmos a baixa.'
+    );
+    await syncTicket(phone, {
+      status: 'Cobrança do dia - pagamento previsto para hoje',
+      message: String(text || '').trim(),
+      name: pushName,
+      metadata: { assunto: 'vencimento_do_dia', contextoCobranca: true, pagamentoPrevistoHoje: true }
+    });
+    return true;
+  }
+
+  if (wantsHuman(text) || asksMarceloOrCallback(text)) {
+    conv.marceloCallbackRequested = true;
+    conv.marceloCallbackRequestedAt = Date.now();
+    saveStateSoon();
+    await sendText(phone, 'Claro 😊 Vou deixar essa cobrança de hoje sinalizada para o Marcelo. Assim que ele puder, continua com você por aqui.');
+    await syncTicket(phone, {
+      status: 'Cobrança do dia - aguardando Marcelo',
+      message: String(text || '').trim(),
+      name: pushName,
+      metadata: { assunto: 'vencimento_do_dia', contextoCobranca: true }
+    });
+    return true;
+  }
+
+  if (asksAttendantIdentity(text)) {
+    await sendText(phone, 'Aqui é o Gustavo 😊 Estou acompanhando o lembrete da parcela que vence hoje. Posso te ajudar com o valor, a chave PIX ou o comprovante.');
+    return true;
+  }
+
+  if (dailyDuePoliteReply(text)) {
+    const greeting = greetingFromText(text);
+    await sendText(
+      phone,
+      greeting
+        ? `${greeting}! 😊 Estou acompanhando o lembrete da parcela que vence hoje. Se precisar, posso te informar o valor, passar a chave PIX ou receber o comprovante.`
+        : 'Por nada 😊 Se precisar de alguma informação sobre a parcela que vence hoje, posso te informar o valor, passar a chave PIX ou receber o comprovante.'
+    );
+    return true;
+  }
+
+  await sendText(
+    phone,
+    'Sobre o lembrete da parcela que vence hoje, posso te ajudar com o *valor*, a *chave PIX*, o *comprovante* ou registrar uma previsão de pagamento. Se precisar mudar a data ou combinar outra condição, eu deixo para o Marcelo confirmar com você.'
+  );
+  return true;
+}
+
+async function handleDailyDueCollectionMedia(incoming, conv) {
+  if (!hasDailyDueCollectionContext(conv) || !incoming?.hasMedia || !['image', 'document'].includes(incoming.mediaType)) {
+    return { handled: false };
+  }
+
+  if (asksPaymentProofText(incoming.text)) {
+    await acknowledgePaymentProof(incoming.phone, conv, {
+      text: incoming.text || 'Cliente enviou mídia em resposta ao lembrete da parcela de hoje.',
+      pushName: incoming.pushName,
+      paymentMethod: normalize(incoming.text).includes('boleto') ? 'boleto' : 'pix'
+    });
+    return { handled: true, kind: 'daily_due_payment_proof_by_text' };
+  }
+
+  if (VISION_API_KEY && !visionBudgetStatus().blocked) {
+    try {
+      const media = await fetchIncomingMedia(incoming);
+      const classification = await classifyImageWithVision(media, incoming.text);
+      const confidence = Number(classification?.confidence || 0);
+      if (
+        confidence >= VISION_MIN_CONFIDENCE &&
+        ['payment_receipt_pix', 'payment_receipt_boleto'].includes(classification?.kind)
+      ) {
+        const method = classification.kind === 'payment_receipt_boleto' ? 'boleto' : 'pix';
+        await acknowledgePaymentProof(incoming.phone, conv, {
+          text: `Comprovante de ${method} enviado em resposta ao lembrete da parcela de hoje. Conferência humana obrigatória antes da baixa.`,
+          pushName: incoming.pushName,
+          paymentMethod: method
+        });
+        return { handled: true, kind: classification.kind, confidence };
+      }
+    } catch (error) {
+      console.warn('[loja-bot] análise da mídia no contexto de cobrança falhou:', error.message || error);
+    }
+  }
+
+  await sendText(
+    incoming.phone,
+    'Recebi a imagem/arquivo 😊 Como estamos falando da parcela que vence hoje, se isso for o comprovante do pagamento, me confirme se é *PIX* ou *boleto* para eu encaminhar corretamente para conferência da baixa.'
+  );
+  return { handled: true, kind: 'daily_due_unconfirmed_media' };
+}
+
 function asksPaymentExceptionForMarcelo(text) {
   const n = normalize(text);
 
@@ -3799,6 +4163,15 @@ async function handleMessage({ phone, text, pushName = '' }) {
     clearAlternativeOffer(conv);
   }
 
+  if (conv.dailyDueContextUntil && Date.now() >= Number(conv.dailyDueContextUntil)) {
+    clearDailyDueCollectionContext(conv);
+  }
+
+  if (hasDailyDueCollectionContext(conv)) {
+    const handledDailyDue = await handleDailyDueCollectionContext({ phone, text, pushName, conv });
+    if (handledDailyDue) return;
+  }
+
   if (
     conv.pendingAlternativeCategory &&
     Number(conv.pendingAlternativeUntil || 0) > Date.now() &&
@@ -4793,6 +5166,30 @@ async function handleWebhook(payload) {
   }
 
   if (incoming.fromMe) {
+    if (isDailyDueReminderOutbound(incoming.text)) {
+      const conv = conversation(incoming.phone);
+      markDailyDueCollectionContext(conv);
+      clearReviewNeeded(conv);
+
+      await syncTicket(incoming.phone, {
+        status: 'Lembrete de vencimento do dia enviado',
+        message: incoming.text,
+        name: incoming.pushName,
+        metadata: {
+          assunto: 'vencimento_do_dia',
+          contextoCobranca: true,
+          lembreteAutomatico: true,
+          gustavoRespondeNoContexto: true
+        }
+      });
+
+      return {
+        ok: true,
+        dailyDueReminder: true,
+        contextHours: Math.round(DAILY_DUE_CONTEXT_TTL_MS / 3600000)
+      };
+    }
+
     if (isKnownBotOutbound(incoming)) {
       return { ignored: 'bot_outbound' };
     }
@@ -4851,6 +5248,19 @@ async function handleWebhook(payload) {
         media: true,
         audio: audio.kind || 'handled',
         durationSeconds: Number(audio.durationSeconds || incoming.mediaDurationSeconds || 0)
+      };
+    }
+  }
+
+  if (incoming.hasMedia && ['image', 'document'].includes(incoming.mediaType) && hasDailyDueCollectionContext(conv)) {
+    const collectionMedia = await handleDailyDueCollectionMedia(incoming, conv);
+    if (collectionMedia?.handled) {
+      return {
+        ok: true,
+        media: true,
+        collectionContext: true,
+        collectionMedia: collectionMedia.kind || 'handled',
+        confidence: Number(collectionMedia.confidence || 0)
       };
     }
   }
@@ -5060,6 +5470,14 @@ export const __test = {
   asksExistingOrderStatus,
   asksDelivery,
   asksFinance,
+  isDailyDueReminderOutbound,
+  markDailyDueCollectionContext,
+  clearDailyDueCollectionContext,
+  hasDailyDueCollectionContext,
+  asksDailyDueAmount,
+  dailyDueFinancialReply,
+  handleDailyDueCollectionContext,
+  handleDailyDueCollectionMedia,
   asksAttendantIdentity,
   formerEmployeeAsked,
   asksPaymentExceptionForMarcelo,
