@@ -2291,6 +2291,26 @@ function isCourtesyGreeting(text = '') {
   return /^(?:(?:oi+|oie+|ola+)\s+)?(?:bom dia|boa tarde|boa noite|oi+|oie+|ola+)\s+(?:o\s+)?(?:marcelo|macelo|marcello)\s+(?:tudo bem|td bem|como vai)$/.test(n);
 }
 
+function asksBotWellbeingQuestion(text = '') {
+  const raw = String(text || '').trim();
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n) return false;
+
+  const explicitQuestion = raw.includes('?');
+  const standaloneQuestion = /^(?:tudo bem|td bem|como vai|como voce esta|como vc esta|voce ta bem|vc ta bem|esta tudo bem|ta tudo bem)$/.test(n);
+  const greetingQuestion = /^(?:(?:oi+|oie+|ola+)\s+)?(?:bom dia|boa tarde|boa noite)(?:\s+(?:marcelo|macelo|marcello))?\s+(?:tudo bem|td bem|como vai)$/.test(n);
+  const reciprocalQuestion = /^(?:e\s+)?(?:voce|vc)(?:\s+(?:ta|esta)\s+bem)?$/.test(n);
+
+  return (
+    (explicitQuestion && (standaloneQuestion || reciprocalQuestion)) ||
+    greetingQuestion
+  );
+}
+
 function isPositiveWellbeingReply(text = '') {
   const n = normalize(text)
     .replace(/[!?.,;:]+/g, ' ')
@@ -5247,6 +5267,12 @@ async function handleMessage({ phone, text, pushName = '' }) {
   }
 
   if (hasCourtesyGreetingContext(conv)) {
+    if (asksBotWellbeingQuestion(text)) {
+      startCourtesyGreetingContext(conv);
+      await sendText(phone, 'Tudo ótimo por aqui 😊 E você?');
+      return;
+    }
+
     if (isPositiveWellbeingReply(text)) {
       clearCourtesyGreetingContext(conv);
       await sendText(phone, 'Ah, que bom 😊 O que você tá precisando pra hoje?');
@@ -5287,11 +5313,14 @@ async function handleMessage({ phone, text, pushName = '' }) {
   if (isCourtesyGreeting(text)) {
     const greeting = courtesyGreetingLabel(text);
     const firstName = customerFirstName(pushName);
+    const askedWellbeing = asksBotWellbeingQuestion(text);
     startCourtesyGreetingContext(conv);
 
     await sendText(
       phone,
-      `${greeting}${firstName ? `, ${firstName}` : ''}! 😊 Tudo ótimo, e você?`
+      askedWellbeing
+        ? `${greeting}${firstName ? `, ${firstName}` : ''}! 😊 Tudo ótimo por aqui. E você?`
+        : `${greeting}${firstName ? `, ${firstName}` : ''}! 😊 Tudo bem?`
     );
     return;
   }
@@ -6868,6 +6897,7 @@ export const __test = {
   markCommercialResume,
   isGreeting,
   isCourtesyGreeting,
+  asksBotWellbeingQuestion,
   isPositiveWellbeingReply,
   isClearlyNegativeWellbeingReply,
   isNonPositiveWellbeingReply,
