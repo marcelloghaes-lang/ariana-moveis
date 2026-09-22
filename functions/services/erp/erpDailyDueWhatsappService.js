@@ -194,7 +194,8 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
       const result = await waSendTextMessage({
         number: group.phone,
         text: message,
-        delay: Math.max(0, Number(process.env.ERP_DAILY_DUE_WHATSAPP_DELAY_MS || 900) || 900)
+        delay: Math.max(0, Number(process.env.ERP_DAILY_DUE_WHATSAPP_DELAY_MS || 900) || 900),
+        instanceName: String(process.env.ERP_DAILY_DUE_WHATSAPP_INSTANCE || 'ariana loja').trim()
       });
 
       const sentAt = new Date();
@@ -274,6 +275,7 @@ export function startErpDailyDueWhatsappWorker(context = {}) {
   const timeZone = String(process.env.ERP_DAILY_DUE_WHATSAPP_TIMEZONE || process.env.FINANCEIRO_AUTOMACAO_TIMEZONE || 'America/Sao_Paulo').trim();
   const schedule = String(process.env.ERP_DAILY_DUE_WHATSAPP_HORA || '09:00').trim();
   const sweepMinutes = Math.max(5, Number(process.env.ERP_DAILY_DUE_WHATSAPP_SWEEP_MINUTES || 10) || 10);
+  const instanceName = String(process.env.ERP_DAILY_DUE_WHATSAPP_INSTANCE || 'ariana loja').trim();
 
   if (!enabled) {
     console.log('📵 Lembrete ERP de vencimentos do dia: desativado.');
@@ -318,7 +320,7 @@ export function startErpDailyDueWhatsappWorker(context = {}) {
   const interval = setInterval(run, sweepMinutes * 60 * 1000);
   interval.unref?.();
 
-  console.log(`📲 Lembrete ERP de vencimentos do dia: ativo a partir de ${schedule} (${timeZone}); varredura a cada ${sweepMinutes} min.`);
+  console.log(`📲 Lembrete ERP de vencimentos do dia: ativo a partir de ${schedule} (${timeZone}); instância ${instanceName}; varredura a cada ${sweepMinutes} min.`);
 
   return { enabled: true, initialTimer, interval, schedule, timeZone, sweepMinutes };
 }
