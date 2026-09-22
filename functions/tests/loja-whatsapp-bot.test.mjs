@@ -614,11 +614,11 @@ test('produto já selecionado mantém contexto do Marcelo e entende ele/deixa/fa
       pushName: 'Cliente Teste'
     });
 
-    const conv = bot.conversation(phone);
+    let conv = bot.conversation(phone);
     assert.equal(conv.pendingAction, '');
     assert.equal(conv.humanUntil, 0);
     assert.equal(conv.marceloCallbackRequested, true);
-    assert.equal(bot.hasSpecialConditionMarceloContext(conv), false);
+    assert.equal(bot.hasSpecialConditionMarceloContext(conv), true);
     assert.match(sentTexts.at(-1).text, /aguarde um instante/i);
     assert.match(sentTexts.at(-1).text, /trabalho na rua/i);
     assert.match(sentTexts.at(-1).text, /já já está de volta/i);
@@ -626,6 +626,25 @@ test('produto já selecionado mantém contexto do Marcelo e entende ele/deixa/fa
     assert.doesNotMatch(sentTexts.at(-1).text, /atendimento humano/i);
     assert.equal(backendEvents.at(-1).status, 'Aguardando retorno do Marcelo');
     assert.equal(backendEvents.at(-1).metadata.atendimentoAutomaticoContinua, true);
+    assert.equal(backendEvents.at(-1).metadata.pedidoRepetido, false);
+
+    await bot.handleMessage({
+      phone,
+      text: 'eu posso falar com ele?',
+      pushName: 'Cliente Teste'
+    });
+
+    conv = bot.conversation(phone);
+    assert.equal(conv.humanUntil, 0);
+    assert.equal(conv.marceloCallbackRequested, true);
+    assert.equal(bot.hasSpecialConditionMarceloContext(conv), true);
+    assert.match(sentTexts.at(-1).text, /já deixei seu atendimento sinalizado para o Marcelo/i);
+    assert.match(sentTexts.at(-1).text, /assim que ele voltar/i);
+    assert.match(sentTexts.at(-1).text, /mais algum produto/i);
+    assert.doesNotMatch(sentTexts.at(-1).text, /me conta um pouco mais|atendimento humano/i);
+    assert.equal(backendEvents.at(-1).status, 'Aguardando retorno do Marcelo');
+    assert.equal(backendEvents.at(-1).metadata.atendimentoAutomaticoContinua, true);
+    assert.equal(backendEvents.at(-1).metadata.pedidoRepetido, true);
   }
 });
 
