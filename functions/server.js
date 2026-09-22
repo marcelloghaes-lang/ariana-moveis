@@ -2051,14 +2051,14 @@ async function getWhatsappSettings() {
 }
 async function saveWhatsappSettings(data, updatedBy = 'system') { const current = await getWhatsappSettings(); const merged = { ...current, ...(data || {}) }; merged.instanceName = String(process.env.EVOLUTION_NOTIFY_INSTANCE || process.env.EVOLUTION_INSTANCE_NOTIFICACOES || 'Ariana_Notificacoes').trim(); await setSetting('whatsapp_evolution', merged, updatedBy); return merged; }
 
-async function waSendTextMessage({ number = '', text = '', delay = 0 } = {}) {
+async function waSendTextMessage({ number = '', text = '', delay = 0, instanceName: requestedInstanceName = '' } = {}) {
   const settings = await getWhatsappSettings();
   if (settings.enabled === false) {
     throw new Error('WhatsApp desativado nas configurações.');
   }
 
   const apiUrl = String(settings.apiUrl || WHATSAPP_EVOLUTION_DEFAULT_API_URL || '').replace(/\/+$/, '');
-  const instanceName = String(settings.instanceName || WHATSAPP_EVOLUTION_DEFAULT_INSTANCE || '').trim();
+  const instanceName = String(requestedInstanceName || settings.instanceName || WHATSAPP_EVOLUTION_DEFAULT_INSTANCE || '').trim();
   const apiKey = String(settings.apiKey || process.env.EVOLUTION_API_KEY || '').trim();
   const to = normalizePhone(number || '', settings.defaultCountryCode || '55');
   const message = String(text || '').trim();
