@@ -2854,7 +2854,7 @@ test('intervenção manual pausa o bot por 60 minutos', async () => {
   });
 
   assert.equal(sentTexts.length, 1);
-  assert.match(sentTexts[0].text, /^Boa (?:dia|tarde|noite)! 😊 Tudo ótimo, e você\?/i);
+  assert.match(sentTexts[0].text, /^Boa (?:dia|tarde|noite)! 😊 Tudo bem\?/i);
 });
 
 test('mensagem enviada pelo próprio bot não ativa pausa humana', async () => {
@@ -4453,7 +4453,7 @@ test('cliente com memória comercial recebe cortesia primeiro sem perder o produ
   });
 
   assert.equal(sentTexts.length, 1);
-  assert.match(sentTexts[0].text, /^Boa tarde, Mariana! 😊 Tudo ótimo, e você\?/i);
+  assert.match(sentTexts[0].text, /^Boa tarde, Mariana! 😊 Tudo bem\?/i);
   assert.doesNotMatch(sentTexts[0].text, /Lembro que você estava olhando/i);
   assert.equal(bot.commercialProfileSnapshot(phone).lastProduct.id, item.id);
 
