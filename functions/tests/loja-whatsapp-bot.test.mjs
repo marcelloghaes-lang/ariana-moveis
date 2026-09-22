@@ -252,7 +252,7 @@ test('saudação usa somente o primeiro nome e ignora observações do contato',
   });
 
   assert.equal(sentTexts.length, 1);
-  assert.match(sentTexts[0].text, /^Boa noite, Gaby! 😊 Tudo ótimo, e você\?/i);
+  assert.match(sentTexts[0].text, /^Boa noite, Gaby! 😊 Tudo bem\?/i);
   assert.doesNotMatch(sentTexts[0].text, /Marcionilo|Cliente/i);
 
   sentTexts = [];
@@ -265,18 +265,18 @@ test('saudação usa somente o primeiro nome e ignora observações do contato',
   });
 
   assert.equal(sentTexts.length, 1);
-  assert.match(sentTexts[0].text, /^Boa noite! 😊 Tudo ótimo, e você\?/i);
+  assert.match(sentTexts[0].text, /^Boa noite! 😊 Tudo bem\?/i);
   assert.doesNotMatch(sentTexts[0].text, /31985147119/);
 });
 
 test('saudação simples abre conversa humana e resposta de bem-estar pergunta o que precisa hoje', async () => {
   const examples = [
-    ['Bom dia tudo bem?', 'João Cliente', /^Bom dia, João! 😊 Tudo ótimo, e você\?/i, 'tô bem graças a Deus'],
-    ['Bom dia', 'Maria Cliente', /^Bom dia, Maria! 😊 Tudo ótimo, e você\?/i, 'estou bem'],
-    ['Oi bom dia', 'Paulo Cliente', /^Bom dia, Paulo! 😊 Tudo ótimo, e você\?/i, 'bem também'],
-    ['Oi', 'Carla Cliente', /^(?:Bom dia|Boa tarde|Boa noite), Carla! 😊 Tudo ótimo, e você\?/i, 'bem obrigado'],
-    ['Oii', 'Rafael Cliente', /^(?:Bom dia|Boa tarde|Boa noite), Rafael! 😊 Tudo ótimo, e você\?/i, 'tudo bem'],
-    ['Boa tarde', 'Lúcia Cliente', /^Boa tarde, Lúcia! 😊 Tudo ótimo, e você\?/i, 'tudo ótimo']
+    ['Bom dia tudo bem?', 'João Cliente', /^Bom dia, João! 😊 Tudo ótimo por aqui\. E você\?/i, 'tô bem graças a Deus'],
+    ['Bom dia', 'Maria Cliente', /^Bom dia, Maria! 😊 Tudo bem\?/i, 'estou bem'],
+    ['Oi bom dia', 'Paulo Cliente', /^Bom dia, Paulo! 😊 Tudo bem\?/i, 'bem também'],
+    ['Oi', 'Carla Cliente', /^(?:Bom dia|Boa tarde|Boa noite), Carla! 😊 Tudo bem\?/i, 'bem obrigado'],
+    ['Oii', 'Rafael Cliente', /^(?:Bom dia|Boa tarde|Boa noite), Rafael! 😊 Tudo bem\?/i, 'tudo bem'],
+    ['Boa tarde', 'Lúcia Cliente', /^Boa tarde, Lúcia! 😊 Tudo bem\?/i, 'tudo ótimo']
   ];
 
   for (let i = 0; i < examples.length; i += 1) {
@@ -307,7 +307,48 @@ test('saudação simples abre conversa humana e resposta de bem-estar pergunta o
   }
 });
 
-test('resposta neutra ao "Tudo ótimo, e você?" usa acolhimento curto sem "Ah, que bom"', async () => {
+test('saudação simples não inventa bem-estar e "tudo bem?" é pergunta ao Gustavo', async () => {
+  const phone = '5533977777939';
+
+  await bot.handleMessage({
+    phone,
+    text: 'oi boa noite',
+    pushName: 'Marcelo Cliente'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /^Boa noite, Marcelo! 😊 Tudo bem\?/i);
+  assert.doesNotMatch(sentTexts[0].text, /Tudo ótimo/i);
+  assert.equal(bot.hasCourtesyGreetingContext(bot.conversation(phone)), true);
+
+  sentTexts = [];
+
+  await bot.handleMessage({
+    phone,
+    text: 'tudo bem?',
+    pushName: 'Marcelo Cliente'
+  });
+
+  assert.equal(bot.asksBotWellbeingQuestion('tudo bem?'), true);
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /^Tudo ótimo por aqui 😊 E você\?$/i);
+  assert.doesNotMatch(sentTexts[0].text, /Ah, que bom/i);
+  assert.equal(bot.hasCourtesyGreetingContext(bot.conversation(phone)), true);
+
+  sentTexts = [];
+
+  await bot.handleMessage({
+    phone,
+    text: 'tô bem',
+    pushName: 'Marcelo Cliente'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /^Ah, que bom 😊/i);
+  assert.equal(bot.hasCourtesyGreetingContext(bot.conversation(phone)), false);
+});
+
+test('resposta neutra à pergunta de cortesia usa acolhimento curto sem "Ah, que bom"', async () => {
   const replies = [
     'mais ou menos',
     'tô indo',
@@ -332,7 +373,7 @@ test('resposta neutra ao "Tudo ótimo, e você?" usa acolhimento curto sem "Ah, 
     });
 
     assert.equal(sentTexts.length, 1);
-    assert.match(sentTexts[0].text, /Tudo ótimo, e você\?/i);
+    assert.match(sentTexts[0].text, /Tudo bem\?/i);
     assert.equal(bot.hasCourtesyGreetingContext(bot.conversation(phone)), true);
 
     sentTexts = [];
@@ -352,7 +393,7 @@ test('resposta neutra ao "Tudo ótimo, e você?" usa acolhimento curto sem "Ah, 
   }
 });
 
-test('resposta claramente negativa ao "Tudo ótimo, e você?" deseja melhora sem fazer interrogatório', async () => {
+test('resposta claramente negativa à pergunta de cortesia deseja melhora sem fazer interrogatório', async () => {
   const replies = [
     'tô mal',
     'não tô bem',
@@ -439,7 +480,7 @@ test('"bom dia Marcelo tudo bem?" é cortesia, mas "Oi Marcelo" continua pedindo
   });
 
   assert.equal(sentTexts.length, 1);
-  assert.match(sentTexts[0].text, /^Bom dia, Carlos! 😊 Tudo ótimo, e você\?/i);
+  assert.match(sentTexts[0].text, /^Bom dia, Carlos! 😊 Tudo ótimo por aqui\. E você\?/i);
   assert.equal(bot.conversation(courtesyPhone).marceloCallbackRequested, false);
 
   sentTexts = [];
