@@ -3083,6 +3083,105 @@ test('áudio recebido do cliente é transcrito e segue o mesmo atendimento de te
   assert.equal(budget.usedBrl, 0.0036);
 });
 
+test('áudio avisando que dinheiro foi deixado para pagamento vai ao financeiro e não ao fallback comercial', async () => {
+  const phone = '5533923333497';
+
+  assert.equal(
+    bot.isPaymentHandoffNotice('Boa noite, a Marcelinha deixou o dinheiro aqui pra você.'),
+    true
+  );
+  assert.equal(
+    bot.isPaymentHandoffNotice('Quero pagar essa geladeira em dinheiro'),
+    false,
+    'intenção futura de pagar em dinheiro não é confirmação de entrega'
+  );
+
+  audioTranscriptionText = 'Boa noite, a Marcelinha deixou o dinheiro aqui pra você.';
+  mediaBase64Response = {
+    mimetype: 'audio/ogg; codecs=opus',
+    base64: 'T2dnUwBmYWtlLWF1ZGlvLWRpbmhlaXJv'
+  };
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'AUDIO-CASH-HANDOFF-1'
+      },
+      pushName: 'Cliente Pagamento',
+      message: {
+        audioMessage: {
+          mimetype: 'audio/ogg; codecs=opus',
+          seconds: 6,
+          ptt: true
+        }
+      }
+    }
+  });
+
+  assert.equal(result.audio, 'audio_transcribed');
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /^Boa noite! 😊/i);
+  assert.match(sentTexts[0].text, /Marcelo conferir/i);
+  assert.match(sentTexts[0].text, /pagamento em dinheiro/i);
+  assert.match(sentTexts[0].text, /baixa só fica confirmada depois da conferência/i);
+  assert.doesNotMatch(sentTexts[0].text, /produto ou da condição|fotos de produtos|Pode enviar o comprovante/i);
+
+  assert.equal(backendEvents.length, 1);
+  assert.equal(backendEvents[0].status, 'Financeiro - conferir pagamento em dinheiro');
+  assert.equal(backendEvents[0].metadata.assunto, 'pagamento_entregue_ou_pix_nao_concluido');
+  assert.equal(backendEvents[0].metadata.exigeConfirmacaoMarcelo, true);
+  assert.equal(backendEvents[0].metadata.naoConfirmarBaixaAutomaticamente, true);
+});
+
+test('áudio dizendo que PIX não deu certo e que é dinheiro da prestação fica no contexto financeiro', async () => {
+  const phone = '5533923333498';
+
+  assert.equal(
+    bot.isPaymentHandoffNotice('Ela disse que não deu pra mandar no PIX, viu? É o dinheiro da prestação.'),
+    true
+  );
+
+  audioTranscriptionText = 'Ela disse que não deu pra mandar no PIX, viu? É o dinheiro da prestação.';
+  mediaBase64Response = {
+    mimetype: 'audio/ogg; codecs=opus',
+    base64: 'T2dnUwBmYWtlLWF1ZGlvLXBpeC1wcmVzdGFjYW8='
+  };
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'AUDIO-PIX-CASH-1'
+      },
+      pushName: 'Cliente Pagamento',
+      message: {
+        audioMessage: {
+          mimetype: 'audio/ogg; codecs=opus',
+          seconds: 6,
+          ptt: true
+        }
+      }
+    }
+  });
+
+  assert.equal(result.audio, 'audio_transcribed');
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /^Entendi 😊/i);
+  assert.match(sentTexts[0].text, /Marcelo conferir/i);
+  assert.match(sentTexts[0].text, /pagamento em dinheiro/i);
+  assert.doesNotMatch(sentTexts[0].text, /produto ou da condição|fotos de produtos|Pode enviar o comprovante/i);
+
+  assert.equal(backendEvents.length, 1);
+  assert.equal(backendEvents[0].status, 'Financeiro - conferir pagamento em dinheiro');
+  assert.equal(backendEvents[0].metadata.assunto, 'pagamento_entregue_ou_pix_nao_concluido');
+  assert.equal(backendEvents[0].metadata.naoConfirmarBaixaAutomaticamente, true);
+});
+
 test('áudio com promessa condicional de pagamento é registrado para o Marcelo e não cai no fallback', async () => {
   const phone = '5533923333499';
 
