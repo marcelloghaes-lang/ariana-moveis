@@ -526,7 +526,7 @@ function rememberedProductReferenceIntent(text = '') {
 
   const directReference =
     /\b(aquele de antes|aquela de antes|o de antes|a de antes)\b/.test(n) ||
-    /\b(o|a) que (eu )?(vi|olhei|gostei|te falei|falei|tava olhando|estava olhando)\b/.test(n) ||
+    /\b(aquele|aquela|daquele|daquela|o|a) que (eu )?(vi|olhei|gostei|te falei|falei|tava olhando|estava olhando)\b/.test(n) ||
     /\bproduto que (eu )?(vi|olhei|gostei|tava olhando|estava olhando)\b/.test(n) ||
     /\b(o outro|a outra|outro que|outra que)\b/.test(n);
 
