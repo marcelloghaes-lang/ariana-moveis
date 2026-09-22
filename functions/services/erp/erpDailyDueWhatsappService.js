@@ -72,7 +72,7 @@ export function buildDailyDueReminderMessage(customerName = 'Cliente', installme
     '',
     'Qualquer dúvida, estamos à disposição. 💙',
     '',
-    'Ariana Móveis'
+    'Marcelo'
   ].join('\n');
 }
 
