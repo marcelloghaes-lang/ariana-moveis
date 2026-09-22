@@ -330,6 +330,7 @@ test('saudação simples não inventa bem-estar e "tudo bem?" é pergunta ao Gus
   });
 
   assert.equal(bot.asksBotWellbeingQuestion('tudo bem?'), true);
+  assert.equal(bot.isPositiveWellbeingReply('tudo bem?'), false);
   assert.equal(sentTexts.length, 1);
   assert.match(sentTexts[0].text, /^Tudo ótimo por aqui 😊 E você\?$/i);
   assert.doesNotMatch(sentTexts[0].text, /Ah, que bom/i);
