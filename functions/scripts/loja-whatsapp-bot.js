@@ -3948,6 +3948,7 @@ async function showProducts(phone, conv, query, originalText) {
   const products = await searchProducts(query, originalText);
   if (!products.length) {
     if (budget > 0) {
+      setAlternativeOffer(conv, query);
       await sendText(
         phone,
         `No momento não encontrei *${query}* em estoque dentro do limite de *${money(budget)}*. Se quiser, posso te mostrar opções acima desse valor ou procurar outra categoria 😊`
