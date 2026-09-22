@@ -101,6 +101,10 @@ const MANUAL_HUMAN_PAUSE_MS = Math.max(1, Number(process.env.LOJA_MANUAL_HUMAN_P
 const REVIEW_CONTEXT_TTL_MS = Math.max(1, Number(process.env.LOJA_REVIEW_CONTEXT_HOURS || 12)) * 60 * 60 * 1000;
 const SPECIAL_CONDITION_MARCELO_TTL_MS = Math.max(1, Number(process.env.LOJA_SPECIAL_CONDITION_MARCELO_MINUTES || 10)) * 60 * 1000;
 const DAILY_DUE_CONTEXT_TTL_MS = Math.max(1, Number(process.env.LOJA_DAILY_DUE_CONTEXT_HOURS || 36)) * 60 * 60 * 1000;
+const COMMERCIAL_MEMORY_TTL_MS = Math.max(7, Number(process.env.LOJA_COMMERCIAL_MEMORY_DAYS || 60)) * 24 * 60 * 60 * 1000;
+const COMMERCIAL_PROFILE_TTL_MS = Math.max(30, Number(process.env.LOJA_COMMERCIAL_PROFILE_DAYS || 180)) * 24 * 60 * 60 * 1000;
+const COMMERCIAL_RESUME_MIN_GAP_MS = Math.max(1, Number(process.env.LOJA_COMMERCIAL_RESUME_HOURS || 8)) * 60 * 60 * 1000;
+const COMMERCIAL_RESUME_COOLDOWN_MS = Math.max(1, Number(process.env.LOJA_COMMERCIAL_RESUME_COOLDOWN_DAYS || 7)) * 24 * 60 * 60 * 1000;
 const SUPPLIER_PHONES = new Set(
   String(process.env.LOJA_SUPPLIER_PHONES || '')
     .split(',')
@@ -224,6 +228,7 @@ function loadState() {
     const parsed = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
     return {
       conversations: parsed?.conversations || {},
+      commercialProfiles: parsed?.commercialProfiles || {},
       processed: parsed?.processed || {},
       botOutbound: parsed?.botOutbound || {},
       botOutboundFingerprints: parsed?.botOutboundFingerprints || {},
@@ -232,6 +237,7 @@ function loadState() {
   } catch {
     return {
       conversations: {},
+      commercialProfiles: {},
       processed: {},
       botOutbound: {},
       botOutboundFingerprints: {},
@@ -389,9 +395,209 @@ function cleanupState() {
     const lastAt = Number(conv?.lastAt || 0);
     if (lastAt && now - lastAt > 7 * 24 * 60 * 60 * 1000) delete state.conversations[phone];
   }
+  for (const [phone, profile] of Object.entries(state.commercialProfiles || {})) {
+    const updatedAt = Number(profile?.updatedAt || 0);
+    if (updatedAt && now - updatedAt > COMMERCIAL_PROFILE_TTL_MS) {
+      delete state.commercialProfiles[phone];
+    }
+  }
   saveStateSoon();
 }
 setInterval(cleanupState, 60 * 60 * 1000).unref?.();
+
+function commercialProfileKey(phone = '') {
+  const aliases = brazilWhatsappPhoneAliases(phone)
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+  return aliases[0] || digits(phone);
+}
+
+function findCommercialProfile(phone = '') {
+  state.commercialProfiles = state.commercialProfiles || {};
+  const aliases = brazilWhatsappPhoneAliases(phone);
+  const canonical = commercialProfileKey(phone);
+
+  for (const key of [canonical, ...aliases]) {
+    if (key && state.commercialProfiles[key]) return state.commercialProfiles[key];
+  }
+  return null;
+}
+
+function ensureCommercialProfile(phone = '') {
+  state.commercialProfiles = state.commercialProfiles || {};
+  const key = commercialProfileKey(phone);
+  if (!key) return null;
+
+  if (!state.commercialProfiles[key]) {
+    state.commercialProfiles[key] = {
+      updatedAt: Date.now(),
+      contactRole: '',
+      contactRoleAt: 0,
+      lastCategory: '',
+      lastCategoryAt: 0,
+      lastProduct: null,
+      lastProductAt: 0,
+      interests: [],
+      salesStage: '',
+      salesStageAt: 0,
+      lastCommercialAt: 0,
+      lastResumeAt: 0
+    };
+  }
+
+  return state.commercialProfiles[key];
+}
+
+function recentCommercialInterests(phone = '') {
+  const profile = findCommercialProfile(phone);
+  if (!profile) return [];
+
+  const now = Date.now();
+  const rows = Array.isArray(profile.interests) ? profile.interests : [];
+  return rows
+    .filter((item) => item?.product && now - Number(item.at || 0) <= COMMERCIAL_MEMORY_TTL_MS)
+    .sort((a, b) => Number(b.at || 0) - Number(a.at || 0))
+    .slice(0, 5);
+}
+
+function rememberCommercialInterest(phone, conv, {
+  product = null,
+  category = '',
+  stage = '',
+  source = ''
+} = {}) {
+  const profile = ensureCommercialProfile(phone);
+  if (!profile) return null;
+
+  const now = Date.now();
+  profile.updatedAt = now;
+  profile.lastCommercialAt = now;
+
+  if (conv?.contactRole && !profile.contactRole) {
+    profile.contactRole = String(conv.contactRole || '');
+    profile.contactRoleAt = Number(conv.contactRoleAt || now);
+  }
+
+  if (!profile.contactRole) {
+    profile.contactRole = 'customer';
+    profile.contactRoleAt = now;
+    if (conv && !conv.contactRole) {
+      conv.contactRole = 'customer';
+      conv.contactRoleAt = now;
+    }
+  }
+
+  const cleanCategory = String(category || product?.category || '').trim();
+  if (cleanCategory) {
+    profile.lastCategory = cleanCategory;
+    profile.lastCategoryAt = now;
+  }
+
+  if (product) {
+    const compact = compactProduct(product);
+    const key = productId(compact) || normalize(compact.name);
+    profile.lastProduct = compact;
+    profile.lastProductAt = now;
+
+    const previous = Array.isArray(profile.interests) ? profile.interests : [];
+    profile.interests = [
+      { product: compact, category: cleanCategory, at: now, source: String(source || '') },
+      ...previous.filter((item) => {
+        const itemKey = productId(item?.product || {}) || normalize(item?.product?.name || '');
+        return itemKey && itemKey !== key && now - Number(item?.at || 0) <= COMMERCIAL_MEMORY_TTL_MS;
+      })
+    ].slice(0, 5);
+  }
+
+  if (stage) {
+    profile.salesStage = String(stage);
+    profile.salesStageAt = now;
+  }
+
+  saveStateSoon();
+  return profile;
+}
+
+function rememberedProductReferenceIntent(text = '') {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const vague =
+    /\b(aquele|aquela|daquele|daquela|aquele de antes|aquela de antes|o de antes|a de antes)\b/.test(n) ||
+    /\b(o|a) que (eu )?(vi|olhei|gostei|te falei|falei|tava olhando|estava olhando)\b/.test(n) ||
+    /\bproduto que (eu )?(vi|olhei|gostei|tava olhando|estava olhando)\b/.test(n) ||
+    /\b(o outro|a outra|outro que|outra que)\b/.test(n);
+
+  return vague;
+}
+
+function resolveRememberedProductReference(phone, text, conv = {}) {
+  if (!rememberedProductReferenceIntent(text)) return null;
+
+  const interests = recentCommercialInterests(phone);
+  if (!interests.length) return null;
+
+  const n = normalize(text);
+  const currentId = productId(conv?.selectedProduct || {});
+  const wantsOther = /\b(o outro|a outra|outro que|outra que|outro|outra)\b/.test(n);
+  const category = detectCategory(text);
+
+  let candidates = interests;
+  if (wantsOther && currentId) {
+    candidates = candidates.filter((item) => productId(item.product) !== currentId);
+  } else if (wantsOther && interests.length > 1) {
+    candidates = interests.slice(1);
+  }
+
+  if (category) {
+    const byCategory = candidates.find((item) => {
+      const itemCategory = detectCategory(item.category || item.product?.category || item.product?.name || '');
+      return itemCategory && normalize(itemCategory) === normalize(category);
+    });
+    if (byCategory) return byCategory.product;
+  }
+
+  return candidates[0]?.product || null;
+}
+
+function isBareRememberedProductReference(text = '') {
+  const n = normalize(text);
+  if (!rememberedProductReferenceIntent(text)) return false;
+
+  return !/\b(preco|valor|quanto|cartao|credito|pix|boleto|carne|crediario|parcela|parcelado|foto|imagem|link|comprar|compra|entrega|frete|desconto)\b/.test(n);
+}
+
+function commercialResumeCandidate(phone, conv = {}) {
+  const profile = findCommercialProfile(phone);
+  if (!profile || ['supplier', 'internal'].includes(String(profile.contactRole || ''))) return null;
+
+  const now = Date.now();
+  const productAt = Number(profile.lastProductAt || 0);
+  const commercialAt = Number(profile.lastCommercialAt || 0);
+  const resumeAt = Number(profile.lastResumeAt || 0);
+
+  if (!profile.lastProduct || !productAt || now - productAt > COMMERCIAL_MEMORY_TTL_MS) return null;
+  if (!commercialAt || now - commercialAt < COMMERCIAL_RESUME_MIN_GAP_MS) return null;
+  if (resumeAt && now - resumeAt < COMMERCIAL_RESUME_COOLDOWN_MS) return null;
+  if (['completed', 'cancelled'].includes(String(profile.salesStage || ''))) return null;
+  if (conv?.dailyDueContextUntil && Number(conv.dailyDueContextUntil) > now) return null;
+
+  return {
+    profile,
+    product: profile.lastProduct,
+    stage: String(profile.salesStage || 'considering')
+  };
+}
+
+function markCommercialResume(phone) {
+  const profile = ensureCommercialProfile(phone);
+  if (!profile) return;
+  profile.lastResumeAt = Date.now();
+  profile.updatedAt = Date.now();
+  saveStateSoon();
+}
 
 function conversation(phone) {
   const key = digits(phone);
@@ -475,6 +681,16 @@ function conversation(phone) {
     conv.reviewMessage = '';
     conv.reviewMarkedAt = 0;
     conv.reviewCount = 0;
+  }
+
+  const rememberedProfile = findCommercialProfile(phone);
+  if (
+    rememberedProfile?.contactRole &&
+    !conv.contactRole &&
+    Date.now() - Number(rememberedProfile.contactRoleAt || rememberedProfile.updatedAt || 0) <= COMMERCIAL_PROFILE_TTL_MS
+  ) {
+    conv.contactRole = String(rememberedProfile.contactRole || '');
+    conv.contactRoleAt = Number(rememberedProfile.contactRoleAt || rememberedProfile.updatedAt || Date.now());
   }
 
   conv.lastAt = Date.now();
@@ -1923,17 +2139,28 @@ function isPersonalAdministrativeMessage(text) {
   );
 }
 
-function markContactRole(conv, role) {
+function markContactRole(conv, role, phone = '') {
   if (!conv) return;
+  const now = Date.now();
   conv.contactRole = String(role || '').trim();
-  conv.contactRoleAt = Date.now();
+  conv.contactRoleAt = now;
+
+  if (phone) {
+    const profile = ensureCommercialProfile(phone);
+    if (profile) {
+      profile.contactRole = conv.contactRole;
+      profile.contactRoleAt = now;
+      profile.updatedAt = now;
+      saveStateSoon();
+    }
+  }
 }
 
 async function handleSupplierInbound({ phone = '', text = '', pushName = '' } = {}, conv) {
   if (!conv) return { handled: false };
 
   if (isSupplierContactSignal({ phone, text, pushName })) {
-    markContactRole(conv, 'supplier');
+    markContactRole(conv, 'supplier', phone);
     saveStateSoon();
   }
 
@@ -3492,9 +3719,23 @@ async function showProducts(phone, conv, query, originalText) {
   conv.productResultOffset = 0;
   conv.lastProductQuery = query;
   conv.selectedProduct = null;
+  rememberCommercialInterest(phone, conv, {
+    category: query,
+    stage: 'browsing',
+    source: 'catalog_search'
+  });
   saveStateSoon();
 
   await sendProductPage(phone, conv, { announce: true });
+
+  if (conv.selectedProduct) {
+    rememberCommercialInterest(phone, conv, {
+      product: conv.selectedProduct,
+      category: conv.selectedProduct.category || query,
+      stage: 'considering',
+      source: 'single_catalog_result'
+    });
+  }
 }
 
 async function showMoreProducts(phone, conv) {
@@ -3923,11 +4164,35 @@ function clearReviewNeeded(conv) {
 }
 
 async function markConversationStatus(phone, conv, status, message, name = '', metadata = {}) {
+  const statusText = String(status || '');
+  const selected = metadata?.productId
+    ? findConversationProduct(conv, metadata.productId) || conv?.selectedProduct
+    : conv?.selectedProduct;
+
+  let stage = '';
+  if (metadata?.purchaseIntent === true) stage = 'purchase_intent';
+  else if (/crediario|an[aá]lise/i.test(statusText)) stage = 'credit_analysis';
+  else if (metadata?.paymentMode) stage = 'payment_consideration';
+  else if (/venda em andamento/i.test(statusText) && selected) stage = 'considering';
+  else if (/atendimento normal/i.test(statusText) && conv?.lastProductQuery) stage = 'browsing';
+
+  if (stage || selected) {
+    rememberCommercialInterest(phone, conv, {
+      product: selected || null,
+      category: selected?.category || conv?.lastProductQuery || '',
+      stage: stage || 'considering',
+      source: 'conversation_status'
+    });
+  }
+
   await syncTicket(phone, {
     status: classifiedTicketStatus(conv, status),
     message,
     name,
-    metadata
+    metadata: {
+      ...(metadata || {}),
+      ...(stage ? { commercialStage: stage } : {})
+    }
   });
 }
 
@@ -4400,7 +4665,7 @@ async function handleMessage({ phone, text, pushName = '' }) {
   }
 
   if (isKnownInternalContact(pushName)) {
-    markContactRole(conv, 'internal');
+    markContactRole(conv, 'internal', phone);
     saveStateSoon();
   }
 
@@ -4458,6 +4723,61 @@ async function handleMessage({ phone, text, pushName = '' }) {
       }
     });
     return;
+  }
+
+  const rememberedReferenceProduct = resolveRememberedProductReference(phone, text, conv);
+  if (rememberedReferenceProduct) {
+    conv.selectedProduct = rememberedReferenceProduct;
+    conv.lastIntent = 'produto';
+    saveStateSoon();
+
+    rememberCommercialInterest(phone, conv, {
+      product: rememberedReferenceProduct,
+      category: rememberedReferenceProduct.category || '',
+      stage: 'considering',
+      source: 'vague_reference'
+    });
+
+    if (isBareRememberedProductReference(text)) {
+      await sendText(
+        phone,
+        `Sim 😊 Você está falando de *${rememberedReferenceProduct.name}*. Eu lembro dele. Quer ver o preço, a foto, cartão, PIX ou carnê?`
+      );
+      await markConversationStatus(
+        phone,
+        conv,
+        'Venda em andamento',
+        `Cliente retomou produto lembrado: ${rememberedReferenceProduct.name}`,
+        pushName,
+        { productId: productId(rememberedReferenceProduct), memoryResume: true }
+      );
+      return;
+    }
+  }
+
+  if (isGreeting(text)) {
+    const resume = commercialResumeCandidate(phone, conv);
+    if (resume?.product) {
+      markCommercialResume(phone);
+      const greeting = greetingFromText(text) || 'Olá';
+      const firstName = customerFirstName(pushName);
+      await sendText(
+        phone,
+        `${greeting}${firstName ? `, ${firstName}` : ''}! 😊 Lembro que você estava olhando *${resume.product.name}*. Se quiser, a gente continua por ele; se estiver procurando outra coisa, é só me falar.`
+      );
+      await syncTicket(phone, {
+        status: 'Venda em acompanhamento',
+        message: `Cliente retornou após demonstrar interesse em: ${resume.product.name}`,
+        name: pushName,
+        metadata: {
+          assunto: 'retomada_comercial',
+          productId: productId(resume.product),
+          commercialStage: resume.stage,
+          proactiveMessage: false
+        }
+      });
+      return;
+    }
   }
 
   const emojiIntent = emojiOnlyIntent(text);
@@ -5692,6 +6012,7 @@ const server = http.createServer((req, res) => {
 
 function resetTestState() {
   state.conversations = {};
+  state.commercialProfiles = {};
   state.processed = {};
   state.botOutbound = {};
   state.botOutboundFingerprints = {};
@@ -5709,6 +6030,25 @@ function patchTestConversation(phone, patch = {}) {
   const conv = conversation(phone);
   Object.assign(conv, patch || {});
   return conv;
+}
+
+function patchTestCommercialProfile(phone, patch = {}) {
+  const profile = ensureCommercialProfile(phone);
+  Object.assign(profile, patch || {});
+  profile.updatedAt = Number(profile.updatedAt || Date.now());
+  return profile;
+}
+
+function dropTestConversation(phone) {
+  for (const alias of brazilWhatsappPhoneAliases(phone)) {
+    delete state.conversations[alias];
+  }
+  delete state.conversations[digits(phone)];
+}
+
+function commercialProfileSnapshot(phone) {
+  const profile = findCommercialProfile(phone);
+  return profile ? JSON.parse(JSON.stringify(profile)) : null;
 }
 
 export const __test = {
@@ -5740,6 +6080,16 @@ export const __test = {
   isCasualSmallTalk,
   isPersonalAdministrativeMessage,
   markContactRole,
+  commercialProfileKey,
+  findCommercialProfile,
+  ensureCommercialProfile,
+  recentCommercialInterests,
+  rememberCommercialInterest,
+  rememberedProductReferenceIntent,
+  resolveRememberedProductReference,
+  isBareRememberedProductReference,
+  commercialResumeCandidate,
+  markCommercialResume,
   isGreeting,
   asksPresencePing,
   asksMarceloOrCallback,
@@ -5844,6 +6194,11 @@ export const __test = {
   markConversationStatus,
   resetTestState,
   patchTestConversation,
+  patchTestCommercialProfile,
+  dropTestConversation,
+  commercialProfileSnapshot,
+  commercialMemoryTtlMs: COMMERCIAL_MEMORY_TTL_MS,
+  commercialProfileTtlMs: COMMERCIAL_PROFILE_TTL_MS,
   manualHumanPauseMs: MANUAL_HUMAN_PAUSE_MS,
   humanTtlMs: HUMAN_TTL_MS
 };
