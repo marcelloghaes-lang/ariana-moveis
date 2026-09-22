@@ -3613,7 +3613,7 @@ async function handleMessage({ phone, text, pushName = '' }) {
     }
   }
 
-  if (hasSpecialConditionMarceloContext(conv) && asksMarceloAfterCondition(text)) {
+  if ((hasSpecialConditionMarceloContext(conv) || conv.pendingAction === 'special_condition_product') && asksMarceloAfterCondition(text)) {
     conv.pendingAction = '';
     conv.humanUntil = 0;
     clearSpecialConditionMarceloContext(conv);
