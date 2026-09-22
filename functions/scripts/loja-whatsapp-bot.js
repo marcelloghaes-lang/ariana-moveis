@@ -2306,7 +2306,7 @@ function isPositiveWellbeingReply(text = '') {
   );
 }
 
-function isNonPositiveWellbeingReply(text = '') {
+function isClearlyNegativeWellbeingReply(text = '') {
   const n = normalize(text)
     .replace(/[!?.,;:]+/g, ' ')
     .replace(/\s+/g, ' ')
@@ -2315,11 +2315,61 @@ function isNonPositiveWellbeingReply(text = '') {
   if (!n) return false;
 
   return (
-    /^(?:to|tou|estou)?\s*(?:mais ou menos|mais pra menos|meio assim|meio ruim|ruim|mal)$/i.test(n) ||
-    /^(?:to|tou|estou)?\s*(?:indo|levando|na luta|sobrevivendo)$/i.test(n) ||
-    /^(?:vou|to|tou|estou)\s+(?:indo|levando)$/i.test(n) ||
-    /^(?:nao|não)\s+(?:muito|muito bem|to muito bem|estou muito bem)$/i.test(n)
+    /^(?:to|tou|estou)\s+mal$/.test(n) ||
+    /^nao\s+(?:to|tou|estou)\s+bem$/.test(n) ||
+    /^(?:to|tou|estou)\s+meio\s+ruim$/.test(n) ||
+    /^hoje\s+nao\s+(?:to|tou|estou)\s+legal$/.test(n) ||
+    /^(?:(?:to|tou|estou)\s+)?passando\s+mal$/.test(n) ||
+    /^(?:to|tou|estou)?\s*ruim$/.test(n)
   );
+}
+
+function isNonPositiveWellbeingReply(text = '') {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n) return false;
+  if (isClearlyNegativeWellbeingReply(text)) return true;
+
+  return (
+    /^(?:mais ou menos(?:\s+ne)?|mais pra menos|meio assim|na luta|sobrevivendo|levando a vida|podia estar melhor|ja estive melhor)$/.test(n) ||
+    /^(?:to|tou|estou)\s+(?:indo|levando)$/.test(n) ||
+    /^vou\s+levando$/.test(n) ||
+    /^nao\s+muito(?:\s+bem)?$/.test(n)
+  );
+}
+
+function wellbeingReplyLeadTone(text = '') {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n) return '';
+
+  if (
+    /^(?:to|tou|estou)\s+mal\b/.test(n) ||
+    /^nao\s+(?:to|tou|estou)\s+bem\b/.test(n) ||
+    /^(?:to|tou|estou)\s+meio\s+ruim\b/.test(n) ||
+    /^hoje\s+nao\s+(?:to|tou|estou)\s+legal\b/.test(n) ||
+    /^(?:(?:to|tou|estou)\s+)?passando\s+mal\b/.test(n) ||
+    /^(?:to|tou|estou)?\s*ruim\b/.test(n)
+  ) {
+    return 'negative';
+  }
+
+  if (
+    /^(?:mais ou menos(?:\s+ne)?|mais pra menos|meio assim|na luta|sobrevivendo|levando a vida|podia estar melhor|ja estive melhor)\b/.test(n) ||
+    /^(?:to|tou|estou)\s+(?:indo|levando)\b/.test(n) ||
+    /^vou\s+levando\b/.test(n) ||
+    /^nao\s+muito(?:\s+bem)?\b/.test(n)
+  ) {
+    return 'neutral';
+  }
+
+  return '';
 }
 
 function storeDaypartGreeting(now = new Date()) {
@@ -5203,13 +5253,35 @@ async function handleMessage({ phone, text, pushName = '' }) {
       return;
     }
 
+    if (isClearlyNegativeWellbeingReply(text)) {
+      clearCourtesyGreetingContext(conv);
+      await sendText(phone, 'Poxa, entendi. Espero que melhore 😊 O que você tá precisando pra hoje?');
+      return;
+    }
+
     if (isNonPositiveWellbeingReply(text)) {
       clearCourtesyGreetingContext(conv);
       await sendText(phone, 'Entendi 😊 O que você tá precisando pra hoje?');
       return;
     }
 
-    clearCourtesyGreetingContext(conv);
+    const wellbeingLeadTone = wellbeingReplyLeadTone(text);
+    if (wellbeingLeadTone && isCommercialTopic(text, {})) {
+      clearCourtesyGreetingContext(conv);
+      const courtesyCategory = detectCategory(text);
+      const commercialLead = courtesyCategory
+        ? ` Vi que você está procurando *${courtesyCategory}*. Vou te ajudar com isso.`
+        : ' Vou te ajudar com isso agora.';
+
+      await sendText(
+        phone,
+        wellbeingLeadTone === 'negative'
+          ? `Poxa, entendi. Espero que melhore 😊${commercialLead}`
+          : `Entendi 😊${commercialLead}`
+      );
+    } else {
+      clearCourtesyGreetingContext(conv);
+    }
   }
 
   if (isCourtesyGreeting(text)) {
@@ -6797,6 +6869,7 @@ export const __test = {
   isGreeting,
   isCourtesyGreeting,
   isPositiveWellbeingReply,
+  isClearlyNegativeWellbeingReply,
   isNonPositiveWellbeingReply,
   storeDaypartGreeting,
   courtesyGreetingLabel,
