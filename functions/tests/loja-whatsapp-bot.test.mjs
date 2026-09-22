@@ -1769,6 +1769,66 @@ test('"essa geladeira aí que você mandou qual o valor da prestação dela" nã
   assert.doesNotMatch(sentTexts.map((item) => item.text).join('\n'), /Encontrei 9 opções|Me conta um pouco mais/i);
 });
 
+test('"crediário lógico" continua a pergunta "cartão ou crediário" no mesmo produto e pede quantidade de parcelas', async () => {
+  const phone = '5533977777920';
+  const last = bot.compactProduct(product('credito-logico-1', 'Geladeira HQ Defrost 230 Litros Branca HQ-230RDF BRANCO', {
+    category: 'Geladeiras',
+    pixPrice: 2197.40,
+    cardPrice: 2647.40
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastProducts: [last],
+    allProductResults: [last],
+    lastProductQuery: 'geladeira',
+    selectedProduct: last,
+    lastIntent: 'produto',
+    pendingAction: 'installment_payment_method'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'crediario logico',
+    pushName: 'Cliente Crediário'
+  });
+
+  assert.equal(bot.conversation(phone).selectedProduct.id, last.id);
+  assert.equal(bot.conversation(phone).pendingAction, 'credit_installments');
+  assert.match(sentTexts.at(-1).text, /Geladeira HQ Defrost 230 Litros/i);
+  assert.match(sentTexts.at(-1).text, /crediário próprio em até 12x/i);
+  assert.match(sentTexts.at(-1).text, /Em quantas vezes/i);
+  assert.doesNotMatch(sentTexts.at(-1).text, /Me conta um pouco mais|pegar certinho/i);
+});
+
+test('resposta "no cartão mesmo" após pergunta de parcelamento calcula o mesmo produto', async () => {
+  const phone = '5533977777921';
+  const last = bot.compactProduct(product('cartao-mesmo-1', 'Geladeira HQ Defrost 230 Litros Branca HQ-230RDF BRANCO', {
+    category: 'Geladeiras',
+    pixPrice: 2197.40,
+    cardPrice: 2647.40,
+    installmentCount: 12
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastProducts: [last],
+    selectedProduct: last,
+    lastIntent: 'produto',
+    pendingAction: 'installment_payment_method'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'no cartão mesmo',
+    pushName: 'Cliente Cartão'
+  });
+
+  assert.equal(bot.conversation(phone).selectedProduct.id, last.id);
+  assert.equal(bot.conversation(phone).pendingAction, '');
+  assert.match(sentTexts.at(-1).text, /Geladeira HQ Defrost 230 Litros/i);
+  assert.match(sentTexts.at(-1).text, /12x de R\$\s*220,62/i);
+  assert.match(sentTexts.at(-1).text, /total de \*?R\$\s*2\.647,40\*?/i);
+});
+
 test('"esse último aí qual o valor dele parcelado" pergunta cartão ou crediário sem perder o produto', async () => {
   const phone = '5533977777740';
 
