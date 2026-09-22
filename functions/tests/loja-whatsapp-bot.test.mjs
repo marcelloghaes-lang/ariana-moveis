@@ -4195,3 +4195,107 @@ test('sequência de emojis positivos na cobrança não gera uma resposta para ca
   assert.equal(bot.conversation(phone).dailyDueCourtesyCount, 3);
   assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), true);
 });
+
+
+test('cobrança do dia sinaliza skipLegacy para impedir segunda resposta do fluxo antigo', async () => {
+  const phone = '5533988905282';
+  const alias = '553388905282';
+  const contextPatch = {
+    dailyDueContextUntil: Date.now() + (6 * 60 * 60 * 1000),
+    dailyDueReminderAt: Date.now(),
+    dailyDueCourtesyAt: 0,
+    dailyDueCourtesyCount: 0
+  };
+  bot.patchTestConversation(phone, contextPatch);
+  bot.patchTestConversation(alias, contextPatch);
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: '553388905282@s.whatsapp.net',
+        fromMe: false,
+        id: 'DAILY-DUE-SKIP-LEGACY-1'
+      },
+      pushName: 'Cliente Cobrança',
+      message: { conversation: '👍' }
+    }
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.collectionContext, true);
+  assert.equal(result.skipLegacy, true);
+  assert.equal(sentTexts.length, 1);
+  assert.equal(sentTexts[0].text, 'Por nada 😊 Qualquer coisa estou por aqui.');
+});
+
+test('controle de emoji positivo é compartilhado entre número com e sem nono dígito', async () => {
+  const withNine = '5533988905282';
+  const withoutNine = '553388905282';
+
+  bot.patchTestConversation(withNine, {
+    dailyDueContextUntil: Date.now() + (6 * 60 * 60 * 1000),
+    dailyDueReminderAt: Date.now(),
+    dailyDueCourtesyAt: 0,
+    dailyDueCourtesyCount: 0
+  });
+  bot.patchTestConversation(withoutNine, {
+    dailyDueContextUntil: Date.now() + (6 * 60 * 60 * 1000),
+    dailyDueReminderAt: Date.now(),
+    dailyDueCourtesyAt: 0,
+    dailyDueCourtesyCount: 0
+  });
+
+  await bot.handleMessage({
+    phone: withoutNine,
+    text: '👍',
+    pushName: 'Cliente Cobrança'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.equal(sentTexts[0].text, 'Por nada 😊 Qualquer coisa estou por aqui.');
+
+  await bot.handleMessage({
+    phone: withNine,
+    text: '😊',
+    pushName: 'Cliente Cobrança'
+  });
+
+  assert.equal(sentTexts.length, 1, 'o segundo alias não deve responder novamente');
+  assert.ok(bot.conversation(withNine).dailyDueCourtesyAt > 0);
+  assert.ok(bot.conversation(withoutNine).dailyDueCourtesyAt > 0);
+});
+
+test('nova intenção de venda após cobrança continua liberada e não força skipLegacy', async () => {
+  const phone = '5533977777798';
+  bot.patchTestConversation(phone, {
+    dailyDueContextUntil: Date.now() + (6 * 60 * 60 * 1000),
+    dailyDueReminderAt: Date.now()
+  });
+
+  catalogRows = [
+    product('geladeira-skip-legacy-1', 'Geladeira Electrolux 400L', {
+      category: 'Geladeira',
+      stock: 2
+    })
+  ];
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'DAILY-DUE-SALES-SWITCH-LEGACY-1'
+      },
+      pushName: 'Cliente Cobrança',
+      message: { conversation: 'vocês têm geladeira?' }
+    }
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.skipLegacy, false);
+  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), false);
+  assert.equal(sentMedia.length, 1);
+  assert.match(sentMedia[0].caption || '', /Geladeira Electrolux 400L/i);
+});
