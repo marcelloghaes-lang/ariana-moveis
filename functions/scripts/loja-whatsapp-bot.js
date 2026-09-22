@@ -2303,6 +2303,29 @@ function isPixCopyPastePayload(text) {
   return /^000201/.test(raw) && /BR\.GOV\.BCB\.PIX/i.test(raw);
 }
 
+function asksExistingOrderStatus(text) {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n) return false;
+
+  const explicitOrder =
+    /\b(meu|minha|o meu|a minha)\s+(pedido|encomenda|compra)\b/.test(n) ||
+    /\b(pedido|encomenda|compra)\s+(que|q)\s+(eu\s+)?(?:fiz|comprei|encomendei|pedi)\b/.test(n) ||
+    /\b(?:status|situacao|andamento|previsao)\b.{0,30}\b(?:pedido|encomenda|compra)\b/.test(n) ||
+    /\b(?:pedido|encomenda|compra)\b.{0,30}\b(?:status|situacao|andamento|previsao|chega|chegar|chegou)\b/.test(n);
+
+  const waitingForProduct =
+    /\b(?:que|q)\s+dia\b.{0,55}\b(?:chega|chegar|vai chegar)\b/.test(n) ||
+    /\b(?:sabe|saber|sabem|consegue saber|tem previsao)\b.{0,45}\b(?:que|q|qual)\s+dia\b.{0,45}\b(?:chega|chegar)\b/.test(n) ||
+    /\b(?:quando|qdo)\b.{0,45}\b(?:meu|minha|o|a)\b.{0,35}\b(?:chega|chegar)\b/.test(n) ||
+    /\b(?:ja|já)\s+(?:chegou|chegaram)\b.{0,35}\b(?:pedido|encomenda|compra|produto|mercadoria)?\b/.test(n);
+
+  return explicitOrder || waitingForProduct;
+}
+
 function asksDelivery(text) {
   const n = normalize(text);
   return (
@@ -3841,6 +3864,30 @@ async function handleMessage({ phone, text, pushName = '' }) {
     return;
   }
 
+  if (asksExistingOrderStatus(text)) {
+    conv.pendingAction = '';
+    conv.marceloCallbackRequested = true;
+    conv.marceloCallbackRequestedAt = Date.now();
+    saveStateSoon();
+
+    await sendText(
+      phone,
+      'O Marcelo está em outro atendimento no momento 😊 Assim que ele terminar, ele te dá um parecer por aqui sobre o seu pedido.'
+    );
+
+    await syncTicket(phone, {
+      status: 'Aguardando Marcelo - pedido/encomenda',
+      message: text,
+      name: pushName,
+      metadata: {
+        assunto: 'pedido_encomenda',
+        exigeParecerMarcelo: true,
+        atendimentoAutomaticoContinua: true
+      }
+    });
+    return;
+  }
+
   const emojiIntent = emojiOnlyIntent(text);
   if (emojiIntent === 'positive') {
     return;
@@ -5010,6 +5057,7 @@ export const __test = {
   asksHowToBuyFromStore,
   asksGenericStorePurchase,
   isPixCopyPastePayload,
+  asksExistingOrderStatus,
   asksDelivery,
   asksFinance,
   asksAttendantIdentity,
