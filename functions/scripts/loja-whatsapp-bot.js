@@ -3338,6 +3338,37 @@ function asksPaymentExceptionForMarcelo(text) {
   return partialPayment && hardship;
 }
 
+function isPaymentHandoffNotice(text = '') {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n) return false;
+
+  const handoffAction =
+    /\b(deixou|deixei|deixaram|deixado|entregou|entreguei|entregaram|trouxe|trouxeram)\b/.test(n);
+
+  const paymentObject =
+    /\b(dinheiro|valor|pagamento|parcela|prestacao|notinha|carne|boleto)\b/.test(n);
+
+  const physicalDestination =
+    /\b(aqui|na loja|ai|com voce|com vc|com o marcelo|pro marcelo|para o marcelo)\b/.test(n);
+
+  const failedPix =
+    /\b(?:nao|n)\s+(?:deu|consegui|conseguiu|foi possivel)\b.{0,45}\b(?:mandar|enviar|fazer|pagar)?\s*(?:no|o)?\s*pix\b/.test(n) ||
+    /\b(?:nao|n)\s+deu\b.{0,30}\bpix\b/.test(n);
+
+  const installmentMoney =
+    /\b(dinheiro|valor|pagamento)\b.{0,40}\b(parcela|prestacao|notinha|carne)\b/.test(n) ||
+    /\b(parcela|prestacao|notinha|carne)\b.{0,40}\b(dinheiro|valor|pagamento)\b/.test(n);
+
+  return (
+    (handoffAction && paymentObject && (physicalDestination || /\bdinheiro\b/.test(n))) ||
+    (failedPix && installmentMoney)
+  );
+}
+
 function asksPaymentPromiseUpdate(text) {
   const n = normalize(text)
     .replace(/[!?.,;:]+/g, ' ')
@@ -5512,6 +5543,31 @@ async function handleMessage({ phone, text, pushName = '' }) {
   }
 
   {
+    if (isPaymentHandoffNotice(text)) {
+      conv.pendingAction = '';
+      conv.marceloCallbackRequested = true;
+      conv.marceloCallbackRequestedAt = Date.now();
+      saveStateSoon();
+
+      const greeting = greetingFromText(text);
+      await sendText(
+        phone,
+        `${greeting ? `${greeting}! 😊 ` : 'Entendi 😊 '}Vou deixar essa informação de pagamento registrada para o Marcelo conferir. Como envolve dinheiro/valor de prestação, a baixa só fica confirmada depois da conferência.`
+      );
+
+      await syncTicket(phone, {
+        status: 'Financeiro - conferir pagamento em dinheiro',
+        message: `Cliente informou entrega/tentativa de pagamento e precisa de conferência humana: ${String(text || '').trim()}`,
+        name: pushName,
+        metadata: {
+          assunto: 'pagamento_entregue_ou_pix_nao_concluido',
+          exigeConfirmacaoMarcelo: true,
+          naoConfirmarBaixaAutomaticamente: true
+        }
+      });
+      return;
+    }
+
     const paymentPromiseUpdate = asksPaymentPromiseUpdate(text);
     const paymentException = asksPaymentExceptionForMarcelo(text);
 
@@ -6976,6 +7032,7 @@ export const __test = {
   asksAttendantIdentity,
   formerEmployeeAsked,
   asksPaymentExceptionForMarcelo,
+  isPaymentHandoffNotice,
   asksPaymentPromiseUpdate,
   asksHowToBuyCredit,
   asksToWriteOnCredit,
