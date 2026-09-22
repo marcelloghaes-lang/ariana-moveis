@@ -3346,6 +3346,10 @@ function isPaymentHandoffNotice(text = '') {
 
   if (!n) return false;
 
+  // Promessas/combinações futuras de pagamento têm fluxo próprio e não devem
+  // ser confundidas com dinheiro que já foi efetivamente deixado/entregue.
+  if (asksPaymentPromiseUpdate(text)) return false;
+
   const handoffAction =
     /\b(deixou|deixei|deixaram|deixado|entregou|entreguei|entregaram|trouxe|trouxeram)\b/.test(n);
 
