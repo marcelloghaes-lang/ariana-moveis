@@ -1786,6 +1786,29 @@ test('"mansa foto por favor" continua oferta de outros tamanhos de TV', async ()
   assert.doesNotMatch(sentTexts.at(-1)?.text || '', /Me conta o que você está procurando/i);
 });
 
+test('WhatsApp usa a primeira imagem da galeria real antes do imageUrl legado', () => {
+  const normalized = bot.compactProduct({
+    ...product('party-x4000', 'CAIXA AMP PHILIPS PARTY X4000 2X8 1500W', {
+      category: 'Caixa de som',
+      imageUrl: 'https://img.test/legado-deformado.jpg'
+    }),
+    imageUrl: 'https://img.test/legado-deformado.jpg',
+    images: [
+      'https://img.test/galeria-principal-correta.jpg',
+      'https://img.test/galeria-2.jpg'
+    ]
+  });
+
+  assert.equal(normalized.imageUrl, 'https://img.test/galeria-principal-correta.jpg');
+  assert.equal(
+    bot.productPrimaryImage({
+      imageUrl: 'https://img.test/legado.jpg',
+      imagens: [{ url: 'https://img.test/site-correta.jpg' }]
+    }),
+    'https://img.test/site-correta.jpg'
+  );
+});
+
 test('produto sem foto real não gera card cinza de link preview', async () => {
   const phone = '5533977777733';
 
@@ -2158,6 +2181,58 @@ test('fornecedor é identificado e respostas automáticas do sistema dele não g
 
   assert.equal(bot.conversation(legacyPhone).contactRole, 'supplier');
   assert.equal(sentTexts.length, 1, 'nome comercial forte deve impedir resposta ao robô mesmo em conversa antiga');
+});
+
+test('consultora de fornecedor com imagem é desviada para compras antes da visão de produto', async () => {
+  const phone = '5533977777850';
+
+  visionClassification = {
+    kind: 'product',
+    confidence: 0.99,
+    product_name: 'Smartphone Samsung A07',
+    brand: 'Samsung',
+    model: 'A07',
+    category_hint: 'celular',
+    payment_method: 'unknown',
+    payment_recipient_name: '',
+    summary: 'Smartphones Samsung'
+  };
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'SUPPLIER-IMAGE-1'
+      },
+      pushName: 'samira consultora martins',
+      message: {
+        imageMessage: {
+          mimetype: 'image/jpeg',
+          caption: 'Enviar as demandas de pedidos hoje 22/09, até as 18h. Preço a partir de 1 peça. Dúvidas à disposição! Boas vendas.'
+        }
+      }
+    }
+  });
+
+  assert.equal(result.supplier, true);
+  assert.equal(bot.conversation(phone).contactRole, 'supplier');
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /proposta comercial/i);
+  assert.match(sentTexts[0].text, /compras/i);
+  assert.equal(sentMedia.length, 0);
+  assert.equal(
+    requestLog.some((item) => item.href === 'https://api.openai.com/v1/responses'),
+    false,
+    'fornecedor identificado antes da visão não pode gerar análise de produto'
+  );
+  assert.equal(
+    requestLog.some((item) => item.href.startsWith('https://evolution.test/chat/getBase64FromMediaMessage/')),
+    false,
+    'não deve baixar a imagem para visão quando o contato já é fornecedor'
+  );
+  assert.equal(backendEvents.at(-1).status, 'Fornecedor / Compras');
 });
 
 test('conversa casual e pergunta pessoal não caem no discurso comercial', async () => {
