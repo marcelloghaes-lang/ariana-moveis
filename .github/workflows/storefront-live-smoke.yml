@@ -25,6 +25,17 @@ jobs:
       BACKEND: https://ariana-backend.onrender.com
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check backend entrypoint guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check functions/server.js
+          grep -q 'function getClientIp' functions/server.js
+          grep -q 'ip: getClientIp(req)' functions/server.js
+
       - name: Check public storefront pages
         shell: bash
         run: |

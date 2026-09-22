@@ -394,6 +394,15 @@ function normalizeProductForResponse(doc) {
 function signToken(user) {
   return jwt.sign({ id: String(user._id), email: user.email, role: user.role || 'customer', sellerId: user.sellerId || null, admin: user.role === 'admin' }, JWT_SECRET, { expiresIn: '7d' });
 }
+
+function getClientIp(req = {}) {
+  const forwarded = String(req?.headers?.['x-forwarded-for'] || '')
+    .split(',')[0]
+    .trim();
+
+  return forwarded || String(req?.ip || req?.socket?.remoteAddress || '').trim();
+}
+
 async function authRequired(req, res, next) {
   try {
     const header = req.headers.authorization || '';
