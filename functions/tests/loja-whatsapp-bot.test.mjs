@@ -4113,3 +4113,37 @@ test('contexto de cobrança funciona em conversa LID usando remoteJidAlt do tele
   assert.ok(lookup, 'deve consultar o contexto pelo telefone real');
   assert.match(String(lookup.options.body || ''), /5533988905282/);
 });
+
+
+test('aliases brasileiros tratam o mesmo celular com e sem nono dígito', () => {
+  assert.deepEqual(
+    new Set(bot.brazilWhatsappPhoneAliases('5533988905282')),
+    new Set(['5533988905282', '553388905282'])
+  );
+
+  assert.deepEqual(
+    new Set(bot.brazilWhatsappPhoneAliases('553388905282')),
+    new Set(['553388905282', '5533988905282'])
+  );
+
+  assert.deepEqual(
+    bot.brazilWhatsappPhoneAliases('553332701234'),
+    ['553332701234']
+  );
+});
+
+test('JID legado sem o nono dígito resolve sem alterar o número recebido pela Evolution', () => {
+  assert.equal(
+    bot.resolveIncomingPhone({
+      remoteJid: '553388905282@s.whatsapp.net',
+      key: {},
+      data: {},
+      payload: {}
+    }),
+    '553388905282'
+  );
+
+  assert.ok(
+    bot.brazilWhatsappPhoneAliases('553388905282').includes('5533988905282')
+  );
+});

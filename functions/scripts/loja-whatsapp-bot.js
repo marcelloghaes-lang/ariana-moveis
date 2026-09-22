@@ -171,6 +171,25 @@ function digits(value = '') {
   return String(value || '').replace(/\D/g, '');
 }
 
+function brazilWhatsappPhoneAliases(value = '') {
+  const phone = digits(value);
+  if (!phone) return [];
+
+  const aliases = new Set([phone]);
+
+  if (phone.startsWith('55')) {
+    // Brasil: 55 + DDD + 9 dígitos. A Evolution/WhatsApp pode devolver
+    // o JID legado sem o nono dígito para alguns celulares.
+    if (phone.length === 13 && phone[4] === '9') {
+      aliases.add(phone.slice(0, 4) + phone.slice(5));
+    } else if (phone.length === 12 && /[6-9]/.test(phone[4] || '')) {
+      aliases.add(phone.slice(0, 4) + '9' + phone.slice(4));
+    }
+  }
+
+  return [...aliases];
+}
+
 function money(value = 0) {
   return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
@@ -5535,24 +5554,30 @@ const server = http.createServer((req, res) => {
         return sendJson(res, 400, { ok: false, error: 'invalid_phone' });
       }
 
-      const conv = conversation(phone);
       const active = payload.active !== false;
+      const aliases = brazilWhatsappPhoneAliases(phone);
 
-      if (active) {
-        markDailyDueCollectionContext(conv);
-        conv.dailyDueLookupAt = Date.now();
-        conv.dailyDueLookupActive = true;
-      } else {
-        clearDailyDueCollectionContext(conv);
-        conv.dailyDueLookupAt = Date.now();
-        conv.dailyDueLookupActive = false;
+      for (const alias of aliases) {
+        const conv = conversation(alias);
+        if (active) {
+          markDailyDueCollectionContext(conv);
+          conv.dailyDueLookupAt = Date.now();
+          conv.dailyDueLookupActive = true;
+        } else {
+          clearDailyDueCollectionContext(conv);
+          conv.dailyDueLookupAt = Date.now();
+          conv.dailyDueLookupActive = false;
+        }
       }
       saveStateSoon();
+
+      const primaryConv = conversation(phone);
 
       return sendJson(res, 200, {
         ok: true,
         phone,
-        active: hasDailyDueCollectionContext(conv),
+        aliases,
+        active: hasDailyDueCollectionContext(primaryConv),
         contextHours: Math.round(DAILY_DUE_CONTEXT_TTL_MS / 3600000)
       });
     }
@@ -5595,6 +5620,7 @@ export const __test = {
   CATEGORY_TERMS,
   normalize,
   digits,
+  brazilWhatsappPhoneAliases,
   categoryAliases,
   detectCategory,
   greetingFromText,
