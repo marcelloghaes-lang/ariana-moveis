@@ -4072,6 +4072,208 @@ test('cliente que retorna depois recebe uma retomada comercial curta apenas uma 
   assert.match(sentTexts[0].text, /Seja bem-vindo à Ariana Móveis/i);
 });
 
+test('orçamento em linguagem natural é extraído sem confundir números comuns', () => {
+  assert.equal(bot.extractBudgetLimit('Tenho até 2 mil para uma geladeira'), 2000);
+  assert.equal(bot.extractBudgetLimit('meu orçamento é de R$ 2.500'), 2500);
+  assert.equal(bot.extractBudgetLimit('posso gastar até 1.799,90'), 1799.90);
+  assert.equal(bot.extractBudgetLimit('quero uma TV de 50 polegadas'), 0);
+});
+
+test('orçamento filtra catálogo e mostra somente produtos dentro do limite', async () => {
+  const phone = '5533977777910';
+  catalogRows = [
+    product('budget-fridge-1', 'Geladeira Consul 300 Litros', { category: 'Geladeiras', pixPrice: 1899, cardPrice: 2287 }),
+    product('budget-fridge-2', 'Geladeira HQ 230 Litros', { category: 'Geladeiras', pixPrice: 1599, cardPrice: 1927 }),
+    product('budget-fridge-3', 'Geladeira Brastemp 375 Litros', { category: 'Geladeiras', pixPrice: 2499, cardPrice: 3010 }),
+    product('budget-freezer', 'Freezer Horizontal 200 Litros', { category: 'Freezers', pixPrice: 1499, cardPrice: 1800 })
+  ];
+
+  await bot.handleMessage({
+    phone,
+    text: 'Tenho até 2 mil, qual geladeira você me indica?',
+    pushName: 'Cliente Orçamento'
+  });
+
+  assert.equal(sentMedia.length, 2);
+  assert.match(sentTexts[0].text, /orçamento de até R\$\s*2\.000,00/i);
+  assert.match(sentMedia[0].caption, /Geladeira HQ 230 Litros/i);
+  assert.match(sentMedia[1].caption, /Geladeira Consul 300 Litros/i);
+  assert.doesNotMatch(sentMedia.map((item) => item.caption).join('\n'), /Brastemp 375/i);
+  assert.doesNotMatch(sentMedia.map((item) => item.caption).join('\n'), /Freezer/i);
+});
+
+test('objeção de preço procura alternativas realmente mais baratas da mesma categoria', async () => {
+  const phone = '5533977777911';
+  const chosen = bot.compactProduct(product('cheap-base', 'Geladeira Consul 451 Litros', {
+    category: 'Geladeiras',
+    pixPrice: 3974,
+    cardPrice: 4787.95
+  }));
+  bot.patchTestConversation(phone, {
+    selectedProduct: chosen,
+    lastProducts: [chosen],
+    lastProductQuery: 'geladeira',
+    lastIntent: 'produto'
+  });
+  catalogRows = [
+    product('cheap-base', 'Geladeira Consul 451 Litros', { category: 'Geladeiras', pixPrice: 3974, cardPrice: 4787.95 }),
+    product('cheap-1', 'Geladeira HQ 230 Litros', { category: 'Geladeiras', pixPrice: 2197.40, cardPrice: 2647 }),
+    product('cheap-2', 'Geladeira Electrolux 310 Litros', { category: 'Geladeiras', pixPrice: 3299, cardPrice: 3974 }),
+    product('cheap-expensive', 'Geladeira Premium 500 Litros', { category: 'Geladeiras', pixPrice: 4499, cardPrice: 5420 })
+  ];
+
+  await bot.handleMessage({
+    phone,
+    text: 'achei caro, tem uma parecida mais barata?',
+    pushName: 'Cliente Preço'
+  });
+
+  assert.equal(sentMedia.length, 2);
+  assert.match(sentTexts[0].text, /preço no PIX menor/i);
+  assert.match(sentMedia[0].caption, /Geladeira HQ 230 Litros/i);
+  assert.match(sentMedia[1].caption, /Geladeira Electrolux 310 Litros/i);
+  assert.doesNotMatch(sentMedia.map((item) => item.caption).join('\n'), /Premium 500/i);
+});
+
+test('comparação de dois produtos usa dados objetivos e não inventa vencedor de qualidade', async () => {
+  const phone = '5533977777912';
+  const first = bot.compactProduct(product('cmp-1', 'Geladeira HQ 230 Litros', {
+    category: 'Geladeiras',
+    pixPrice: 2197.40,
+    cardPrice: 2647
+  }));
+  const second = bot.compactProduct(product('cmp-2', 'Geladeira Consul 451 Litros', {
+    category: 'Geladeiras',
+    pixPrice: 3974,
+    cardPrice: 4787.95
+  }));
+  bot.patchTestConversation(phone, {
+    lastProducts: [first, second],
+    lastProductQuery: 'geladeira',
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'qual dessas duas é melhor?',
+    pushName: 'Cliente Comparação'
+  });
+
+  const reply = sentTexts.at(-1).text;
+  assert.match(reply, /Geladeira HQ 230 Litros/i);
+  assert.match(reply, /Geladeira Consul 451 Litros/i);
+  assert.match(reply, /230 L/i);
+  assert.match(reply, /451 L/i);
+  assert.match(reply, /prioridade for gastar menos/i);
+  assert.match(reply, /sem inventar especificação/i);
+  assert.equal(backendEvents.at(-1).metadata.productComparison, true);
+});
+
+test('"vou pensar" encerra leve e mantém produto na memória comercial', async () => {
+  const phone = '5533977777913';
+  const chosen = bot.compactProduct(product('think-1', 'Smart TV LG 50 4K', {
+    category: 'TVs',
+    pixPrice: 2199,
+    cardPrice: 2649
+  }));
+  bot.patchTestConversation(phone, {
+    selectedProduct: chosen,
+    lastProducts: [chosen],
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'vou pensar um pouco',
+    pushName: 'Cliente Pensando'
+  });
+
+  assert.match(sentTexts.at(-1).text, /Fica à vontade/i);
+  assert.match(sentTexts.at(-1).text, /Smart TV LG 50 4K/i);
+  assert.equal(bot.commercialProfileSnapshot(phone).lastProduct.id, chosen.id);
+  assert.equal(bot.commercialProfileSnapshot(phone).salesStage, 'considering');
+});
+
+test('sinal de fechamento escolhe produto e pergunta forma de pagamento', async () => {
+  const phone = '5533977777914';
+  const chosen = bot.compactProduct(product('close-1', 'CAIXA AMP PHILIPS PARTY X4000 1500W', {
+    category: 'Caixa de som',
+    pixPrice: 1155.85,
+    cardPrice: 1392.59
+  }));
+  bot.patchTestConversation(phone, {
+    selectedProduct: chosen,
+    lastProducts: [chosen],
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'gostei desse, quero comprar ele',
+    pushName: 'Cliente Fechamento'
+  });
+
+  assert.equal(bot.conversation(phone).pendingAction, 'purchase_payment_method');
+  assert.match(sentTexts.at(-1).text, /PIX.*cartão.*crediário\/carnê/i);
+  assert.equal(backendEvents.at(-1).metadata.purchaseIntent, true);
+  assert.equal(bot.commercialProfileSnapshot(phone).salesStage, 'purchase_intent');
+});
+
+test('fechamento no cartão usa preço oficial, manda link e mantém intenção de compra', async () => {
+  const phone = '5533977777915';
+  const chosen = bot.compactProduct(product('close-card-1', 'CAIXA AMP PHILIPS PARTY X4000 1500W', {
+    category: 'Caixa de som',
+    pixPrice: 1155.85,
+    cardPrice: 1392.59,
+    installmentCount: 12
+  }));
+  bot.patchTestConversation(phone, {
+    selectedProduct: chosen,
+    lastProducts: [chosen],
+    lastIntent: 'produto',
+    pendingAction: 'purchase_payment_method'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'no cartão',
+    pushName: 'Cliente Fechamento'
+  });
+
+  const reply = sentTexts.at(-1).text;
+  assert.match(reply, /12x de R\$\s*116,05/i);
+  assert.match(reply, /total de R\$\s*1\.392,59/i);
+  assert.match(reply, /arianamoveis\.com\.br\/produto\.html\?id=close-card-1/i);
+  assert.equal(bot.conversation(phone).pendingAction, '');
+  assert.equal(backendEvents.at(-1).metadata.purchaseIntent, true);
+  assert.equal(backendEvents.at(-1).metadata.paymentMode, 'cartao');
+});
+
+test('fechamento no carnê entra no fluxo seguro de análise de crédito', async () => {
+  const phone = '5533977777916';
+  const chosen = bot.compactProduct(product('close-credit-1', 'Sofá Retrátil 3 Lugares', {
+    category: 'Sofás',
+    pixPrice: 1899,
+    cardPrice: 2287.95
+  }));
+  bot.patchTestConversation(phone, {
+    selectedProduct: chosen,
+    lastProducts: [chosen],
+    lastIntent: 'produto',
+    pendingAction: 'purchase_payment_method'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'quero no carnê',
+    pushName: 'Cliente Carnê'
+  });
+
+  assert.equal(bot.conversation(phone).pendingAction, 'crediario_name');
+  assert.match(sentTexts.at(-1).text, /nome completo/i);
+  assert.ok(backendEvents.some((event) => /Crediário \/ análise/i.test(event.status || '')));
+});
+
 test('lembrete automático de vencimento abre contexto de cobrança sem pausar Gustavo como atendimento manual', async () => {
   const phone = '5533977777790';
   const reminder = [
