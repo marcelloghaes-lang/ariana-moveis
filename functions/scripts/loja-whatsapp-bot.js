@@ -417,6 +417,8 @@ function conversation(phone) {
       dailyDueContextUntil: 0,
       dailyDueReminderAt: 0,
       dailyDueReplyCount: 0,
+      dailyDueLookupAt: 0,
+      dailyDueLookupActive: false,
       lastIntent: ''
     };
   }
@@ -437,6 +439,8 @@ function conversation(phone) {
   if (!Number.isFinite(Number(conv.dailyDueContextUntil))) conv.dailyDueContextUntil = 0;
   if (!Number.isFinite(Number(conv.dailyDueReminderAt))) conv.dailyDueReminderAt = 0;
   if (!Number.isFinite(Number(conv.dailyDueReplyCount))) conv.dailyDueReplyCount = 0;
+  if (!Number.isFinite(Number(conv.dailyDueLookupAt))) conv.dailyDueLookupAt = 0;
+  if (typeof conv.dailyDueLookupActive !== 'boolean') conv.dailyDueLookupActive = false;
 
   if (
     conv.reviewNeeded &&
@@ -572,6 +576,60 @@ async function backend(path, { method = 'GET', body = null, botAuth = false } = 
     body: body === null ? undefined : JSON.stringify(body)
   });
   return readJson(response);
+}
+
+async function fetchDailyDueReminderContext(phone, conv = null) {
+  const now = Date.now();
+  const cacheMs = 2 * 60 * 1000;
+
+  if (
+    conv &&
+    Number(conv.dailyDueLookupAt || 0) > 0 &&
+    now - Number(conv.dailyDueLookupAt || 0) < cacheMs
+  ) {
+    return Boolean(conv.dailyDueLookupActive);
+  }
+
+  try {
+    const data = await backend('/api/bot/financeiro/vencimento-hoje/contexto', {
+      method: 'POST',
+      botAuth: true,
+      body: { phone: digits(phone) }
+    });
+    const active = data?.active === true;
+
+    if (conv) {
+      conv.dailyDueLookupAt = now;
+      conv.dailyDueLookupActive = active;
+      saveStateSoon();
+    }
+
+    return active;
+  } catch (error) {
+    if (conv) {
+      conv.dailyDueLookupAt = now;
+      conv.dailyDueLookupActive = false;
+      saveStateSoon();
+    }
+    console.warn('[loja-bot] contexto de vencimento do dia indisponível:', error?.message || error);
+    return false;
+  }
+}
+
+async function syncDailyDueContextFromBackend(phone, conv, text = '') {
+  if (!conv || hasDailyDueCollectionContext(conv)) return false;
+
+  // Não atrasa nem prende uma nova intenção comercial clara.
+  if (text && asksDailyDueSubjectChange(text)) return false;
+
+  const active = await fetchDailyDueReminderContext(phone, conv);
+  if (!active) return false;
+
+  markDailyDueCollectionContext(conv);
+  conv.dailyDueLookupAt = Date.now();
+  conv.dailyDueLookupActive = true;
+  saveStateSoon();
+  return true;
 }
 
 async function evolution(path, body) {
@@ -5277,6 +5335,8 @@ async function handleWebhook(payload) {
     return { ignored: 'manual_human_mode' };
   }
 
+  await syncDailyDueContextFromBackend(incoming.phone, conv, incoming.text);
+
   const supplierInbound = await handleSupplierInbound(incoming, conv);
   if (supplierInbound.handled) {
     return {
@@ -5401,6 +5461,8 @@ const server = http.createServer((req, res) => {
 
   if (req.method !== 'POST') return sendJson(res, 404, { ok: false, error: 'not_found' });
 
+  const requestPath = String(req.url || '').split('?')[0];
+
   let raw = '';
   req.on('data', (chunk) => {
     raw += chunk;
@@ -5410,6 +5472,44 @@ const server = http.createServer((req, res) => {
     let payload = {};
     try { payload = raw ? JSON.parse(raw) : {}; }
     catch { return sendJson(res, 400, { ok: false, error: 'invalid_json' }); }
+
+    if (requestPath === '/loja-bot/context/daily-due') {
+      const incomingToken = String(
+        req.headers['x-loja-bot-token'] ||
+        req.headers['x-api-key'] ||
+        ''
+      ).trim();
+
+      if (!LOJA_BOT_API_TOKEN || incomingToken !== LOJA_BOT_API_TOKEN) {
+        return sendJson(res, 401, { ok: false, error: 'unauthorized' });
+      }
+
+      const phone = digits(payload.phone || payload.telefone || payload.number || '');
+      if (phone.length < 10) {
+        return sendJson(res, 400, { ok: false, error: 'invalid_phone' });
+      }
+
+      const conv = conversation(phone);
+      const active = payload.active !== false;
+
+      if (active) {
+        markDailyDueCollectionContext(conv);
+        conv.dailyDueLookupAt = Date.now();
+        conv.dailyDueLookupActive = true;
+      } else {
+        clearDailyDueCollectionContext(conv);
+        conv.dailyDueLookupAt = Date.now();
+        conv.dailyDueLookupActive = false;
+      }
+      saveStateSoon();
+
+      return sendJson(res, 200, {
+        ok: true,
+        phone,
+        active: hasDailyDueCollectionContext(conv),
+        contextHours: Math.round(DAILY_DUE_CONTEXT_TTL_MS / 3600000)
+      });
+    }
 
     sendJson(res, 200, { ok: true, received: true });
     Promise.allSettled([
@@ -5517,6 +5617,8 @@ export const __test = {
   asksDelivery,
   asksFinance,
   isDailyDueReminderOutbound,
+  fetchDailyDueReminderContext,
+  syncDailyDueContextFromBackend,
   asksDailyDueSubjectChange,
   markDailyDueCollectionContext,
   clearDailyDueCollectionContext,
