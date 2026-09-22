@@ -349,6 +349,43 @@ test('saudação simples não inventa bem-estar e "tudo bem?" é pergunta ao Gus
   assert.equal(bot.hasCourtesyGreetingContext(bot.conversation(phone)), false);
 });
 
+test('resposta positiva com "e você?" responde ao cliente antes de seguir para venda', async () => {
+  const replies = [
+    'beleza e você ?',
+    'tô bem e vc?',
+    'estou bem, e você?'
+  ];
+
+  for (let i = 0; i < replies.length; i += 1) {
+    const phone = '5533977777936' + String(i);
+
+    sentTexts = [];
+    await bot.handleMessage({
+      phone,
+      text: 'oi boa noite',
+      pushName: 'Marcelo Cliente'
+    });
+
+    assert.equal(sentTexts.length, 1);
+    assert.match(sentTexts[0].text, /^Boa noite, Marcelo! 😊 Tudo bem\?/i);
+
+    sentTexts = [];
+    await bot.handleMessage({
+      phone,
+      text: replies[i],
+      pushName: 'Marcelo Cliente'
+    });
+
+    assert.equal(bot.isPositiveWellbeingReply(replies[i]), true, replies[i]);
+    assert.equal(bot.asksBackWellbeing(replies[i]), true, replies[i]);
+    assert.equal(sentTexts.length, 1);
+    assert.match(sentTexts[0].text, /^Que bom 😊 Por aqui tá tudo ótimo também\./i);
+    assert.match(sentTexts[0].text, /O que você tá precisando pra hoje\?/i);
+    assert.doesNotMatch(sentTexts[0].text, /^Ah, que bom/i);
+    assert.equal(bot.hasCourtesyGreetingContext(bot.conversation(phone)), false);
+  }
+});
+
 test('resposta neutra à pergunta de cortesia usa acolhimento curto sem "Ah, que bom"', async () => {
   const replies = [
     'mais ou menos',
