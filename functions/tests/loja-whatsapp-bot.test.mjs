@@ -619,6 +619,7 @@ test('produto já selecionado mantém contexto do Marcelo e entende ele/deixa/fa
     assert.equal(conv.humanUntil, 0);
     assert.equal(conv.marceloCallbackRequested, true);
     assert.equal(bot.hasSpecialConditionMarceloContext(conv), true);
+    assert.equal(bot.specialConditionMarceloAlreadyNotified(conv), true);
     assert.match(sentTexts.at(-1).text, /aguarde um instante/i);
     assert.match(sentTexts.at(-1).text, /trabalho na rua/i);
     assert.match(sentTexts.at(-1).text, /já já está de volta/i);
@@ -646,6 +647,89 @@ test('produto já selecionado mantém contexto do Marcelo e entende ele/deixa/fa
     assert.equal(backendEvents.at(-1).metadata.atendimentoAutomaticoContinua, true);
     assert.equal(backendEvents.at(-1).metadata.pedidoRepetido, true);
   }
+});
+
+test('fluxo real: primeiro pedido pelo Marcelo usa mensagem da rua e ?/o que houve mantêm contexto', async () => {
+  sentTexts = [];
+  backendEvents = [];
+
+  const phone = '5533977777999';
+  const first = bot.compactProduct(product('tv-real-1', 'Smart TV 32 LG Full HD', {
+    category: 'TV',
+    pixPrice: 1379,
+    cardPrice: 1661.45
+  }));
+  const second = bot.compactProduct(product('tv-real-2', 'Smart TV 43 LG', {
+    category: 'TV',
+    pixPrice: 1825.17,
+    cardPrice: 2199
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: null,
+    lastProducts: [first, second],
+    lastIntent: 'produto',
+    pendingAction: '',
+    humanUntil: 0,
+    marceloCallbackRequested: true,
+    marceloCallbackRequestedAt: Date.now(),
+    specialConditionMarceloUntil: 0,
+    specialConditionMarceloHandoffAt: 0
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'tem como ajeitar essa condição aí pra mim?',
+    pushName: 'Cliente Teste'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'a primeira',
+    pushName: 'Cliente Teste'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'eu posso falar com ele?',
+    pushName: 'Cliente Teste'
+  });
+
+  assert.match(sentTexts.at(-1).text, /aguarde um instante/i);
+  assert.match(sentTexts.at(-1).text, /trabalho na rua/i);
+  assert.doesNotMatch(sentTexts.at(-1).text, /já deixei seu atendimento sinalizado/i);
+  assert.equal(bot.specialConditionMarceloAlreadyNotified(bot.conversation(phone)), true);
+
+  await bot.handleMessage({
+    phone,
+    text: 'deixa eu falar com ele',
+    pushName: 'Cliente Teste'
+  });
+
+  assert.match(sentTexts.at(-1).text, /já deixei seu atendimento sinalizado para o Marcelo/i);
+  assert.doesNotMatch(sentTexts.at(-1).text, /me conta um pouco mais/i);
+
+  await bot.handleMessage({
+    phone,
+    text: '?',
+    pushName: 'Cliente Teste'
+  });
+
+  assert.match(sentTexts.at(-1).text, /Marcelo ainda não voltou/i);
+  assert.doesNotMatch(sentTexts.at(-1).text, /continuamos de onde paramos/i);
+
+  await bot.handleMessage({
+    phone,
+    text: 'oque houve?',
+    pushName: 'Cliente Teste'
+  });
+
+  const conv = bot.conversation(phone);
+  assert.equal(conv.humanUntil, 0);
+  assert.equal(bot.hasSpecialConditionMarceloContext(conv), true);
+  assert.match(sentTexts.at(-1).text, /Nada de errado/i);
+  assert.match(sentTexts.at(-1).text, /ainda não voltou do trabalho na rua/i);
+  assert.doesNotMatch(sentTexts.at(-1).text, /me conta um pouco mais|atendimento humano/i);
 });
 
 test('repetir pedido de condição não devolve fallback genérico idêntico', async () => {
