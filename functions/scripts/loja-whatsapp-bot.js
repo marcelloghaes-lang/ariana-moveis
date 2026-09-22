@@ -1522,6 +1522,21 @@ function asksAboutImageProduct(text) {
   return /(vende|vendem|tem|teria|trabalha|trabalham).{0,35}\b(esse|essa|desse|dessa)\b(?:\s+produto)?(?:\s+aqui)?\s*[!?.,;:]*$/.test(n);
 }
 
+function asksSelectedProductPhoto(text) {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n) return false;
+
+  return (
+    /\b(?:manda|mandar|envia|enviar|mostra|mostrar|quero ver|pode mandar|pode enviar)\b.{0,35}\b(?:foto|fotos|imagem|imagens)\b/.test(n) ||
+    /\b(?:foto|fotos|imagem|imagens)\b.{0,35}\b(?:dele|dela|desse|dessa|produto)\b/.test(n) ||
+    /\b(?:tem|teria)\b.{0,15}\b(?:foto|fotos|imagem|imagens)\b.{0,20}\b(?:dele|dela|desse|dessa)?\b/.test(n)
+  );
+}
+
 function emojiOnlyIntent(text) {
   const raw = String(text || '')
     .replace(/\s+/g, '')
@@ -4227,6 +4242,44 @@ async function handleMessage({ phone, text, pushName = '' }) {
     return;
   }
 
+  if (asksSelectedProductPhoto(text)) {
+    const product = conv.selectedProduct || (
+      Array.isArray(conv.lastProducts) && conv.lastProducts.length === 1
+        ? conv.lastProducts[0]
+        : null
+    );
+
+    if (product) {
+      conv.selectedProduct = product;
+      conv.lastIntent = 'produto';
+      saveStateSoon();
+
+      await sendImage(
+        phone,
+        product.imageUrl,
+        `Aqui está a foto de *${product.name}* 😊
+
+${productCaption(product)}`
+      );
+
+      await markConversationStatus(
+        phone,
+        conv,
+        'Venda em andamento',
+        `Cliente pediu a foto do produto selecionado: ${product.name}`,
+        pushName,
+        { productId: productId(product), requestedProductPhoto: true }
+      );
+      return;
+    }
+
+    await sendText(
+      phone,
+      'Claro 😊 Me diga qual produto você quer ver e eu te mando a foto correta.'
+    );
+    return;
+  }
+
   const ord = ordinalIndex(text);
 
   if (asksCreditQuote(text)) {
@@ -4934,6 +4987,7 @@ export const __test = {
   markPixContext,
   isPixContext,
   asksAboutImageProduct,
+  asksSelectedProductPhoto,
   emojiOnlyIntent,
   classifyImageWithVision,
   handleVisionMedia,
