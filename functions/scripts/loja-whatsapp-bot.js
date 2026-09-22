@@ -1599,8 +1599,23 @@ function isPlaceholderProductImage(imageUrl = '') {
   );
 }
 
-async function sendImage(phone, imageUrl, caption) {
+function whatsappProductImageUrl(imageUrl = '') {
   const url = String(imageUrl || '').trim();
+  if (!url) return '';
+
+  // O site exibe o produto em um quadro quadrado usando object-fit: contain.
+  // No WhatsApp precisamos entregar a mídia já nesse formato, pois o app
+  // renderiza a proporção real do arquivo recebido.
+  if (/^https:\/\/res\.cloudinary\.com\//i.test(url) && /\/image\/upload\//i.test(url)) {
+    const transformation = 'c_pad,w_1000,h_1000,g_center,b_white,q_auto:good,f_jpg';
+    return url.replace(/\/image\/upload\//i, `/image/upload/${transformation}/`);
+  }
+
+  return url;
+}
+
+async function sendImage(phone, imageUrl, caption) {
+  const url = whatsappProductImageUrl(imageUrl);
   const captionText = String(caption || '').trim();
 
   if (!/^https?:\/\//i.test(url) || isPlaceholderProductImage(url)) {
@@ -4966,6 +4981,7 @@ export const __test = {
   productFullPrice,
   productLink,
   productPrimaryImage,
+  whatsappProductImageUrl,
   compactProduct,
   findConversationProductByText,
   isPlaceholderProductImage,
