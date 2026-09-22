@@ -832,10 +832,21 @@
         if (installmentsEl && !installmentsEl.options.length) {
           const amount = Number(getTotalForSelectedMethod("card") || 0);
           const fmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+          const amountCents = Math.round(amount * 100);
           for (let i = 1; i <= 12; i++) {
             const opt = document.createElement("option");
             opt.value = String(i);
-            opt.textContent = `${i}x de ${fmt.format(amount / i)} sem juros`;
+
+            const lowCents = Math.floor(amountCents / i);
+            const remainder = amountCents - (lowCents * i);
+            const highCents = lowCents + (remainder > 0 ? 1 : 0);
+
+            if (remainder === 0) {
+              opt.textContent = `${i}x de ${fmt.format(lowCents / 100)} sem juros`;
+            } else {
+              opt.textContent = `${i}x sem juros • parcelas de ${fmt.format(lowCents / 100)} a ${fmt.format(highCents / 100)} • total ${fmt.format(amountCents / 100)}`;
+            }
+
             installmentsEl.appendChild(opt);
           }
         }
