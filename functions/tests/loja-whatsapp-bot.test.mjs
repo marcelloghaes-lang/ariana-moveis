@@ -90,6 +90,8 @@ function product(id, name, options = {}) {
     stock: options.stock === undefined ? 5 : options.stock,
     installmentCount: options.installmentCount || 12,
     imageUrl: options.imageUrl || ('https://img.test/' + id + '.jpg'),
+    images: options.images,
+    imageUrls: options.imageUrls,
     sellerName: options.sellerName || 'Ariana Móveis',
     isBestSeller: options.isBestSeller === true,
     isRecommended: options.isRecommended === true,
@@ -6166,6 +6168,181 @@ test('mais vendido recomendação e marca usam somente sinais confirmados do cat
   assert.match(sentTexts.at(-1).text, /não tenho uma nota confiável de qualidade/i);
 });
 
+
+
+test('mais fotos do produto usa galeria completa sem repetir a principal já enviada', async () => {
+  const phone = '5533977778011';
+  const wardrobe = product('gallery-ward-1', 'Guarda Roupa Canadá 6 Portas 4 Gavetas Branco', {
+    category: 'Guarda-Roupas',
+    pixPrice: 1899,
+    stock: 2,
+    imageUrl: 'https://img.test/ward-main.jpg',
+    images: [
+      { url: 'https://img.test/ward-main.jpg', isMain: true },
+      { url: 'https://img.test/ward-inside.jpg' },
+      { url: 'https://img.test/ward-detail-2.jpg' },
+      { url: 'https://img.test/ward-detail-3.jpg' }
+    ]
+  });
+  catalogRows = [wardrobe];
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: bot.compactProduct(wardrobe),
+    lastProducts: [bot.compactProduct(wardrobe)],
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'manda foto pra eu ver',
+    pushName: 'Cliente Galeria'
+  });
+
+  assert.equal(sentMedia.length, 1);
+  assert.equal(sentMedia[0].media, 'https://img.test/ward-main.jpg');
+
+  sentMedia = [];
+  sentTexts = [];
+
+  await bot.handleMessage({
+    phone,
+    text: 'tem mais fotos dele pra eu ver?',
+    pushName: 'Cliente Galeria'
+  });
+
+  assert.equal(sentMedia.length, 3);
+  assert.equal(sentMedia.some((item) => item.media === 'https://img.test/ward-main.jpg'), false);
+  assert.ok(sentMedia.some((item) => item.media === 'https://img.test/ward-inside.jpg'));
+  assert.ok(sentMedia.some((item) => item.media === 'https://img.test/ward-detail-2.jpg'));
+  assert.match(sentTexts[0].text, /mais fotos.*imagens extras da galeria/is);
+});
+
+test('pedido por dentro ou aberto envia imagens de detalhe da galeria e não a principal', async () => {
+  const phone = '5533977778012';
+  const fridge = product('gallery-fridge-1', 'Geladeira Frost Free 451L Branca', {
+    category: 'Geladeiras',
+    pixPrice: 3999,
+    stock: 2,
+    imageUrl: 'https://img.test/fridge-main.jpg',
+    images: [
+      { url: 'https://img.test/fridge-main.jpg', isMain: true },
+      { url: 'https://img.test/fridge-open.jpg' },
+      { url: 'https://img.test/fridge-inside.jpg' }
+    ]
+  });
+  catalogRows = [fridge];
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: bot.compactProduct(fridge),
+    lastProducts: [bot.compactProduct(fridge)],
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'tem foto dela aberta por dentro?',
+    pushName: 'Cliente Interna'
+  });
+
+  assert.equal(sentMedia.length, 2);
+  assert.equal(sentMedia.some((item) => item.media === 'https://img.test/fridge-main.jpg'), false);
+  assert.ok(sentMedia.some((item) => item.media === 'https://img.test/fridge-open.jpg'));
+  assert.ok(sentMedia.some((item) => item.media === 'https://img.test/fridge-inside.jpg'));
+  assert.match(sentTexts[0].text, /parte interna\/aberta/i);
+});
+
+test('só tem essa cor lista somente variantes do mesmo modelo e não outros celulares', async () => {
+  const phone = '5533977778013';
+  const blue = product('color-g06-blue', 'Smartphone Motorola Moto G06 128GB 4GB RAM Tela 6.88 Octa-Core Azul', {
+    category: 'Celulares',
+    pixPrice: 999,
+    stock: 5,
+    isBestSeller: true,
+    imageUrl: 'https://img.test/g06-blue.jpg'
+  });
+  const orange = product('color-g06-orange', 'Smartphone Motorola G06 4/128GB Laranja', {
+    category: 'Celulares',
+    pixPrice: 999,
+    stock: 5,
+    imageUrl: 'https://img.test/g06-orange.jpg'
+  });
+  const unrelated = product('color-a07-black', 'Smartphone Samsung Galaxy A07 128GB Preto', {
+    category: 'Celulares',
+    pixPrice: 899,
+    stock: 5,
+    imageUrl: 'https://img.test/a07-black.jpg'
+  });
+  catalogRows = [blue, orange, unrelated];
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: bot.compactProduct(blue),
+    lastProducts: [bot.compactProduct(blue)],
+    lastProductQuery: 'celular',
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'só tem essa cor?',
+    pushName: 'Cliente Cor'
+  });
+
+  const reply = sentTexts.at(-1).text;
+  assert.match(reply, /mesmo modelo.*Laranja/is);
+  assert.doesNotMatch(reply, /Samsung|A07|Preto/i);
+
+  sentTexts = [];
+  await bot.handleMessage({
+    phone,
+    text: 'qual cor sai mais?',
+    pushName: 'Cliente Cor'
+  });
+  assert.match(sentTexts.at(-1).text, /Azul.*mais vendida/is);
+
+  sentTexts = [];
+  sentMedia = [];
+  await bot.handleMessage({
+    phone,
+    text: 'me manda a laranja',
+    pushName: 'Cliente Cor'
+  });
+
+  assert.equal(sentMedia.length, 1);
+  assert.equal(sentMedia[0].media, 'https://img.test/g06-orange.jpg');
+  assert.match(sentMedia[0].caption, /mesmo modelo.*Laranja/is);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'color-g06-orange');
+});
+
+test('qual cor sai mais não inventa ranking quando nenhuma variante tem sinal de venda', async () => {
+  const phone = '5533977778014';
+  const white = product('color-ward-white', 'Guarda Roupa Canadá 6 Portas 4 Gavetas Branco', {
+    category: 'Guarda-Roupas',
+    pixPrice: 1800,
+    stock: 2
+  });
+  const cinamomo = product('color-ward-cinamomo', 'Guarda Roupa Canadá 6 Portas 4 Gavetas Cinamomo', {
+    category: 'Guarda-Roupas',
+    pixPrice: 1850,
+    stock: 2
+  });
+  catalogRows = [white, cinamomo];
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: bot.compactProduct(white),
+    lastProducts: [bot.compactProduct(white)],
+    lastProductQuery: 'guarda-roupa',
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'qual cor vende mais?',
+    pushName: 'Cliente Cor Segura'
+  });
+
+  assert.match(sentTexts.at(-1).text, /não tenho um ranking confiável.*por cor/is);
+  assert.doesNotMatch(sentTexts.at(-1).text, /branco.*vende mais|cinamomo.*vende mais/is);
+});
 
 test('recomendação consultiva entende necessidade da família antes de despejar catálogo', async () => {
   const phone = '5533977777994';
