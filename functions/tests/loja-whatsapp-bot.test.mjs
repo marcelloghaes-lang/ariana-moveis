@@ -307,6 +307,149 @@ test('saudação simples abre conversa humana e resposta de bem-estar pergunta o
   }
 });
 
+test('resposta "Tudo" após bom dia não retoma pergunta comercial antiga', async () => {
+  const phone = '5533977777948';
+  const chosen = bot.compactProduct(product('tv-greeting-old-1', 'Smart tv lg 43 polegadas', {
+    category: 'TV',
+    pixPrice: 1799,
+    cardPrice: 2160,
+    stock: 2
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: chosen,
+    lastProducts: [chosen],
+    allProductResults: [chosen],
+    pendingAction: 'installment_payment_method',
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'Bom dia',
+    pushName: 'Marcelo'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /^Bom dia, Marcelo! 😊 Tudo bem\?/i);
+  assert.equal(
+    bot.conversation(phone).pendingAction,
+    '',
+    'nova saudação pura deve cancelar somente a pergunta comercial transitória antiga'
+  );
+  assert.equal(
+    bot.conversation(phone).selectedProduct?.name,
+    'Smart tv lg 43 polegadas',
+    'produto continua lembrado sem ficar forçando a pergunta antiga'
+  );
+
+  sentTexts = [];
+
+  await bot.handleMessage({
+    phone,
+    text: 'Tudo',
+    pushName: 'Marcelo'
+  });
+
+  assert.equal(bot.expectedWellbeingReplyTone('Tudo'), 'positive');
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /^Ah, que bom 😊/i);
+  assert.match(sentTexts[0].text, /O que você tá precisando pra hoje\?/i);
+  assert.doesNotMatch(sentTexts[0].text, /cartão|crediário|Smart tv lg 43/i);
+});
+
+test('contexto de cortesia entende respostas curtas positivas neutras e negativas', async () => {
+  const groups = [
+    {
+      tone: 'positive',
+      replies: ['Tudo', 'sim', 'bem', 'graças a Deus', 'show', 'de boa', 'suave', 'maravilha', 'td certo'],
+      expected: /Ah, que bom/i
+    },
+    {
+      tone: 'neutral',
+      replies: ['indo', 'vou indo', 'levando', 'mais ou menos', 'na luta', 'empurrando'],
+      expected: /Entendi 😊/i
+    },
+    {
+      tone: 'negative',
+      replies: ['não', 'mal', 'péssimo', 'horrível', 'bem ruim', 'mais pra ruim'],
+      expected: /Poxa, entendi/i
+    }
+  ];
+
+  let seq = 0;
+  for (const group of groups) {
+    for (const reply of group.replies) {
+      const phone = '553397776' + String(1000 + seq++);
+      sentTexts = [];
+
+      await bot.handleMessage({
+        phone,
+        text: 'Oi',
+        pushName: 'Cliente Teste'
+      });
+      assert.equal(bot.hasCourtesyGreetingContext(bot.conversation(phone)), true);
+
+      sentTexts = [];
+      await bot.handleMessage({
+        phone,
+        text: reply,
+        pushName: 'Cliente Teste'
+      });
+
+      assert.equal(bot.expectedWellbeingReplyTone(reply), group.tone, reply);
+      assert.equal(sentTexts.length, 1, reply);
+      assert.match(sentTexts[0].text, group.expected, reply);
+      assert.match(sentTexts[0].text, /O que você tá precisando pra hoje\?/i, reply);
+      assert.equal(bot.hasCourtesyGreetingContext(bot.conversation(phone)), false, reply);
+    }
+  }
+});
+
+test('bem-estar junto com novo pedido reconhece a cortesia e segue para o produto', async () => {
+  const cases = [
+    ['tudo bem, queria ver uma geladeira', 'positive', /Que bom 😊/i],
+    ['mais ou menos, mas quero ver uma geladeira', 'neutral', /Entendi 😊/i],
+    ['tô mal, mas preciso ver uma geladeira', 'negative', /Poxa, entendi/i]
+  ];
+
+  catalogRows = [
+    product('gel-courtesy-mixed-1', 'Geladeira Consul Frost Free 340L', {
+      category: 'Geladeira',
+      stock: 2
+    })
+  ];
+
+  for (let i = 0; i < cases.length; i += 1) {
+    const [reply, tone, expectedCourtesy] = cases[i];
+    const phone = '553397777795' + String(i);
+    sentTexts = [];
+    sentMedia = [];
+
+    await bot.handleMessage({
+      phone,
+      text: 'Bom dia',
+      pushName: 'Cliente Misto'
+    });
+
+    sentTexts = [];
+    sentMedia = [];
+
+    await bot.handleMessage({
+      phone,
+      text: reply,
+      pushName: 'Cliente Misto'
+    });
+
+    assert.equal(bot.wellbeingReplyLeadTone(reply), tone, reply);
+    assert.ok(sentTexts.some((item) => expectedCourtesy.test(item.text || '')), reply);
+    assert.ok(
+      sentMedia.some((item) => /Geladeira Consul Frost Free 340L/i.test(item.caption || '')),
+      reply
+    );
+  }
+});
+
 test('saudação simples não inventa bem-estar e "tudo bem?" é pergunta ao Gustavo', async () => {
   const phone = '5533977777939';
 
