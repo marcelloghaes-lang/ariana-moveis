@@ -2446,6 +2446,17 @@ function isCourtesyGreeting(text = '') {
   return /^(?:(?:oi+|oie+|ola+)\s+)?(?:bom dia|boa tarde|boa noite|oi+|oie+|ola+)\s+(?:o\s+)?(?:marcelo|macelo|marcello)\s+(?:tudo bem|td bem|como vai)$/.test(n);
 }
 
+function isRapidGreetingFollowup(conv = {}, text = '', windowMs = 15000) {
+  if (!isCourtesyGreeting(text)) return false;
+
+  const previousTurns = recentShortConversationTurns(conv, { excludeLatest: true });
+  const previous = previousTurns.at(-1);
+  if (!previous || previous.kind !== 'greeting') return false;
+
+  const elapsed = Date.now() - Number(previous.at || 0);
+  return elapsed >= 0 && elapsed <= Math.max(1000, Number(windowMs || 15000));
+}
+
 function asksBotWellbeingQuestion(text = '') {
   const raw = String(text || '').trim();
   const n = normalize(text)
@@ -4501,6 +4512,8 @@ function asksAcceptedAlternative(text) {
 
   return (
     /^(quero sim|sim|sim quero|pode|pode sim|pode mandar|pode mostrar|quero ver|manda|manda ai|me mostra|mostra ai)$/.test(withoutCourtesy) ||
+    /^(qual|quais)(?:\s+(?:voce|vc|voces))?\s+tem(?:\s+ai)?$/.test(withoutCourtesy) ||
+    /^(?:o que|oque)(?:\s+(?:voce|vc|voces))?\s+tem(?:\s+ai)?$/.test(withoutCourtesy) ||
     /^(pode )?(me )?(enviar|mandar|mostrar) (as )?(fotos|opcoes|produtos|modelos)( pra mim)?$/.test(withoutCourtesy) ||
     /^(manda|mansa|mandq|mnda|envia|enviar) (a )?(foto|fotos|imagem|imagens)$/.test(withoutCourtesy)
   );
@@ -5592,6 +5605,10 @@ async function handleMessage({ phone, text, pushName = '', source = 'text' }) {
   }
 
   rememberShortConversationTurn(conv, text, { source });
+
+  if (isRapidGreetingFollowup(conv, text)) {
+    return;
+  }
 
   if (conv.pendingImageIntentUntil && Date.now() >= Number(conv.pendingImageIntentUntil)) {
     conv.pendingImageIntent = '';
@@ -7466,6 +7483,7 @@ export const __test = {
   markCommercialResume,
   isGreeting,
   isCourtesyGreeting,
+  isRapidGreetingFollowup,
   asksBotWellbeingQuestion,
   asksBackWellbeing,
   isPositiveWellbeingReply,
