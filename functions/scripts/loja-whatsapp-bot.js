@@ -4667,8 +4667,24 @@ function technicalStorageSummary(item = {}) {
 
 async function recommendProductsConsultatively(phone, conv, context = {}, pushName = '') {
   const category = String(context.category || '').trim();
+  const categoryKey = normalize(category);
+  const family = recommendationFamily(category);
   const priority = String(context.priority || '').trim();
   const budget = Math.max(0, Number(context.budgetLimit || 0));
+  const householdSize = Math.max(0, Number(context.householdSize || 0));
+  const desiredSeats = Math.max(
+    0,
+    Number(
+      context.desiredSeats ||
+      (['sofa', 'mesa'].includes(categoryKey) ? householdSize : 0)
+    )
+  );
+  const space = context.spaceDimensions || {};
+  const hasSpace = ['width', 'height', 'depth'].some((key) => Number(space?.[key] || 0) > 0);
+  const materialPreference = String(context.materialPreference || '').trim();
+  const colorPreference = String(context.colorPreference || '').trim();
+  const bedSizePreference = String(context.bedSizePreference || '').trim();
+  const furnitureFeatures = Array.isArray(context.furnitureFeatures) ? context.furnitureFeatures.filter(Boolean) : [];
 
   if (!category) {
     await sendText(phone, 'Eu te ajudo a escolher 😊 Só me diga primeiro qual tipo de produto você está procurando.');
@@ -4680,10 +4696,38 @@ async function recommendProductsConsultatively(phone, conv, context = {}, pushNa
     return true;
   }
 
+  if (priority === 'fit' && !hasSpace) {
+    await sendText(
+      phone,
+      'Perfeito. Para eu conferir sem chutar, me passe as medidas do espaço que você tem — por exemplo: *largura 220 cm, altura 200 cm e profundidade 90 cm*. Pode mandar só as medidas que forem importantes no seu caso.'
+    );
+    return true;
+  }
+
+  if (priority === 'seating' && !desiredSeats) {
+    await sendText(phone, 'Certo 😊 Quantas pessoas/lugares você quer acomodar?');
+    return true;
+  }
+
+  if (priority === 'material' && !materialPreference) {
+    await sendText(phone, 'Certo 😊 Qual material você prefere? Por exemplo *MDF, MDP, madeira, aço/metal, vidro, suede, linho* ou outro que você tenha em mente.');
+    return true;
+  }
+
+  if (priority === 'color' && !colorPreference) {
+    await sendText(phone, 'Certo 😊 Qual cor você prefere? Vou considerar somente o que estiver confirmado no cadastro do produto.');
+    return true;
+  }
+
+  if (priority === 'bed_size' && !bedSizePreference) {
+    await sendText(phone, 'Certo 😊 Você procura *solteiro, casal, queen ou king*?');
+    return true;
+  }
+
   const searchText = budget > 0 ? `tenho até R$ ${Math.round(budget)}` : '';
   let rows;
   try {
-    rows = (await searchProducts(category, searchText)).slice(0, 12);
+    rows = (await searchProducts(category, searchText)).slice(0, 16);
   } catch {
     await sendText(phone, 'Não consegui consultar o catálogo completo agora. Prefiro não te indicar um produto sem conferir os dados reais.');
     return true;
@@ -4704,73 +4748,245 @@ async function recommendProductsConsultatively(phone, conv, context = {}, pushNa
       const details = await fetchProductSafeDetails(product);
       const profile = details ? technicalComparisonProfile(product, details) : null;
       const objective = productObjectiveMetrics(product);
+      const dimensions = details ? productDimensions(details) : {};
+      const materials = details ? technicalMaterialList(product, details) : [];
+      const features = Array.isArray(profile?.features) ? profile.features : [];
+
       return {
         product,
         details,
         profile,
         price: productCashPrice(product),
         featureScore: profile ? technicalFeatureScore(profile) : 0,
+        features,
         capacityLiters: Number(profile?.capacityLiters || 0),
         capacityKg: details ? technicalCapacityKg(product, details) : 0,
+        btu: details ? technicalBtu(product, details) : 0,
         energyConsumption: Number(profile?.energyConsumption || 0),
-        inches: Number(objective.inches || 0),
-        watts: Number(objective.watts || 0)
+        inches: details ? technicalScreenInches(product, details) : Number(objective.inches || 0),
+        watts: details ? technicalPowerWatts(product, details) : Number(objective.watts || 0),
+        seats: details ? technicalSeatCount(product, details) : 0,
+        doors: details ? technicalDoorCount(product, details) : 0,
+        drawers: details ? technicalDrawerCount(product, details) : 0,
+        burners: details ? technicalBurnerCount(product, details) : 0,
+        storageGb: details ? technicalStorageGb(product, details) : 0,
+        ramGb: details ? technicalRamGb(product, details) : 0,
+        batteryMah: details ? technicalBatteryMah(product, details) : 0,
+        cameraMp: details ? technicalCameraMp(product, details) : 0,
+        materials,
+        color: details ? productColor(details) : '',
+        bedSize: details ? technicalBedSize(product, details) : '',
+        hasMirror: details ? technicalHasMirror(product, details) : false,
+        dimensions,
+        spaceFit: details ? verifiedSpaceFit(dimensions, space) : null
       };
     })
   );
+
+  let eligible = [...enriched];
+
+  if (family === 'furniture' && hasSpace) {
+    const fitting = eligible.filter((item) => item.spaceFit === true);
+    if (!fitting.length) {
+      await sendText(
+        phone,
+        'Conferi as medidas cadastradas, mas não encontrei uma opção que eu consiga confirmar que cabe no espaço informado. Prefiro não indicar uma peça sem ter as medidas completas para garantir o encaixe.'
+      );
+      return true;
+    }
+    eligible = fitting;
+  }
+
+  if (materialPreference) {
+    const materialMatches = eligible.filter((item) =>
+      item.materials.some((material) => normalize(material) === normalize(materialPreference))
+    );
+    if (!materialMatches.length) {
+      await sendText(
+        phone,
+        `Não encontrei *${category}* em estoque com *${materialPreference}* confirmado na ficha entre as opções consultadas. Posso procurar por outro material ou comparar as opções sem usar material como filtro.`
+      );
+      return true;
+    }
+    eligible = materialMatches;
+  }
+
+  if (colorPreference && family === 'furniture') {
+    const colorMatches = eligible.filter((item) => normalize(item.color) === normalize(colorPreference));
+    if (!colorMatches.length) {
+      await sendText(
+        phone,
+        `Não encontrei *${category}* com a cor *${colorPreference}* confirmada no cadastro entre as opções consultadas. Posso verificar outra cor.`
+      );
+      return true;
+    }
+    eligible = colorMatches;
+  }
+
+  if (bedSizePreference && categoryKey === 'cama') {
+    const sizeMatches = eligible.filter((item) => normalize(item.bedSize) === normalize(bedSizePreference));
+    if (!sizeMatches.length) {
+      await sendText(
+        phone,
+        `Não encontrei uma opção de *${bedSizePreference}* com esse tamanho confirmado na ficha entre os produtos disponíveis que consultei.`
+      );
+      return true;
+    }
+    eligible = sizeMatches;
+  }
+
+  if (furnitureFeatures.length) {
+    const featureMatches = eligible.filter((item) =>
+      furnitureFeatures.every((feature) => item.features.includes(feature))
+    );
+    if (!featureMatches.length) {
+      await sendText(
+        phone,
+        `Não encontrei *${category}* com *${furnitureFeatures.join(' e ')}* confirmados na ficha entre as opções consultadas. Prefiro não dizer que um modelo tem esse recurso sem cadastro.`
+      );
+      return true;
+    }
+    eligible = featureMatches;
+  }
 
   let ranked = [];
   let metricDescription = '';
 
   if (priority === 'price') {
-    ranked = [...enriched].sort((a, b) => a.price - b.price);
+    ranked = [...eligible].sort((a, b) => a.price - b.price);
     metricDescription = ranked[0] ? `é a opção de *menor preço no PIX* entre as que consegui comparar: *${money(ranked[0].price)}*` : '';
-  } else if (priority === 'technology') {
-    ranked = enriched
-      .filter((item) => item.featureScore > 0 && item.profile?.features?.length)
-      .sort((a, b) => b.featureScore - a.featureScore || b.profile.features.length - a.profile.features.length || a.price - b.price);
+  } else if (priority === 'technology' || priority === 'comfort') {
+    ranked = eligible
+      .filter((item) => item.featureScore > 0 && item.features.length)
+      .sort((a, b) => b.featureScore - a.featureScore || b.features.length - a.features.length || a.price - b.price);
     if (ranked[0]) {
-      metricDescription = `reúne mais recursos tecnológicos relevantes cadastrados entre as opções comparadas, como *${ranked[0].profile.features.slice(0, 5).join(', ')}*`;
+      const noun = priority === 'comfort' && family === 'furniture'
+        ? 'recursos de conforto/uso'
+        : 'recursos tecnológicos relevantes';
+      metricDescription = `reúne mais ${noun} cadastrados entre as opções comparadas, como *${ranked[0].features.slice(0, 5).join(', ')}*`;
     }
   } else if (priority === 'capacity') {
-    ranked = enriched
-      .filter((item) => item.capacityLiters > 0 || item.capacityKg > 0)
+    ranked = eligible
+      .filter((item) => item.capacityLiters > 0 || item.capacityKg > 0 || item.btu > 0)
       .sort((a, b) => {
-        const aValue = a.capacityLiters || a.capacityKg;
-        const bValue = b.capacityLiters || b.capacityKg;
+        const aValue = a.btu || a.capacityLiters || a.capacityKg;
+        const bValue = b.btu || b.capacityLiters || b.capacityKg;
         return bValue - aValue || a.price - b.price;
       });
     if (ranked[0]) {
-      metricDescription = ranked[0].capacityLiters > 0
-        ? `tem a *maior capacidade confirmada* entre as opções comparadas: *${ranked[0].capacityLiters} L*`
-        : `tem a *maior capacidade confirmada* entre as opções comparadas: *${ranked[0].capacityKg} kg*`;
+      metricDescription = ranked[0].btu > 0
+        ? `tem a *maior capacidade confirmada* entre as opções comparadas: *${ranked[0].btu} BTU*`
+        : ranked[0].capacityLiters > 0
+          ? `tem a *maior capacidade confirmada* entre as opções comparadas: *${ranked[0].capacityLiters} L*`
+          : `tem a *maior capacidade confirmada* entre as opções comparadas: *${ranked[0].capacityKg} kg*`;
     }
   } else if (priority === 'energy') {
-    ranked = enriched
+    ranked = eligible
       .filter((item) => item.energyConsumption > 0)
       .sort((a, b) => a.energyConsumption - b.energyConsumption || a.price - b.price);
     if (ranked[0]) {
       metricDescription = `tem o *menor consumo de energia informado* entre as opções comparadas: *${ranked[0].energyConsumption} kWh/mês*`;
     }
   } else if (priority === 'screen') {
-    ranked = enriched
+    ranked = eligible
       .filter((item) => item.inches > 0)
       .sort((a, b) => b.inches - a.inches || a.price - b.price);
     if (ranked[0]) metricDescription = `tem a *maior tela confirmada* entre as opções comparadas: *${ranked[0].inches} polegadas*`;
   } else if (priority === 'power') {
-    ranked = enriched
+    ranked = eligible
       .filter((item) => item.watts > 0)
       .sort((a, b) => b.watts - a.watts || a.price - b.price);
-    if (ranked[0]) metricDescription = `tem a *maior potência informada no modelo* entre as opções comparadas: *${ranked[0].watts} W*`;
+    if (ranked[0]) metricDescription = `tem a *maior potência confirmada* entre as opções comparadas: *${ranked[0].watts} W*`;
+  } else if (priority === 'seating') {
+    const seatRows = eligible.filter((item) => item.seats > 0);
+    const adequate = desiredSeats > 0 ? seatRows.filter((item) => item.seats >= desiredSeats) : seatRows;
+    if (!adequate.length) {
+      await sendText(
+        phone,
+        `Não encontrei *${category}* com *${desiredSeats} lugares* confirmados na ficha entre as opções disponíveis que consultei. Posso te mostrar a opção com quantidade mais próxima, se quiser.`
+      );
+      return true;
+    }
+    ranked = [...adequate].sort((a, b) => a.seats - b.seats || a.price - b.price);
+    metricDescription = `tem *${ranked[0].seats} lugares confirmados* e atende a quantidade que você pediu`;
+  } else if (priority === 'fit') {
+    ranked = eligible
+      .filter((item) => item.spaceFit === true)
+      .sort((a, b) => a.price - b.price);
+    if (ranked[0]) {
+      const dims = formatTechnicalDimensions(ranked[0].dimensions);
+      metricDescription = `é uma opção cujas medidas cadastradas *cabem no espaço informado*${dims ? `: ${dims}` : ''}`;
+    }
+  } else if (priority === 'storage' && family === 'furniture') {
+    ranked = eligible
+      .filter((item) => item.doors > 0 || item.drawers > 0)
+      .sort((a, b) => (b.doors + b.drawers) - (a.doors + a.drawers) || b.drawers - a.drawers || a.price - b.price);
+    if (ranked[0]) {
+      metricDescription = `tem a maior combinação de itens de armazenamento cadastrados entre as opções comparadas: *${technicalStorageSummary(ranked[0])}*`;
+    }
+  } else if (priority === 'storage' && family === 'electronics') {
+    ranked = eligible
+      .filter((item) => item.storageGb > 0)
+      .sort((a, b) => b.storageGb - a.storageGb || b.ramGb - a.ramGb || a.price - b.price);
+    if (ranked[0]) {
+      metricDescription = `tem o *maior armazenamento confirmado* entre as opções comparadas: *${ranked[0].storageGb} GB*`;
+    }
+  } else if (priority === 'mirror') {
+    ranked = eligible.filter((item) => item.hasMirror).sort((a, b) => a.price - b.price);
+    if (ranked[0]) metricDescription = 'tem *espelho confirmado na ficha* e foi a opção de menor preço no PIX entre as que confirmam esse recurso';
+  } else if (priority === 'material') {
+    ranked = [...eligible].sort((a, b) => a.price - b.price);
+    if (ranked[0]) metricDescription = `tem *${materialPreference} confirmado na ficha* e, entre os que confirmam esse material, apresentou o menor preço no PIX`;
+  } else if (priority === 'color') {
+    ranked = [...eligible].sort((a, b) => a.price - b.price);
+    if (ranked[0]) metricDescription = `tem a cor *${colorPreference} confirmada no cadastro* e, entre as opções dessa cor, apresentou o menor preço no PIX`;
+  } else if (priority === 'bed_size') {
+    ranked = [...eligible].sort((a, b) => a.price - b.price);
+    if (ranked[0]) metricDescription = `tem tamanho *${bedSizePreference} confirmado* e foi a opção de menor preço no PIX entre as que confirmam esse tamanho`;
+  } else if (priority === 'camera') {
+    ranked = eligible
+      .filter((item) => item.cameraMp > 0)
+      .sort((a, b) => b.cameraMp - a.cameraMp || a.price - b.price);
+    if (ranked[0]) metricDescription = `tem a *maior resolução de câmera informada* entre as opções comparadas: *${ranked[0].cameraMp} MP*`;
+  } else if (priority === 'battery') {
+    ranked = eligible
+      .filter((item) => item.batteryMah > 0)
+      .sort((a, b) => b.batteryMah - a.batteryMah || a.price - b.price);
+    if (ranked[0]) metricDescription = `tem a *maior capacidade de bateria informada* entre as opções comparadas: *${ranked[0].batteryMah} mAh*`;
+  } else if (priority === 'performance') {
+    ranked = eligible
+      .filter((item) => item.ramGb > 0 || item.storageGb > 0)
+      .sort((a, b) => b.ramGb - a.ramGb || b.storageGb - a.storageGb || b.featureScore - a.featureScore || a.price - b.price);
+    if (ranked[0]) {
+      const facts = [
+        ranked[0].ramGb > 0 ? `${ranked[0].ramGb} GB de RAM` : '',
+        ranked[0].storageGb > 0 ? `${ranked[0].storageGb} GB de armazenamento` : ''
+      ].filter(Boolean);
+      metricDescription = `tem a configuração mais forte que consigo comprovar pelos dados cadastrados entre as opções comparadas: *${facts.join(' e ')}*`;
+    }
+  } else if (priority === 'burners') {
+    ranked = eligible
+      .filter((item) => item.burners > 0)
+      .sort((a, b) => b.burners - a.burners || a.price - b.price);
+    if (ranked[0]) metricDescription = `tem a *maior quantidade de bocas confirmada* entre as opções comparadas: *${ranked[0].burners} bocas*`;
   } else if (priority === 'balanced') {
-    const flagged = enriched.filter((item) => item.product.isRecommended === true);
+    const flagged = eligible.filter((item) => item.product.isRecommended === true);
     if (flagged.length === 1) {
-      ranked = [flagged[0], ...enriched.filter((item) => item !== flagged[0]).sort((a, b) => a.price - b.price)];
+      ranked = [flagged[0], ...eligible.filter((item) => item !== flagged[0]).sort((a, b) => a.price - b.price)];
       metricDescription = 'está marcado como *recomendado* no catálogo da Ariana Móveis';
     } else {
-      const tech = [...enriched].filter((item) => item.featureScore > 0).sort((a, b) => b.featureScore - a.featureScore)[0];
-      const cheap = [...enriched].sort((a, b) => a.price - b.price)[0];
-      const choices = [tech, cheap].filter(Boolean);
+      const evidenceRich = [...eligible]
+        .filter((item) =>
+          item.featureScore > 0 ||
+          item.capacityLiters > 0 ||
+          item.capacityKg > 0 ||
+          item.seats > 0 ||
+          item.storageGb > 0 ||
+          item.ramGb > 0
+        )
+        .sort((a, b) => b.featureScore - a.featureScore || a.price - b.price)[0];
+      const cheap = [...eligible].sort((a, b) => a.price - b.price)[0];
+      const choices = [evidenceRich, cheap].filter(Boolean);
       ranked = [...new Map(choices.map((item) => [productId(item.product), item])).values()];
       if (ranked.length) metricDescription = 'foi separado por dados objetivos do catálogo, sem presumir uma preferência que você não informou';
     }
@@ -4780,7 +4996,7 @@ async function recommendProductsConsultatively(phone, conv, context = {}, pushNa
     const label = recommendationPriorityLabel(priority);
     await sendText(
       phone,
-      `Eu conferi as fichas de *${category}*, mas não tenho dados técnicos suficientes para indicar uma opção por *${label}* sem inventar. Posso comparar por outro ponto que esteja cadastrado, como *preço${['geladeira', 'maquina de lavar', 'tanquinho'].includes(normalize(category)) ? ', capacidade' : ''} ou tecnologia/recursos*.`
+      `Eu conferi as fichas de *${category}*, mas não tenho dados suficientes para indicar uma opção por *${label}* sem inventar. Se você quiser, posso comparar por outro ponto que esteja realmente cadastrado, como *preço, medidas, capacidade, potência ou recursos*, conforme o tipo de produto.`
     );
     return true;
   }
@@ -4794,22 +5010,41 @@ async function recommendProductsConsultatively(phone, conv, context = {}, pushNa
     `*Preço no PIX:* ${money(primary.price)}.`
   ];
 
-  if (Number(context.householdSize || 0) > 0) {
-    lines.push(`Você comentou que são *${Number(context.householdSize)} pessoas*; usei isso como contexto e baseei a indicação na prioridade que você informou e nos dados cadastrados.`);
+  if (householdSize > 0) {
+    lines.push(`Você comentou que são *${householdSize} pessoas*; usei isso como contexto e baseei a indicação nos critérios que você informou e nos dados cadastrados.`);
+  }
+
+  if (hasSpace && family === 'furniture') {
+    lines.push('Também descartei opções que eu não consegui confirmar que cabem nas medidas informadas.');
   }
 
   if (alternate) {
     let alternateFact = '';
     if (priority === 'capacity') {
-      alternateFact = alternate.capacityLiters > 0
-        ? ` • ${alternate.capacityLiters} L`
-        : alternate.capacityKg > 0
-          ? ` • ${alternate.capacityKg} kg`
-          : '';
-    } else if (priority === 'technology' && alternate.profile?.features?.length) {
-      alternateFact = ` • ${alternate.profile.features.slice(0, 3).join(', ')}`;
+      alternateFact = alternate.btu > 0
+        ? ` • ${alternate.btu} BTU`
+        : alternate.capacityLiters > 0
+          ? ` • ${alternate.capacityLiters} L`
+          : alternate.capacityKg > 0
+            ? ` • ${alternate.capacityKg} kg`
+            : '';
+    } else if ((priority === 'technology' || priority === 'comfort') && alternate.features.length) {
+      alternateFact = ` • ${alternate.features.slice(0, 3).join(', ')}`;
     } else if (priority === 'screen' && alternate.inches > 0) {
       alternateFact = ` • ${alternate.inches} polegadas`;
+    } else if (priority === 'seating' && alternate.seats > 0) {
+      alternateFact = ` • ${alternate.seats} lugares`;
+    } else if (priority === 'storage' && family === 'furniture') {
+      const storage = technicalStorageSummary(alternate);
+      alternateFact = storage ? ` • ${storage}` : '';
+    } else if (priority === 'storage' && alternate.storageGb > 0) {
+      alternateFact = ` • ${alternate.storageGb} GB`;
+    } else if (priority === 'power' && alternate.watts > 0) {
+      alternateFact = ` • ${alternate.watts} W`;
+    } else if (priority === 'battery' && alternate.batteryMah > 0) {
+      alternateFact = ` • ${alternate.batteryMah} mAh`;
+    } else if (priority === 'camera' && alternate.cameraMp > 0) {
+      alternateFact = ` • ${alternate.cameraMp} MP`;
     }
     lines.push('');
     lines.push(`*Outra opção para comparar:* ${alternate.product.name}${alternateFact} • PIX ${money(alternate.price)}.`);
@@ -4838,9 +5073,14 @@ async function recommendProductsConsultatively(phone, conv, context = {}, pushNa
     {
       consultativeRecommendation: true,
       category,
+      family,
       priority,
-      householdSize: Number(context.householdSize || 0),
+      householdSize,
+      desiredSeats,
       budgetLimit: budget,
+      materialPreference,
+      colorPreference,
+      bedSizePreference,
       productId: productId(primary.product),
       alternateProductId: alternate ? productId(alternate.product) : ''
     }
