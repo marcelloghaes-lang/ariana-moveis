@@ -4901,6 +4901,151 @@ function productComparisonReply(first = {}, second = {}, text = '') {
   return lines.join('\n');
 }
 
+function asksMoreAdvancedProduct(text = '') {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return (
+    /\b(?:quero|queria|gostaria|tem|teria|mostra|mostrar|me mostra|procura|procurar)\b.{0,45}\b(?:uma|um|modelo|opcao)?\s*(?:melhor|mais completa|mais completo|mais moderna|mais moderno|mais tecnologia|mais tecnologica|mais tecnologico|mais recursos)\b/.test(n) ||
+    /\bgostei\b.{0,35}\b(?:mas|mais)\b.{0,25}\b(?:queria|quero)\b.{0,25}\b(?:melhor|mais completa|mais completo|mais tecnologia|mais recursos)\b/.test(n)
+  );
+}
+
+function technicalFeatureWeight(feature = '') {
+  const heavy = new Set([
+    'Inverter', 'Wi-Fi', 'QLED', 'OLED', 'Mini LED', '5G', 'NFC',
+    'Carregamento sem fio', 'Motor Direct Drive', 'Google TV', 'Android TV',
+    'Comando de voz', 'Vapor'
+  ]);
+  const medium = new Set([
+    'Frost Free', 'Filtro antiodor', 'Painel eletrônico', '4K', 'HDR',
+    'Dolby Audio', 'Roku TV', 'webOS', 'Tela AMOLED', 'Tela 120 Hz',
+    'Air Fryer', 'Grill', 'Secagem'
+  ]);
+  if (heavy.has(feature)) return 3;
+  if (medium.has(feature)) return 2;
+  return 1;
+}
+
+function technicalFeatureScore(profile = {}) {
+  return (Array.isArray(profile.features) ? profile.features : [])
+    .reduce((total, feature) => total + technicalFeatureWeight(feature), 0);
+}
+
+async function showMoreAdvancedAlternatives(phone, conv, baselineProduct, pushName = '') {
+  const category =
+    detectCategory([
+      baselineProduct?.name,
+      baselineProduct?.category,
+      conv?.lastProductQuery
+    ].filter(Boolean).join(' ')) ||
+    String(conv?.lastProductQuery || '').trim();
+
+  if (!baselineProduct || !category) {
+    await sendText(
+      phone,
+      'Consigo procurar uma opção mais completa 😊 Só me diga qual produto você está usando como referência.'
+    );
+    return true;
+  }
+
+  const baselineDetails = await fetchProductSafeDetails(baselineProduct);
+  if (!baselineDetails) {
+    await sendText(
+      phone,
+      'Não consegui abrir a ficha técnica completa desse produto agora. Prefiro não indicar outro como “mais completo” sem conseguir comparar os recursos.'
+    );
+    return true;
+  }
+
+  const baselineProfile = technicalComparisonProfile(baselineProduct, baselineDetails);
+  const baselineScore = technicalFeatureScore(baselineProfile);
+  const rows = (await searchProducts(category, ''))
+    .filter((product) => productId(product) !== productId(baselineProduct))
+    .slice(0, 12);
+
+  const detailedRows = await Promise.all(
+    rows.map(async (product) => {
+      const details = await fetchProductSafeDetails(product);
+      if (!details) return null;
+      const profile = technicalComparisonProfile(product, details);
+      const extraFeatures = profile.features.filter(
+        (feature) => !baselineProfile.features.includes(feature)
+      );
+      return {
+        product,
+        profile,
+        score: technicalFeatureScore(profile),
+        extraFeatures
+      };
+    })
+  );
+
+  const better = detailedRows
+    .filter(Boolean)
+    .filter((item) => item.score > baselineScore && item.extraFeatures.length)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      if (b.extraFeatures.length !== a.extraFeatures.length) return b.extraFeatures.length - a.extraFeatures.length;
+      return Number(b.profile.capacityLiters || 0) - Number(a.profile.capacityLiters || 0);
+    })
+    .slice(0, 4);
+
+  if (!better.length) {
+    await sendText(
+      phone,
+      `Comparei as opções de *${category}* disponíveis e não encontrei outra que tenha, de forma clara na ficha cadastrada, *mais recursos tecnológicos* que *${baselineProduct.name}*. Posso te mostrar outros modelos para comparar preço, capacidade ou tamanho.`
+    );
+    return true;
+  }
+
+  const lines = [
+    `Achei *${better.length} opção(ões) do mesmo tipo* com mais recursos cadastrados que *${baselineProduct.name}* 😊`,
+    ''
+  ];
+
+  better.forEach((item, index) => {
+    const capacity = item.profile.capacityLiters
+      ? ` • ${item.profile.capacityLiters} L`
+      : '';
+    lines.push(
+      `*${index + 1}. ${item.product.name}*${capacity}\nExtras na ficha: *${item.extraFeatures.slice(0, 5).join(', ')}*`
+    );
+  });
+
+  lines.push('');
+  lines.push('Vou te mostrar essas opções com foto e preço. Aí, se quiser, comparo duas delas detalhe por detalhe.');
+
+  await sendText(phone, lines.join('\n'));
+
+  conv.allProductResults = better.map((item) => item.product);
+  conv.productResultOffset = 0;
+  conv.lastProductQuery = category;
+  conv.selectedProduct = null;
+  conv.lastComparedProducts = [];
+  conv.lastComparisonAt = 0;
+  saveStateSoon();
+
+  await sendProductPage(phone, conv, { announce: false });
+
+  await markConversationStatus(
+    phone,
+    conv,
+    'Venda em andamento',
+    `Cliente pediu opção mais completa/tecnológica que: ${baselineProduct.name}`,
+    pushName,
+    {
+      moreAdvancedRequested: true,
+      baselineProductId: productId(baselineProduct),
+      suggestedProductIds: better.map((item) => productId(item.product))
+    }
+  );
+
+  return true;
+}
+
 function asksPausePurchaseDecision(text = '') {
   const n = normalize(text);
   return /\b(vou pensar|vou dar uma pensada|vou pensar um pouco|depois eu vejo|vou ver e te falo|mais tarde eu vejo|so estou olhando|so olhando)\b/.test(n);
@@ -7423,6 +7568,29 @@ async function handleMessage({
     }
   }
 
+  if (asksMoreAdvancedProduct(text)) {
+    const baseline =
+      mentionedProduct ||
+      conv.selectedProduct ||
+      (Array.isArray(conv.lastComparedProducts) && conv.lastComparedProducts.length === 1
+        ? conv.lastComparedProducts[0]
+        : null) ||
+      (Array.isArray(conv.lastProducts) && conv.lastProducts.length === 1
+        ? conv.lastProducts[0]
+        : null);
+
+    if (!baseline) {
+      await sendText(
+        phone,
+        'Posso procurar uma opção mais completa 😊 Só me diga qual produto você quer usar como referência — pode falar “o primeiro”, “o segundo” ou o nome/modelo.'
+      );
+      return;
+    }
+
+    await showMoreAdvancedAlternatives(phone, conv, baseline, pushName);
+    return;
+  }
+
   if (asksPausePurchaseDecision(text)) {
     const product = mentionedProduct || conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
     if (product) {
@@ -8649,6 +8817,10 @@ export const __test = {
   technicalComparisonProfile,
   detailedProductComparisonReply,
   productComparisonReply,
+  asksMoreAdvancedProduct,
+  technicalFeatureWeight,
+  technicalFeatureScore,
+  showMoreAdvancedAlternatives,
   asksPausePurchaseDecision,
   asksPurchaseClosing,
   correctedPaymentMethod,
