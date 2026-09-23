@@ -111,6 +111,10 @@ const COMMERCIAL_RESUME_MIN_GAP_MS = Math.max(1, Number(process.env.LOJA_COMMERC
 const COMMERCIAL_RESUME_COOLDOWN_MS = Math.max(1, Number(process.env.LOJA_COMMERCIAL_RESUME_COOLDOWN_DAYS || 7)) * 24 * 60 * 60 * 1000;
 const COURTESY_GREETING_TTL_MS = Math.max(1, Number(process.env.LOJA_COURTESY_GREETING_MINUTES || 15)) * 60 * 1000;
 const SHORT_CONTEXT_TTL_MS = Math.max(5, Number(process.env.LOJA_SHORT_CONTEXT_MINUTES || 45)) * 60 * 1000;
+const ACTIVE_COMMERCIAL_CONTEXT_TTL_MS = Math.max(
+  15,
+  Number(process.env.LOJA_ACTIVE_COMMERCIAL_CONTEXT_MINUTES || 45)
+) * 60 * 1000;
 const SHORT_CONTEXT_MAX_TURNS = Math.max(3, Math.min(8, Number(process.env.LOJA_SHORT_CONTEXT_TURNS || 6)));
 const SUPPLIER_PHONES = new Set(
   String(process.env.LOJA_SUPPLIER_PHONES || '')
@@ -183,6 +187,7 @@ function categoryAliases(query = '') {
 
 function normalize(value = '') {
   return String(value || '')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
@@ -783,6 +788,62 @@ function immediateAlternativeProduct(conv = {}, text = '') {
   return products.find((product) => productId(product) !== selectedId) || null;
 }
 
+
+function isTransientCommercialPendingAction(action = '') {
+  return new Set([
+    'installment_payment_method',
+    'purchase_payment_method',
+    'card_price_product',
+    'cash_price_product',
+    'special_condition_product',
+    'crediario_product',
+    'crediario_name',
+    'credit_installments',
+    'entry_amount_product'
+  ]).has(String(action || '').trim());
+}
+
+function clearActiveCommercialContext(conv = {}) {
+  conv.lastProducts = [];
+  conv.allProductResults = [];
+  conv.productResultOffset = 0;
+  conv.lastProductQuery = '';
+  conv.selectedProduct = null;
+  conv.lastBudgetLimit = 0;
+  conv.lastComparedProducts = [];
+  conv.lastComparisonAt = 0;
+  conv.recommendationContext = null;
+  conv.sentProductImages = {};
+  conv.lastColorVariants = [];
+  conv.lastColorVariantProductId = '';
+  conv.lastColorVariantAt = 0;
+  conv.lastCreditPlan = null;
+  conv.pendingCreditProductId = '';
+  conv.pendingCreditUntil = 0;
+  conv.pixContextUntil = 0;
+  conv.creditContextUntil = 0;
+  conv.awaitingSimilarOptions = false;
+  conv.pendingAlternativeCategory = '';
+  conv.pendingAlternativeUntil = 0;
+
+  if (isTransientCommercialPendingAction(conv.pendingAction)) {
+    conv.pendingAction = '';
+  }
+  if (conv.lastIntent === 'produto') {
+    conv.lastIntent = '';
+  }
+}
+
+function expireInactiveCommercialContext(conv = {}, now = Date.now()) {
+  const previousAt = Number(conv?.lastAt || 0);
+  if (!previousAt) return false;
+  if (now - previousAt <= ACTIVE_COMMERCIAL_CONTEXT_TTL_MS) return false;
+
+  clearActiveCommercialContext(conv);
+  conv.recentTurns = [];
+  return true;
+}
+
 function conversation(phone) {
   const key = digits(phone);
   if (!state.conversations[key]) {
@@ -846,6 +907,8 @@ function conversation(phone) {
   }
 
   const conv = state.conversations[key];
+  const now = Date.now();
+  expireInactiveCommercialContext(conv, now);
   if (typeof conv.reviewNeeded !== 'boolean') conv.reviewNeeded = false;
   if (!Number.isFinite(Number(conv.reviewMarkedAt))) conv.reviewMarkedAt = 0;
   if (!Number.isFinite(Number(conv.reviewCount))) conv.reviewCount = 0;
@@ -900,7 +963,7 @@ function conversation(phone) {
     conv.contactRoleAt = Number(rememberedProfile.contactRoleAt || rememberedProfile.updatedAt || Date.now());
   }
 
-  conv.lastAt = Date.now();
+  conv.lastAt = now;
   return conv;
 }
 
@@ -2920,20 +2983,7 @@ function expectedWellbeingReplyTone(text = '') {
 
 function clearTransientCommercialPromptOnGreeting(conv = {}) {
   const pending = String(conv?.pendingAction || '').trim();
-  if (!pending) return false;
-
-  const transient = new Set([
-    'installment_payment_method',
-    'purchase_payment_method',
-    'card_price_product',
-    'cash_price_product',
-    'special_condition_product',
-    'crediario_product',
-    'credit_installments',
-    'entry_amount_product'
-  ]);
-
-  if (!transient.has(pending)) return false;
+  if (!pending || !isTransientCommercialPendingAction(pending)) return false;
 
   conv.pendingAction = '';
   saveStateSoon();
@@ -2948,18 +2998,7 @@ function clearTransientCommercialPromptOnTopicSwitch(
   const pending = String(conv?.pendingAction || '').trim();
   if (!pending) return false;
 
-  const transient = new Set([
-    'installment_payment_method',
-    'purchase_payment_method',
-    'card_price_product',
-    'cash_price_product',
-    'special_condition_product',
-    'crediario_product',
-    'credit_installments',
-    'entry_amount_product'
-  ]);
-
-  if (!transient.has(pending)) return false;
+  if (!isTransientCommercialPendingAction(pending)) return false;
 
   const currentCategory =
     detectCategory(text) ||
