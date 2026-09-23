@@ -1025,7 +1025,7 @@ function productWarranty(details = {}) {
 }
 
 function voltageFamily(value = '') {
-  const match = String(value || '').match(/\b(110|127|220)\b/);
+  const match = String(value || '').match(/\b(110|127|220)(?:\s*v)?\b/i);
   if (!match) return '';
   return ['110', '127'].includes(match[1]) ? '127' : '220';
 }
