@@ -93,10 +93,13 @@ try {
 
     if (
       local.body?.audioTranscriptionConfigured === true &&
-      String(local.body?.audioTranscriptionModel || '') === 'gpt-4o-mini-transcribe' &&
+      String(local.body?.audioTranscriptionModel || '') === 'gpt-transcribe' &&
       Number(local.body?.audioMaxMinutes) === 10
     ) {
-      ok('Áudio de clientes', 'transcrição ativa / máximo 10 minutos');
+      ok(
+        'Áudio de clientes',
+        'transcrição ativa com ' + String(local.body.audioTranscriptionModel) + ' / máximo 10 minutos'
+      );
     } else {
       warn('Áudio de clientes', 'transcrição ainda não está ativa na produção atual');
     }
