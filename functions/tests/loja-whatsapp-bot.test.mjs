@@ -324,6 +324,73 @@ test('saudação simples abre conversa humana e resposta de bem-estar pergunta o
   }
 });
 
+
+test('boa noite tudo bem após horas não retoma TV nem pergunta antiga de parcelamento', async () => {
+  const phone = '5533977777947';
+  const tv = bot.compactProduct(product('tv-stale-greeting-1', 'Smart tv lg 43 polegadas', {
+    category: 'TV',
+    pixPrice: 1799,
+    cardPrice: 2160,
+    stock: 2
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastAt: Date.now() - 6 * 60 * 60 * 1000,
+    selectedProduct: tv,
+    lastProducts: [tv],
+    allProductResults: [tv],
+    lastProductQuery: 'tv',
+    pendingAction: 'installment_payment_method',
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'boa noite tudo bem?',
+    pushName: 'Marcelo'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /^Boa noite, Marcelo! 😊 Tudo ótimo por aqui\. E você\?/i);
+  assert.doesNotMatch(sentTexts[0].text, /Smart tv lg 43|cartão|crediário\/carnê/i);
+
+  const conv = bot.conversation(phone);
+  assert.equal(conv.pendingAction, '');
+  assert.equal(conv.selectedProduct, null);
+  assert.equal(conv.lastProducts.length, 0);
+  assert.equal(conv.lastIntent, '');
+});
+
+test('produto de ontem não é usado automaticamente em pergunta nova sem referência explícita', async () => {
+  const phone = '5533977777946';
+  const tv = bot.compactProduct(product('tv-stale-yesterday-1', 'Smart TV LG 43 polegadas', {
+    category: 'TV',
+    pixPrice: 1799,
+    cardPrice: 2160,
+    stock: 2
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastAt: Date.now() - 24 * 60 * 60 * 1000,
+    selectedProduct: tv,
+    lastProducts: [tv],
+    allProductResults: [tv],
+    lastProductQuery: 'tv',
+    pendingAction: 'installment_payment_method',
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'quanto fica parcelado?',
+    pushName: 'Marcelo'
+  });
+
+  assert.doesNotMatch(sentTexts.at(-1).text, /Smart TV LG 43/i);
+  assert.match(sentTexts.at(-1).text, /qual produto|me diga qual produto|qual.*produto/i);
+  assert.equal(bot.conversation(phone).selectedProduct, null);
+});
+
 test('resposta "Tudo" após bom dia não retoma pergunta comercial antiga', async () => {
   const phone = '5533977777948';
   const chosen = bot.compactProduct(product('tv-greeting-old-1', 'Smart tv lg 43 polegadas', {
@@ -6169,6 +6236,150 @@ test('mais vendido recomendação e marca usam somente sinais confirmados do cat
 });
 
 
+
+
+test('gostei do branco com mais fotos resolve o item branco da lista e usa a galeria dele', async () => {
+  const phone = '5533977778010';
+  const white = product('list-white-1', 'Guarda Roupa Delta 6 Pts Com Espelho Branco', {
+    category: 'Guarda-Roupas',
+    pixPrice: 1267.41,
+    stock: 2,
+    imageUrl: 'https://img.test/white-main.jpg',
+    images: [
+      { url: 'https://img.test/white-main.jpg', isMain: true },
+      { url: 'https://img.test/white-inside.jpg' },
+      { url: 'https://img.test/white-detail.jpg' }
+    ]
+  });
+  const offWhite = product('list-offwhite-2', 'Guarda Roupa Casal 6 Portas 2 Gavetas Delta Leifer Cinamomo Off White', {
+    category: 'Guarda-Roupas',
+    pixPrice: 1239.51,
+    stock: 2
+  });
+  const canadaOff = product('list-canada-3', 'Guarda Roupa Casal 6 Portas 4 Gavetas Canadá Cinamomo Off White', {
+    category: 'Guarda-Roupas',
+    pixPrice: 1596.66,
+    stock: 2
+  });
+  const cinamomo = product('list-cinamomo-4', 'Guarda Roupa Canadá Cinamomo 6 Portas 4 Gavetas', {
+    category: 'Guarda-Roupas',
+    pixPrice: 1596.66,
+    stock: 2
+  });
+  catalogRows = [white, offWhite, canadaOff, cinamomo];
+
+  bot.patchTestConversation(phone, {
+    lastAt: Date.now(),
+    selectedProduct: null,
+    lastProducts: [white, offWhite, canadaOff, cinamomo].map(bot.compactProduct),
+    allProductResults: [white, offWhite, canadaOff, cinamomo].map(bot.compactProduct),
+    lastProductQuery: 'guarda-roupa',
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'gostei do branco voce tem mais fotos dele pra eu ver ?',
+    pushName: 'Cliente Lista'
+  });
+
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'list-white-1');
+  assert.equal(sentMedia.length, 2);
+  assert.ok(sentMedia.some((item) => item.media === 'https://img.test/white-inside.jpg'));
+  assert.ok(sentMedia.some((item) => item.media === 'https://img.test/white-detail.jpg'));
+  assert.equal(sentMedia.some((item) => /offwhite|canada|cinamomo/i.test(item.media)), false);
+  assert.doesNotMatch(sentTexts.map((item) => item.text).join('\n'), /pode me mandar a foto ou o print/i);
+});
+
+test('referência com espelho escolhe item único da lista antes de responder', async () => {
+  const phone = '5533977778009';
+  const mirror = product('list-mirror-1', 'Guarda Roupa Delta 6 Portas Com Espelho Branco', {
+    category: 'Guarda-Roupas',
+    pixPrice: 1267,
+    stock: 2
+  });
+  const plain = product('list-plain-2', 'Guarda Roupa Canadá 6 Portas 4 Gavetas Cinamomo', {
+    category: 'Guarda-Roupas',
+    pixPrice: 1596,
+    stock: 2
+  });
+  catalogRows = [mirror, plain];
+
+  bot.patchTestConversation(phone, {
+    lastAt: Date.now(),
+    selectedProduct: null,
+    lastProducts: [mirror, plain].map(bot.compactProduct),
+    allProductResults: [mirror, plain].map(bot.compactProduct),
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'gostei do com espelho',
+    pushName: 'Cliente Lista'
+  });
+
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'list-mirror-1');
+  assert.match(sentTexts.at(-1).text, /Guarda Roupa Delta 6 Portas Com Espelho Branco/i);
+});
+
+test('referência ambígua por cinamomo pede qual opção em vez de escolher errado', async () => {
+  const phone = '5533977778008';
+  const first = product('list-cina-1', 'Guarda Roupa Canadá Cinamomo 6 Portas 4 Gavetas', {
+    category: 'Guarda-Roupas',
+    pixPrice: 1596,
+    stock: 2
+  });
+  const second = product('list-cina-2', 'Guarda Roupa Delta Cinamomo 6 Portas 2 Gavetas', {
+    category: 'Guarda-Roupas',
+    pixPrice: 1239,
+    stock: 2
+  });
+
+  bot.patchTestConversation(phone, {
+    lastAt: Date.now(),
+    selectedProduct: null,
+    lastProducts: [first, second].map(bot.compactProduct),
+    allProductResults: [first, second].map(bot.compactProduct),
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'gostei do cinamomo tem mais fotos?',
+    pushName: 'Cliente Lista'
+  });
+
+  assert.equal(bot.conversation(phone).selectedProduct, null);
+  assert.match(sentTexts.at(-1).text, /mais de uma opção.*qual delas/i);
+  assert.match(sentTexts.at(-1).text, /1ª opção.*Canadá/i);
+  assert.match(sentTexts.at(-1).text, /2ª opção.*Delta/i);
+  assert.equal(sentMedia.length, 0);
+});
+
+test('pedido de foto sem identificar item em lista múltipla pede qual opção e não solicita upload', async () => {
+  const phone = '5533977778007';
+  const a = product('list-photo-a', 'Guarda Roupa Branco', { category: 'Guarda-Roupas', stock: 2 });
+  const b = product('list-photo-b', 'Guarda Roupa Cinamomo', { category: 'Guarda-Roupas', stock: 2 });
+
+  bot.patchTestConversation(phone, {
+    lastAt: Date.now(),
+    selectedProduct: null,
+    lastProducts: [a, b].map(bot.compactProduct),
+    allProductResults: [a, b].map(bot.compactProduct),
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'tem mais fotos dele?',
+    pushName: 'Cliente Lista'
+  });
+
+  assert.match(sentTexts.at(-1).text, /qual das opções.*primeira.*segunda/i);
+  assert.doesNotMatch(sentTexts.at(-1).text, /mande a foto|manda a foto|print do produto/i);
+  assert.equal(sentMedia.length, 0);
+});
 
 test('mais fotos do produto usa galeria completa sem repetir a principal já enviada', async () => {
   const phone = '5533977778011';
