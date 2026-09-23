@@ -6422,6 +6422,12 @@ test('recomendação de celular usa armazenamento confirmado na ficha', async ()
       pixPrice: 2299,
       stock: 2,
       specs: 'Memória interna: 256 GB\nRAM: 8 GB\nBateria: 5000 mAh\nCâmera principal: 50 MP\n5G\nNFC'
+    }),
+    product('consult-phone-tablet', 'Tablet Positivo Vision Tab 10 128GB', {
+      category: 'Celulares e Tablets',
+      pixPrice: 1354.56,
+      stock: 2,
+      specs: 'Memória interna: 128 GB\nRAM: 4 GB\nBateria: 6000 mAh\nCâmera principal: 13 MP'
     })
   ];
 
@@ -6444,6 +6450,7 @@ test('recomendação de celular usa armazenamento confirmado na ficha', async ()
   const reply = sentTexts.at(-1).text;
   assert.match(reply, /eu começaria por \*Smartphone Galaxy B 256GB\*/i);
   assert.match(reply, /maior armazenamento confirmado.*\*256 GB\*/is);
+  assert.doesNotMatch(reply, /Tablet Positivo|Vision Tab/i);
   assert.equal(bot.conversation(phone).selectedProduct.id, 'consult-phone-2');
 });
 
