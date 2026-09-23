@@ -2619,6 +2619,48 @@ function clearTransientCommercialPromptOnGreeting(conv = {}) {
   return true;
 }
 
+function clearTransientCommercialPromptOnTopicSwitch(
+  conv = {},
+  text = '',
+  semanticIntent = null
+) {
+  const pending = String(conv?.pendingAction || '').trim();
+  if (!pending) return false;
+
+  const transient = new Set([
+    'installment_payment_method',
+    'purchase_payment_method',
+    'card_price_product',
+    'cash_price_product',
+    'special_condition_product',
+    'crediario_product',
+    'credit_installments'
+  ]);
+
+  if (!transient.has(pending)) return false;
+
+  const currentCategory =
+    detectCategory(text) ||
+    detectCategory(String(semanticIntent?.category || '')) ||
+    '';
+
+  if (!currentCategory) return false;
+
+  const previousCategory = detectCategory([
+    conv?.selectedProduct?.name,
+    conv?.selectedProduct?.category,
+    conv?.lastProductQuery,
+    conv?.lastProducts?.[0]?.name,
+    conv?.lastProducts?.[0]?.category
+  ].filter(Boolean).join(' '));
+
+  if (!previousCategory || currentCategory === previousCategory) return false;
+
+  conv.pendingAction = '';
+  saveStateSoon();
+  return true;
+}
+
 function wellbeingReplyLeadTone(text = '') {
   const n = normalize(text)
     .replace(/[!?.,;:]+/g, ' ')
@@ -6156,6 +6198,8 @@ async function handleMessage({
     return;
   }
 
+  clearTransientCommercialPromptOnTopicSwitch(conv, text, semanticIntent);
+
   if (await handlePending(phone, text, conv)) return;
 
   {
@@ -7629,6 +7673,7 @@ export const __test = {
   expectedWellbeingReplyTone,
   wellbeingReplyLeadTone,
   clearTransientCommercialPromptOnGreeting,
+  clearTransientCommercialPromptOnTopicSwitch,
   storeDaypartGreeting,
   courtesyGreetingLabel,
   hasCourtesyGreetingContext,
