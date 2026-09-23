@@ -6404,7 +6404,17 @@ test('"preço do cinamomo" pede qual opção quando a cor aparece em mais de um 
   });
 
   assert.match(sentTexts.at(-1).text, /mais de uma opção.*qual delas/i);
-  assert.equal(sentTexts.at(-1).text.includes('R
+  assert.doesNotMatch(sentTexts.at(-1).text, /R\$/i);
+});
+
+test('pergunta financeira com "valor" não vira preço genérico de produto', () => {
+  assert.equal(bot.asksGenericProductPrice('qual o valor da minha parcela?'), false);
+  assert.equal(bot.asksGenericProductPrice('quanto eu devo da minha notinha?'), false);
+  assert.equal(bot.asksGenericProductPrice('qual o valor no pix?'), false);
+  assert.equal(bot.asksGenericProductPrice('qual o valor no cartão?'), false);
+});
+
+test('referência com espelho escolhe item único da lista antes de responder', async () => {
   const phone = '5533977778009';
   const mirror = product('list-mirror-1', 'Guarda Roupa Delta 6 Portas Com Espelho Branco', {
     category: 'Guarda-Roupas',
