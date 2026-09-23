@@ -4453,6 +4453,191 @@ function asksProductColor(text = '') {
   );
 }
 
+
+function currentListReferenceCue(text = '') {
+  const n = normalize(text);
+  return (
+    ordinalIndex(text) >= 0 ||
+    asksLastShownProduct(text) ||
+    asksThisShownProduct(text) ||
+    asksSelectedProductPhoto(text) ||
+    asksProductColor(text) ||
+    asksCardQuote(text) ||
+    asksPixPrice(text) ||
+    asksCreditQuote(text) ||
+    asksGenericInstallmentQuote(text) ||
+    /\b(gostei|prefiro|quero|queria|escolho|escolhi)\b/.test(n) ||
+    /\b(o|a|esse|essa|aquele|aquela)\b.{0,22}\b(com|de|da|do)\b/.test(n) ||
+    /\b(mais barato|mais barata|mais caro|mais cara|menor preco|maior preco)\b/.test(n)
+  );
+}
+
+function currentListProductReference(conv = {}, text = '') {
+  const products = Array.isArray(conv?.lastProducts) ? conv.lastProducts.filter(Boolean) : [];
+  if (!products.length || !currentListReferenceCue(text)) {
+    return { status: 'none', product: null, candidates: [] };
+  }
+
+  const ord = ordinalIndex(text);
+  if (ord >= 0 && products[ord]) {
+    return { status: 'single', product: products[ord], candidates: [products[ord]], reason: 'ordinal' };
+  }
+
+  if (asksLastShownProduct(text) && products.length) {
+    const last = products[products.length - 1];
+    return { status: 'single', product: last, candidates: [last], reason: 'last' };
+  }
+
+  const n = normalize(text);
+  const priceRows = products
+    .map((product) => ({ product, price: Number(productCashPrice(product) || 0) }))
+    .filter((item) => item.price > 0);
+
+  if (/\b(mais barato|mais barata|menor preco|mais em conta)\b/.test(n) && priceRows.length) {
+    const min = Math.min(...priceRows.map((item) => item.price));
+    const matches = priceRows.filter((item) => Math.abs(item.price - min) < 0.01).map((item) => item.product);
+    return matches.length === 1
+      ? { status: 'single', product: matches[0], candidates: matches, reason: 'cheapest' }
+      : { status: 'ambiguous', product: null, candidates: matches, reason: 'cheapest' };
+  }
+
+  if (/\b(mais caro|mais cara|maior preco)\b/.test(n) && priceRows.length) {
+    const max = Math.max(...priceRows.map((item) => item.price));
+    const matches = priceRows.filter((item) => Math.abs(item.price - max) < 0.01).map((item) => item.product);
+    return matches.length === 1
+      ? { status: 'single', product: matches[0], candidates: matches, reason: 'expensive' }
+      : { status: 'ambiguous', product: null, candidates: matches, reason: 'expensive' };
+  }
+
+  const requestedColors = PRODUCT_COLOR_PATTERNS
+    .filter(([, pattern]) => pattern.test(n))
+    .map(([label]) => normalize(label));
+
+  const doorMatch = n.match(/\b(\d{1,2})\s*portas?\b/);
+  const drawerMatch = n.match(/\b(\d{1,2})\s*gavetas?\b/);
+  const seatMatch = n.match(/\b(\d{1,2})\s*(?:lugares?|assentos?)\b/);
+  const literMatch = n.match(/\b(\d{2,4})\s*(?:l|litros?)\b/);
+  const wantsMirror = /\b(com\s+espelho|espelho)\b/.test(n);
+
+  let candidates = [...products];
+  let usedStructuredSignal = false;
+
+  if (requestedColors.length) {
+    usedStructuredSignal = true;
+    candidates = candidates.filter((product) => {
+      const colors = productColorLabels(product).map((color) => normalize(color));
+      return requestedColors.every((color) => colors.includes(color));
+    });
+  }
+
+  if (doorMatch) {
+    usedStructuredSignal = true;
+    const doors = Number(doorMatch[1]);
+    candidates = candidates.filter((product) =>
+      new RegExp('\\b' + doors + '\\s*portas?\\b', 'i').test(normalize(product?.name || ''))
+    );
+  }
+
+  if (drawerMatch) {
+    usedStructuredSignal = true;
+    const drawers = Number(drawerMatch[1]);
+    candidates = candidates.filter((product) =>
+      new RegExp('\\b' + drawers + '\\s*gavetas?\\b', 'i').test(normalize(product?.name || ''))
+    );
+  }
+
+  if (seatMatch) {
+    usedStructuredSignal = true;
+    const seats = Number(seatMatch[1]);
+    candidates = candidates.filter((product) =>
+      new RegExp('\\b' + seats + '\\s*(?:lugares?|assentos?)\\b', 'i').test(normalize(product?.name || ''))
+    );
+  }
+
+  if (literMatch) {
+    usedStructuredSignal = true;
+    const liters = Number(literMatch[1]);
+    candidates = candidates.filter((product) =>
+      new RegExp('\\b' + liters + '\\s*(?:l|litros?)\\b', 'i').test(normalize(product?.name || ''))
+    );
+  }
+
+  if (wantsMirror) {
+    usedStructuredSignal = true;
+    candidates = candidates.filter((product) => /\bespelho\b/.test(normalize(product?.name || '')));
+  }
+
+  if (usedStructuredSignal) {
+    if (candidates.length === 1) {
+      return { status: 'single', product: candidates[0], candidates, reason: 'attributes' };
+    }
+    if (candidates.length > 1) {
+      return { status: 'ambiguous', product: null, candidates, reason: 'attributes' };
+    }
+  }
+
+  const stop = new Set([
+    'gostei', 'quero', 'queria', 'prefiro', 'escolho', 'escolhi', 'mais', 'foto', 'fotos',
+    'imagem', 'imagens', 'dele', 'dela', 'desse', 'dessa', 'esse', 'essa', 'aquele', 'aquela',
+    'para', 'ver', 'manda', 'mandar', 'envia', 'enviar', 'tem', 'voce', 'pode', 'preco', 'valor',
+    'cartao', 'pix', 'carne', 'crediario', 'boleto', 'cor', 'modelo', 'produto', 'primeiro',
+    'segundo', 'terceiro', 'quarto', 'ultimo', 'com', 'sem'
+  ]);
+  const tokens = n
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(/\s+/)
+    .filter((token) => token.length >= 4 && !stop.has(token) && !/^\d+$/.test(token));
+
+  if (tokens.length) {
+    const scored = products.map((product) => {
+      const name = normalize(product?.name || '');
+      const score = tokens.filter((token) => name.includes(token)).length;
+      return { product, score };
+    }).filter((item) => item.score > 0);
+
+    if (scored.length) {
+      const best = Math.max(...scored.map((item) => item.score));
+      const matches = scored.filter((item) => item.score === best).map((item) => item.product);
+      if (matches.length === 1) {
+        return { status: 'single', product: matches[0], candidates: matches, reason: 'name' };
+      }
+      if (matches.length > 1) {
+        return { status: 'ambiguous', product: null, candidates: matches, reason: 'name' };
+      }
+    }
+  }
+
+  return { status: 'none', product: null, candidates: [] };
+}
+
+function currentListClarificationText(conv = {}, result = {}) {
+  const products = Array.isArray(conv?.lastProducts) ? conv.lastProducts : [];
+  const candidates = Array.isArray(result?.candidates) ? result.candidates.slice(0, 4) : [];
+  if (!candidates.length) return '';
+
+  const options = candidates.map((product) => {
+    const index = products.findIndex((item) => productId(item) === productId(product));
+    return (index >= 0 ? String(index + 1) + 'ª opção' : 'opção') + ': *' + product.name + '*';
+  });
+
+  return 'Encontrei mais de uma opção que combina com o que você falou 😊 Qual delas você quis dizer?\n' + options.join('\n');
+}
+
+function descriptiveSelectionOnly(text = '') {
+  const n = normalize(text);
+  const hasActionQuestion =
+    asksSelectedProductPhoto(text) ||
+    asksProductColor(text) ||
+    asksCardQuote(text) ||
+    asksPixPrice(text) ||
+    asksCreditQuote(text) ||
+    asksGenericInstallmentQuote(text) ||
+    asksProductLink(text) ||
+    asksDelivery(text);
+
+  return !hasActionQuestion && /\b(gostei|prefiro|quero|escolho|escolhi)\b/.test(n);
+}
+
 function asksOtherModel(text = '') {
   const n = normalize(text);
   return (
