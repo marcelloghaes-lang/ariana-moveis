@@ -1784,10 +1784,15 @@ test('famílias equivalentes são reconhecidas corretamente', () => {
   }
 });
 
-test('geladeira não mistura freezer nem frigobar', () => {
+test('geladeira não mistura freezer, frigobar nem outras categorias', () => {
   assert.equal(bot.matchesRequestedProductType(product('1', 'Geladeira Frost Free 400L'), 'geladeira'), true);
+  assert.equal(bot.matchesRequestedProductType(product('1b', 'Refrigerador Consul 451L'), 'geladeira'), true);
   assert.equal(bot.matchesRequestedProductType(product('2', 'Freezer Horizontal 300L'), 'geladeira'), false);
   assert.equal(bot.matchesRequestedProductType(product('3', 'Frigobar 90L'), 'geladeira'), false);
+  assert.equal(
+    bot.matchesRequestedProductType(product('4', 'Smart TV 55 Samsung Crystal', { category: 'TV' }), 'geladeira'),
+    false
+  );
 });
 
 test('TV exclui rack, painel, home e suporte para TV', () => {
