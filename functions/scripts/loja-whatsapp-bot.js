@@ -5349,6 +5349,264 @@ async function showOtherModels(phone, conv, product) {
   return true;
 }
 
+
+function productVariantNameTokens(product = {}) {
+  let n = normalize(product?.name || '');
+  for (const [, pattern] of PRODUCT_COLOR_PATTERNS) {
+    n = n.replace(pattern, ' ');
+  }
+
+  return n
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+    .filter((token) => ![
+      'cor', 'com', 'de', 'da', 'do', 'das', 'dos', 'e', 'para',
+      'brasil', 'novo', 'nova'
+    ].includes(token));
+}
+
+function productVariantModelCodes(product = {}) {
+  return productVariantNameTokens(product).filter((token) => {
+    if (/^\d+(?:gb|tb|w|l|kg|hz|mp|mah)$/.test(token)) return false;
+    return token.length >= 3 && /[a-z]/.test(token) && /\d/.test(token);
+  });
+}
+
+function sameProductModelVariant(first = {}, second = {}) {
+  if (!productId(first) || !productId(second)) return false;
+  if (productId(first) === productId(second)) return true;
+
+  const firstCategory = detectCategory([first.name, first.category].filter(Boolean).join(' '));
+  const secondCategory = detectCategory([second.name, second.category].filter(Boolean).join(' '));
+  if (firstCategory && secondCategory && normalize(firstCategory) !== normalize(secondCategory)) return false;
+
+  const a = productVariantNameTokens(first);
+  const b = productVariantNameTokens(second);
+  if (!a.length || !b.length) return false;
+
+  const setA = new Set(a);
+  const setB = new Set(b);
+  const intersection = [...setA].filter((token) => setB.has(token));
+  const containment = intersection.length / Math.max(1, Math.min(setA.size, setB.size));
+
+  const codesA = productVariantModelCodes(first);
+  const codesB = productVariantModelCodes(second);
+  if (codesA.length && codesB.length) {
+    const sharedCode = codesA.some((code) => codesB.includes(code));
+    return sharedCode && containment >= 0.5;
+  }
+
+  const generic = new Set([
+    'smartphone', 'celular', 'telefone', 'guarda', 'roupa', 'roupeiro', 'casal', 'solteiro',
+    'portas', 'porta', 'gavetas', 'gaveta', 'sofa', 'mesa', 'cadeira', 'geladeira',
+    'refrigerador', 'fogao', 'forno', 'micro', 'ondas', 'air', 'fryer', 'tv',
+    'litros', 'ram', 'tela'
+  ]);
+  const distinctiveShared = intersection.filter((token) =>
+    token.length >= 4 &&
+    !generic.has(token) &&
+    !/^\d+$/.test(token) &&
+    !/^\d+(?:gb|tb|w|l|kg|hz|mp|mah)$/.test(token)
+  );
+
+  return containment >= 0.82 && distinctiveShared.length >= 1;
+}
+
+function colorVariantLabel(item = {}) {
+  const colors = Array.isArray(item.colors) ? item.colors.filter(Boolean) : [];
+  return colors.length ? colors.join(' / ') : '';
+}
+
+function activeColorVariants(conv = {}) {
+  if (!Array.isArray(conv.lastColorVariants) || !conv.lastColorVariants.length) return [];
+  if (Date.now() - Number(conv.lastColorVariantAt || 0) > 30 * 60 * 1000) {
+    conv.lastColorVariants = [];
+    conv.lastColorVariantProductId = '';
+    conv.lastColorVariantAt = 0;
+    saveStateSoon();
+    return [];
+  }
+  return conv.lastColorVariants;
+}
+
+function rememberColorVariants(conv = {}, baseProduct = {}, variants = []) {
+  conv.lastColorVariants = variants.map((item) => ({
+    product: compactProduct(item.product || {}),
+    colors: Array.isArray(item.colors) ? item.colors.slice(0, 4) : []
+  }));
+  conv.lastColorVariantProductId = productId(baseProduct);
+  conv.lastColorVariantAt = Date.now();
+  saveStateSoon();
+}
+
+async function findSameModelColorVariants(product = {}, details = null) {
+  const category =
+    detectCategory([product?.name, product?.category, details?.category].filter(Boolean).join(' ')) ||
+    String(product?.category || details?.category || '').trim();
+
+  if (!category) return [];
+
+  let rows = [];
+  try {
+    rows = await searchProducts(category, '');
+  } catch {
+    return [];
+  }
+
+  const base = {
+    ...product,
+    name: details?.name || product?.name,
+    category: details?.category || product?.category
+  };
+
+  const candidates = rows
+    .filter((candidate) => sameProductModelVariant(base, candidate))
+    .slice(0, 12);
+
+  if (!candidates.some((candidate) => productId(candidate) === productId(product))) {
+    candidates.unshift(compactProduct(product));
+  }
+
+  const enriched = await Promise.all(
+    candidates.map(async (candidate) => {
+      const candidateDetails = productId(candidate) === productId(product) && details
+        ? details
+        : await fetchProductSafeDetails(candidate);
+      if (!candidateDetails) return null;
+      return {
+        product: {
+          ...compactProduct(candidate),
+          isBestSeller: candidate.isBestSeller === true || candidateDetails.isBestSeller === true,
+          isRecommended: candidate.isRecommended === true || candidateDetails.isRecommended === true
+        },
+        details: candidateDetails,
+        colors: productColorLabels(candidateDetails)
+      };
+    })
+  );
+
+  return enriched
+    .filter(Boolean)
+    .filter((item) => item.colors.length)
+    .filter((item, index, all) =>
+      all.findIndex((other) => productId(other.product) === productId(item.product)) === index
+    );
+}
+
+async function handleProductColorQuestion({ phone, text, pushName = '', conv, product, details }) {
+  const wantsPopularity = asksColorPopularity(text);
+  const wantsOtherColors = asksOtherProductColors(text);
+  const requestedColor = requestedProductColor(text);
+  const currentColors = productColorLabels(details);
+  const currentColorText = currentColors.length ? currentColors.join(' / ') : productColor(details);
+
+  if (!wantsPopularity && !wantsOtherColors && !requestedColor) {
+    await sendText(
+      phone,
+      currentColorText
+        ? `A cor cadastrada de *${product.name}* é *${currentColorText}*.`
+        : `A cor de *${product.name}* não está descrita de forma confiável no cadastro.`
+    );
+    return true;
+  }
+
+  const variants = await findSameModelColorVariants(product, details);
+  if (variants.length) rememberColorVariants(conv, product, variants);
+
+  if (wantsPopularity) {
+    const marked = variants.filter((item) => item.product.isBestSeller === true);
+    if (marked.length === 1) {
+      const label = colorVariantLabel(marked[0]);
+      await sendText(
+        phone,
+        label
+          ? `Entre as cores deste mesmo modelo que encontrei no catálogo, a versão *${label}* está marcada como *mais vendida* 😊`
+          : 'Encontrei uma variante marcada como mais vendida, mas a cor dela não está confirmada de forma confiável no cadastro.'
+      );
+    } else {
+      await sendText(
+        phone,
+        'Eu não tenho um ranking confiável de vendas *por cor* desse modelo para afirmar qual sai mais sem inventar. Posso te mostrar as cores disponíveis e as fotos de cada uma 😊'
+      );
+    }
+    return true;
+  }
+
+  if (requestedColor) {
+    const normalizedRequested = normalize(requestedColor);
+    const match = variants.find((item) =>
+      item.colors.some((color) => normalize(color) === normalizedRequested)
+    );
+
+    if (match) {
+      conv.selectedProduct = compactProduct(match.product);
+      conv.lastProducts = [compactProduct(match.product)];
+      conv.lastIntent = 'produto';
+      saveStateSoon();
+
+      const imageUrl = match.details.imageUrl || match.product.imageUrl;
+      await sendImage(
+        phone,
+        imageUrl,
+        `Tem sim 😊 Encontrei este mesmo modelo na cor *${colorVariantLabel(match)}*: *${match.product.name}*.`
+      );
+      markProductImageSent(conv, match.product, imageUrl);
+      saveStateSoon();
+
+      await markConversationStatus(
+        phone,
+        conv,
+        'Venda em andamento',
+        `Cliente pediu a variante ${requestedColor} de: ${product.name}`,
+        pushName,
+        {
+          productId: productId(match.product),
+          baseProductId: productId(product),
+          requestedColor,
+          colorVariant: true
+        }
+      );
+      return true;
+    }
+
+    if (currentColors.some((color) => normalize(color) === normalizedRequested)) {
+      await sendText(phone, `Sim 😊 Esse produto já está cadastrado na cor *${requestedColor}*.`);
+      return true;
+    }
+
+    await sendText(
+      phone,
+      `Não encontrei a cor *${requestedColor}* confirmada para este mesmo modelo no catálogo. Posso te mostrar as cores que encontrei desse modelo ou procurar um modelo parecido nessa cor.`
+    );
+    return true;
+  }
+
+  const currentSet = new Set(currentColors.map((color) => normalize(color)));
+  const otherVariants = variants.filter((item) =>
+    item.product.id !== productId(product) &&
+    item.colors.some((color) => !currentSet.has(normalize(color)))
+  );
+  const colors = [...new Set(otherVariants.flatMap((item) => item.colors))];
+
+  if (colors.length) {
+    await sendText(
+      phone,
+      `Tem outras cores deste mesmo modelo sim 😊 Além de *${currentColorText || 'essa cor'}*, encontrei: *${colors.join(', ')}*. Se quiser, pode falar a cor que você quer ver que eu te mando a foto dela.`
+    );
+  } else {
+    await sendText(
+      phone,
+      currentColorText
+        ? `Desse mesmo modelo, eu só consegui confirmar a cor *${currentColorText}* no catálogo agora. Se quiser, posso procurar modelos parecidos em outras cores.`
+        : 'Não consegui confirmar outras cores deste mesmo modelo no catálogo agora. Se quiser, posso procurar modelos parecidos em outras cores.'
+    );
+  }
+
+  return true;
+}
+
 async function handleCommonProductQuestion({ phone, text, pushName = '', conv }) {
   if (await handlePendingConsultativeRecommendation({ phone, text, pushName, conv })) {
     return true;
