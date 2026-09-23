@@ -855,6 +855,202 @@ test('áudio com produto, cartão e entrega responde todas as partes na mesma co
   assert.equal(turns.at(-1).excerpt, '');
 });
 
+test('"a outra" não usa lista velha de outra categoria depois de retomar produto lembrado', () => {
+  const phone = '5533977777927';
+
+  const tv1 = bot.compactProduct(product('cross-tv-1', 'Smart TV 50 LG 4K', {
+    category: 'TV',
+    pixPrice: 1999,
+    cardPrice: 2400
+  }));
+  const tv2 = bot.compactProduct(product('cross-tv-2', 'Smart TV 55 Samsung Crystal', {
+    category: 'TV',
+    pixPrice: 2499,
+    cardPrice: 3000
+  }));
+  const fridge1 = bot.compactProduct(product('cross-fridge-1', 'Geladeira Consul 340L', {
+    category: 'Geladeira',
+    pixPrice: 2799,
+    cardPrice: 3372
+  }));
+  const fridge2 = bot.compactProduct(product('cross-fridge-2', 'Geladeira Electrolux 400L', {
+    category: 'Geladeira',
+    pixPrice: 3199,
+    cardPrice: 3852
+  }));
+
+  const conv = bot.conversation(phone);
+  bot.patchTestConversation(phone, {
+    selectedProduct: tv2,
+    lastProducts: [fridge1, fridge2],
+    allProductResults: [fridge1, fridge2],
+    lastIntent: 'produto'
+  });
+
+  bot.patchTestCommercialProfile(phone, {
+    lastProduct: tv2,
+    lastProductAt: Date.now(),
+    lastCategory: 'TV',
+    lastCategoryAt: Date.now(),
+    lastCommercialAt: Date.now(),
+    salesStage: 'considering',
+    salesStageAt: Date.now(),
+    interests: [
+      { product: tv2, category: 'TV', at: Date.now(), source: 'resume' },
+      { product: fridge1, category: 'Geladeira', at: Date.now() - 1000, source: 'browse' },
+      { product: tv1, category: 'TV', at: Date.now() - 2000, source: 'older_tv' }
+    ]
+  });
+
+  assert.equal(bot.immediateAlternativeProduct(bot.conversation(phone), 'a outra'), null);
+
+  const remembered = bot.resolveRememberedProductReference(
+    phone,
+    'a outra',
+    bot.conversation(phone)
+  );
+
+  assert.equal(remembered?.id, 'cross-tv-1');
+  assert.notEqual(remembered?.id, 'cross-fridge-1');
+});
+
+test('teste de estresse mantém contexto após troca de categoria, financeiro e retomada', async () => {
+  const phone = '5533977777926';
+
+  catalogRows = [
+    product('stress-tv-1', 'Smart TV 50 LG 4K', {
+      category: 'TV',
+      pixPrice: 1999,
+      cardPrice: 2400,
+      stock: 3
+    }),
+    product('stress-tv-2', 'Smart TV 55 Samsung Crystal', {
+      category: 'TV',
+      pixPrice: 2499,
+      cardPrice: 3000,
+      stock: 2
+    }),
+    product('stress-fridge-1', 'Geladeira Consul 340L Frost Free', {
+      category: 'Geladeira',
+      pixPrice: 2799,
+      cardPrice: 3372,
+      stock: 3
+    }),
+    product('stress-fridge-2', 'Geladeira Electrolux 400L Inverter', {
+      category: 'Geladeira',
+      pixPrice: 3199,
+      cardPrice: 3852,
+      stock: 2
+    })
+  ];
+
+  financeResponse = {
+    ok: true,
+    fonteFinanceira: 'ariana_erp_financeiro_cobrancas',
+    cliente: { nome: 'Marina Souza' },
+    parcelas: [
+      {
+        status: 'aberta',
+        quitado: false,
+        dataVencimento: '2026-09-25',
+        valorParcela: 180,
+        saldoParcela: 180,
+        atualizacaoFinanceira: { diasAtraso: 0, valorAtualizado: 180 }
+      }
+    ]
+  };
+
+  await bot.handleMessage({ phone, text: 'boa noite', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /^Boa noite, Marina!/i);
+
+  await bot.handleMessage({ phone, text: 'beleza e você?', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /Por aqui tá tudo ótimo também/i);
+
+  await bot.handleMessage({ phone, text: 'quero ver tv', pushName: 'Marina Souza' });
+  assert.equal(bot.conversation(phone).lastProducts.length, 2);
+
+  await bot.handleMessage({ phone, text: 'a primeira', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /Smart TV 50 LG 4K/i);
+
+  await bot.handleMessage({ phone, text: 'e no pix?', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /1\.999,00/i);
+
+  await bot.handleMessage({ phone, text: 'e no cartão?', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /Smart TV 50 LG 4K/i);
+
+  await bot.handleMessage({ phone, text: 'não, a outra', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /Smart TV 55 Samsung Crystal/i);
+
+  const tvMediaBefore = sentMedia.length;
+  await bot.handleMessage({ phone, text: 'manda foto dela pra eu ver', pushName: 'Marina Souza' });
+  assert.equal(sentMedia.length, tvMediaBefore + 1);
+  assert.match(sentMedia.at(-1).caption || '', /Smart TV 55 Samsung Crystal/i);
+
+  await bot.handleMessage({ phone, text: 'vou pensar', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /de onde paramos/i);
+
+  await bot.handleMessage({ phone, text: 'agora quero ver geladeira', pushName: 'Marina Souza' });
+  assert.equal(bot.conversation(phone).lastProducts.length, 2);
+  assert.match(bot.conversation(phone).lastProducts[0].name, /Geladeira/i);
+
+  await bot.handleMessage({ phone, text: 'a primeira', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /Geladeira Consul 340L Frost Free/i);
+
+  await bot.handleMessage({ phone, text: 'e no cartão?', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /Geladeira Consul 340L Frost Free/i);
+
+  await bot.handleMessage({ phone, text: 'entrega aqui em Guanhães?', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /24 horas/i);
+
+  await bot.handleMessage({
+    phone,
+    text: 'quanto que eu tenho que pagar da minha prestação?',
+    pushName: 'Marina Souza'
+  });
+  assert.match(sentTexts.at(-1).text, /Marina/i);
+  assert.doesNotMatch(sentTexts.at(-1).text, /Geladeira Consul/i);
+
+  await bot.handleMessage({ phone, text: 'e aquela tv que eu vi?', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /Smart TV 55 Samsung Crystal/i);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'stress-tv-2');
+
+  await bot.handleMessage({ phone, text: 'a outra', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /Smart TV 50 LG 4K/i);
+  assert.doesNotMatch(sentTexts.at(-1).text, /Geladeira/i);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'stress-tv-1');
+
+  await bot.handleMessage({ phone, text: 'e no pix?', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /Smart TV 50 LG 4K/i);
+  assert.match(sentTexts.at(-1).text, /1\.999,00/i);
+
+  const mediaBeforeReturn = sentMedia.length;
+  await bot.handleMessage({ phone, text: 'manda foto dela', pushName: 'Marina Souza' });
+  assert.equal(sentMedia.length, mediaBeforeReturn + 1);
+  assert.match(sentMedia.at(-1).caption || '', /Smart TV 50 LG 4K/i);
+
+  await bot.handleMessage({ phone, text: 'vou pensar', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /de onde paramos/i);
+
+  await bot.handleMessage({ phone, text: 'oi', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /Tudo bem\?/i);
+
+  await bot.handleMessage({ phone, text: 'tô indo', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /O que você tá precisando pra hoje/i);
+
+  await bot.handleMessage({ phone, text: 'aquele que eu vi', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /Smart TV 50 LG 4K/i);
+
+  await bot.handleMessage({ phone, text: 'e no cartão?', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /Smart TV 50 LG 4K/i);
+
+  assert.equal(
+    sentTexts.some((item) => /me conta um pouco mais do produto ou da condição/i.test(item.text || '')),
+    false,
+    'teste de estresse não deve cair no fallback comercial genérico'
+  );
+  assert.ok(bot.recentShortConversationTurns(bot.conversation(phone)).length <= 6);
+});
+
 test('resposta neutra à pergunta de cortesia usa acolhimento curto sem "Ah, que bom"', async () => {
   const replies = [
     'mais ou menos',
