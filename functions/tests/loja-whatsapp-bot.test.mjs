@@ -716,6 +716,145 @@ test('segundo diálogo longo entende correções, troca de produto e confirmaç�
   assert.ok(bot.recentShortConversationTurns(bot.conversation(phone)).length <= 6);
 });
 
+test('mensagem com cartão e entrega responde as duas intenções sem perder o produto', async () => {
+  const phone = '5533977777930';
+  const first = bot.compactProduct(product('multi-tv-1', 'Smart TV 50 LG UHD', {
+    category: 'TV',
+    pixPrice: 1999,
+    cardPrice: 2400,
+    stock: 3
+  }));
+  const second = bot.compactProduct(product('multi-tv-2', 'Smart TV 55 Samsung Crystal', {
+    category: 'TV',
+    pixPrice: 2499,
+    cardPrice: 3000,
+    stock: 2
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: null,
+    lastProducts: [first, second],
+    allProductResults: [first, second],
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'gostei da segunda, quanto fica no cartão e entrega aqui em Guanhães?',
+    pushName: 'Marina Souza'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Smart TV 55 Samsung Crystal/i);
+  assert.match(sentTexts[0].text, /No cartão/i);
+  assert.match(sentTexts[0].text, /Entrega:/i);
+  assert.match(sentTexts[0].text, /24 horas/i);
+  assert.doesNotMatch(sentTexts[0].text, /me conta um pouco mais/i);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'multi-tv-2');
+  assert.equal(backendEvents.at(-1).metadata.multiIntent, true);
+  assert.equal(backendEvents.at(-1).metadata.askedDelivery, true);
+
+  const sensitivePlan = bot.commercialMultiIntentPlan(
+    'não deu pra mandar no PIX, é o dinheiro da prestação e deixei aí',
+    bot.conversation(phone)
+  );
+  assert.equal(sensitivePlan, null);
+});
+
+test('compra com PIX e pedido de foto responde tudo sem perguntar forma de pagamento de novo', async () => {
+  const phone = '5533977777929';
+  const chosen = bot.compactProduct(product('multi-fridge-1', 'Geladeira Electrolux 400L Inverter', {
+    category: 'Geladeira',
+    pixPrice: 3199,
+    cardPrice: 3852,
+    stock: 2
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: chosen,
+    lastProducts: [chosen],
+    allProductResults: [chosen],
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'quero essa no PIX e manda a foto também',
+    pushName: 'Marina Souza'
+  });
+
+  assert.equal(sentMedia.length, 1);
+  assert.equal(sentTexts.length, 0);
+  assert.match(sentMedia[0].caption, /Geladeira Electrolux 400L Inverter/i);
+  assert.match(sentMedia[0].caption, /No PIX/i);
+  assert.match(sentMedia[0].caption, /3\.199,00/i);
+  assert.match(sentMedia[0].caption, /continuar a compra/i);
+  assert.doesNotMatch(sentMedia[0].caption, /prefere pagar no/i);
+  assert.equal(backendEvents.at(-1).metadata.multiIntent, true);
+  assert.equal(backendEvents.at(-1).metadata.purchaseIntent, true);
+  assert.equal(backendEvents.at(-1).metadata.paymentMode, 'pix');
+});
+
+test('áudio com produto, cartão e entrega responde todas as partes na mesma continuação', async () => {
+  const phone = '5533977777928';
+  const first = bot.compactProduct(product('multi-audio-1', 'Smart TV 43 LG Full HD', {
+    category: 'TV',
+    pixPrice: 1699,
+    cardPrice: 2040,
+    stock: 4
+  }));
+  const second = bot.compactProduct(product('multi-audio-2', 'Smart TV 50 Philips 4K', {
+    category: 'TV',
+    pixPrice: 1899,
+    cardPrice: 2280,
+    stock: 3
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: null,
+    lastProducts: [first, second],
+    allProductResults: [first, second],
+    lastIntent: 'produto'
+  });
+
+  audioTranscriptionText = 'Gostei da primeira. Quanto fica no cartão e vocês entregam em Guanhães?';
+  mediaBase64Response = {
+    mimetype: 'audio/ogg; codecs=opus',
+    base64: 'T2dnUwBmYWtlLWF1ZGlvLW11bHRp'
+  };
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'AUDIO-MULTI-INTENT-1'
+      },
+      pushName: 'Marina Souza',
+      message: {
+        audioMessage: {
+          mimetype: 'audio/ogg; codecs=opus',
+          seconds: 9,
+          ptt: true
+        }
+      }
+    }
+  });
+
+  assert.equal(result.audio, 'audio_transcribed');
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Smart TV 43 LG Full HD/i);
+  assert.match(sentTexts[0].text, /No cartão/i);
+  assert.match(sentTexts[0].text, /Entrega:/i);
+  assert.doesNotMatch(sentTexts[0].text, /me conta um pouco mais/i);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'multi-audio-1');
+
+  const turns = bot.recentShortConversationTurns(bot.conversation(phone));
+  assert.equal(turns.at(-1).source, 'audio');
+  assert.equal(turns.at(-1).excerpt, '');
+});
+
 test('resposta neutra à pergunta de cortesia usa acolhimento curto sem "Ah, que bom"', async () => {
   const replies = [
     'mais ou menos',
