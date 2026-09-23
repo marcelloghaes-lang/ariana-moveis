@@ -6327,11 +6327,20 @@ function matchesRequestedProductType(product = {}, query = '') {
     const name = normalize(product.name || '');
     const isPhoneCategory = /celular|celulares|smartphone|smartphones|telefonia/.test(category);
     const looksLikePhone =
-      /\biphone\b|\bsmartphone\b|\bcelular\b|\bgalaxy\b|\bmoto\s*[ge]\b|\bredmi\b|\bpoco\b|\brealme\b|\bxiaomi\b/.test(name);
+      /\biphone\b|\bsmartphone\b|\bcelular\b|\bgalaxy\s+(?:a|m|s|z)\d|\bmoto\s*[ge]\b|\bredmi\b|\bpoco\b|\brealme\b|\bxiaomi\b/.test(name);
+    const isExplicitTablet =
+      /\btablet\b|\bipad\b|\btab\s*\d|\bvision tab\b/.test(name);
     const isAccessory =
       /capa|pelicula|carregador|cabo|fone|headset|caixa de som|speaker|suporte|power bank|relogio|smartwatch/.test(haystack);
 
-    return (isPhoneCategory || looksLikePhone) && !isAccessory;
+    return (isPhoneCategory || looksLikePhone) && !isExplicitTablet && !isAccessory;
+  }
+
+  if (requested === 'tablet') {
+    const name = normalize(product.name || '');
+    const category = normalize(product.category || '');
+    return /\btablet\b|\bipad\b|\btab\s*\d|\bvision tab\b/.test(name) ||
+      (/\btablet(?:s)?\b/.test(category) && !/\bsmartphone\b|\bcelular\b/.test(name));
   }
 
   if (requested === 'cama') {
