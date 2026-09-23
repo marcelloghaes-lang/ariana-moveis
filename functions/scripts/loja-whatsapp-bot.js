@@ -4379,8 +4379,11 @@ function asksDeliverySpeed(text = '') {
 }
 
 const PRODUCT_COLOR_PATTERNS = [
-  ['Off White', /\boff\s*white\b/],
-  ['Cinamomo', /\bcinamomo\b/],
+  // Alguns cadastros antigos juntam cores sem espaço, ex.: "CinamomoOff White".
+  // "off white" pode aparecer colado à cor anterior, e Cinamomo deve continuar
+  // sendo reconhecido como uma cor própria nesse composto.
+  ['Off White', /off\s*white\b/],
+  ['Cinamomo', /\bcinamomo(?:off)?\b/],
   ['Amêndoa', /\bamendoa\b/],
   ['Freijó', /\bfreijo\b/],
   ['Naturale', /\bnaturale\b|\bnatural\b/],
