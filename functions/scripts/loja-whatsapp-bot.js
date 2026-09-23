@@ -704,6 +704,7 @@ function shortContextKind(text = '') {
   if (
     asksCardQuote(text) ||
     asksPixPrice(text) ||
+    asksGenericProductPrice(text) ||
     asksCreditQuote(text) ||
     asksPaymentMethods(text)
   ) return 'payment';
@@ -3387,6 +3388,31 @@ function asksPixPrice(text) {
   );
 }
 
+function asksGenericProductPrice(text = '') {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n) return false;
+
+  // Formas de pagamento específicas e assuntos financeiros têm fluxos próprios.
+  if (
+    /\b(pix|a vista|avista|cartao|credito|carne|crediario|boleto|parcela|parcelas|prestacao|prestacoes)\b/.test(n) ||
+    /\b(devo|divida|notinha|notinhas|vencimento|atrasad[oa]s?|em aberto|conta a pagar)\b/.test(n)
+  ) {
+    return false;
+  }
+
+  return (
+    /\b(?:qual|quanto|qto)\b.{0,20}\b(?:valor|preco)\b/.test(n) ||
+    /\b(?:valor|preco)\b.{0,20}\b(?:dele|dela|desse|dessa|do|da|de|esse|essa|branco|branca|preto|preta|cinamomo|modelo)\b/.test(n) ||
+    /\b(?:quanto|qto)\b.{0,15}\b(?:custa|fica|sai)\b/.test(n) ||
+    /\b(?:custa|fica|sai)\b.{0,15}\b(?:quanto|qto)\b/.test(n) ||
+    /\b(?:quanto custa|preco do|preco da|valor do|valor da)\b/.test(n)
+  );
+}
+
 function asksCashDiscount(text) {
   const n = normalize(text)
     .replace(/[!?.,;:]+/g, ' ')
@@ -4633,6 +4659,7 @@ function descriptiveSelectionOnly(text = '') {
     asksProductColor(text) ||
     asksCardQuote(text) ||
     asksPixPrice(text) ||
+    asksGenericProductPrice(text) ||
     asksCreditQuote(text) ||
     asksGenericInstallmentQuote(text) ||
     asksProductLink(text) ||
@@ -8742,6 +8769,41 @@ async function handleMessage({
       conv.lastIntent = 'produto';
       saveStateSoon();
 
+      if (
+        asksGenericProductPrice(text) &&
+        !asksCardQuote(text) &&
+        !asksPixPrice(text) &&
+        !asksCreditQuote(text) &&
+        !asksGenericInstallmentQuote(text)
+      ) {
+        const full = productFullPrice(listReference.product);
+        const count = Math.max(1, Number(listReference.product.installmentCount || 12));
+
+        await sendText(
+          phone,
+          'O *' + listReference.product.name + '* está por *' +
+          money(productCashPrice(listReference.product)) +
+          ' à vista no PIX*. No cartão, fica em até *' +
+          count + 'x de ' + money(full / count) +
+          '*, total de *' + money(full) + '*.'
+        );
+
+        await markConversationStatus(
+          phone,
+          conv,
+          'Venda em andamento',
+          'Cliente consultou preço do produto pela descrição na lista: ' + listReference.product.name,
+          pushName,
+          {
+            productId: productId(listReference.product),
+            selectionMode: 'descricao_lista',
+            selectionReason: listReference.reason || '',
+            genericPriceQuery: true
+          }
+        );
+        return;
+      }
+
       if (descriptiveSelectionOnly(text)) {
         await sendText(
           phone,
@@ -10682,6 +10744,7 @@ export const __test = {
   patchTestVisionBudget,
   asksCardQuote,
   asksPixPrice,
+  asksGenericProductPrice,
   asksCashDiscount,
   asksPaymentConditionAdjustment,
   asksProductLink,
