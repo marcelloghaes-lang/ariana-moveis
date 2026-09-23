@@ -10376,7 +10376,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     if (nomeExato) clienteNome = nomeExato;
     if (!clienteNome && nomes.length === 1) clienteNome = nomes[0];
 
-    if (!nomeExato && nomes.length > 1 && !clienteNome) {
+    if (!nomeExato && nomes.length > 1) {
       const err = new Error('A busca corresponde a mais de um cliente. Selecione o nome completo.');
       err.statusCode = 409;
       err.clientes = nomes.slice(0, 20);
