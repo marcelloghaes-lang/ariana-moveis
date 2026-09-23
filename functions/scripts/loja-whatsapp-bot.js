@@ -156,7 +156,19 @@ const CATEGORY_TERMS = [
   ['tablet', ['tablet', 'tablets']],
   ['liquidificador', ['liquidificador', 'liquidificadores']],
   ['batedeira', ['batedeira', 'batedeiras']],
-  ['cafeteira', ['cafeteira', 'cafeteiras']]
+  ['cafeteira', ['cafeteira', 'cafeteiras']],
+  ['poltrona', ['poltrona', 'poltronas']],
+  ['escrivaninha', ['escrivaninha', 'escrivaninhas', 'mesa para computador', 'mesa de computador']],
+  ['balcão', ['balcao', 'balcoes']],
+  ['buffet/aparador', ['buffet', 'buffets', 'aparador', 'aparadores']],
+  ['aspirador de pó', ['aspirador de po', 'aspiradores de po', 'aspirador', 'aspiradores']],
+  ['ferro de passar', ['ferro de passar', 'ferros de passar', 'ferro eletrico', 'ferros eletricos']],
+  ['sanduicheira', ['sanduicheira', 'sanduicheiras', 'grill eletrico', 'grill eletricos']],
+  ['mixer', ['mixer', 'mixers']],
+  ['processador', ['processador de alimentos', 'processadores de alimentos', 'multiprocessador', 'multiprocessadores']],
+  ['panela elétrica', ['panela eletrica', 'panelas eletricas', 'panela de arroz', 'panela de pressao eletrica']],
+  ['bebedouro', ['bebedouro', 'bebedouros']],
+  ['purificador', ['purificador de agua', 'purificadores de agua', 'purificador', 'purificadores']]
 ];
 
 function categoryAliases(query = '') {
@@ -4240,13 +4252,20 @@ function asksProductRecommendation(text = '') {
 
 function recommendationFamily(category = '') {
   const c = normalize(category);
-  if (['sofa', 'cama', 'beliche', 'guarda-roupa', 'armario', 'cozinha completa', 'mesa', 'cadeira', 'rack/painel', 'multiuso', 'penteadeira', 'comoda'].includes(c)) {
+  if ([
+    'sofa', 'cama', 'beliche', 'guarda-roupa', 'armario', 'cozinha completa', 'mesa', 'cadeira',
+    'rack/painel', 'multiuso', 'penteadeira', 'comoda', 'poltrona', 'escrivaninha', 'balcao', 'buffet/aparador'
+  ].includes(c)) {
     return 'furniture';
   }
   if (['celular', 'notebook', 'computador', 'tablet', 'tv', 'caixa de som'].includes(c)) {
     return 'electronics';
   }
-  if (['air fryer', 'micro-ondas', 'forno eletrico', 'ventilador', 'liquidificador', 'batedeira', 'cafeteira'].includes(c)) {
+  if ([
+    'air fryer', 'micro-ondas', 'forno eletrico', 'ventilador', 'liquidificador', 'batedeira', 'cafeteira',
+    'aspirador de po', 'ferro de passar', 'sanduicheira', 'mixer', 'processador', 'panela eletrica',
+    'bebedouro', 'purificador'
+  ].includes(c)) {
     return 'portable';
   }
   if (['geladeira', 'freezer', 'frigobar', 'fogao', 'maquina de lavar', 'tanquinho', 'ar-condicionado'].includes(c)) {
@@ -4519,6 +4538,10 @@ function recommendationQuestion(category = '', context = {}) {
     options = '*tamanho, medidas, conforto/recursos ou preço*';
   } else if (c === 'rack/painel') {
     options = '*medidas, espaço para guardar, material/cor ou preço*';
+  } else if (c === 'poltrona') {
+    options = '*medidas, conforto/recursos, material ou preço*';
+  } else if (['escrivaninha', 'balcao', 'buffet/aparador'].includes(c)) {
+    options = '*medidas, espaço para guardar, material/cor ou preço*';
   } else if (['geladeira', 'freezer', 'frigobar', 'maquina de lavar', 'tanquinho'].includes(c)) {
     options = '*capacidade, tecnologia/recursos, economia de energia ou preço*';
   } else if (c === 'fogao') {
@@ -4531,9 +4554,12 @@ function recommendationQuestion(category = '', context = {}) {
     options = '*desempenho, armazenamento, tela, tecnologia ou preço*';
   } else if (c === 'caixa de som') {
     options = '*potência, conectividade/recursos ou preço*';
-  } else if (['air fryer', 'micro-ondas', 'forno eletrico', 'liquidificador', 'batedeira', 'cafeteira'].includes(c)) {
+  } else if ([
+    'air fryer', 'micro-ondas', 'forno eletrico', 'liquidificador', 'batedeira', 'cafeteira',
+    'sanduicheira', 'mixer', 'processador', 'panela eletrica', 'bebedouro', 'purificador'
+  ].includes(c)) {
     options = '*capacidade, potência, funções/recursos ou preço*';
-  } else if (c === 'ventilador') {
+  } else if (['ventilador', 'aspirador de po', 'ferro de passar'].includes(c)) {
     options = '*potência, recursos ou preço*';
   } else if (c === 'ar-condicionado') {
     options = '*capacidade, economia de energia, recursos ou preço*';
