@@ -5960,6 +5960,237 @@ test('objeção de preço procura alternativas realmente mais baratas da mesma c
   assert.doesNotMatch(sentMedia.map((item) => item.caption).join('\n'), /Premium 500/i);
 });
 
+test('perguntas comuns de produto são reconhecidas em linguagem natural', () => {
+  const checks = [
+    [bot.asksProductWarranty, ['tem garantia?', 'quantos meses de garantia?']],
+    [bot.asksProductVoltage, ['é bivolt?', 'qual a voltagem?']],
+    [bot.asksProductDimensions, ['qual o tamanho dele?', 'quais as medidas desse produto?']],
+    [bot.asksProductFit, ['cabe no meu espaço?', 'vai caber no nicho da cozinha?']],
+    [bot.asksReadyStock, ['tem pronta entrega?', 'tem em estoque agora?']],
+    [bot.asksDeliverySpeed, ['qual chega mais rápido?', 'qual entrega mais rápido?']],
+    [bot.asksProductColor, ['tem dessa cor?', 'qual a cor dele?']],
+    [bot.asksOtherModel, ['tem outro modelo?', 'tem outra opção?']],
+    [bot.asksBrandQuality, ['essa marca é boa?', 'essa marca presta?']],
+    [bot.asksBestSeller, ['qual vende mais?', 'qual é o mais vendido?']],
+    [bot.asksProductRecommendation, ['qual você me indica?', 'qual você recomenda?']],
+    [bot.asksEntryPayment, ['e se eu der entrada?', 'se eu der 500 de entrada?']],
+    [bot.asksQuantityDiscount, ['tem desconto levando dois?', 'comprando 2 tem desconto?']]
+  ];
+
+  for (const [fn, phrases] of checks) {
+    for (const phrase of phrases) {
+      assert.equal(fn(phrase), true, phrase);
+    }
+  }
+
+  assert.equal(bot.asksPixPrice('faz quanto à vista?'), true);
+});
+
+test('garantia voltagem cor e medidas usam ficha técnica detalhada real do produto', async () => {
+  const phone = '5533977777983';
+  const fridge = product('faq-tech-1', 'REFRIGERADOR CONSUL 451L BRANCO 110V', {
+    category: 'Geladeiras & Refrigeradores',
+    brand: 'Consul',
+    pixPrice: 3974,
+    cardPrice: 4787.95,
+    stock: 2,
+    width: 70,
+    height: 186,
+    length: 72,
+    specs: [
+      'Voltagem: 127V (110V)',
+      'Cor Predominante: Branco',
+      'Garantia Padrão do Fabricante: 12 meses'
+    ].join('\n')
+  });
+  catalogRows = [fridge];
+  bot.patchTestConversation(phone, {
+    selectedProduct: bot.compactProduct(fridge),
+    lastProducts: [bot.compactProduct(fridge)],
+    lastProductQuery: 'geladeira',
+    lastIntent: 'produto'
+  });
+
+  for (const [message, expected] of [
+    ['tem garantia?', /garantia de \*12 meses\*/i],
+    ['é bivolt?', /127V \(110V\)/i],
+    ['qual a cor dele?', /\*Branco\*/i],
+    ['qual o tamanho dele?', /largura \*70 cm\*.*altura \*186 cm\*.*profundidade \*72 cm\*/is]
+  ]) {
+    sentTexts = [];
+    await bot.handleMessage({ phone, text: message, pushName: 'Cliente Ficha' });
+    assert.equal(sentTexts.length, 1, message);
+    assert.match(sentTexts[0].text, expected, message);
+  }
+});
+
+test('Gustavo confere se produto cabe usando medidas informadas sem inventar dimensões', async () => {
+  const phone = '5533977777984';
+  const fridge = product('faq-fit-1', 'Geladeira Consul 451L', {
+    category: 'Geladeiras',
+    stock: 1,
+    width: 70,
+    height: 186,
+    length: 72,
+    specs: 'Garantia: 12 meses'
+  });
+  catalogRows = [fridge];
+  bot.patchTestConversation(phone, {
+    selectedProduct: bot.compactProduct(fridge),
+    lastProducts: [bot.compactProduct(fridge)],
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'cabe no meu espaço? tenho largura 75, altura 190 e profundidade 80',
+    pushName: 'Cliente Medidas'
+  });
+  assert.match(sentTexts.at(-1).text, /cabe nas dimensões comparadas/i);
+
+  sentTexts = [];
+  await bot.handleMessage({
+    phone,
+    text: 'cabe no meu espaço? tenho largura 65, altura 190 e profundidade 80',
+    pushName: 'Cliente Medidas'
+  });
+  assert.match(sentTexts.at(-1).text, /não cabe/i);
+  assert.match(sentTexts.at(-1).text, /largura: produto 70 cm \/ espaço 65 cm/i);
+});
+
+test('pronta entrega informa estoque sem prometer prazo e outro modelo mostra alternativas reais', async () => {
+  const phone = '5533977777985';
+  const current = product('faq-stock-1', 'Fogão Atlas 4 Bocas Branco', {
+    category: 'Fogão',
+    stock: 3
+  });
+  const other = product('faq-stock-2', 'Fogão Dako 5 Bocas Preto', {
+    category: 'Fogão',
+    stock: 2
+  });
+  catalogRows = [current, other];
+  bot.patchTestConversation(phone, {
+    selectedProduct: bot.compactProduct(current),
+    lastProducts: [bot.compactProduct(current)],
+    lastProductQuery: 'fogão',
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({ phone, text: 'tem pronta entrega?', pushName: 'Cliente Estoque' });
+  assert.match(sentTexts.at(-1).text, /3 unidade\(s\) em estoque/i);
+  assert.match(sentTexts.at(-1).text, /prazo de entrega depende do endereço/i);
+
+  sentTexts = [];
+  sentMedia = [];
+  await bot.handleMessage({ phone, text: 'tem outro modelo?', pushName: 'Cliente Estoque' });
+  assert.ok(sentMedia.some((item) => /Fogão Dako 5 Bocas Preto/i.test(item.caption || '')));
+  assert.equal(sentMedia.some((item) => /Fogão Atlas 4 Bocas Branco/i.test(item.caption || '')), false);
+});
+
+test('mais vendido recomendação e marca usam somente sinais confirmados do catálogo', async () => {
+  const phone = '5533977777986';
+  const first = bot.compactProduct(product('faq-rec-1', 'Smart TV Semp 43 Roku', {
+    category: 'TVs',
+    brand: 'Semp Toshiba',
+    isBestSeller: true,
+    stock: 2
+  }));
+  const second = bot.compactProduct(product('faq-rec-2', 'Smart TV LG 43', {
+    category: 'TVs',
+    brand: 'LG',
+    isRecommended: true,
+    stock: 2
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastProducts: [first, second],
+    lastProductQuery: 'tv',
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({ phone, text: 'qual vende mais?', pushName: 'Cliente Recomendação' });
+  assert.match(sentTexts.at(-1).text, /Semp 43 Roku.*mais vendido/is);
+
+  sentTexts = [];
+  await bot.handleMessage({ phone, text: 'qual você me indica?', pushName: 'Cliente Recomendação' });
+  assert.match(sentTexts.at(-1).text, /LG 43.*recomendado/is);
+  assert.match(sentTexts.at(-1).text, /não vou dizer que ele é melhor em tudo/i);
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: second,
+    lastProducts: [second],
+    lastIntent: 'produto'
+  });
+  sentTexts = [];
+  await bot.handleMessage({ phone, text: 'essa marca é boa?', pushName: 'Cliente Recomendação' });
+  assert.match(sentTexts.at(-1).text, /marca cadastrada é \*LG\*/i);
+  assert.match(sentTexts.at(-1).text, /não tenho uma nota confiável de qualidade/i);
+});
+
+test('entrada guarda contexto e valor seguinte vai para análise do Marcelo sem inventar parcela', async () => {
+  const phone = '5533977777987';
+  const sofa = bot.compactProduct(product('faq-entry-1', 'Sofá Retrátil 3 Lugares', {
+    category: 'Sofás',
+    pixPrice: 1899,
+    cardPrice: 2287.95,
+    stock: 2
+  }));
+  bot.patchTestConversation(phone, {
+    selectedProduct: sofa,
+    lastProducts: [sofa],
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({ phone, text: 'e se eu der entrada?', pushName: 'Cliente Entrada' });
+  assert.equal(bot.conversation(phone).pendingAction, 'entry_amount_product');
+  assert.match(sentTexts.at(-1).text, /Quanto você pretende dar de entrada/i);
+
+  sentTexts = [];
+  await bot.handleMessage({ phone, text: 'R$ 500', pushName: 'Cliente Entrada' });
+  assert.equal(bot.conversation(phone).pendingAction, '');
+  assert.match(sentTexts.at(-1).text, /R\$\s*500,00 de entrada/i);
+  assert.match(sentTexts.at(-1).text, /Marcelo analisar/i);
+  assert.equal(backendEvents.at(-1).metadata.entryAmount, 500);
+});
+
+test('desconto levando dois calcula somente preço oficial e não promete desconto adicional', async () => {
+  const phone = '5533977777988';
+  const tv = bot.compactProduct(product('faq-qty-1', 'Smart TV LG 43', {
+    category: 'TVs',
+    pixPrice: 1825.17,
+    cardPrice: 2199,
+    stock: 3
+  }));
+  bot.patchTestConversation(phone, {
+    selectedProduct: tv,
+    lastProducts: [tv],
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({ phone, text: 'tem desconto levando dois?', pushName: 'Cliente Quantidade' });
+  const reply = sentTexts.at(-1).text;
+  assert.match(reply, /R\$\s*1\.825,17 por unidade/i);
+  assert.match(reply, /2 unidades somam \*R\$\s*3\.650,34\*/i);
+  assert.match(reply, /Desconto adicional por quantidade.*análise do Marcelo/i);
+  assert.doesNotMatch(reply, /desconto de \d+%/i);
+});
+
+test('qual chega mais rápido não inventa prazo diferente por produto', async () => {
+  const phone = '5533977777989';
+  const first = bot.compactProduct(product('faq-delivery-1', 'Geladeira A 300L', { category: 'Geladeiras', stock: 2 }));
+  const second = bot.compactProduct(product('faq-delivery-2', 'Geladeira B 400L', { category: 'Geladeiras', stock: 1 }));
+  bot.patchTestConversation(phone, {
+    lastProducts: [first, second],
+    lastProductQuery: 'geladeira',
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({ phone, text: 'qual chega mais rápido?', pushName: 'Cliente Entrega' });
+  const reply = sentTexts.at(-1).text;
+  assert.match(reply, /não registra um prazo diferente por modelo/i);
+  assert.match(reply, /até \*24 horas após a confirmação do pedido\*/i);
+});
+
 test('comparação entende formas populares e frases imperfeitas do WhatsApp', () => {
   const phrases = [
     'qual a diferença desse produto por esse?',
