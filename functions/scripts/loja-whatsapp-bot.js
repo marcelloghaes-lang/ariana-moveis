@@ -29,9 +29,9 @@ const VISION_USD_BRL = Math.max(1, Number(process.env.LOJA_VISION_USD_BRL || 6.0
 const VISION_INPUT_USD_PER_1M = Math.max(0, Number(process.env.LOJA_VISION_INPUT_USD_PER_1M || 0.20));
 const VISION_OUTPUT_USD_PER_1M = Math.max(0, Number(process.env.LOJA_VISION_OUTPUT_USD_PER_1M || 1.20));
 const VISION_FALLBACK_CHARGE_BRL = Math.max(0.01, Number(process.env.LOJA_VISION_FALLBACK_CHARGE_BRL || 0.05));
-const AUDIO_TRANSCRIBE_MODEL = String(process.env.LOJA_AUDIO_TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe').trim();
+const AUDIO_TRANSCRIBE_MODEL = String(process.env.LOJA_AUDIO_TRANSCRIBE_MODEL || 'gpt-transcribe').trim();
 const AUDIO_MAX_SECONDS = Math.max(30, Number(process.env.LOJA_AUDIO_MAX_SECONDS || 600));
-const AUDIO_USD_PER_MINUTE = Math.max(0, Number(process.env.LOJA_AUDIO_USD_PER_MINUTE || 0.003));
+const AUDIO_USD_PER_MINUTE = Math.max(0, Number(process.env.LOJA_AUDIO_USD_PER_MINUTE || 0.0045));
 const AUDIO_UNKNOWN_DURATION_SECONDS = Math.max(30, Number(process.env.LOJA_AUDIO_UNKNOWN_DURATION_SECONDS || 600));
 const AUDIO_TRANSCRIBE_TIMEOUT_MS = Math.max(5000, Number(process.env.LOJA_AUDIO_TRANSCRIBE_TIMEOUT_MS || 30000));
 
@@ -1149,7 +1149,7 @@ async function transcribeIncomingAudio(incoming = {}) {
   form.append('language', 'pt');
   form.append(
     'prompt',
-    'Português do Brasil. Atendimento da Ariana Móveis em Guanhães/MG. Transcreva literalmente, sem resumir nem interpretar. Preserve negações, perguntas, valores, relação entre pagamento e parcela, nomes próprios, marcas, modelos, Marcelo, Ariana Móveis, crediário, carnê e PIX.'
+    'Português do Brasil. Atendimento da Ariana Móveis em Guanhães/MG. Transcreva literalmente, sem resumir nem interpretar. Preserve negações, perguntas, valores, nomes próprios e relações entre pagamento e parcela. Contexto e palavras comuns: Marcelo, Ariana Móveis, prestação, parcela, dinheiro da prestação, pagamento, PIX, não deu para mandar no PIX, crediário, carnê, boleto, cartão, entrega, geladeira, refrigerador, freezer, TV, celular, sofá e móveis.'
   );
 
   const controller = new AbortController();
