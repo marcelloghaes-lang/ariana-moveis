@@ -6284,6 +6284,169 @@ test('recomendação consultiva de TV prioriza tecnologia comprovada na ficha', 
   assert.equal(bot.conversation(phone).selectedProduct.id, 'consult-tv-2');
 });
 
+
+test('recomendação de sofá considera lugares e medidas reais do ambiente', async () => {
+  const phone = '5533977777997';
+  catalogRows = [
+    product('consult-sofa-1', 'Sofá Retrátil 3 Lugares Suede', {
+      category: 'Sofás',
+      pixPrice: 1999,
+      stock: 2,
+      width: 210,
+      height: 100,
+      length: 95,
+      specs: '3 lugares\nRetrátil\nReclinável\nRevestimento: Suede'
+    }),
+    product('consult-sofa-2', 'Sofá 5 Lugares Suede', {
+      category: 'Sofás',
+      pixPrice: 2499,
+      stock: 2,
+      width: 250,
+      height: 105,
+      length: 100,
+      specs: '5 lugares\nRevestimento: Suede'
+    }),
+    product('consult-sofa-3', 'Sofá Retrátil 4 Lugares Suede', {
+      category: 'Sofás',
+      pixPrice: 2399,
+      stock: 2,
+      width: 225,
+      height: 100,
+      length: 98,
+      specs: '4 lugares\nRetrátil\nReclinável\nRevestimento: Suede'
+    })
+  ];
+
+  await bot.handleMessage({
+    phone,
+    text: 'quero um sofá bom para 4 pessoas, minha sala tem largura 230 cm. qual você me indica?',
+    pushName: 'Cliente Sofá'
+  });
+
+  const reply = sentTexts.at(-1).text;
+  assert.match(reply, /eu começaria por \*Sofá Retrátil 4 Lugares Suede\*/i);
+  assert.match(reply, /\*4 lugares confirmados\*/i);
+  assert.match(reply, /descartei opções.*cabem nas medidas/i);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'consult-sofa-3');
+});
+
+test('recomendação de guarda-roupa usa portas e gavetas em vez de critérios de eletro', async () => {
+  const phone = '5533977777998';
+  catalogRows = [
+    product('consult-ward-1', 'Guarda-Roupa Casal 4 Portas 3 Gavetas', {
+      category: 'Guarda-Roupas',
+      pixPrice: 1899,
+      stock: 2,
+      specs: '4 portas\n3 gavetas\nMaterial: MDP'
+    }),
+    product('consult-ward-2', 'Guarda-Roupa Casal 6 Portas 4 Gavetas', {
+      category: 'Guarda-Roupas',
+      pixPrice: 2499,
+      stock: 2,
+      specs: '6 portas\n4 gavetas\nMaterial: MDF'
+    })
+  ];
+
+  await bot.handleMessage({
+    phone,
+    text: 'quero um guarda roupa bom, qual você me indica?',
+    pushName: 'Cliente Guarda Roupa'
+  });
+
+  assert.match(sentTexts.at(-1).text, /portas\/gavetas.*medidas.*material\/espelho.*preço/is);
+
+  sentTexts = [];
+
+  await bot.handleMessage({
+    phone,
+    text: 'quero mais espaço interno, com mais portas e gavetas, até 3 mil',
+    pushName: 'Cliente Guarda Roupa'
+  });
+
+  const reply = sentTexts.at(-1).text;
+  assert.match(reply, /eu começaria por \*Guarda-Roupa Casal 6 Portas 4 Gavetas\*/i);
+  assert.match(reply, /\*6 porta\(s\) e 4 gaveta\(s\)\*/i);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'consult-ward-2');
+});
+
+test('recomendação de air fryer usa capacidade real em litros', async () => {
+  const phone = '5533977777999';
+  catalogRows = [
+    product('consult-air-1', 'Air Fryer 5L 1500W', {
+      category: 'Eletroportáteis',
+      pixPrice: 499,
+      stock: 3,
+      specs: 'Capacidade: 5 litros\nPotência: 1500 W\nTimer\nAntiaderente'
+    }),
+    product('consult-air-2', 'Air Fryer 8L 1700W', {
+      category: 'Eletroportáteis',
+      pixPrice: 899,
+      stock: 2,
+      specs: 'Capacidade: 8 litros\nPotência: 1700 W\nTimer\nPainel digital\nControle de temperatura'
+    })
+  ];
+
+  await bot.handleMessage({
+    phone,
+    text: 'quero uma air fryer boa, qual você me indica?',
+    pushName: 'Cliente Air Fryer'
+  });
+
+  assert.match(sentTexts.at(-1).text, /capacidade.*potência.*funções\/recursos.*preço/is);
+
+  sentTexts = [];
+
+  await bot.handleMessage({
+    phone,
+    text: 'priorizo capacidade e tenho até 1 mil',
+    pushName: 'Cliente Air Fryer'
+  });
+
+  const reply = sentTexts.at(-1).text;
+  assert.match(reply, /eu começaria por \*Air Fryer 8L 1700W\*/i);
+  assert.match(reply, /maior capacidade confirmada.*\*8 L\*/is);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'consult-air-2');
+});
+
+test('recomendação de celular usa armazenamento confirmado na ficha', async () => {
+  const phone = '5533977778000';
+  catalogRows = [
+    product('consult-phone-1', 'Smartphone Galaxy A 128GB', {
+      category: 'Celulares',
+      pixPrice: 1599,
+      stock: 3,
+      specs: 'Memória interna: 128 GB\nRAM: 6 GB\nBateria: 5000 mAh\nCâmera principal: 50 MP'
+    }),
+    product('consult-phone-2', 'Smartphone Galaxy B 256GB', {
+      category: 'Celulares',
+      pixPrice: 2299,
+      stock: 2,
+      specs: 'Memória interna: 256 GB\nRAM: 8 GB\nBateria: 5000 mAh\nCâmera principal: 50 MP\n5G\nNFC'
+    })
+  ];
+
+  await bot.handleMessage({
+    phone,
+    text: 'quero um celular bom, qual você me indica?',
+    pushName: 'Cliente Celular'
+  });
+
+  assert.match(sentTexts.at(-1).text, /câmera.*bateria.*armazenamento\/desempenho.*tecnologia.*preço/is);
+
+  sentTexts = [];
+
+  await bot.handleMessage({
+    phone,
+    text: 'quero mais armazenamento e tenho até 2500',
+    pushName: 'Cliente Celular'
+  });
+
+  const reply = sentTexts.at(-1).text;
+  assert.match(reply, /eu começaria por \*Smartphone Galaxy B 256GB\*/i);
+  assert.match(reply, /maior armazenamento confirmado.*\*256 GB\*/is);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'consult-phone-2');
+});
+
 test('entrada guarda contexto e valor seguinte vai para análise do Marcelo sem inventar parcela', async () => {
   const phone = '5533977777987';
   const sofa = bot.compactProduct(product('faq-entry-1', 'Sofá Retrátil 3 Lugares', {
