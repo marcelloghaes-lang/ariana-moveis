@@ -81,6 +81,76 @@ function isOpenDueRow(row = {}) {
   return ['pendente', 'parcial'].includes(status) && Number(row.remaining ?? row.value ?? 0) > 0.009;
 }
 
+function localInstallmentRemaining(installment = {}) {
+  const value = Number(
+    installment.saldoParcela ??
+    installment.saldo ??
+    installment.atualizacaoFinanceira?.valorAtualizado ??
+    installment.valorParcela ??
+    installment.valor ??
+    0
+  );
+  return Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
+function isLocalInstallmentOpen(installment = {}) {
+  if (installment.quitado === true) return false;
+  const status = String(installment.status || '').trim().toLowerCase();
+  if (['paga', 'pago', 'recebido', 'quitada', 'quitado', 'cancelada', 'cancelado', 'estornada', 'estornado'].includes(status)) {
+    return false;
+  }
+  return localInstallmentRemaining(installment) > 0.009;
+}
+
+async function listArianaStoredDueRows({ mongoose, today, timeZone }) {
+  const db = mongoose?.connection?.db;
+  if (!db) return [];
+
+  const rows = [];
+  const cursor = db.collection('financeiro_carnes_digitais').find(
+    { status: 'ATIVO' },
+    {
+      projection: {
+        codigo: 1,
+        cliente: 1,
+        parcelas: 1
+      }
+    }
+  ).limit(5000);
+
+  for await (const carne of cursor) {
+    const installments = Array.isArray(carne?.parcelas) ? carne.parcelas : [];
+    for (const installment of installments) {
+      const dueAt = installment?.dataVencimento ?? installment?.vencimento ?? null;
+      if (!isLocalInstallmentOpen(installment)) continue;
+      if (dueDateKey(dueAt, timeZone) !== today) continue;
+
+      rows.push({
+        source: 'ariana_financeiro_local',
+        orderId: '',
+        localCarneId: String(carne?._id || ''),
+        localCarneCode: String(carne?.codigo || ''),
+        customerName: carne?.cliente?.nome || 'Cliente',
+        customerPhone: carne?.cliente?.telefone || '',
+        dueAt,
+        status: 'pendente',
+        remaining: localInstallmentRemaining(installment),
+        value: localInstallmentRemaining(installment),
+        installmentKey: String(
+          installment?.codigo ||
+          installment?.id ||
+          installment?.codigoLancamento ||
+          installment?.parcelaLabel ||
+          installment?.parcelaNumero ||
+          ''
+        )
+      });
+    }
+  }
+
+  return rows;
+}
+
 function maskedPhone(phone = '') {
   const value = String(phone || '');
   return value.length > 6 ? `${value.slice(0, 4)}******${value.slice(-3)}` : '***';
@@ -131,10 +201,15 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
   const finance = createErpFinanceService({ Order, IntegrationAuditLog, toJSON, redact });
   const data = await finance.list({});
 
-  const dueRows = (data.receivables || []).filter((row) => {
+  const nativeDueRows = (data.receivables || []).filter((row) => {
     if (!isOpenDueRow(row)) return false;
     return dueDateKey(row.dueAt, timeZone) === today;
   });
+
+  // Fonte adicional 100% local da Ariana. Não consulta o SIGE nem qualquer serviço externo:
+  // lê apenas os carnês/parcelas já persistidos no próprio banco financeiro da Ariana.
+  const storedDueRows = await listArianaStoredDueRows({ mongoose, today, timeZone });
+  const dueRows = [...nativeDueRows, ...storedDueRows];
 
   const groups = new Map();
 
@@ -146,10 +221,22 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
       groups.set(phone, {
         phone,
         customerName: row.customerName || 'Cliente',
-        rows: []
+        rows: [],
+        fingerprints: new Set()
       });
     }
-    groups.get(phone).rows.push(row);
+
+    const remaining = Number(row.remaining ?? row.value ?? 0);
+    const fingerprint = [
+      phone,
+      dueDateKey(row.dueAt, timeZone),
+      Number.isFinite(remaining) ? remaining.toFixed(2) : '0.00'
+    ].join('|');
+
+    const group = groups.get(phone);
+    if (group.fingerprints.has(fingerprint)) continue;
+    group.fingerprints.add(fingerprint);
+    group.rows.push(row);
   }
 
   let sent = 0;
@@ -261,6 +348,9 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
   return {
     ok: errors.length === 0,
     date: today,
+    source: 'ariana_erp_and_local_finance',
+    nativeDueInstallments: nativeDueRows.length,
+    storedDueInstallments: storedDueRows.length,
     dueInstallments: dueRows.length,
     eligibleCustomers: groups.size,
     sent,
@@ -296,17 +386,18 @@ export function startErpDailyDueWhatsappWorker(context = {}) {
         now: current
       });
 
-      if (result?.sent || result?.errors?.length) {
-        console.log('[erp-daily-due-whatsapp]', {
-          date: result.date,
-          dueInstallments: result.dueInstallments,
-          eligibleCustomers: result.eligibleCustomers,
-          sent: result.sent,
-          skippedAlreadySent: result.skippedAlreadySent,
-          skippedMissingPhone: result.skippedMissingPhone,
-          errors: result.errors?.length || 0
-        });
-      }
+      console.log('[erp-daily-due-whatsapp]', {
+        date: result.date,
+        source: result.source,
+        nativeDueInstallments: result.nativeDueInstallments,
+        storedDueInstallments: result.storedDueInstallments,
+        dueInstallments: result.dueInstallments,
+        eligibleCustomers: result.eligibleCustomers,
+        sent: result.sent,
+        skippedAlreadySent: result.skippedAlreadySent,
+        skippedMissingPhone: result.skippedMissingPhone,
+        errors: result.errors?.length || 0
+      });
     } catch (error) {
       console.error('[erp-daily-due-whatsapp]', error?.message || error);
     } finally {
