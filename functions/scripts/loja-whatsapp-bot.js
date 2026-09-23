@@ -837,6 +837,10 @@ function conversation(phone) {
       lastComparedProducts: [],
       lastComparisonAt: 0,
       recommendationContext: null,
+      sentProductImages: {},
+      lastColorVariants: [],
+      lastColorVariantProductId: '',
+      lastColorVariantAt: 0,
       lastIntent: ''
     };
   }
@@ -864,6 +868,10 @@ function conversation(phone) {
   if (!Array.isArray(conv.lastComparedProducts)) conv.lastComparedProducts = [];
   if (!Number.isFinite(Number(conv.lastComparisonAt))) conv.lastComparisonAt = 0;
   if (conv.recommendationContext && typeof conv.recommendationContext !== 'object') conv.recommendationContext = null;
+  if (!conv.sentProductImages || typeof conv.sentProductImages !== 'object' || Array.isArray(conv.sentProductImages)) conv.sentProductImages = {};
+  if (!Array.isArray(conv.lastColorVariants)) conv.lastColorVariants = [];
+  if (typeof conv.lastColorVariantProductId !== 'string') conv.lastColorVariantProductId = '';
+  if (!Number.isFinite(Number(conv.lastColorVariantAt))) conv.lastColorVariantAt = 0;
   conv.recentTurns = recentShortConversationTurns(conv);
   if (!Number.isFinite(Number(conv.dailyDueCourtesyCount))) conv.dailyDueCourtesyCount = 0;
   if (!Number.isFinite(Number(conv.courtesyGreetingUntil))) conv.courtesyGreetingUntil = 0;
@@ -931,12 +939,23 @@ function productImageValue(value) {
   return '';
 }
 
-function productPrimaryImage(product = {}) {
+function productGalleryImages(product = {}) {
+  const entries = [];
+  const seen = new Set();
+
+  const push = (value, isMain = false) => {
+    const url = productImageValue(value);
+    if (!url || isPlaceholderProductImage(url) || seen.has(url)) return;
+    seen.add(url);
+    entries.push({ url, isMain: isMain === true || value?.isMain === true });
+  };
+
   const galleries = [
     product.images,
     product.imagens,
     product.gallery,
-    product.galeria
+    product.galeria,
+    product.imageUrls
   ];
 
   for (const gallery of galleries) {
@@ -945,24 +964,53 @@ function productPrimaryImage(product = {}) {
       : gallery && typeof gallery === 'object'
         ? Object.values(gallery)
         : [];
-
-    for (const item of items) {
-      const url = productImageValue(item);
-      if (url && !isPlaceholderProductImage(url)) return url;
-    }
+    for (const item of items) push(item);
   }
 
   for (const candidate of [
-    product.imageUrl,
     product.mainImageUrl,
+    product.imageUrl,
     product.image,
     product.imagem
   ]) {
-    const url = productImageValue(candidate);
-    if (url) return url;
+    push(candidate, true);
   }
 
-  return '';
+  entries.sort((a, b) => Number(b.isMain) - Number(a.isMain));
+  return entries.map((entry) => entry.url);
+}
+
+function productPrimaryImage(product = {}) {
+  return productGalleryImages(product)[0] || '';
+}
+
+function sentProductImageSet(conv = {}, product = {}) {
+  const id = productId(product);
+  const rows = id && Array.isArray(conv?.sentProductImages?.[id])
+    ? conv.sentProductImages[id]
+    : [];
+  return new Set(rows.map((url) => String(url || '').trim()).filter(Boolean));
+}
+
+function markProductImageSent(conv = {}, product = {}, imageUrl = '') {
+  const id = productId(product);
+  const url = String(imageUrl || '').trim();
+  if (!id || !url) return;
+
+  if (!conv.sentProductImages || typeof conv.sentProductImages !== 'object' || Array.isArray(conv.sentProductImages)) {
+    conv.sentProductImages = {};
+  }
+
+  const previous = Array.isArray(conv.sentProductImages[id])
+    ? conv.sentProductImages[id].map((item) => String(item || '').trim()).filter(Boolean)
+    : [];
+
+  conv.sentProductImages[id] = [...new Set([...previous, url])].slice(-12);
+
+  const keys = Object.keys(conv.sentProductImages);
+  if (keys.length > 20) {
+    for (const staleKey of keys.slice(0, keys.length - 20)) delete conv.sentProductImages[staleKey];
+  }
 }
 
 function compactProduct(product = {}) {
@@ -1016,6 +1064,10 @@ async function fetchProductSafeDetails(product = {}) {
       height: Number(raw.height || 0),
       depth: Number(raw.depth || raw.length || 0),
       weight: Number(raw.weight || 0),
+      sku: String(raw.sku || product.sku || '').trim(),
+      images: productGalleryImages(raw),
+      imageUrls: productGalleryImages(raw),
+      imageUrl: productPrimaryImage(raw) || productPrimaryImage(product),
       isBestSeller: raw.isBestSeller === true || product.isBestSeller === true,
       isRecommended: raw.isRecommended === true || product.isRecommended === true
     };
