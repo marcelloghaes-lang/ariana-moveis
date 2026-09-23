@@ -6025,6 +6025,44 @@ test('garantia voltagem cor e medidas usam ficha técnica detalhada real do prod
   }
 });
 
+test('voltagem divergente entre nome e ficha é sinalizada sem vazar campos concatenados', async () => {
+  const phone = '5533977777993';
+  const fridge = product('faq-voltage-conflict', 'GELADEIRA FROST FREE 380L TC42 BRANCA 110V', {
+    category: 'Geladeiras',
+    stock: 1,
+    description: 'Geladeira Frost Free Continental.',
+    specs: 'Voltagem: 220VTipo de Tomada: 10AEficiência Energética: CConsumo Aproximado de Energia: 55,7 kWh/mês'
+  });
+  catalogRows = [fridge];
+  bot.patchTestConversation(phone, {
+    selectedProduct: bot.compactProduct(fridge),
+    lastProducts: [bot.compactProduct(fridge)],
+    lastProductQuery: 'geladeira',
+    lastIntent: 'produto'
+  });
+
+  const info = bot.productVoltageInfo({
+    name: fridge.name,
+    description: fridge.description,
+    specs: fridge.specs
+  });
+  assert.equal(info.conflict, true);
+  assert.equal(info.nameValue, '110V');
+  assert.equal(info.specValue, '220V');
+
+  await bot.handleMessage({
+    phone,
+    text: 'qual a voltagem dela?',
+    pushName: 'Cliente Voltagem'
+  });
+
+  const reply = sentTexts.at(-1).text;
+  assert.match(reply, /divergência no cadastro/i);
+  assert.match(reply, /nome\/modelo indica \*110V\*/i);
+  assert.match(reply, /ficha técnica indica \*220V\*/i);
+  assert.doesNotMatch(reply, /Tipo de Tomada|Eficiência Energética/i);
+});
+
 test('Gustavo confere se produto cabe usando medidas informadas sem inventar dimensões', async () => {
   const phone = '5533977777984';
   const fridge = product('faq-fit-1', 'Geladeira Consul 451L', {
