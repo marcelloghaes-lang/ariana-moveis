@@ -441,7 +441,7 @@ test('conversa longa mantém continuidade entre saudação, áudio, produto, tro
     text: 'oi boa noite',
     pushName: 'Cliente Longo'
   });
-  assert.match(sentTexts.at(-1).text, /^Boa noite, Cliente! 😊 Tudo bem\?/i);
+  assert.match(sentTexts.at(-1).text, /^Boa noite! 😊 Tudo bem\?/i);
 
   await bot.handleMessage({
     phone,
