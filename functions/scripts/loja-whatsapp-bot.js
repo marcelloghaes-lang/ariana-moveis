@@ -4493,6 +4493,7 @@ function currentListReferenceCue(text = '') {
     asksProductColor(text) ||
     asksCardQuote(text) ||
     asksPixPrice(text) ||
+    asksGenericProductPrice(text) ||
     asksCreditQuote(text) ||
     asksGenericInstallmentQuote(text) ||
     /\b(gostei|prefiro|quero|queria|escolho|escolhi)\b/.test(n) ||
