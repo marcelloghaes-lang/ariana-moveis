@@ -6441,6 +6441,59 @@ test('gostei dessa mas queria uma melhor procura o mesmo tipo com mais tecnologi
   assert.equal(backendEvents.at(-1).metadata.moreAdvancedRequested, true);
 });
 
+test('gostei da segunda usa o segundo produto comparado como referência para upgrade', async () => {
+  const phone = '5533977777994';
+  const firstRaw = product('upgrade-ordinal-1', 'Geladeira Continental 380L Frost Free', {
+    category: 'Geladeiras & Refrigeradores',
+    pixPrice: 3200,
+    cardPrice: 3850,
+    stock: 1,
+    description: 'Geladeira Frost Free com Função Turbo e iluminação LED.'
+  });
+  const secondRaw = product('upgrade-ordinal-2', 'Geladeira Consul 451L Frost Free', {
+    category: 'Geladeiras & Refrigeradores',
+    pixPrice: 3974,
+    cardPrice: 4787.95,
+    stock: 1,
+    description: 'Geladeira Frost Free com Função Turbo, Filtro Antiodor, Painel Eletrônico, Espaço Flex e Gelo Extra.'
+  });
+  const richerRaw = product('upgrade-ordinal-rich', 'Geladeira Premium 480L Inverter Wi-Fi', {
+    category: 'Geladeiras & Refrigeradores',
+    pixPrice: 4999,
+    cardPrice: 6020,
+    stock: 1,
+    description: 'Geladeira Frost Free Inverter com Wi-Fi, Função Turbo, Filtro Antiodor, Painel Eletrônico, Espaço Flex, Gelo Extra e Prateleira Flex.'
+  });
+
+  catalogRows = [firstRaw, secondRaw, richerRaw];
+  const first = bot.compactProduct(firstRaw);
+  const second = bot.compactProduct(secondRaw);
+  bot.patchTestConversation(phone, {
+    selectedProduct: null,
+    lastProducts: [first, second],
+    lastComparedProducts: [first, second],
+    lastComparisonAt: Date.now(),
+    lastProductQuery: 'geladeira',
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'gostei da segunda mas queria uma melhor com mais tecnologia',
+    pushName: 'Cliente Upgrade Ordinal'
+  });
+
+  const allText = sentTexts.map((item) => item.text).join('\n');
+  const allMedia = sentMedia.map((item) => item.caption || '').join('\n');
+  assert.doesNotMatch(allText, /Só me diga qual produto você quer usar como referência/i);
+  assert.match(allText, /mais recursos cadastrados que \*Geladeira Consul 451L Frost Free\*/i);
+  assert.match(allText, /Geladeira Premium 480L Inverter Wi-Fi/i);
+  assert.match(allText, /Inverter/i);
+  assert.match(allText, /Wi-Fi/i);
+  assert.match(allMedia, /Geladeira Premium 480L Inverter Wi-Fi/i);
+  assert.equal(backendEvents.at(-1).metadata.baselineProductId, 'upgrade-ordinal-2');
+});
+
 test('frase "qual a diferença desse produto por esse?" compara os dois produtos exibidos', async () => {
   const phone = '5533977777981';
   const first = bot.compactProduct(product('cmp-natural-1', 'Geladeira HQ 230 Litros', {
