@@ -6111,7 +6111,7 @@ test('comparação de dois produtos usa dados objetivos e não inventa vencedor 
   assert.match(reply, /Geladeira Consul 451 Litros/i);
   assert.match(reply, /230 L/i);
   assert.match(reply, /451 L/i);
-  assert.match(reply, /prioridade for \*?gastar menos\*?/i);
+  assert.match(reply, /mais barato entre esses dois/i);
   assert.match(reply, /sem inventar especificação/i);
   assert.equal(backendEvents.at(-1).metadata.productComparison, true);
 });
