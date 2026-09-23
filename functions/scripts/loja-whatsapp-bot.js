@@ -967,13 +967,16 @@ function productGalleryImages(product = {}) {
     for (const item of items) push(item);
   }
 
+  const hasGallery = entries.length > 0;
   for (const candidate of [
     product.mainImageUrl,
     product.imageUrl,
     product.image,
     product.imagem
   ]) {
-    push(candidate, true);
+    // Se a galeria real já existe, campos legados são apenas fallback.
+    // Isso preserva a primeira imagem oficial da galeria como principal.
+    push(candidate, !hasGallery);
   }
 
   entries.sort((a, b) => Number(b.isMain) - Number(a.isMain));
@@ -8975,6 +8978,45 @@ async function handleMessage({
       'Recebi um código *PIX copia e cola*. Por segurança, eu não confirmo pagamento somente pelo código. Se você já realizou o pagamento, me envie o *comprovante*. Se você quer pagar a Ariana Móveis, também posso te enviar nossa chave PIX oficial 😊'
     );
     return;
+  }
+
+  if (asksMoreProductPhotos(text) || asksProductInteriorPhotos(text)) {
+    const galleryProduct = conv.selectedProduct || (
+      Array.isArray(conv.lastProducts) && conv.lastProducts.length === 1
+        ? conv.lastProducts[0]
+        : null
+    );
+
+    if (galleryProduct) {
+      conv.selectedProduct = galleryProduct;
+      conv.lastIntent = 'produto';
+      saveStateSoon();
+
+      const wantsInside = asksProductInteriorPhotos(text);
+      const result = await sendProductGalleryPhotos(
+        phone,
+        conv,
+        galleryProduct,
+        { mode: wantsInside ? 'inside' : 'more' }
+      );
+
+      await markConversationStatus(
+        phone,
+        conv,
+        'Venda em andamento',
+        wantsInside
+          ? `Cliente pediu imagens internas/de detalhe de: ${galleryProduct.name}`
+          : `Cliente pediu mais fotos de: ${galleryProduct.name}`,
+        pushName,
+        {
+          productId: productId(galleryProduct),
+          requestedProductGallery: true,
+          requestedInsidePhoto: wantsInside,
+          galleryImagesSent: result.sent
+        }
+      );
+      return;
+    }
   }
 
   if (
