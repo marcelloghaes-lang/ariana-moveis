@@ -3122,7 +3122,9 @@ function asksPixPrice(text) {
     /(quanto|qto|valor|fica|preco).{0,25}(no pix|pix)|(no pix|pix).{0,25}(quanto|qto|valor|fica|preco)/.test(n) ||
     /(quanto|qto|valor|fica|preco|ta|esta).{0,25}(a vista|avista)|(a vista|avista).{0,25}(quanto|qto|valor|fica|preco|ta|esta)/.test(n) ||
     /^(?:e\s+)?(?:no\s+)?pix$/.test(n) ||
-    /^(?:e\s+)?(?:a\s+vista|avista)$/.test(n)
+    /^(?:e\s+)?(?:a\s+vista|avista)$/.test(n) ||
+    /\b(?:faz|faria|fica)\b.{0,20}\b(?:quanto|qto)\b.{0,15}\b(?:a vista|avista|pix)\b/.test(n) ||
+    /\b(?:a vista|avista|pix)\b.{0,20}\b(?:faz|fica)\b.{0,15}\b(?:quanto|qto)\b/.test(n)
   );
 }
 
@@ -4079,6 +4081,394 @@ function asksPriceObjection(text = '') {
     /\bacima do meu orcamento\b/.test(n) ||
     /\b(tem|teria|mostra|me mostra|quero)\b.{0,35}\b(mais barato|mais barata|mais em conta|baratinho|baratinha)\b/.test(n)
   );
+}
+
+function asksProductWarranty(text = '') {
+  const n = normalize(text);
+  return /\bgarantia\b|\bquantos?\s+(?:meses?|anos?)\s+de\s+garantia\b/.test(n);
+}
+
+function asksProductVoltage(text = '') {
+  const n = normalize(text);
+  return /\b(bivolt|voltagem|volts?|110v?|127v?|220v?)\b/.test(n);
+}
+
+function asksProductDimensions(text = '') {
+  const n = normalize(text);
+  return (
+    /\b(qual|quais)\b.{0,25}\b(tamanho|medida|medidas|dimensao|dimensoes)\b/.test(n) ||
+    /\b(tamanho|medida|medidas|dimensao|dimensoes)\b.{0,25}\b(produto|dele|dela|desse|dessa)\b/.test(n)
+  );
+}
+
+function asksProductFit(text = '') {
+  const n = normalize(text);
+  return /\b(cabe|cabera|vai caber|serve)\b.{0,40}\b(espaco|lugar|cozinha|quarto|sala|nicho)\b/.test(n);
+}
+
+function asksReadyStock(text = '') {
+  const n = normalize(text);
+  return /\b(pronta entrega|pronto entrega|tem em estoque|tem estoque|estoque agora|disponivel agora)\b/.test(n);
+}
+
+function asksDeliverySpeed(text = '') {
+  const n = normalize(text);
+  return (
+    /\bqual\b.{0,30}\b(chega|entrega)\b.{0,20}\b(mais rapido|primeiro|antes)\b/.test(n) ||
+    /\bqual\b.{0,30}\bmais rapido\b.{0,20}\b(chega|entrega)\b/.test(n)
+  );
+}
+
+function asksProductColor(text = '') {
+  const n = normalize(text);
+  return (
+    /\b(qual|que)\b.{0,20}\bcor\b/.test(n) ||
+    /\btem\b.{0,20}\b(dessa|desta|nessa|na)\s+cor\b/.test(n) ||
+    /\bcor\s+(branca?|preta?|inox|cinza|prata|vermelha?)\b/.test(n)
+  );
+}
+
+function asksOtherModel(text = '') {
+  const n = normalize(text);
+  return (
+    /\btem\b.{0,20}\b(outro|outra)\b.{0,10}\b(modelo|opcao|opcoes)\b/.test(n) ||
+    /\b(outro|outra)\s+(modelo|opcao)\b/.test(n)
+  );
+}
+
+function asksBrandQuality(text = '') {
+  const n = normalize(text);
+  return (
+    /\bessa\s+marca\b.{0,25}\b(boa|presta|confiavel)\b/.test(n) ||
+    /\bmarca\b.{0,20}\b(boa|presta|confiavel)\b/.test(n)
+  );
+}
+
+function asksBestSeller(text = '') {
+  const n = normalize(text);
+  return (
+    /\bqual\b.{0,30}\b(vende mais|mais vendido|mais vendida|sai mais|mais sai)\b/.test(n) ||
+    /\bmais vendido\b|\bmais vendida\b/.test(n)
+  );
+}
+
+function asksProductRecommendation(text = '') {
+  const n = normalize(text);
+  return (
+    /\bqual\b.{0,30}\b(voce|vc)\b.{0,15}\b(indica|recomenda)\b/.test(n) ||
+    /\bqual\b.{0,30}\b(indica|recomenda)\b/.test(n) ||
+    /\b(voce|vc)\b.{0,20}\bficaria\b.{0,15}\bqual\b/.test(n)
+  );
+}
+
+function asksEntryPayment(text = '') {
+  const n = normalize(text);
+  return /\bentrada\b/.test(n) && /\b(dar|der|dou|dando|pagar|pago|ficaria|fica|se eu)\b/.test(n);
+}
+
+function extractEntryAmount(text = '') {
+  const n = normalize(text);
+  const match =
+    n.match(/(?:r\$\s*)?(\d{2,6}(?:[.,]\d{1,2})?)\s*(?:de\s+)?entrada\b/) ||
+    n.match(/\bentrada\b.{0,20}?(?:r\$\s*)?(\d{2,6}(?:[.,]\d{1,2})?)/);
+  return match ? parseCommercialMoneyValue(match[1]) : 0;
+}
+
+function asksQuantityDiscount(text = '') {
+  const n = normalize(text);
+  return (
+    /\b(desconto|melhora|melhor preco)\b.{0,35}\b(levando|comprando|pegando)\s+(?:2|dois|duas)\b/.test(n) ||
+    /\b(levando|comprando|pegando)\s+(?:2|dois|duas)\b.{0,35}\b(desconto|melhora|melhor preco)\b/.test(n)
+  );
+}
+
+function productQuestionProduct(conv = {}, text = '') {
+  return (
+    findConversationProductByText(conv, text) ||
+    conv.selectedProduct ||
+    (Array.isArray(conv.lastProducts) && conv.lastProducts.length === 1 ? conv.lastProducts[0] : null)
+  );
+}
+
+async function showOtherModels(phone, conv, product) {
+  const category =
+    detectCategory([product?.name, product?.category, conv?.lastProductQuery].filter(Boolean).join(' ')) ||
+    String(conv?.lastProductQuery || '').trim();
+
+  if (!category) {
+    await sendText(phone, 'Consigo procurar outro modelo 😊 Só me diga qual tipo de produto você quer.');
+    return true;
+  }
+
+  const rows = (await searchProducts(category, ''))
+    .filter((candidate) => productId(candidate) !== productId(product));
+
+  if (!rows.length) {
+    await sendText(phone, `No momento não encontrei outro modelo de *${category}* disponível no catálogo além desse.`);
+    return true;
+  }
+
+  conv.allProductResults = rows;
+  conv.productResultOffset = 0;
+  conv.lastProductQuery = category;
+  conv.selectedProduct = null;
+  saveStateSoon();
+
+  await sendText(phone, `Tenho sim 😊 Encontrei *${rows.length} outra(s) opção(ões)* de ${category}. Vou te mostrar:`);
+  await sendProductPage(phone, conv, { announce: false });
+  return true;
+}
+
+async function handleCommonProductQuestion({ phone, text, pushName = '', conv }) {
+  const wantsWarranty = asksProductWarranty(text);
+  const wantsVoltage = asksProductVoltage(text);
+  const wantsDimensions = asksProductDimensions(text);
+  const wantsFit = asksProductFit(text);
+  const wantsStock = asksReadyStock(text);
+  const wantsDeliverySpeed = asksDeliverySpeed(text);
+  const wantsColor = asksProductColor(text);
+  const wantsOther = asksOtherModel(text);
+  const wantsBrand = asksBrandQuality(text);
+  const wantsBestSeller = asksBestSeller(text);
+  const wantsRecommendation = asksProductRecommendation(text);
+  const wantsEntry = asksEntryPayment(text);
+  const wantsQuantityDiscount = asksQuantityDiscount(text);
+
+  if (
+    !wantsWarranty && !wantsVoltage && !wantsDimensions && !wantsFit &&
+    !wantsStock && !wantsDeliverySpeed && !wantsColor && !wantsOther &&
+    !wantsBrand && !wantsBestSeller && !wantsRecommendation &&
+    !wantsEntry && !wantsQuantityDiscount
+  ) {
+    return false;
+  }
+
+  const rows = Array.isArray(conv.lastProducts) ? conv.lastProducts.filter(Boolean) : [];
+  const product = productQuestionProduct(conv, text);
+
+  if (wantsBestSeller) {
+    const candidates = rows.length ? rows : (product ? [product] : []);
+    const flagged = candidates.filter((item) => item.isBestSeller === true);
+    if (flagged.length === 1) {
+      await sendText(phone, `Pelo catálogo da Ariana Móveis, *${flagged[0].name}* está marcado como *mais vendido* entre essas opções 😊`);
+    } else {
+      await sendText(phone, 'Eu não tenho um ranking de vendas confirmado entre essas opções para dizer qual vende mais sem inventar.');
+    }
+    return true;
+  }
+
+  if (wantsRecommendation) {
+    const candidates = rows.length ? rows : (product ? [product] : []);
+    const recommended = candidates.filter((item) => item.isRecommended === true);
+    if (recommended.length === 1) {
+      await sendText(
+        phone,
+        `No catálogo, *${recommended[0].name}* está marcado como *recomendado*. Mas eu não vou dizer que ele é melhor em tudo sem saber sua prioridade 😊 Se você me disser se pesa mais *preço, tamanho, capacidade ou potência*, eu comparo por isso.`
+      );
+    } else {
+      await sendText(
+        phone,
+        'Eu te ajudo a escolher 😊 Me diga o que pesa mais para você: *preço, tamanho, capacidade, potência ou forma de pagamento*. Aí eu indico com base em dados reais, não no chute.'
+      );
+    }
+    return true;
+  }
+
+  if (wantsDeliverySpeed) {
+    const available = rows.length ? rows.filter((item) => Number(item.stock || 0) > 0) : (product && Number(product.stock || 0) > 0 ? [product] : []);
+    const prefix = available.length > 1
+      ? 'Essas opções constam em estoque, mas o sistema não registra um prazo diferente por modelo.'
+      : 'O prazo de entrega não é definido pelo modelo do produto no sistema.';
+    await sendText(
+      phone,
+      `${prefix} Dentro de Guanhães, normalmente conseguimos entregar em até *24 horas após a confirmação do pedido*, de segunda a sábado até 12h. Para zona rural ou outra cidade, preciso consultar a logística.`
+    );
+    return true;
+  }
+
+  if (!product) {
+    await sendText(
+      phone,
+      rows.length > 1
+        ? 'Claro 😊 Me diga qual deles você quer consultar — pode falar *o primeiro*, *o segundo* ou o nome/modelo.'
+        : 'Claro 😊 Me diga qual produto você quer consultar para eu conferir a informação certa.'
+    );
+    return true;
+  }
+
+  if (wantsOther) {
+    return showOtherModels(phone, conv, product);
+  }
+
+  if (wantsStock) {
+    const stock = Math.max(0, Number(product.stock || 0));
+    await sendText(
+      phone,
+      stock > 0
+        ? `Sim 😊 *${product.name}* consta com *${stock} unidade(s) em estoque* no catálogo agora. Isso confirma disponibilidade para venda; o prazo de entrega depende do endereço.`
+        : `No momento *${product.name}* não consta com estoque disponível no catálogo.`
+    );
+    return true;
+  }
+
+  if (wantsBrand) {
+    const brand = String(product.brand || '').trim();
+    const signals = [
+      product.isBestSeller ? 'este produto está marcado como mais vendido' : '',
+      product.isRecommended ? 'este produto está marcado como recomendado' : ''
+    ].filter(Boolean);
+
+    await sendText(
+      phone,
+      brand
+        ? `A marca cadastrada é *${brand}*. Eu não tenho uma nota confiável de qualidade da marca no sistema para afirmar simplesmente que ela é “boa”.${signals.length ? ` No catálogo, ${signals.join(' e ')}.` : ''} Posso comparar garantia, ficha técnica e preço para você.`
+        : 'O cadastro não informa a marca de forma confiável. Posso comparar garantia, ficha técnica e preço sem inventar avaliação.'
+    );
+    return true;
+  }
+
+  if (wantsEntry) {
+    const amount = extractEntryAmount(text);
+    conv.selectedProduct = product;
+
+    if (!amount) {
+      conv.pendingAction = 'entry_amount_product';
+      saveStateSoon();
+      await sendText(
+        phone,
+        `Dá para analisar uma condição com entrada para *${product.name}*, mas eu não vou inventar parcela 😊 Quanto você pretende dar de entrada?`
+      );
+      return true;
+    }
+
+    conv.pendingAction = '';
+    markSpecialConditionMarceloContext(conv, { resetHandoff: true });
+    saveStateSoon();
+    await sendText(
+      phone,
+      `Certo 😊 Registrei que você pretende dar *${money(amount)} de entrada* em *${product.name}*. Essa condição precisa ser analisada pelo Marcelo; eu não vou confirmar parcelas ou desconto antes dessa análise.`
+    );
+    await markConversationStatus(
+      phone,
+      conv,
+      'Aguardando retorno do Marcelo',
+      `Cliente quer condição com entrada de ${money(amount)} para: ${product.name}`,
+      pushName,
+      { productId: productId(product), entryAmount: amount, specialCondition: true }
+    );
+    return true;
+  }
+
+  if (wantsQuantityDiscount) {
+    const stock = Math.max(0, Number(product.stock || 0));
+    const total = productCashPrice(product) * 2;
+    const stockText = stock >= 2
+      ? 'Há estoque suficiente para 2 unidades no catálogo agora.'
+      : 'O catálogo não confirma 2 unidades disponíveis agora.';
+    await sendText(
+      phone,
+      `No PIX, o preço oficial de *${product.name}* é *${money(productCashPrice(product))} por unidade*; 2 unidades somam *${money(total)}*. ${stockText} Desconto adicional por quantidade não está definido automaticamente, então precisa de análise do Marcelo.`
+    );
+    await markConversationStatus(
+      phone,
+      conv,
+      'Aguardando retorno do Marcelo',
+      `Cliente perguntou desconto para 2 unidades de: ${product.name}`,
+      pushName,
+      { productId: productId(product), quantity: 2, quantityDiscountRequested: true }
+    );
+    return true;
+  }
+
+  const details = await fetchProductSafeDetails(product);
+
+  if (!details) {
+    await sendText(
+      phone,
+      'Não consegui abrir a ficha técnica completa desse produto agora. Prefiro não inventar a informação; posso deixar a consulta registrada para conferência.'
+    );
+    return true;
+  }
+
+  if (wantsWarranty) {
+    const warranty = productWarranty(details);
+    await sendText(
+      phone,
+      warranty
+        ? `A ficha técnica de *${product.name}* informa *garantia de ${warranty}*.`
+        : `A garantia de *${product.name}* não está informada de forma clara no cadastro. Prefiro não chutar esse prazo.`
+    );
+    return true;
+  }
+
+  if (wantsVoltage) {
+    const voltage = productVoltage(details);
+    await sendText(
+      phone,
+      voltage
+        ? `A voltagem cadastrada de *${product.name}* é *${voltage}*.`
+        : `A voltagem de *${product.name}* não está confirmada na ficha técnica. Prefiro não te passar uma voltagem no chute.`
+    );
+    return true;
+  }
+
+  if (wantsColor) {
+    const color = productColor(details);
+    await sendText(
+      phone,
+      color
+        ? `A cor cadastrada de *${product.name}* é *${color}*.`
+        : `A cor de *${product.name}* não está descrita de forma confiável no cadastro.`
+    );
+    return true;
+  }
+
+  if (wantsDimensions || wantsFit) {
+    const dims = productDimensions(details);
+    const pieces = [];
+    if (dims.width) pieces.push(`largura *${dims.width} cm*`);
+    if (dims.height) pieces.push(`altura *${dims.height} cm*`);
+    if (dims.depth) pieces.push(`profundidade *${dims.depth} cm*`);
+
+    if (!pieces.length) {
+      await sendText(phone, `As dimensões de *${product.name}* não estão confirmadas no cadastro. Prefiro não inventar medida.`);
+      return true;
+    }
+
+    if (wantsFit) {
+      const space = extractSpaceDimensions(text);
+      const checks = [
+        ['largura', dims.width, space.width],
+        ['altura', dims.height, space.height],
+        ['profundidade', dims.depth, space.depth]
+      ].filter(([, productValue, spaceValue]) => productValue > 0 && spaceValue > 0);
+
+      if (!checks.length) {
+        await sendText(
+          phone,
+          `As medidas cadastradas de *${product.name}* são: ${pieces.join(', ')}. Me diga a *largura, altura e profundidade* do seu espaço que eu confiro se cabe.`
+        );
+        return true;
+      }
+
+      const failed = checks.filter(([, productValue, spaceValue]) => productValue > spaceValue);
+      if (failed.length) {
+        const detail = failed.map(([label, productValue, spaceValue]) => `${label}: produto ${productValue} cm / espaço ${spaceValue} cm`).join('; ');
+        await sendText(phone, `Pelas medidas informadas, *não cabe* em pelo menos uma dimensão: ${detail}.`);
+      } else {
+        await sendText(
+          phone,
+          `Pelas medidas que você informou, *cabe nas dimensões comparadas* 😊 O produto mede ${pieces.join(', ')}.${checks.length < 3 ? ' Se quiser confirmar 100%, me passe também a medida que faltou.' : ''}`
+        );
+      }
+      return true;
+    }
+
+    await sendText(phone, `As medidas cadastradas de *${product.name}* são: ${pieces.join(', ')}.`);
+    return true;
+  }
+
+  return false;
 }
 
 function asksProductComparison(text = '') {
