@@ -89,7 +89,16 @@ function product(id, name, options = {}) {
     sellerBasePrice: options.sellerBasePrice,
     stock: options.stock === undefined ? 5 : options.stock,
     installmentCount: options.installmentCount || 12,
-    imageUrl: options.imageUrl || ('https://img.test/' + id + '.jpg')
+    imageUrl: options.imageUrl || ('https://img.test/' + id + '.jpg'),
+    sellerName: options.sellerName || 'Ariana Móveis',
+    isBestSeller: options.isBestSeller === true,
+    isRecommended: options.isRecommended === true,
+    description: options.description || '',
+    specs: options.specs || '',
+    width: options.width || 0,
+    height: options.height || 0,
+    length: options.length || 0,
+    weight: options.weight || 0
   };
 }
 
@@ -104,6 +113,12 @@ function installFetchMock() {
         return jsonResponse({ error: 'catalog_unavailable' }, catalogResponseStatus);
       }
       return jsonResponse({ products: catalogRows });
+    }
+
+    if (href.startsWith('https://backend.test/api/products/')) {
+      const id = decodeURIComponent(href.split('/').pop() || '');
+      const row = catalogRows.find((item) => String(item.id || item._id || '') === id);
+      return row ? jsonResponse(row) : jsonResponse({ error: 'not_found' }, 404);
     }
 
     if (href === 'https://backend.test/api/bot/atendimento/evento') {
