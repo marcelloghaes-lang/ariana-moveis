@@ -4483,7 +4483,7 @@ function currentListProductReference(conv = {}, text = '') {
     return { status: 'single', product: products[ord], candidates: [products[ord]], reason: 'ordinal' };
   }
 
-  if (asksLastShownProduct(text) && products.length) {
+  if ((asksLastShownProduct(text) || asksThisShownProduct(text)) && products.length) {
     const last = products[products.length - 1];
     return { status: 'single', product: last, candidates: [last], reason: 'last' };
   }
@@ -8718,7 +8718,13 @@ async function handleMessage({
   }
 
   {
-    const listReference = currentListProductReference(conv, text);
+    const shouldResolveCurrentList =
+      !asksProductComparison(text) &&
+      !asksMoreAdvancedProduct(text);
+
+    const listReference = shouldResolveCurrentList
+      ? currentListProductReference(conv, text)
+      : { status: 'none', product: null, candidates: [] };
 
     if (listReference.status === 'ambiguous') {
       const clarification = currentListClarificationText(conv, listReference);
@@ -8754,6 +8760,7 @@ async function handleMessage({
       }
     } else if (
       listReference.status === 'none' &&
+      !conv.selectedProduct &&
       asksSelectedProductPhoto(text) &&
       Array.isArray(conv.lastProducts) &&
       conv.lastProducts.length > 1
