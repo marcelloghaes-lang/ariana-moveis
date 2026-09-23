@@ -5997,6 +5997,7 @@ test('garantia voltagem cor e medidas usam ficha técnica detalhada real do prod
     width: 70,
     height: 186,
     length: 72,
+    description: 'Compartimentos ajustáveis de acordo com a sua necessidade diária.',
     specs: [
       'Voltagem: 127V (110V)',
       'Cor Predominante: Branco',
