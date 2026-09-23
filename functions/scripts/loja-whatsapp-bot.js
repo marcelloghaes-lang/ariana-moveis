@@ -2267,6 +2267,25 @@ function asksAboutImageProduct(text) {
   return /(vende|vendem|tem|teria|trabalha|trabalham).{0,35}\b(esse|essa|desse|dessa)\b(?:\s+produto)?(?:\s+aqui)?\s*[!?.,;:]*$/.test(n);
 }
 
+function asksMoreProductPhotos(text) {
+  const n = normalize(text);
+  return (
+    /\b(mais|outras?|outra)\b.{0,18}\b(foto|fotos|imagem|imagens)\b/.test(n) ||
+    /\b(foto|fotos|imagem|imagens)\b.{0,18}\b(mais|outras?|outra)\b/.test(n) ||
+    /\bso tem (essa|esta|uma) (foto|imagem)\b/.test(n) ||
+    /\btem mais (foto|fotos|imagem|imagens)\b/.test(n)
+  );
+}
+
+function asksProductInteriorPhotos(text) {
+  const n = normalize(text);
+  const wantsView =
+    /\b(foto|fotos|imagem|imagens|ver|mostra|mostrar|manda|mandar|envia|enviar)\b/.test(n);
+  const wantsInside =
+    /\b(por dentro|parte interna|interior|interno|interna|aberto|aberta|porta aberta|portas abertas|forno aberto|detalhes? internos?)\b/.test(n);
+  return wantsInside && (wantsView || /\bquero ver\b/.test(n));
+}
+
 function asksSelectedProductPhoto(text) {
   const n = normalize(text)
     .replace(/[!?.,;:]+/g, ' ')
@@ -2276,6 +2295,8 @@ function asksSelectedProductPhoto(text) {
   if (!n) return false;
 
   return (
+    asksMoreProductPhotos(n) ||
+    asksProductInteriorPhotos(n) ||
     /\b(?:manda|mandar|envia|enviar|mostra|mostrar|quero ver|pode mandar|pode enviar)\b.{0,35}\b(?:foto|fotos|imagem|imagens)\b/.test(n) ||
     /\b(?:foto|fotos|imagem|imagens)\b.{0,35}\b(?:dele|dela|desse|dessa|produto)\b/.test(n) ||
     /\b(?:tem|teria)\b.{0,15}\b(?:foto|fotos|imagem|imagens)\b.{0,20}\b(?:dele|dela|desse|dessa)?\b/.test(n)
@@ -4256,12 +4277,78 @@ function asksDeliverySpeed(text = '') {
   );
 }
 
+const PRODUCT_COLOR_PATTERNS = [
+  ['Off White', /\boff\s*white\b/],
+  ['Cinamomo', /\bcinamomo\b/],
+  ['Amêndoa', /\bamendoa\b/],
+  ['Freijó', /\bfreijo\b/],
+  ['Naturale', /\bnaturale\b|\bnatural\b/],
+  ['Carvalho', /\bcarvalho\b/],
+  ['Nogueira', /\bnogueira\b/],
+  ['Castanho', /\bcastanho\b/],
+  ['Grafite', /\bgrafite\b/],
+  ['Branco', /\bbranc[oa]\b/],
+  ['Preto', /\bpret[oa]\b/],
+  ['Cinza', /\bcinza\b/],
+  ['Prata', /\bprata\b/],
+  ['Inox', /\binox\b/],
+  ['Azul', /\bazul\b/],
+  ['Laranja', /\blaranja\b/],
+  ['Verde', /\bverde\b/],
+  ['Vermelho', /\bvermelh[oa]\b/],
+  ['Bege', /\bbege\b/],
+  ['Marrom', /\bmarrom\b/],
+  ['Rosé', /\brose\b/],
+  ['Dourado', /\bdourad[oa]\b/]
+];
+
+function productColorLabels(details = {}) {
+  const text = normalize([
+    details?.name,
+    details?.description,
+    details?.specs,
+    details?.color,
+    details?.cor
+  ].filter(Boolean).join(' '));
+
+  return PRODUCT_COLOR_PATTERNS
+    .filter(([, pattern]) => pattern.test(text))
+    .map(([label]) => label);
+}
+
+function requestedProductColor(text = '') {
+  const n = normalize(text);
+  return PRODUCT_COLOR_PATTERNS.find(([, pattern]) => pattern.test(n))?.[0] || '';
+}
+
+function asksOtherProductColors(text = '') {
+  const n = normalize(text);
+  return (
+    /\bso tem (essa|esta) cor\b/.test(n) ||
+    /\btem (outra|outras) cor(es)?\b/.test(n) ||
+    /\b(outro|outra|outras) cor(es)?\b/.test(n) ||
+    /\bquais? (as )?cores\b/.test(n) ||
+    /\btem (na|em) cor\b/.test(n) ||
+    /\btem (ele|ela|esse|essa|este|esta) (na|em) cor\b/.test(n)
+  );
+}
+
+function asksColorPopularity(text = '') {
+  const n = normalize(text);
+  return (
+    /\bqual cor\b.{0,25}\b(vende mais|sai mais|mais vende|mais sai|mais vendida)\b/.test(n) ||
+    /\bcor\b.{0,25}\b(vende mais|sai mais|mais vende|mais sai|mais vendida)\b/.test(n)
+  );
+}
+
 function asksProductColor(text = '') {
   const n = normalize(text);
   return (
+    asksOtherProductColors(n) ||
+    asksColorPopularity(n) ||
     /\b(qual|que)\b.{0,20}\bcor\b/.test(n) ||
     /\btem\b.{0,20}\b(dessa|desta|nessa|na)\s+cor\b/.test(n) ||
-    /\bcor\s+(branca?|preta?|inox|cinza|prata|vermelha?)\b/.test(n)
+    /\bcor\s+(branca?|preta?|inox|cinza|prata|vermelha?|azul|laranja|verde|bege|marrom)\b/.test(n)
   );
 }
 
