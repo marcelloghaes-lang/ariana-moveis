@@ -6209,12 +6209,196 @@ test('comparação entende formas populares e frases imperfeitas do WhatsApp', (
     'esse ou aquele?',
     'qual dos dois?',
     'esse tem o que o outro não tem?',
-    'compara o primeiro com o segundo'
+    'compara o primeiro com o segundo',
+    'oque a primeira e a segunda faz de diferente',
+    'o que esses produtos fazem de diferente?'
   ];
 
   for (const phrase of phrases) {
     assert.equal(bot.asksProductComparison(phrase), true, phrase);
   }
+});
+
+test('primeira e segunda compara fichas técnicas em vez de selecionar só a primeira', async () => {
+  const phone = '5533977777990';
+  const firstRaw = product('cmp-tech-1', 'GELADEIRA FROST FREE 380L TC42 BRANCA 110V', {
+    category: 'Geladeiras & Refrigeradores',
+    pixPrice: 3234.11,
+    cardPrice: 3896.52,
+    stock: 1,
+    width: 62,
+    height: 177.3,
+    length: 71,
+    description: 'Geladeira Frost Free com Função Turbo Freezer, prateleiras com alturas flexíveis, Gaveta HortiFruti e iluminação em LED.',
+    specs: [
+      'Capacidade Líquida Total: 380 Litros',
+      'Tipo de Degelo: Frost Free',
+      'Cor: Branco',
+      'Destaques: Função Turbo Freezer, prateleiras com alturas flexíveis e iluminação em LED'
+    ].join('\n')
+  });
+  const secondRaw = product('cmp-tech-2', 'REFRIGERADOR CONSUL 451L BRANCO 110V', {
+    category: 'Geladeiras & Refrigeradores',
+    brand: 'Consul',
+    pixPrice: 3974,
+    cardPrice: 4787.95,
+    stock: 1,
+    width: 70,
+    height: 186,
+    length: 72,
+    description: 'Geladeira Consul Frost Free com Espaço Flex, Prateleira Flex Freezer 3 em 1, Função Turbo, Espaço Frio, Filtro Antiodor, Gelo Extra e iluminação em LED.',
+    specs: [
+      'Capacidade Total: 451 Litros',
+      'Tipo de Degelo: Frost Free',
+      'Cor Predominante: Branco',
+      'Painel de Controle: Eletrônico (Interno)',
+      'Iluminação Interna: LED'
+    ].join('\n')
+  });
+  const thirdRaw = product('cmp-tech-3', 'Geladeira HQ 290L', {
+    category: 'Geladeiras',
+    pixPrice: 2398,
+    cardPrice: 2890,
+    stock: 1
+  });
+  const fourthRaw = product('cmp-tech-4', 'Geladeira HQ 230L', {
+    category: 'Geladeiras',
+    pixPrice: 2197.40,
+    cardPrice: 2647,
+    stock: 1
+  });
+
+  catalogRows = [firstRaw, secondRaw, thirdRaw, fourthRaw];
+  bot.patchTestConversation(phone, {
+    lastProducts: catalogRows.map((item) => bot.compactProduct(item)),
+    lastProductQuery: 'geladeira',
+    lastIntent: 'produto',
+    selectedProduct: null
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'oque a primeira e a segunda faz de diferente',
+    pushName: 'Cliente Comparação Técnica'
+  });
+
+  const reply = sentTexts.at(-1).text;
+  assert.match(reply, /Comparei a ficha técnica dos dois/i);
+  assert.match(reply, /451 L.*380 L.*71 L a mais/is);
+  assert.match(reply, /os dois são \*Frost Free\*/i);
+  assert.match(reply, /1º .*62 cm L.*177\.3 cm A.*71 cm P/is);
+  assert.match(reply, /2º .*70 cm L.*186 cm A.*72 cm P/is);
+  assert.match(reply, /O 1º tem e o 2º não traz cadastrado:.*Gaveta HortiFruti/is);
+  assert.match(reply, /O 2º tem e o 1º não traz cadastrado:.*Filtro antiodor/is);
+  assert.equal(bot.conversation(phone).selectedProduct, null);
+  assert.equal(bot.conversation(phone).lastComparedProducts.length, 2);
+  assert.equal(bot.conversation(phone).lastComparedProducts[0].id, 'cmp-tech-1');
+  assert.equal(bot.conversation(phone).lastComparedProducts[1].id, 'cmp-tech-2');
+});
+
+test('pergunta "esses produtos fazem de diferente" continua comparando o mesmo par', async () => {
+  const phone = '5533977777991';
+  const firstRaw = product('cmp-follow-1', 'Smart TV A 43 4K', {
+    category: 'TVs',
+    pixPrice: 1800,
+    cardPrice: 2160,
+    stock: 1,
+    description: 'Smart TV 4K com HDR e Roku TV.'
+  });
+  const secondRaw = product('cmp-follow-2', 'Smart TV B 43 QLED 4K', {
+    category: 'TVs',
+    pixPrice: 2400,
+    cardPrice: 2890,
+    stock: 1,
+    description: 'Smart TV QLED 4K com HDR, Dolby Audio, Wi-Fi e comando de voz.'
+  });
+  catalogRows = [firstRaw, secondRaw];
+
+  bot.patchTestConversation(phone, {
+    lastProducts: [bot.compactProduct(firstRaw), bot.compactProduct(secondRaw)],
+    lastProductQuery: 'tv',
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'compara o primeiro com o segundo',
+    pushName: 'Cliente Comparação'
+  });
+
+  sentTexts = [];
+  await bot.handleMessage({
+    phone,
+    text: 'oque esses produtos fazem de diferente?',
+    pushName: 'Cliente Comparação'
+  });
+
+  const reply = sentTexts.at(-1).text;
+  assert.match(reply, /Smart TV A 43 4K/i);
+  assert.match(reply, /Smart TV B 43 QLED 4K/i);
+  assert.match(reply, /QLED|Dolby Audio|Comando de voz/i);
+  assert.equal(bot.conversation(phone).lastComparedProducts.length, 2);
+});
+
+test('gostei dessa mas queria uma melhor procura o mesmo tipo com mais tecnologia comprovada', async () => {
+  const phone = '5533977777992';
+  const baselineRaw = product('advanced-base', 'Smart TV LG 43 4K', {
+    category: 'TVs',
+    brand: 'LG',
+    pixPrice: 1825.17,
+    cardPrice: 2199,
+    stock: 2,
+    description: 'Smart TV 4K com HDR.'
+  });
+  const richerRaw = product('advanced-rich', 'Smart TV Samsung 43 QLED 4K', {
+    category: 'TVs',
+    brand: 'Samsung',
+    pixPrice: 2699,
+    cardPrice: 3250,
+    stock: 2,
+    description: 'Smart TV QLED 4K com HDR, Dolby Audio, Wi-Fi, Bluetooth e comando de voz.'
+  });
+  const simplerRaw = product('advanced-simple', 'Smart TV Semp 43 4K', {
+    category: 'TVs',
+    brand: 'Semp',
+    pixPrice: 1700,
+    cardPrice: 2050,
+    stock: 2,
+    description: 'Smart TV 4K.'
+  });
+  const fridgeRaw = product('advanced-wrong-category', 'Geladeira Frost Free 400L', {
+    category: 'Geladeiras',
+    pixPrice: 3000,
+    cardPrice: 3600,
+    stock: 2,
+    description: 'Geladeira Frost Free Inverter com Wi-Fi.'
+  });
+
+  catalogRows = [baselineRaw, richerRaw, simplerRaw, fridgeRaw];
+  const baseline = bot.compactProduct(baselineRaw);
+  bot.patchTestConversation(phone, {
+    selectedProduct: baseline,
+    lastProducts: [baseline],
+    lastProductQuery: 'tv',
+    lastIntent: 'produto'
+  });
+
+  assert.equal(bot.asksMoreAdvancedProduct('gostei dessa mais queria uma melhor'), true);
+
+  await bot.handleMessage({
+    phone,
+    text: 'gostei dessa mais queria uma melhor com mais tecnologia',
+    pushName: 'Cliente Upgrade'
+  });
+
+  const allText = sentTexts.map((item) => item.text).join('\n');
+  const allMedia = sentMedia.map((item) => item.caption || '').join('\n');
+  assert.match(allText, /mesmo tipo.*mais recursos cadastrados/i);
+  assert.match(allText, /Samsung 43 QLED 4K/i);
+  assert.match(allText, /QLED.*Dolby Audio.*Wi-Fi/is);
+  assert.match(allMedia, /Samsung 43 QLED 4K/i);
+  assert.doesNotMatch(allText + '\n' + allMedia, /Geladeira Frost Free 400L/i);
+  assert.equal(backendEvents.at(-1).metadata.moreAdvancedRequested, true);
 });
 
 test('frase "qual a diferença desse produto por esse?" compara os dois produtos exibidos', async () => {
