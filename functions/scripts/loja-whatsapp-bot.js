@@ -4847,6 +4847,163 @@ async function markConversationStatus(phone, conv, status, message, name = '', m
   });
 }
 
+function multiIntentProduct(conv = {}, text = '') {
+  const ord = ordinalIndex(text);
+  if (ord >= 0 && Array.isArray(conv?.lastProducts) && conv.lastProducts[ord]) {
+    return conv.lastProducts[ord];
+  }
+
+  if (
+    (asksLastShownProduct(text) || asksThisShownProduct(text)) &&
+    Array.isArray(conv?.lastProducts) &&
+    conv.lastProducts.length
+  ) {
+    return conv.lastProducts[conv.lastProducts.length - 1];
+  }
+
+  const mentioned = findConversationProductByText(conv, text);
+  if (mentioned) return mentioned;
+
+  return conv?.selectedProduct || (
+    Array.isArray(conv?.lastProducts) && conv.lastProducts.length === 1
+      ? conv.lastProducts[0]
+      : null
+  );
+}
+
+function commercialMultiIntentPlan(text = '', conv = {}) {
+  if (
+    asksFinance(text) ||
+    isPaymentHandoffNotice(text) ||
+    asksPaymentPromiseUpdate(text) ||
+    asksPaymentProofText(text) ||
+    asksPixKey(text)
+  ) {
+    return null;
+  }
+
+  const product = multiIntentProduct(conv, text);
+  if (!product) return null;
+
+  const closing = asksPurchaseClosing(text);
+  const paymentMethod = purchasePaymentMethod(text);
+  const card = asksCardQuote(text) || (closing && paymentMethod === 'card');
+  const pix = asksPixPrice(text) || (closing && paymentMethod === 'pix');
+  const delivery = asksDelivery(text);
+  const photo = asksSelectedProductPhoto(text);
+
+  const informationalCount = [card, pix, delivery, photo].filter(Boolean).length;
+  const directClosing = closing && (paymentMethod === 'pix' || paymentMethod === 'card');
+
+  if (informationalCount < 2 && !directClosing) return null;
+
+  return {
+    product,
+    closing,
+    paymentMethod,
+    card,
+    pix,
+    delivery,
+    photo
+  };
+}
+
+async function handleCommercialMultiIntent({
+  phone,
+  text,
+  pushName = '',
+  conv,
+  plan
+}) {
+  if (!plan?.product) return false;
+
+  const product = plan.product;
+  conv.selectedProduct = product;
+  conv.lastIntent = 'produto';
+  conv.pendingAction = '';
+  saveStateSoon();
+
+  const lines = [];
+
+  if (plan.closing && ['pix', 'card'].includes(plan.paymentMethod)) {
+    lines.push(`Ótimo 😊 Você escolheu *${product.name}*.`);
+  } else {
+    lines.push(`Claro 😊 Sobre *${product.name}*:`);
+  }
+
+  if (plan.pix) {
+    markPixContext(conv);
+    lines.push(`• No PIX: *${money(productCashPrice(product))}*.`);
+  }
+
+  if (plan.card) {
+    const full = productFullPrice(product);
+    const count = Math.max(1, Number(product.installmentCount || 12));
+    lines.push(`• No cartão: até *${count}x de ${money(full / count)}*, total de *${money(full)}*.`);
+  }
+
+  let delivery = null;
+  if (plan.delivery) {
+    delivery = deliveryReply(text);
+    lines.push(`• Entrega: ${delivery.text}`);
+  }
+
+  if (plan.closing && ['pix', 'card'].includes(plan.paymentMethod)) {
+    lines.push(`• Para continuar a compra: ${productLink(product)}`);
+  }
+
+  const message = lines.join('\n');
+
+  if (plan.photo) {
+    await sendImage(
+      phone,
+      product.imageUrl,
+      `Aqui está a foto de *${product.name}* 😊\n\n${message}`
+    );
+  } else {
+    await sendText(phone, message);
+  }
+
+  const paymentMode = plan.pix && plan.card
+    ? 'pix_cartao'
+    : plan.pix
+      ? 'pix'
+      : plan.card
+        ? 'cartao'
+        : '';
+
+  await markConversationStatus(
+    phone,
+    conv,
+    'Venda em andamento',
+    `Cliente fez pedido combinado sobre: ${product.name}`,
+    pushName,
+    {
+      multiIntent: true,
+      productId: productId(product),
+      ...(paymentMode ? { paymentMode } : {}),
+      ...(plan.closing ? { purchaseIntent: true } : {}),
+      requestedProductPhoto: plan.photo === true,
+      askedDelivery: plan.delivery === true
+    }
+  );
+
+  if (delivery?.needsLogistics) {
+    await syncTicket(phone, {
+      status: 'Consultar logística',
+      message: text,
+      name: pushName,
+      metadata: {
+        assunto: 'entrega_em_atendimento_comercial',
+        productId: productId(product),
+        multiIntent: true
+      }
+    });
+  }
+
+  return true;
+}
+
 function paymentMethodsReply() {
   return [
     'Trabalhamos com *PIX, dinheiro, cartão de crédito* e também com o *crediário próprio da Ariana Móveis no carnê* 😊',
@@ -6094,6 +6251,22 @@ async function handleMessage({ phone, text, pushName = '', source = 'text' }) {
       'Ótimo 😊 Vou te ajudar. O que você está querendo comprar? Me diga o tipo de produto — por exemplo geladeira, TV, celular, sofá ou outro — que eu consulto as opções disponíveis para você.'
     );
     return;
+  }
+
+  {
+    const multiIntentPlan = commercialMultiIntentPlan(text, conv);
+    if (
+      multiIntentPlan &&
+      await handleCommercialMultiIntent({
+        phone,
+        text,
+        pushName,
+        conv,
+        plan: multiIntentPlan
+      })
+    ) {
+      return;
+    }
   }
 
   if (asksDelivery(text)) {
@@ -7386,6 +7559,9 @@ export const __test = {
   searchProducts,
   showProducts,
   showMoreProducts,
+  multiIntentProduct,
+  commercialMultiIntentPlan,
+  handleCommercialMultiIntent,
   deliveryReply,
   paymentMethodsReply,
   financialReply,
