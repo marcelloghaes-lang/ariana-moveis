@@ -2429,6 +2429,65 @@ async function sendImage(phone, imageUrl, caption) {
   }
 }
 
+async function sendProductGalleryPhotos(phone, conv, product, { mode = 'more' } = {}) {
+  const details = await fetchProductSafeDetails(product);
+  if (!details) {
+    await sendText(phone, 'Não consegui abrir a galeria completa desse produto agora. Prefiro não te mandar uma foto errada.');
+    return { sent: 0, total: 0 };
+  }
+
+  const gallery = productGalleryImages(details);
+  const primary = details.imageUrl || product.imageUrl || gallery[0] || '';
+  const sent = sentProductImageSet(conv, product);
+
+  if (gallery.length <= 1) {
+    await sendText(
+      phone,
+      mode === 'inside'
+        ? 'No cadastro que consegui abrir agora, só apareceu a imagem principal desse produto. Não vou fingir que tenho uma foto interna se ela não veio na galeria.'
+        : 'No cadastro que consegui abrir agora, só apareceu essa imagem do produto.'
+    );
+    return { sent: 0, total: gallery.length };
+  }
+
+  let candidates = gallery.filter((url) => url !== primary);
+  candidates = candidates.filter((url) => !sent.has(url));
+
+  if (!candidates.length) {
+    await sendText(
+      phone,
+      mode === 'inside'
+        ? 'Eu já te enviei todas as imagens de detalhe disponíveis na galeria desse produto 😊'
+        : 'Eu já te enviei todas as fotos disponíveis na galeria desse produto 😊'
+    );
+    return { sent: 0, total: gallery.length };
+  }
+
+  const batch = candidates.slice(0, 6);
+  await sendText(
+    phone,
+    mode === 'inside'
+      ? `Tenho sim 😊 Vou te mandar as imagens de detalhe de *${product.name}* para você ver melhor a parte interna/aberta.`
+      : `Tenho mais fotos de *${product.name}* sim 😊 Vou te mandar as imagens extras da galeria.`
+  );
+
+  for (let index = 0; index < batch.length; index += 1) {
+    const caption = index === 0
+      ? `*Detalhes de ${product.name}* — imagem ${index + 1} de ${batch.length}.`
+      : `Detalhe ${index + 1} de ${batch.length}.`;
+    await sendImage(phone, batch[index], caption);
+    markProductImageSent(conv, product, batch[index]);
+  }
+  saveStateSoon();
+
+  const remaining = Math.max(0, candidates.length - batch.length);
+  if (remaining > 0) {
+    await sendText(phone, `Ainda tenho *${remaining} imagem(ns)* dessa galeria. Se quiser, é só pedir *“mais fotos”*.`);
+  }
+
+  return { sent: batch.length, total: gallery.length };
+}
+
 function detectCategory(text) {
   const n = normalize(text);
   const candidates = CATEGORY_TERMS.flatMap(([query, aliases]) =>
@@ -5618,7 +5677,17 @@ async function handleCommonProductQuestion({ phone, text, pushName = '', conv })
   const wantsFit = asksProductFit(text);
   const wantsStock = asksReadyStock(text);
   const wantsDeliverySpeed = asksDeliverySpeed(text);
-  const wantsColor = asksProductColor(text);
+  const wantsColorPopularity = asksColorPopularity(text);
+  const wantsOtherColors = asksOtherProductColors(text);
+  const requestedColor = requestedProductColor(text);
+  const pendingColorVariants = activeColorVariants(conv);
+  const explicitColorCategory = detectCategory(text);
+  const wantsColorVariantSelection = Boolean(
+    requestedColor &&
+    pendingColorVariants.length &&
+    !explicitColorCategory
+  );
+  const wantsColor = asksProductColor(text) || wantsColorVariantSelection;
   const wantsOther = asksOtherModel(text);
   const wantsBrand = asksBrandQuality(text);
   const wantsBestSeller = asksBestSeller(text);
@@ -5638,7 +5707,7 @@ async function handleCommonProductQuestion({ phone, text, pushName = '', conv })
   const rows = Array.isArray(conv.lastProducts) ? conv.lastProducts.filter(Boolean) : [];
   const product = productQuestionProduct(conv, text);
 
-  if (wantsBestSeller) {
+  if (wantsBestSeller && !wantsColorPopularity) {
     const candidates = rows.length ? rows : (product ? [product] : []);
     const flagged = candidates.filter((item) => item.isBestSeller === true);
     if (flagged.length === 1) {
@@ -5863,14 +5932,14 @@ async function handleCommonProductQuestion({ phone, text, pushName = '', conv })
   }
 
   if (wantsColor) {
-    const color = productColor(details);
-    await sendText(
+    return handleProductColorQuestion({
       phone,
-      color
-        ? `A cor cadastrada de *${product.name}* é *${color}*.`
-        : `A cor de *${product.name}* não está descrita de forma confiável no cadastro.`
-    );
-    return true;
+      text,
+      pushName,
+      conv,
+      product,
+      details
+    });
   }
 
   if (wantsDimensions || wantsFit) {
@@ -6927,7 +6996,9 @@ async function sendProductPage(phone, conv, { announce = true } = {}) {
 
   for (let i = 0; i < page.length; i += 1) {
     await sendImage(phone, page[i].imageUrl, productCaption(page[i], page.length > 1 ? i : null));
+    markProductImageSent(conv, page[i], page[i].imageUrl);
   }
+  saveStateSoon();
 
   const remaining = Math.max(0, all.length - conv.productResultOffset);
   if (page.length > 1) {
@@ -9294,13 +9365,47 @@ async function handleMessage({
       conv.lastIntent = 'produto';
       saveStateSoon();
 
+      const wantsInside = asksProductInteriorPhotos(text);
+      const wantsMore = asksMoreProductPhotos(text);
+
+      if (wantsInside || wantsMore) {
+        const result = await sendProductGalleryPhotos(
+          phone,
+          conv,
+          product,
+          { mode: wantsInside ? 'inside' : 'more' }
+        );
+
+        await markConversationStatus(
+          phone,
+          conv,
+          'Venda em andamento',
+          wantsInside
+            ? `Cliente pediu imagens internas/de detalhe de: ${product.name}`
+            : `Cliente pediu mais fotos de: ${product.name}`,
+          pushName,
+          {
+            productId: productId(product),
+            requestedProductGallery: true,
+            requestedInsidePhoto: wantsInside,
+            galleryImagesSent: result.sent
+          }
+        );
+        return;
+      }
+
+      const details = await fetchProductSafeDetails(product);
+      const primary = details?.imageUrl || product.imageUrl || productPrimaryImage(details || product);
+
       await sendImage(
         phone,
-        product.imageUrl,
+        primary,
         `Aqui está a foto de *${product.name}* 😊
 
 ${productCaption(product)}`
       );
+      markProductImageSent(conv, product, primary);
+      saveStateSoon();
 
       await markConversationStatus(
         phone,
