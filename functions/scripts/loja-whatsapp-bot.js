@@ -3980,12 +3980,45 @@ function asksPriceObjection(text = '') {
 }
 
 function asksProductComparison(text = '') {
-  const n = normalize(text);
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
   return (
     /\b(compara|compare|comparar|comparacao)\b/.test(n) ||
-    /\bdiferenca\b.{0,30}\b(entre|desses|dessas|dois|duas)\b/.test(n) ||
-    /\bqual\b.{0,35}\b(melhor|mais em conta|vale mais a pena)\b/.test(n)
+    /\b(?:qual|quais)\b.{0,30}\bdiferenca\b/.test(n) ||
+    /\bdiferenca\b.{0,45}\b(entre|desse|dessa|desses|dessas|dois|duas|outro|outra)\b/.test(n) ||
+    /\b(?:o que|oque)\s+(?:muda|tem de diferente)\b/.test(n) ||
+    /\b(?:esse|essa|este|esta)\b.{0,35}\b(?:melhor|pior|mais barato|mais barata|mais caro|mais cara)\b.{0,35}\b(?:que|do que|outro|outra|aquele|aquela)\b/.test(n) ||
+    /\bqual\b.{0,45}\b(melhor|pior|mais em conta|mais barato|mais barata|mais caro|mais cara|vale mais a pena|compensa mais)\b/.test(n) ||
+    /\bqual\b.{0,45}\btem mais\b.{0,25}\b(capacidade|espaco|litros|potencia|watts|funcoes|funcao|recursos|tecnologia)\b/.test(n) ||
+    /\bqual\b.{0,45}\b(?:maior|menor)\b.{0,20}\b(tela|capacidade|potencia|preco)\b/.test(n) ||
+    /\bpor que\b.{0,35}\b(?:mais caro|mais cara|mais barato|mais barata)\b/.test(n) ||
+    /\b(?:esse|essa)\s+ou\s+(?:aquele|aquela|o outro|a outra)\b/.test(n) ||
+    /\bqual\s+(?:dos dois|das duas)\b/.test(n)
   );
+}
+
+function comparisonFocus(text = '') {
+  const n = normalize(text);
+
+  if (/\bpor que\b.{0,35}\b(?:mais caro|mais cara|mais barato|mais barata)\b/.test(n)) {
+    return 'price_reason';
+  }
+
+  if (/\b(capacidade|litros|litro|espaco)\b/.test(n)) return 'capacity';
+  if (/\b(tela|polegada|polegadas|tamanho)\b/.test(n)) return 'size';
+  if (/\b(potencia|watt|watts|mais forte)\b/.test(n)) return 'power';
+  if (/\b(parcela|parcelas|parcelado|cartao|prestacao)\b/.test(n)) return 'installments';
+  if (/\b(funcao|funcoes|recurso|recursos|tecnologia|economico|economica|consumo|gasta menos energia)\b/.test(n)) {
+    return 'features';
+  }
+  if (/\b(preco|valor|barato|barata|caro|cara|em conta|compensa|vale mais a pena)\b/.test(n)) {
+    return 'price';
+  }
+
+  return 'generic';
 }
 
 function comparisonOrdinalIndexes(text = '') {
@@ -4014,28 +4047,43 @@ function resolveComparisonProducts(conv = {}, text = '') {
   return [];
 }
 
-function productObjectiveFacts(product = {}) {
+function productObjectiveMetrics(product = {}) {
   const name = normalize(product.name || '');
-  const facts = [];
+  const metrics = {
+    capacityLiters: 0,
+    watts: 0,
+    inches: 0
+  };
 
   const liters = name.match(/\b(\d{2,4})\s*(?:l|litro|litros)\b/);
-  if (liters) facts.push(`${liters[1]} L`);
+  if (liters) metrics.capacityLiters = Number(liters[1] || 0);
 
   const watts = name.match(/\b(\d{2,5})\s*w\b/);
-  if (watts) facts.push(`${watts[1]} W`);
+  if (watts) metrics.watts = Number(watts[1] || 0);
 
   const category = detectCategory([product.name, product.category].filter(Boolean).join(' '));
   if (category === 'tv') {
-    const inches = productTvInches(product);
-    if (inches) facts.push(`${inches} polegadas`);
+    metrics.inches = Number(productTvInches(product) || 0);
   }
+
+  return metrics;
+}
+
+function productObjectiveFacts(product = {}) {
+  const metrics = productObjectiveMetrics(product);
+  const facts = [];
+
+  if (metrics.capacityLiters) facts.push(`${metrics.capacityLiters} L`);
+  if (metrics.watts) facts.push(`${metrics.watts} W`);
+  if (metrics.inches) facts.push(`${metrics.inches} polegadas`);
 
   return facts;
 }
 
-function productComparisonReply(first = {}, second = {}) {
+function productComparisonReply(first = {}, second = {}, text = '') {
   const rows = [first, second];
-  const lines = ['Posso comparar pelo que consta no catálogo 😊'];
+  const focus = comparisonFocus(text);
+  const lines = ['Posso comparar pelo que está confirmado no catálogo 😊'];
 
   rows.forEach((product, index) => {
     const full = productFullPrice(product);
@@ -4050,17 +4098,59 @@ function productComparisonReply(first = {}, second = {}) {
 
   const firstCash = productCashPrice(first);
   const secondCash = productCashPrice(second);
+  const priceDifference = Math.abs(firstCash - secondCash);
+
   if (firstCash !== secondCash) {
     const cheaper = firstCash < secondCash ? first : second;
-    const difference = Math.abs(firstCash - secondCash);
     lines.push('');
-    lines.push(`Se a prioridade for *gastar menos*, *${cheaper.name}* está ${money(difference)} mais barato no PIX entre esses dois.`);
+    lines.push(`No PIX, *${cheaper.name}* está ${money(priceDifference)} mais barato entre esses dois.`);
   } else {
     lines.push('');
     lines.push('No PIX, os dois estão com o mesmo preço no catálogo.');
   }
 
-  lines.push('Se sua prioridade for capacidade, tamanho, potência ou outra característica específica, me diga qual é e eu comparo somente com informação confirmada — sem inventar especificação.');
+  const firstMetrics = productObjectiveMetrics(first);
+  const secondMetrics = productObjectiveMetrics(second);
+
+  if (focus === 'capacity') {
+    if (firstMetrics.capacityLiters && secondMetrics.capacityLiters) {
+      const larger = firstMetrics.capacityLiters > secondMetrics.capacityLiters ? first : second;
+      const largerValue = Math.max(firstMetrics.capacityLiters, secondMetrics.capacityLiters);
+      const smallerValue = Math.min(firstMetrics.capacityLiters, secondMetrics.capacityLiters);
+      lines.push(`Em capacidade, *${larger.name}* tem mais: *${largerValue} L* contra *${smallerValue} L*.`);
+    } else {
+      lines.push('Não tenho a capacidade confirmada dos dois produtos no catálogo para dizer qual tem mais espaço.');
+    }
+  } else if (focus === 'size') {
+    if (firstMetrics.inches && secondMetrics.inches) {
+      const larger = firstMetrics.inches > secondMetrics.inches ? first : second;
+      const largerValue = Math.max(firstMetrics.inches, secondMetrics.inches);
+      const smallerValue = Math.min(firstMetrics.inches, secondMetrics.inches);
+      lines.push(`Em tamanho de tela, *${larger.name}* é maior: *${largerValue} polegadas* contra *${smallerValue} polegadas*.`);
+    } else {
+      lines.push('Não tenho uma medida confirmada dos dois produtos para afirmar qual é maior.');
+    }
+  } else if (focus === 'power') {
+    if (firstMetrics.watts && secondMetrics.watts) {
+      const stronger = firstMetrics.watts > secondMetrics.watts ? first : second;
+      const strongerValue = Math.max(firstMetrics.watts, secondMetrics.watts);
+      const lowerValue = Math.min(firstMetrics.watts, secondMetrics.watts);
+      lines.push(`Em potência informada no modelo, *${stronger.name}* tem mais: *${strongerValue} W* contra *${lowerValue} W*.`);
+    } else {
+      lines.push('Não tenho a potência confirmada dos dois produtos no catálogo para dizer qual é mais potente.');
+    }
+  } else if (focus === 'features') {
+    lines.push('Para funções, tecnologia ou consumo de energia, eu só afirmo o que estiver cadastrado. Com os dados atuais, não tenho informação técnica suficiente para escolher um vencedor sem inventar.');
+  } else if (focus === 'price_reason') {
+    lines.push('A diferença de preço está confirmada, mas os dados atuais não comprovam o motivo técnico dessa diferença. Então prefiro não inventar uma justificativa.');
+  } else if (focus === 'installments') {
+    lines.push('Acima estão as condições de cartão dos dois para você comparar parcela e total lado a lado.');
+  } else if (focus === 'price') {
+    lines.push('Se sua prioridade for preço, a opção mais barata no PIX está indicada acima.');
+  } else {
+    lines.push('Se você me disser o que pesa mais para você — preço, capacidade, tamanho ou potência — eu comparo por esse ponto sem inventar especificação.');
+  }
+
   return lines.join('\n');
 }
 
@@ -6504,7 +6594,7 @@ async function handleMessage({
   {
     const pair = asksProductComparison(text) ? resolveComparisonProducts(conv, text) : [];
     if (pair.length === 2) {
-      await sendText(phone, productComparisonReply(pair[0], pair[1]));
+      await sendText(phone, productComparisonReply(pair[0], pair[1], text));
       await markConversationStatus(
         phone,
         conv,
@@ -7719,8 +7809,10 @@ export const __test = {
   extractBudgetLimit,
   asksPriceObjection,
   asksProductComparison,
+  comparisonFocus,
   comparisonOrdinalIndexes,
   resolveComparisonProducts,
+  productObjectiveMetrics,
   productObjectiveFacts,
   productComparisonReply,
   asksPausePurchaseDecision,
