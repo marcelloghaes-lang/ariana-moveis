@@ -824,6 +824,7 @@ function conversation(phone) {
       lastBudgetLimit: 0,
       lastComparedProducts: [],
       lastComparisonAt: 0,
+      recommendationContext: null,
       lastIntent: ''
     };
   }
@@ -850,6 +851,7 @@ function conversation(phone) {
   if (!Array.isArray(conv.recentTurns)) conv.recentTurns = [];
   if (!Array.isArray(conv.lastComparedProducts)) conv.lastComparedProducts = [];
   if (!Number.isFinite(Number(conv.lastComparisonAt))) conv.lastComparisonAt = 0;
+  if (conv.recommendationContext && typeof conv.recommendationContext !== 'object') conv.recommendationContext = null;
   conv.recentTurns = recentShortConversationTurns(conv);
   if (!Number.isFinite(Number(conv.dailyDueCourtesyCount))) conv.dailyDueCourtesyCount = 0;
   if (!Number.isFinite(Number(conv.courtesyGreetingUntil))) conv.courtesyGreetingUntil = 0;
@@ -4228,8 +4230,368 @@ function asksProductRecommendation(text = '') {
   return (
     /\bqual\b.{0,30}\b(voce|vc)\b.{0,15}\b(indica|recomenda)\b/.test(n) ||
     /\bqual\b.{0,30}\b(indica|recomenda)\b/.test(n) ||
-    /\b(voce|vc)\b.{0,20}\bficaria\b.{0,15}\bqual\b/.test(n)
+    /\b(voce|vc)\b.{0,20}\bficaria\b.{0,15}\bqual\b/.test(n) ||
+    (
+      Boolean(detectCategory(text)) &&
+      /\b(quero|preciso|procuro|estou procurando|to procurando)\b.{0,35}\b(boa|bom|boa opcao|bom modelo)\b/.test(n)
+    )
   );
+}
+
+function recommendationPriority(text = '') {
+  const n = normalize(text);
+
+  if (/\b(economia de energia|economizar energia|gasta menos energia|menor consumo|consumo de energia|mais economica|mais economico)\b/.test(n)) {
+    return 'energy';
+  }
+  if (/\b(tecnologia|tecnologica|tecnologico|recursos|funcoes|mais completa|mais completo|moderna|moderno)\b/.test(n)) {
+    return 'technology';
+  }
+  if (/\b(capacidade|mais espaco|mais espacosa|mais espacoso|maior capacidade|litros|quilo|quilos|kg)\b/.test(n)) {
+    return 'capacity';
+  }
+  if (/\b(tela maior|maior tela|polegadas|tamanho da tela)\b/.test(n)) {
+    return 'screen';
+  }
+  if (/\b(potencia|mais potente|potente|watts?|watt)\b/.test(n)) {
+    return 'power';
+  }
+  if (/\b(preco|mais barato|mais barata|mais em conta|economizar|menor valor|custo beneficio|custo-beneficio)\b/.test(n)) {
+    return 'price';
+  }
+  if (/\b(tanto faz|sem preferencia|voce escolhe|vc escolhe|voce que sabe|qualquer uma|qualquer um)\b/.test(n)) {
+    return 'balanced';
+  }
+
+  return '';
+}
+
+function extractHouseholdSize(text = '') {
+  const n = normalize(text);
+  const match =
+    n.match(/\b(?:somos|moramos em)\s+(\d{1,2})\b/) ||
+    n.match(/\b(?:familia|casa)\s+(?:de|com)\s+(\d{1,2})\s+pessoas?\b/) ||
+    n.match(/\bpara\s+(\d{1,2})\s+pessoas?\b/);
+  const value = match ? Number(match[1] || 0) : 0;
+  return Number.isFinite(value) && value >= 1 && value <= 20 ? value : 0;
+}
+
+function activeRecommendationContext(conv = {}) {
+  const ctx = conv?.recommendationContext;
+  if (!ctx || typeof ctx !== 'object' || !ctx.category) return null;
+  if (Date.now() - Number(ctx.updatedAt || ctx.startedAt || 0) > 30 * 60 * 1000) {
+    conv.recommendationContext = null;
+    saveStateSoon();
+    return null;
+  }
+  return ctx;
+}
+
+function clearRecommendationContext(conv = {}) {
+  conv.recommendationContext = null;
+}
+
+function recommendationCategoryFromConversation(conv = {}) {
+  return (
+    detectCategory([
+      conv?.selectedProduct?.name,
+      conv?.selectedProduct?.category,
+      conv?.lastProductQuery,
+      conv?.lastProducts?.[0]?.name,
+      conv?.lastProducts?.[0]?.category
+    ].filter(Boolean).join(' ')) ||
+    String(conv?.lastProductQuery || '').trim()
+  );
+}
+
+function updateRecommendationContext(conv = {}, text = '', category = '') {
+  const previous = activeRecommendationContext(conv);
+  const targetCategory = category || previous?.category || recommendationCategoryFromConversation(conv);
+  const reset = previous && targetCategory && normalize(previous.category) !== normalize(targetCategory);
+  const base = !previous || reset ? {} : previous;
+  const budget = extractBudgetLimit(text);
+  const householdSize = extractHouseholdSize(text);
+  const priority = recommendationPriority(text);
+
+  const next = {
+    category: targetCategory,
+    priority: priority || base.priority || '',
+    budgetLimit: budget > 0 ? budget : Number(base.budgetLimit || 0),
+    householdSize: householdSize > 0 ? householdSize : Number(base.householdSize || 0),
+    startedAt: Number(base.startedAt || Date.now()),
+    updatedAt: Date.now()
+  };
+
+  conv.recommendationContext = next;
+  if (budget > 0) conv.lastBudgetLimit = budget;
+  saveStateSoon();
+  return next;
+}
+
+function recommendationPriorityLabel(priority = '') {
+  return {
+    price: 'preço',
+    capacity: 'capacidade',
+    technology: 'tecnologia/recursos',
+    energy: 'economia de energia',
+    screen: 'tamanho da tela',
+    power: 'potência',
+    balanced: 'equilíbrio entre as opções'
+  }[priority] || 'sua prioridade';
+}
+
+function recommendationQuestion(category = '', context = {}) {
+  const normalizedCategory = normalize(category);
+  let options = '*preço* ou *tecnologia/recursos*';
+
+  if (['geladeira', 'freezer', 'frigobar', 'maquina de lavar', 'tanquinho'].includes(normalizedCategory)) {
+    options = '*capacidade, tecnologia/recursos, economia de energia ou preço*';
+  } else if (normalizedCategory === 'tv') {
+    options = '*tamanho da tela, tecnologia/recursos ou preço*';
+  } else if (['fogao', 'air fryer', 'micro-ondas', 'forno eletrico'].includes(normalizedCategory)) {
+    options = '*tecnologia/recursos, potência ou preço*';
+  } else if (['celular', 'notebook', 'tablet', 'computador'].includes(normalizedCategory)) {
+    options = '*tecnologia/recursos ou preço*';
+  }
+
+  const household = Number(context.householdSize || 0) > 0
+    ? ` Como você comentou que são *${Number(context.householdSize)} pessoas*, já deixei isso anotado.`
+    : '';
+  const budget = Number(context.budgetLimit || 0) > 0
+    ? ` Seu limite de *${money(context.budgetLimit)}* também já está anotado.`
+    : ' Se tiver um limite de valor, pode me falar também.';
+
+  return `Para eu te indicar direito e não escolher no chute 😊${household} O que pesa mais para você: ${options}?${budget}`;
+}
+
+function technicalCapacityKg(product = {}, details = {}) {
+  const text = productSafeDetailText(details);
+  const labeled = text.match(/capacidade(?:\s+de lavagem|\s+total)?\s*:?\s*(\d{1,2}(?:[.,]\d+)?)\s*kg/i);
+  if (labeled) return Number(String(labeled[1]).replace(',', '.')) || 0;
+
+  const fallback = String(product.name || '').match(/\b(\d{1,2}(?:[.,]\d+)?)\s*kg\b/i);
+  return fallback ? Number(String(fallback[1]).replace(',', '.')) || 0 : 0;
+}
+
+async function recommendProductsConsultatively(phone, conv, context = {}, pushName = '') {
+  const category = String(context.category || '').trim();
+  const priority = String(context.priority || '').trim();
+  const budget = Math.max(0, Number(context.budgetLimit || 0));
+
+  if (!category) {
+    await sendText(phone, 'Eu te ajudo a escolher 😊 Só me diga primeiro qual tipo de produto você está procurando.');
+    return true;
+  }
+
+  if (!priority) {
+    await sendText(phone, recommendationQuestion(category, context));
+    return true;
+  }
+
+  const searchText = budget > 0 ? `tenho até R$ ${Math.round(budget)}` : '';
+  let rows;
+  try {
+    rows = (await searchProducts(category, searchText)).slice(0, 12);
+  } catch {
+    await sendText(phone, 'Não consegui consultar o catálogo completo agora. Prefiro não te indicar um produto sem conferir os dados reais.');
+    return true;
+  }
+
+  if (!rows.length) {
+    await sendText(
+      phone,
+      budget > 0
+        ? `Não encontrei *${category}* em estoque dentro do limite de *${money(budget)}*. Posso procurar opções acima desse valor ou você pode me passar outro limite.`
+        : `No momento não encontrei *${category}* disponível no catálogo para fazer uma indicação segura.`
+    );
+    return true;
+  }
+
+  const enriched = await Promise.all(
+    rows.map(async (product) => {
+      const details = await fetchProductSafeDetails(product);
+      const profile = details ? technicalComparisonProfile(product, details) : null;
+      const objective = productObjectiveMetrics(product);
+      return {
+        product,
+        details,
+        profile,
+        price: productCashPrice(product),
+        featureScore: profile ? technicalFeatureScore(profile) : 0,
+        capacityLiters: Number(profile?.capacityLiters || 0),
+        capacityKg: details ? technicalCapacityKg(product, details) : 0,
+        energyConsumption: Number(profile?.energyConsumption || 0),
+        inches: Number(objective.inches || 0),
+        watts: Number(objective.watts || 0)
+      };
+    })
+  );
+
+  let ranked = [];
+  let metricDescription = '';
+
+  if (priority === 'price') {
+    ranked = [...enriched].sort((a, b) => a.price - b.price);
+    metricDescription = ranked[0] ? `é a opção de *menor preço no PIX* entre as que consegui comparar: *${money(ranked[0].price)}*` : '';
+  } else if (priority === 'technology') {
+    ranked = enriched
+      .filter((item) => item.featureScore > 0 && item.profile?.features?.length)
+      .sort((a, b) => b.featureScore - a.featureScore || b.profile.features.length - a.profile.features.length || a.price - b.price);
+    if (ranked[0]) {
+      metricDescription = `reúne mais recursos tecnológicos relevantes cadastrados entre as opções comparadas, como *${ranked[0].profile.features.slice(0, 5).join(', ')}*`;
+    }
+  } else if (priority === 'capacity') {
+    ranked = enriched
+      .filter((item) => item.capacityLiters > 0 || item.capacityKg > 0)
+      .sort((a, b) => {
+        const aValue = a.capacityLiters || a.capacityKg;
+        const bValue = b.capacityLiters || b.capacityKg;
+        return bValue - aValue || a.price - b.price;
+      });
+    if (ranked[0]) {
+      metricDescription = ranked[0].capacityLiters > 0
+        ? `tem a *maior capacidade confirmada* entre as opções comparadas: *${ranked[0].capacityLiters} L*`
+        : `tem a *maior capacidade confirmada* entre as opções comparadas: *${ranked[0].capacityKg} kg*`;
+    }
+  } else if (priority === 'energy') {
+    ranked = enriched
+      .filter((item) => item.energyConsumption > 0)
+      .sort((a, b) => a.energyConsumption - b.energyConsumption || a.price - b.price);
+    if (ranked[0]) {
+      metricDescription = `tem o *menor consumo de energia informado* entre as opções comparadas: *${ranked[0].energyConsumption} kWh/mês*`;
+    }
+  } else if (priority === 'screen') {
+    ranked = enriched
+      .filter((item) => item.inches > 0)
+      .sort((a, b) => b.inches - a.inches || a.price - b.price);
+    if (ranked[0]) metricDescription = `tem a *maior tela confirmada* entre as opções comparadas: *${ranked[0].inches} polegadas*`;
+  } else if (priority === 'power') {
+    ranked = enriched
+      .filter((item) => item.watts > 0)
+      .sort((a, b) => b.watts - a.watts || a.price - b.price);
+    if (ranked[0]) metricDescription = `tem a *maior potência informada no modelo* entre as opções comparadas: *${ranked[0].watts} W*`;
+  } else if (priority === 'balanced') {
+    const flagged = enriched.filter((item) => item.product.isRecommended === true);
+    if (flagged.length === 1) {
+      ranked = [flagged[0], ...enriched.filter((item) => item !== flagged[0]).sort((a, b) => a.price - b.price)];
+      metricDescription = 'está marcado como *recomendado* no catálogo da Ariana Móveis';
+    } else {
+      const tech = [...enriched].filter((item) => item.featureScore > 0).sort((a, b) => b.featureScore - a.featureScore)[0];
+      const cheap = [...enriched].sort((a, b) => a.price - b.price)[0];
+      const choices = [tech, cheap].filter(Boolean);
+      ranked = [...new Map(choices.map((item) => [productId(item.product), item])).values()];
+      if (ranked.length) metricDescription = 'foi separado por dados objetivos do catálogo, sem presumir uma preferência que você não informou';
+    }
+  }
+
+  if (!ranked.length) {
+    const label = recommendationPriorityLabel(priority);
+    await sendText(
+      phone,
+      `Eu conferi as fichas de *${category}*, mas não tenho dados técnicos suficientes para indicar uma opção por *${label}* sem inventar. Posso comparar por outro ponto que esteja cadastrado, como *preço${['geladeira', 'maquina de lavar', 'tanquinho'].includes(normalize(category)) ? ', capacidade' : ''} ou tecnologia/recursos*.`
+    );
+    return true;
+  }
+
+  const primary = ranked[0];
+  const alternate = ranked.find((item) => productId(item.product) !== productId(primary.product)) || null;
+  const lines = [
+    `Pelo que você me falou, eu começaria por *${primary.product.name}* 😊`,
+    '',
+    `*Por quê:* ${metricDescription}.`,
+    `*Preço no PIX:* ${money(primary.price)}.`
+  ];
+
+  if (Number(context.householdSize || 0) > 0) {
+    lines.push(`Você comentou que são *${Number(context.householdSize)} pessoas*; usei isso como contexto e baseei a indicação na prioridade que você informou e nos dados cadastrados.`);
+  }
+
+  if (alternate) {
+    let alternateFact = '';
+    if (priority === 'capacity') {
+      alternateFact = alternate.capacityLiters > 0
+        ? ` • ${alternate.capacityLiters} L`
+        : alternate.capacityKg > 0
+          ? ` • ${alternate.capacityKg} kg`
+          : '';
+    } else if (priority === 'technology' && alternate.profile?.features?.length) {
+      alternateFact = ` • ${alternate.profile.features.slice(0, 3).join(', ')}`;
+    } else if (priority === 'screen' && alternate.inches > 0) {
+      alternateFact = ` • ${alternate.inches} polegadas`;
+    }
+    lines.push('');
+    lines.push(`*Outra opção para comparar:* ${alternate.product.name}${alternateFact} • PIX ${money(alternate.price)}.`);
+    lines.push('Se quiser, eu comparo essas duas detalhe por detalhe.');
+  }
+
+  await sendText(phone, lines.join('\n'));
+
+  const chosen = [primary, alternate].filter(Boolean).map((item) => item.product);
+  conv.lastProducts = chosen.map((product) => compactProduct(product));
+  conv.allProductResults = conv.lastProducts;
+  conv.productResultOffset = conv.lastProducts.length;
+  conv.selectedProduct = compactProduct(primary.product);
+  conv.lastProductQuery = category;
+  conv.lastIntent = 'produto';
+  conv.lastBudgetLimit = budget;
+  clearRecommendationContext(conv);
+  saveStateSoon();
+
+  await markConversationStatus(
+    phone,
+    conv,
+    'Venda em andamento',
+    `Recomendação consultiva de ${category} por ${recommendationPriorityLabel(priority)}: ${primary.product.name}`,
+    pushName,
+    {
+      consultativeRecommendation: true,
+      category,
+      priority,
+      householdSize: Number(context.householdSize || 0),
+      budgetLimit: budget,
+      productId: productId(primary.product),
+      alternateProductId: alternate ? productId(alternate.product) : ''
+    }
+  );
+
+  return true;
+}
+
+async function startConsultativeRecommendation({ phone, text, pushName = '', conv, category = '' }) {
+  const targetCategory = category || detectCategory(text) || recommendationCategoryFromConversation(conv);
+  const context = updateRecommendationContext(conv, text, targetCategory);
+  if (!context.priority) {
+    await sendText(phone, recommendationQuestion(targetCategory, context));
+    return true;
+  }
+  return recommendProductsConsultatively(phone, conv, context, pushName);
+}
+
+async function handlePendingConsultativeRecommendation({ phone, text, pushName = '', conv }) {
+  const pending = activeRecommendationContext(conv);
+  if (!pending) return false;
+
+  const explicitCategory = detectCategory(text);
+  if (explicitCategory && normalize(explicitCategory) !== normalize(pending.category)) {
+    clearRecommendationContext(conv);
+    saveStateSoon();
+    return false;
+  }
+
+  const contributes =
+    Boolean(recommendationPriority(text)) ||
+    extractBudgetLimit(text) > 0 ||
+    extractHouseholdSize(text) > 0;
+
+  if (!contributes) return false;
+
+  return startConsultativeRecommendation({
+    phone,
+    text,
+    pushName,
+    conv,
+    category: pending.category
+  });
 }
 
 function asksEntryPayment(text = '') {
@@ -4291,6 +4653,10 @@ async function showOtherModels(phone, conv, product) {
 }
 
 async function handleCommonProductQuestion({ phone, text, pushName = '', conv }) {
+  if (await handlePendingConsultativeRecommendation({ phone, text, pushName, conv })) {
+    return true;
+  }
+
   const wantsWarranty = asksProductWarranty(text);
   const wantsVoltage = asksProductVoltage(text);
   const wantsDimensions = asksProductDimensions(text);
@@ -4328,13 +4694,30 @@ async function handleCommonProductQuestion({ phone, text, pushName = '', conv })
     return true;
   }
 
+  const explicitRecommendationCategory = detectCategory(text);
+  const activeRecommendationCategory = recommendationCategoryFromConversation(conv);
+  const recommendationHasNeeds =
+    extractHouseholdSize(text) > 0 ||
+    extractBudgetLimit(text) > 0 ||
+    Boolean(recommendationPriority(text));
+
   if (
     wantsRecommendation &&
-    detectCategory(text) &&
-    !rows.length &&
-    !product
+    explicitRecommendationCategory &&
+    (
+      !rows.length ||
+      !activeRecommendationCategory ||
+      normalize(activeRecommendationCategory) !== normalize(explicitRecommendationCategory) ||
+      recommendationHasNeeds
+    )
   ) {
-    return false;
+    return startConsultativeRecommendation({
+      phone,
+      text,
+      pushName,
+      conv,
+      category: explicitRecommendationCategory
+    });
   }
 
   if (wantsRecommendation) {
@@ -4346,10 +4729,16 @@ async function handleCommonProductQuestion({ phone, text, pushName = '', conv })
         `No catálogo, *${recommended[0].name}* está marcado como *recomendado*. Mas eu não vou dizer que ele é melhor em tudo sem saber sua prioridade 😊 Se você me disser se pesa mais *preço, tamanho, capacidade ou potência*, eu comparo por isso.`
       );
     } else {
-      await sendText(
-        phone,
-        'Eu te ajudo a escolher 😊 Me diga o que pesa mais para você: *preço, tamanho, capacidade, potência ou forma de pagamento*. Aí eu indico com base em dados reais, não no chute.'
-      );
+      const category = explicitRecommendationCategory || activeRecommendationCategory;
+      if (category) {
+        const context = updateRecommendationContext(conv, text, category);
+        await sendText(phone, recommendationQuestion(category, context));
+      } else {
+        await sendText(
+          phone,
+          'Eu te ajudo a escolher 😊 Me diga primeiro qual tipo de produto você está procurando e o que pesa mais para você. Aí eu indico com base em dados reais, não no chute.'
+        );
+      }
     }
     return true;
   }
