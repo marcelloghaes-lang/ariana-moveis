@@ -3991,9 +3991,10 @@ function asksProductComparison(text = '') {
     /\bdiferenca\b.{0,45}\b(entre|desse|dessa|desses|dessas|dois|duas|outro|outra)\b/.test(n) ||
     /\b(?:o que|oque)\s+(?:muda|tem de diferente)\b/.test(n) ||
     /\b(?:esse|essa|este|esta)\b.{0,35}\b(?:melhor|pior|mais barato|mais barata|mais caro|mais cara)\b.{0,35}\b(?:que|do que|outro|outra|aquele|aquela)\b/.test(n) ||
-    /\bqual\b.{0,45}\b(melhor|pior|mais em conta|mais barato|mais barata|mais caro|mais cara|mais economico|mais economica|vale mais a pena|compensa mais)\b/.test(n) ||
+    /\bqual\b.{0,45}\b(melhor|pior|mais em conta|mais barato|mais barata|mais caro|mais cara|mais economico|mais economica|mais potente|mais forte|vale mais a pena|compensa mais)\b/.test(n) ||
     /\bqual\b.{0,45}\btem mais\b.{0,25}\b(capacidade|espaco|litros|potencia|watts|funcoes|funcao|recursos|tecnologia)\b/.test(n) ||
     /\bqual\b.{0,45}\b(?:maior|menor)\b.{0,20}\b(tela|capacidade|potencia|preco)\b/.test(n) ||
+    /\bqual\b.{0,45}\b(tela|capacidade|potencia|preco)\b.{0,20}\b(?:maior|menor)\b/.test(n) ||
     /\bqual\b.{0,35}\b(?:parcela|prestacao)\b.{0,20}\b(?:menor|mais baixa|mais barato|mais barata)\b/.test(n) ||
     /\bpor que\b.{0,35}\b(?:mais caro|mais cara|mais barato|mais barata)\b/.test(n) ||
     /\b(?:esse|essa)\s+ou\s+(?:aquele|aquela|o outro|a outra)\b/.test(n) ||
@@ -4011,7 +4012,7 @@ function comparisonFocus(text = '') {
 
   if (/\b(capacidade|litros|litro|espaco)\b/.test(n)) return 'capacity';
   if (/\b(tela|polegada|polegadas|tamanho)\b/.test(n)) return 'size';
-  if (/\b(potencia|watt|watts|mais forte)\b/.test(n)) return 'power';
+  if (/\b(potencia|potente|watt|watts|mais forte)\b/.test(n)) return 'power';
   if (/\b(parcela|parcelas|parcelado|cartao|prestacao)\b/.test(n)) return 'installments';
   if (/\b(funcao|funcoes|recurso|recursos|tecnologia|economico|economica|consumo|gasta menos energia)\b/.test(n)) {
     return 'features';
