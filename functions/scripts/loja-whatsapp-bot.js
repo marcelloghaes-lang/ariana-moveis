@@ -7651,7 +7651,20 @@ async function handleMessage({
   }
 
   if (asksMoreAdvancedProduct(text)) {
+    const ordinalIndexes = comparisonOrdinalIndexes(text);
+    const ordinalIndex = ordinalIndexes.length === 1 ? ordinalIndexes[0] : -1;
+    const recentComparedProducts =
+      Array.isArray(conv.lastComparedProducts) &&
+      Date.now() - Number(conv.lastComparisonAt || 0) <= 30 * 60 * 1000
+        ? conv.lastComparedProducts
+        : [];
+    const ordinalBaseline =
+      ordinalIndex >= 0
+        ? (recentComparedProducts[ordinalIndex] || conv.lastProducts?.[ordinalIndex] || null)
+        : null;
+
     const baseline =
+      ordinalBaseline ||
       mentionedProduct ||
       conv.selectedProduct ||
       (Array.isArray(conv.lastComparedProducts) && conv.lastComparedProducts.length === 1
