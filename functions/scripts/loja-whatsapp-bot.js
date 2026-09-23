@@ -8717,6 +8717,55 @@ async function handleMessage({
     }
   }
 
+  {
+    const listReference = currentListProductReference(conv, text);
+
+    if (listReference.status === 'ambiguous') {
+      const clarification = currentListClarificationText(conv, listReference);
+      if (clarification) {
+        await sendText(phone, clarification);
+        return;
+      }
+    }
+
+    if (listReference.status === 'single' && listReference.product) {
+      conv.selectedProduct = listReference.product;
+      conv.lastIntent = 'produto';
+      saveStateSoon();
+
+      if (descriptiveSelectionOnly(text)) {
+        await sendText(
+          phone,
+          'Perfeito 😊 Você está falando de *' + listReference.product.name + '*. Quer ver mais fotos, preço no PIX, cartão, carnê, entrega ou outra informação dele?'
+        );
+        await markConversationStatus(
+          phone,
+          conv,
+          'Venda em andamento',
+          'Cliente selecionou produto pela descrição na lista: ' + listReference.product.name,
+          pushName,
+          {
+            productId: productId(listReference.product),
+            selectionMode: 'descricao_lista',
+            selectionReason: listReference.reason || ''
+          }
+        );
+        return;
+      }
+    } else if (
+      listReference.status === 'none' &&
+      asksSelectedProductPhoto(text) &&
+      Array.isArray(conv.lastProducts) &&
+      conv.lastProducts.length > 1
+    ) {
+      await sendText(
+        phone,
+        'Tenho sim 😊 Só me diga qual das opções que eu acabei de mostrar você quer ver melhor — pode falar *“a primeira”*, *“a segunda”*, a cor, o modelo ou uma característica como *“o com espelho”*.'
+      );
+      return;
+    }
+  }
+
   if (asksExistingOrderStatus(text)) {
     conv.pendingAction = '';
     conv.marceloCallbackRequested = true;
