@@ -4098,7 +4098,9 @@ function matchesRequestedProductType(product = {}, query = '') {
   ].filter(Boolean).join(' '));
 
   if (requested === 'geladeira' || requested === 'refrigerador') {
-    return !/\bfreezer\b|\bfrigobar\b/.test(haystack);
+    const isRefrigerator = /\bgeladeira(?:s)?\b|\brefrigerador(?:es)?\b/.test(haystack);
+    const isOtherCoolingFamily = /\bfreezer\b|\bfrigobar\b/.test(haystack);
+    return isRefrigerator && !isOtherCoolingFamily;
   }
   if (requested === 'freezer') return /\bfreezer\b/.test(haystack);
   if (requested === 'frigobar') return /\bfrigobar\b/.test(haystack);
