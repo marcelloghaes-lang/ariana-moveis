@@ -822,6 +822,8 @@ function conversation(phone) {
       courtesyGreetingStartedAt: 0,
       recentTurns: [],
       lastBudgetLimit: 0,
+      lastComparedProducts: [],
+      lastComparisonAt: 0,
       lastIntent: ''
     };
   }
@@ -846,6 +848,8 @@ function conversation(phone) {
   if (typeof conv.dailyDueLookupActive !== 'boolean') conv.dailyDueLookupActive = false;
   if (!Number.isFinite(Number(conv.dailyDueCourtesyAt))) conv.dailyDueCourtesyAt = 0;
   if (!Array.isArray(conv.recentTurns)) conv.recentTurns = [];
+  if (!Array.isArray(conv.lastComparedProducts)) conv.lastComparedProducts = [];
+  if (!Number.isFinite(Number(conv.lastComparisonAt))) conv.lastComparisonAt = 0;
   conv.recentTurns = recentShortConversationTurns(conv);
   if (!Number.isFinite(Number(conv.dailyDueCourtesyCount))) conv.dailyDueCourtesyCount = 0;
   if (!Number.isFinite(Number(conv.courtesyGreetingUntil))) conv.courtesyGreetingUntil = 0;
@@ -4501,6 +4505,9 @@ function asksProductComparison(text = '') {
     /\b(?:qual|quais)\b.{0,30}\bdiferenca\b/.test(n) ||
     /\bdiferenca\b.{0,45}\b(entre|desse|dessa|desses|dessas|dois|duas|outro|outra)\b/.test(n) ||
     /\b(?:o que|oque)\s+(?:muda|tem de diferente)\b/.test(n) ||
+    /\b(?:o que|oque)\b.{0,70}\b(?:faz|fazem|tem|têm)\b.{0,25}\b(?:de )?diferente\b/.test(n) ||
+    /\b(?:primeiro|primeira)\b.{0,35}\b(?:e|com|versus|x)\b.{0,35}\b(?:segundo|segunda)\b.{0,35}\b(?:diferente|diferenca|muda|faz|tem)\b/.test(n) ||
+    /\b(?:esses|essas|estes|estas)\s+(?:dois|duas|produtos|modelos)\b.{0,40}\b(?:diferente|diferenca|muda|faz|fazem|tem)\b/.test(n) ||
     /\b(?:esse|essa|este|esta)\b.{0,35}\b(?:melhor|pior|mais barato|mais barata|mais caro|mais cara)\b.{0,35}\b(?:que|do que|outro|outra|aquele|aquela)\b/.test(n) ||
     /\bqual\b.{0,45}\b(melhor|pior|mais em conta|mais barato|mais barata|mais caro|mais cara|mais economico|mais economica|mais potente|mais forte|vale mais a pena|compensa mais)\b/.test(n) ||
     /\bqual\b.{0,45}\btem mais\b.{0,25}\b(capacidade|espaco|litros|potencia|watts|funcoes|funcao|recursos|tecnologia)\b/.test(n) ||
@@ -4552,6 +4559,17 @@ function resolveComparisonProducts(conv = {}, text = '') {
   if (indexes.length >= 2) {
     const pair = indexes.slice(0, 2).map((index) => rows[index]).filter(Boolean);
     if (pair.length === 2 && productId(pair[0]) !== productId(pair[1])) return pair;
+  }
+
+  const remembered = Array.isArray(conv.lastComparedProducts)
+    ? conv.lastComparedProducts.filter(Boolean)
+    : [];
+  if (
+    remembered.length === 2 &&
+    Date.now() - Number(conv.lastComparisonAt || 0) <= 30 * 60 * 1000 &&
+    productId(remembered[0]) !== productId(remembered[1])
+  ) {
+    return remembered;
   }
 
   if (rows.length === 2 && productId(rows[0]) !== productId(rows[1])) {
@@ -5096,6 +5114,8 @@ async function sendProductPage(phone, conv, { announce = true } = {}) {
 
 async function showProducts(phone, conv, query, originalText) {
   clearAlternativeOffer(conv);
+  conv.lastComparedProducts = [];
+  conv.lastComparisonAt = 0;
   const budget = extractBudgetLimit(originalText);
   conv.lastBudgetLimit = budget;
   const products = await searchProducts(query, originalText);
@@ -7161,6 +7181,9 @@ async function handleMessage({
   {
     const pair = asksProductComparison(text) ? resolveComparisonProducts(conv, text) : [];
     if (pair.length === 2) {
+      conv.lastComparedProducts = pair.map((product) => compactProduct(product));
+      conv.lastComparisonAt = Date.now();
+      saveStateSoon();
       await sendText(phone, productComparisonReply(pair[0], pair[1], text));
       await markConversationStatus(
         phone,
