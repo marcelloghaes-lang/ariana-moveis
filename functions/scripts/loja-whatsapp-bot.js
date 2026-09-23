@@ -4612,6 +4612,221 @@ function productObjectiveFacts(product = {}) {
   return facts;
 }
 
+function technicalFeatureList(details = {}) {
+  const text = productSafeDetailText(details);
+  const n = normalize(text);
+  const catalog = [
+    ['Frost Free', /\bfrost free\b/],
+    ['Função Turbo', /\bfuncao turbo\b|\bturbo freezer\b|\bturbo resfriamento\b/],
+    ['Filtro antiodor', /\bfiltro antiodor\b/],
+    ['Iluminação LED', /\biluminacao\b.{0,20}\bled\b|\bluz(?:es)? led\b/],
+    ['Painel eletrônico', /\bpainel\b.{0,25}\beletronico\b/],
+    ['Espaço Flex', /\bespaco flex\b/],
+    ['Prateleira Flex', /\bprateleira flex\b/],
+    ['Prateleiras ajustáveis', /\bprateleir\w*\b.{0,35}\b(?:ajust|flexiv|niveis? de ajuste)\w*\b/],
+    ['Gaveta HortiFruti', /\bhortifruti\b/],
+    ['Espaço Frio', /\bespaco frio\b/],
+    ['Gelo Extra', /\bgelo extra\b/],
+    ['Inverter', /\binverter\b/],
+    ['Wi-Fi', /\bwi fi\b|\bwifi\b/],
+    ['Bluetooth', /\bbluetooth\b/],
+    ['4K', /\b4k\b|\bultra hd\b|\buhd\b/],
+    ['HDR', /\bhdr\b|\bdolby vision\b/],
+    ['Dolby Audio', /\bdolby audio\b|\bdolby atmos\b/],
+    ['QLED', /\bqled\b/],
+    ['OLED', /\boled\b/],
+    ['Mini LED', /\bmini led\b/],
+    ['Roku TV', /\broku\b/],
+    ['Google TV', /\bgoogle tv\b/],
+    ['Android TV', /\bandroid tv\b/],
+    ['webOS', /\bwebos\b/],
+    ['Comando de voz', /\bcomando de voz\b|\bcontrole por voz\b|\bassistente de voz\b/],
+    ['Alexa', /\balexa\b/],
+    ['5G', /\b5g\b/],
+    ['NFC', /\bnfc\b/],
+    ['Tela AMOLED', /\bamoled\b/],
+    ['Tela 120 Hz', /\b120\s*hz\b/],
+    ['Air Fryer', /\bair fryer\b/],
+    ['Grill', /\bgrill\b/],
+    ['Timer', /\btimer\b/],
+    ['Acendimento automático', /\bacendimento automatico\b/],
+    ['Mesa de vidro', /\bmesa\b.{0,20}\bvidro\b/],
+    ['Vapor', /\bvapor\b|\bsteam\b/],
+    ['Água quente', /\bagua quente\b/],
+    ['Secagem', /\bsecagem\b|\bseca roupas\b/],
+    ['Motor Direct Drive', /\bdirect drive\b/],
+    ['USB-C', /\busb c\b/],
+    ['Carregamento sem fio', /\bcarregamento sem fio\b|\bwireless charging\b/],
+    ['Biometria', /\bbiometr\w*\b|\bimpressao digital\b/]
+  ];
+
+  const features = [];
+  for (const [label, pattern] of catalog) {
+    if (pattern.test(n)) features.push(label);
+  }
+  return [...new Set(features)];
+}
+
+function technicalCapacityLiters(product = {}, details = {}) {
+  const text = productSafeDetailText(details);
+  const labeled = text.match(/capacidade(?:\s+liquida)?\s+total\s*:?\s*(\d{2,4}(?:[.,]\d+)?)\s*(?:l|litros?)/i);
+  if (labeled) return Number(String(labeled[1]).replace(',', '.')) || 0;
+
+  const fallback = String(product.name || '').match(/\b(\d{2,4})\s*(?:l|litro|litros)\b/i);
+  return fallback ? Number(fallback[1]) || 0 : 0;
+}
+
+function technicalEnergyClass(details = {}) {
+  const text = productSafeDetailText(details);
+  const match = text.match(/(?:classificacao|eficiencia)\s+energetica\s*:?\s*([A-G](?:\+{1,3})?)/i);
+  return match ? String(match[1] || '').toUpperCase() : '';
+}
+
+function technicalEnergyConsumption(details = {}) {
+  const text = productSafeDetailText(details);
+  const match = text.match(/consumo(?:\s+aproximado)?(?:\s+de energia)?\s*:?\s*(\d+(?:[.,]\d+)?)\s*kwh\s*\/?\s*mes/i);
+  return match ? Number(String(match[1]).replace(',', '.')) || 0 : 0;
+}
+
+function technicalDefrost(details = {}) {
+  const n = normalize(productSafeDetailText(details));
+  if (/\bfrost free\b/.test(n)) return 'Frost Free';
+  if (/\bcycle defrost\b/.test(n)) return 'Cycle Defrost';
+  if (/\bdegelo manual\b|\bmanual\b.{0,20}\bdegelo\b/.test(n)) return 'Degelo manual';
+  return '';
+}
+
+function technicalComparisonProfile(product = {}, details = {}) {
+  return {
+    product,
+    details,
+    capacityLiters: technicalCapacityLiters(product, details),
+    dimensions: productDimensions(details),
+    color: productColor(details),
+    voltage: productVoltage(details),
+    warranty: productWarranty(details),
+    defrost: technicalDefrost(details),
+    energyClass: technicalEnergyClass(details),
+    energyConsumption: technicalEnergyConsumption(details),
+    features: technicalFeatureList(details)
+  };
+}
+
+function formatTechnicalDimensions(dimensions = {}) {
+  const parts = [];
+  if (Number(dimensions.width || 0)) parts.push(`${dimensions.width} cm L`);
+  if (Number(dimensions.height || 0)) parts.push(`${dimensions.height} cm A`);
+  if (Number(dimensions.depth || 0)) parts.push(`${dimensions.depth} cm P`);
+  return parts.join(' × ');
+}
+
+async function detailedProductComparisonReply(first = {}, second = {}, text = '') {
+  const [firstDetails, secondDetails] = await Promise.all([
+    fetchProductSafeDetails(first),
+    fetchProductSafeDetails(second)
+  ]);
+
+  if (!firstDetails || !secondDetails) {
+    return productComparisonReply(first, second, text);
+  }
+
+  const a = technicalComparisonProfile(first, firstDetails);
+  const b = technicalComparisonProfile(second, secondDetails);
+  const lines = ['Comparei a ficha técnica dos dois para te mostrar o que realmente muda 😊', ''];
+
+  lines.push(`*1. ${first.name}*`);
+  lines.push(`*2. ${second.name}*`);
+  lines.push('');
+  lines.push('*Principais diferenças:*');
+
+  if (a.capacityLiters && b.capacityLiters) {
+    if (a.capacityLiters !== b.capacityLiters) {
+      const larger = a.capacityLiters > b.capacityLiters ? a : b;
+      const smaller = larger === a ? b : a;
+      lines.push(
+        `• *Capacidade:* o ${larger === a ? '1º' : '2º'} tem *${larger.capacityLiters} L*, contra *${smaller.capacityLiters} L* do outro — são *${Math.abs(larger.capacityLiters - smaller.capacityLiters)} L a mais*.`
+      );
+    } else {
+      lines.push(`• *Capacidade:* os dois têm *${a.capacityLiters} L*.`);
+    }
+  }
+
+  if (a.defrost || b.defrost) {
+    if (a.defrost && b.defrost && a.defrost === b.defrost) {
+      lines.push(`• *Degelo:* os dois são *${a.defrost}*.`);
+    } else {
+      lines.push(`• *Degelo:* 1º ${a.defrost || 'não informado'} • 2º ${b.defrost || 'não informado'}.`);
+    }
+  }
+
+  const aDims = formatTechnicalDimensions(a.dimensions);
+  const bDims = formatTechnicalDimensions(b.dimensions);
+  if (aDims && bDims && aDims !== bDims) {
+    lines.push(`• *Tamanho:* 1º ${aDims} • 2º ${bDims}.`);
+  }
+
+  if (a.color && b.color) {
+    lines.push(
+      a.color.toLowerCase() === b.color.toLowerCase()
+        ? `• *Cor:* os dois são *${a.color}*.`
+        : `• *Cor:* 1º *${a.color}* • 2º *${b.color}*.`
+    );
+  }
+
+  if (a.voltage && b.voltage && a.voltage !== b.voltage) {
+    lines.push(`• *Voltagem cadastrada:* 1º *${a.voltage}* • 2º *${b.voltage}*.`);
+  }
+
+  if (a.energyClass || b.energyClass) {
+    if (a.energyClass !== b.energyClass) {
+      lines.push(`• *Eficiência energética cadastrada:* 1º ${a.energyClass || 'não informada'} • 2º ${b.energyClass || 'não informada'}.`);
+    }
+  }
+
+  if (a.energyConsumption && b.energyConsumption && a.energyConsumption !== b.energyConsumption) {
+    lines.push(`• *Consumo informado:* 1º ${a.energyConsumption} kWh/mês • 2º ${b.energyConsumption} kWh/mês.`);
+  }
+
+  const commonFeatures = a.features.filter((feature) => b.features.includes(feature));
+  const onlyA = a.features.filter((feature) => !b.features.includes(feature));
+  const onlyB = b.features.filter((feature) => !a.features.includes(feature));
+
+  if (commonFeatures.length) {
+    lines.push(`• *Os dois têm:* ${commonFeatures.slice(0, 6).join(', ')}.`);
+  }
+
+  if (onlyA.length) {
+    lines.push(`• *O 1º tem e o 2º não traz cadastrado:* ${onlyA.slice(0, 7).join(', ')}.`);
+  }
+
+  if (onlyB.length) {
+    lines.push(`• *O 2º tem e o 1º não traz cadastrado:* ${onlyB.slice(0, 7).join(', ')}.`);
+  }
+
+  const firstCash = productCashPrice(first);
+  const secondCash = productCashPrice(second);
+  if (firstCash !== secondCash) {
+    const cheaper = firstCash < secondCash ? first : second;
+    lines.push(`• *Preço no PIX:* 1º ${money(firstCash)} • 2º ${money(secondCash)}. *${cheaper.name}* é ${money(Math.abs(firstCash - secondCash))} mais barato no PIX.`);
+  } else {
+    lines.push(`• *Preço no PIX:* os dois estão em ${money(firstCash)}.`);
+  }
+
+  if (onlyA.length !== onlyB.length) {
+    const richer = onlyA.length > onlyB.length ? first : second;
+    const richerNumber = richer === first ? '1º' : '2º';
+    const richerFeatures = richer === first ? onlyA : onlyB;
+    lines.push('');
+    lines.push(
+      `Pela *ficha cadastrada*, o ${richerNumber} reúne mais recursos diferenciados entre esses dois, como *${richerFeatures.slice(0, 4).join(', ')}*. Isso não significa que ele seja melhor em tudo, mas ele é mais completo nesses recursos.`
+    );
+  }
+
+  lines.push('');
+  lines.push('Se quiser, eu também posso procurar *um modelo do mesmo tipo com mais tecnologia/recursos* do que esses.');
+  return lines.join('\n');
+}
+
 function productComparisonReply(first = {}, second = {}, text = '') {
   const rows = [first, second];
   const focus = comparisonFocus(text);
@@ -7184,7 +7399,7 @@ async function handleMessage({
       conv.lastComparedProducts = pair.map((product) => compactProduct(product));
       conv.lastComparisonAt = Date.now();
       saveStateSoon();
-      await sendText(phone, productComparisonReply(pair[0], pair[1], text));
+      await sendText(phone, await detailedProductComparisonReply(pair[0], pair[1], text));
       await markConversationStatus(
         phone,
         conv,
@@ -8426,6 +8641,13 @@ export const __test = {
   resolveComparisonProducts,
   productObjectiveMetrics,
   productObjectiveFacts,
+  technicalFeatureList,
+  technicalCapacityLiters,
+  technicalEnergyClass,
+  technicalEnergyConsumption,
+  technicalDefrost,
+  technicalComparisonProfile,
+  detailedProductComparisonReply,
   productComparisonReply,
   asksPausePurchaseDecision,
   asksPurchaseClosing,
