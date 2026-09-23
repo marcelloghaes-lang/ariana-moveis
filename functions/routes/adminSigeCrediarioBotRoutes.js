@@ -10330,24 +10330,356 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       await recibo.save();
     }
 
-    await createAdminNotification({
-      type: 'crediario_recibo_sige',
-      title: '🧾 Pagamento SIGE e recibo registrados',
-      message: `${recibo.recibo} - ${recibo.clienteNome} - ${formatMoneyBRL(recibo.valorPago)}`,
-      relatedId: String(recibo._id),
-      severity: whatsapp?.ok === false ? 'warning' : 'info',
-      metadata: {
-        sigeCodigo: codigo,
-        numeroDocumento,
-        recibo: recibo.recibo,
-        clienteNome: recibo.clienteNome,
-        valorPago: recibo.valorPago,
-        whatsapp
-      }
-    });
+    if (body.notificarAdmin !== false) {
+      await createAdminNotification({
+        type: 'crediario_recibo_sige',
+        title: '🧾 Pagamento SIGE e recibo registrados',
+        message: `${recibo.recibo} - ${recibo.clienteNome} - ${formatMoneyBRL(recibo.valorPago)}`,
+        relatedId: String(recibo._id),
+        severity: whatsapp?.ok === false ? 'warning' : 'info',
+        metadata: {
+          sigeCodigo: codigo,
+          numeroDocumento,
+          recibo: recibo.recibo,
+          clienteNome: recibo.clienteNome,
+          valorPago: recibo.valorPago,
+          whatsapp
+        }
+      });
+    }
 
     return { recibo, criadoAgora: true, whatsapp };
   }
+
+
+  function normalizeRecebimentoClienteText(value = '') {
+    return String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+      .replace(/\s+/g, ' ');
+  }
+
+  function buildRecebimentoClienteResumo(data = {}, query = '') {
+    const parcelasOriginais = Array.isArray(data?.parcelas) ? data.parcelas : [];
+    const queryNorm = normalizeRecebimentoClienteText(query);
+    const nomes = Array.from(new Set(
+      parcelasOriginais
+        .map((item) => String(item?.cliente || '').trim())
+        .filter(Boolean)
+    ));
+
+    let clienteNome = String(data?.cliente || '').trim();
+    const nomeExato = nomes.find((nome) => normalizeRecebimentoClienteText(nome) === queryNorm);
+    if (nomeExato) clienteNome = nomeExato;
+    if (!clienteNome && nomes.length === 1) clienteNome = nomes[0];
+
+    if (!nomeExato && nomes.length > 1 && !clienteNome) {
+      const err = new Error('A busca corresponde a mais de um cliente. Selecione o nome completo.');
+      err.statusCode = 409;
+      err.clientes = nomes.slice(0, 20);
+      throw err;
+    }
+
+    const alvoNorm = normalizeRecebimentoClienteText(clienteNome);
+    const parcelas = alvoNorm
+      ? parcelasOriginais.filter((item) => {
+          const itemNome = normalizeRecebimentoClienteText(item?.cliente || clienteNome);
+          return !itemNome || itemNome === alvoNorm;
+        })
+      : parcelasOriginais;
+
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
+    const abertos = parcelas
+      .map((item) => {
+        const quitado =
+          item?.quitado === true ||
+          ['paga', 'pago', 'quitada', 'quitado', 'paid'].includes(String(item?.status || '').toLowerCase());
+        const saldo = Math.max(0, Number(item?.saldoParcela ?? item?.saldo ?? 0));
+        const codigo = Number(item?.codigo ?? item?.Codigo ?? item?.codigoLancamento ?? 0);
+        const vencimento = item?.dataVencimento || item?.DataVencimento || null;
+        const venc = vencimento ? new Date(vencimento) : null;
+        const vencida =
+          !quitado &&
+          (
+            item?.vencida === true ||
+            (
+              venc &&
+              !Number.isNaN(venc.getTime()) &&
+              venc < hoje
+            )
+          );
+        const atualizado = Number(
+          item?.atualizacaoFinanceira?.valorAtualizado ??
+          saldo
+        );
+        return {
+          codigo,
+          saldo: Number(saldo.toFixed(2)),
+          atualizado: Number((Number.isFinite(atualizado) ? atualizado : saldo).toFixed(2)),
+          vencimento,
+          vencida,
+          diasAtraso: Number(item?.atualizacaoFinanceira?.diasAtraso || 0)
+        };
+      })
+      .filter((item) => item.saldo > 0.009)
+      .sort((a, b) => {
+        if (a.vencida !== b.vencida) return a.vencida ? -1 : 1;
+        const ta = a.vencimento ? new Date(a.vencimento).getTime() : Number.MAX_SAFE_INTEGER;
+        const tb = b.vencimento ? new Date(b.vencimento).getTime() : Number.MAX_SAFE_INTEGER;
+        return ta - tb;
+      });
+
+    const saldoTotal = Number(abertos.reduce((sum, item) => sum + item.saldo, 0).toFixed(2));
+    const saldoVencido = Number(abertos.filter((item) => item.vencida).reduce((sum, item) => sum + item.saldo, 0).toFixed(2));
+    const saldoAtualizadoVencido = Number(abertos.filter((item) => item.vencida).reduce((sum, item) => sum + item.atualizado, 0).toFixed(2));
+    const saldoAVencer = Number(Math.max(0, saldoTotal - saldoVencido).toFixed(2));
+    const baixaveis = abertos.filter((item) => Number.isInteger(item.codigo) && item.codigo > 0);
+    const saldoBaixavel = Number(baixaveis.reduce((sum, item) => sum + item.saldo, 0).toFixed(2));
+
+    return {
+      cliente: {
+        nome: clienteNome,
+        cpf: String(data?.cpf || ''),
+        telefone: String(data?.telefone || '')
+      },
+      saldo: {
+        total: saldoTotal,
+        vencido: saldoVencido,
+        vencidoAtualizado: saldoAtualizadoVencido,
+        aVencer: saldoAVencer,
+        baixavel: saldoBaixavel
+      },
+      quantidade: {
+        lancamentosEmAberto: abertos.length,
+        lancamentosVencidos: abertos.filter((item) => item.vencida).length,
+        lancamentosBaixaveis: baixaveis.length,
+        lancamentosSemCodigo: abertos.length - baixaveis.length
+      },
+      itens: abertos
+    };
+  }
+
+  app.get('/api/admin/financeiro/recebimento-cliente', adminRequired, async (req, res) => {
+    try {
+      const q = String(req.query.q || req.query.cliente || req.query.cpf || '').trim();
+      if (q.length < 2) {
+        return res.status(400).json({ ok: false, error: 'Informe o cliente para consultar o saldo.' });
+      }
+
+      const data = await getUnifiedFinancialData(q, { limit: 10000, maxRecords: 30000 });
+      const resumo = buildRecebimentoClienteResumo(data, q);
+
+      return res.json({
+        ok: true,
+        fonteFinanceira: 'sige',
+        cliente: resumo.cliente,
+        saldo: resumo.saldo,
+        quantidade: resumo.quantidade,
+        regraBaixa: 'vencidas_mais_antigas_primeiro'
+      });
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({
+        ok: false,
+        error: error.message || 'Erro ao consultar o saldo consolidado do cliente.',
+        clientes: error.clientes || undefined
+      });
+    }
+  });
+
+  app.post('/api/admin/financeiro/recebimento-cliente', adminRequired, async (req, res) => {
+    try {
+      if (!isSigeConfigured()) {
+        return res.status(503).json({ ok: false, error: 'Integração com o SIGE não está configurada.' });
+      }
+
+      const body = req.body || {};
+      const q = String(body.q || body.cliente || body.cpf || '').trim();
+      const valorSolicitado = parseSigeMoney(body.valor ?? body.valorPago ?? 0);
+      const formaPagamento = String(body.formaPagamento || 'PIX').trim();
+      const contaBancaria = String(body.contaBancaria || 'ariana moveis').trim();
+      const dataInformada = body.data || body.dataPagamento || null;
+      const dataPagamento = dataInformada ? new Date(dataInformada) : new Date();
+
+      if (q.length < 2) {
+        return res.status(400).json({ ok: false, error: 'Informe o cliente para registrar o recebimento.' });
+      }
+      if (!Number.isFinite(valorSolicitado) || valorSolicitado <= 0) {
+        return res.status(400).json({ ok: false, error: 'Informe um valor recebido válido.' });
+      }
+      if (!formaPagamento || !contaBancaria) {
+        return res.status(400).json({ ok: false, error: 'Informe forma de pagamento e conta bancária.' });
+      }
+      if (Number.isNaN(dataPagamento.getTime())) {
+        return res.status(400).json({ ok: false, error: 'Data do recebimento inválida.' });
+      }
+
+      const dataAntes = await getUnifiedFinancialData(q, { limit: 10000, maxRecords: 30000 });
+      const resumoAntes = buildRecebimentoClienteResumo(dataAntes, q);
+
+      if (resumoAntes.saldo.total <= 0.009) {
+        return res.status(409).json({ ok: false, error: 'Este cliente não possui saldo em aberto no SIGE.' });
+      }
+      if (valorSolicitado > resumoAntes.saldo.total + 0.009) {
+        return res.status(422).json({
+          ok: false,
+          error: 'O valor recebido não pode ultrapassar o saldo devedor de ' + formatMoneyBRL(resumoAntes.saldo.total) + '.',
+          saldo: resumoAntes.saldo
+        });
+      }
+      if (valorSolicitado > resumoAntes.saldo.baixavel + 0.009) {
+        return res.status(422).json({
+          ok: false,
+          error: 'Parte do saldo não possui código de lançamento válido no SIGE e não pode ser baixada automaticamente.',
+          saldo: resumoAntes.saldo,
+          quantidade: resumoAntes.quantidade
+        });
+      }
+
+      const documentoMestre = String(
+        body.numeroDocumento ||
+        ('REC-CLI-' + Date.now() + '-' + crypto.randomBytes(3).toString('hex').toUpperCase())
+      ).trim();
+
+      const localApiBase = 'http://127.0.0.1:' + Number(process.env.PORT || 3000) + '/api';
+      const autorizacao = String(req.headers.authorization || '');
+      const itens = resumoAntes.itens.filter((item) => Number.isInteger(item.codigo) && item.codigo > 0);
+      const aplicacoes = [];
+      let restante = Number(valorSolicitado.toFixed(2));
+      let falha = null;
+
+      for (let i = 0; i < itens.length && restante > 0.009; i += 1) {
+        const item = itens[i];
+        const valorAplicar = Number(Math.min(restante, item.saldo).toFixed(2));
+        if (valorAplicar <= 0) continue;
+
+        const numeroDocumento = documentoMestre + '-' + String(i + 1).padStart(3, '0');
+        const response = await axios.post(
+          localApiBase + '/admin/financeiro/lancamentos/' + encodeURIComponent(item.codigo) + '/pagamentos',
+          {
+            valor: valorAplicar,
+            formaPagamento,
+            contaBancaria,
+            conciliado: true,
+            data: dataPagamento.toISOString(),
+            numeroDocumento,
+            clienteNome: resumoAntes.cliente.nome,
+            clienteCpf: resumoAntes.cliente.cpf,
+            telefone: resumoAntes.cliente.telefone,
+            observacao: 'Recebimento consolidado do cliente. Documento mestre: ' + documentoMestre + '.',
+            enviarWhatsapp: false,
+            notificarAdmin: false
+          },
+          {
+            headers: {
+              Authorization: autorizacao,
+              'Content-Type': 'application/json'
+            },
+            timeout: Number(SIGE_TIMEOUT_MS || 30000) + 10000,
+            validateStatus: () => true
+          }
+        );
+
+        if (response.status < 200 || response.status >= 300 || response.data?.ok !== true) {
+          falha = {
+            codigo: item.codigo,
+            valor: valorAplicar,
+            status: response.status,
+            error: response.data?.error || response.data?.message || 'Falha ao registrar parte do recebimento.'
+          };
+          break;
+        }
+
+        aplicacoes.push({
+          codigo: item.codigo,
+          valor: valorAplicar,
+          numeroDocumento,
+          saldoAntes: Number(response.data?.saldoAntes ?? item.saldo),
+          saldoDepois: Number(response.data?.saldoDepois ?? Math.max(0, item.saldo - valorAplicar))
+        });
+        restante = Number(Math.max(0, restante - valorAplicar).toFixed(2));
+      }
+
+      const valorAplicado = Number(aplicacoes.reduce((sum, item) => sum + item.valor, 0).toFixed(2));
+      const dataDepois = await getUnifiedFinancialData(q, { limit: 10000, maxRecords: 30000 });
+      const resumoDepois = buildRecebimentoClienteResumo(dataDepois, q);
+      const parcial = restante > 0.009;
+
+      await registrarAuditoriaFinanceira({
+        req,
+        acao: parcial ? 'RECEBIMENTO_CLIENTE_PARCIAL' : 'RECEBIMENTO_CLIENTE_CONFIRMADO',
+        entidade: 'ClienteSige',
+        entidadeId: resumoAntes.cliente.cpf || resumoAntes.cliente.nome || q,
+        codigo: documentoMestre,
+        antes: { saldo: resumoAntes.saldo.total },
+        depois: {
+          saldo: resumoDepois.saldo.total,
+          valorRecebido: valorAplicado
+        },
+        metadata: {
+          valorSolicitado: Number(valorSolicitado.toFixed(2)),
+          valorAplicado,
+          restanteNaoAplicado: restante,
+          formaPagamento,
+          contaBancaria,
+          aplicacoes,
+          falha
+        },
+        sucesso: !parcial
+      });
+
+      await createAdminNotification({
+        type: 'financeiro_recebimento_cliente',
+        title: parcial ? '⚠️ Recebimento parcialmente registrado' : '💰 Recebimento registrado',
+        message:
+          (resumoAntes.cliente.nome || q) +
+          ' - recebido ' +
+          formatMoneyBRL(valorAplicado) +
+          ' - saldo atual ' +
+          formatMoneyBRL(resumoDepois.saldo.total),
+        relatedId: documentoMestre,
+        severity: parcial ? 'warning' : 'info',
+        metadata: {
+          cliente: resumoAntes.cliente,
+          valorSolicitado: Number(valorSolicitado.toFixed(2)),
+          valorAplicado,
+          saldoAntes: resumoAntes.saldo.total,
+          saldoDepois: resumoDepois.saldo.total,
+          documentoMestre,
+          parcial,
+          falha
+        }
+      });
+
+      return res.status(parcial ? 207 : 200).json({
+        ok: !parcial,
+        partial: parcial,
+        fonteFinanceira: 'sige',
+        message: parcial
+          ? 'Uma parte do recebimento foi registrada. Confira o valor aplicado antes de tentar novamente.'
+          : 'Recebimento registrado com sucesso no SIGE.',
+        cliente: resumoDepois.cliente,
+        valorSolicitado: Number(valorSolicitado.toFixed(2)),
+        valorAplicado,
+        restanteNaoAplicado: restante,
+        saldoAntes: resumoAntes.saldo,
+        saldoDepois: resumoDepois.saldo,
+        documentoMestre,
+        aplicacoes,
+        falha
+      });
+    } catch (error) {
+      console.error('[financeiro recebimento cliente]', error.message || error);
+      return res.status(error.statusCode || 500).json({
+        ok: false,
+        error: error.message || 'Erro ao registrar o recebimento consolidado.'
+      });
+    }
+  });
 
   app.post('/api/admin/financeiro/lancamentos/:codigo/pagamentos', adminRequired, async (req, res) => {
     try {
