@@ -970,7 +970,109 @@ function compactProduct(product = {}) {
     oldPrice: Number(product.oldPrice || 0),
     installmentCount: Number(product.installmentCount || 12),
     stock: Number(product.stock || 0),
+    sellerName: String(product.sellerName || '').trim(),
+    isBestSeller: product.isBestSeller === true,
+    isRecommended: product.isRecommended === true,
     imageUrl: productPrimaryImage(product)
+  };
+}
+
+async function fetchProductSafeDetails(product = {}) {
+  const id = productId(product);
+  if (!id) return null;
+
+  try {
+    const data = await backend(`/api/products/${encodeURIComponent(id)}`);
+    const raw = data?.product && typeof data.product === 'object' ? data.product : data;
+    if (!raw || typeof raw !== 'object') return null;
+
+    return {
+      id,
+      name: String(raw.name || product.name || '').trim(),
+      brand: String(raw.brand || product.brand || '').trim(),
+      category: String(raw.category || raw.categoryName || product.category || '').trim(),
+      description: String(raw.description || raw.descricao || '').trim(),
+      specs: String(raw.specs || raw.specifications || raw.technicalSpecifications || '').trim(),
+      stock: Number(raw.stock ?? product.stock ?? 0),
+      width: Number(raw.width || 0),
+      height: Number(raw.height || 0),
+      depth: Number(raw.depth || raw.length || 0),
+      weight: Number(raw.weight || 0),
+      isBestSeller: raw.isBestSeller === true || product.isBestSeller === true,
+      isRecommended: raw.isRecommended === true || product.isRecommended === true
+    };
+  } catch (error) {
+    console.warn('[loja-bot] detalhe público do produto indisponível:', id, error?.message || error);
+    return null;
+  }
+}
+
+function productSafeDetailText(details = {}) {
+  return [details.name, details.description, details.specs]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function productWarranty(details = {}) {
+  const text = productSafeDetailText(details);
+  const match = text.match(/garantia[^\n:]{0,45}:?\s*(\d{1,3})\s*(mes(?:es)?|meses?|ano(?:s)?)/i);
+  if (!match) return '';
+  return `${match[1]} ${normalize(match[2]).startsWith('ano') ? (Number(match[1]) === 1 ? 'ano' : 'anos') : (Number(match[1]) === 1 ? 'mês' : 'meses')}`;
+}
+
+function productVoltage(details = {}) {
+  const text = productSafeDetailText(details);
+  if (/\bbivolt\b/i.test(text)) return 'Bivolt';
+
+  const labeled = text.match(/voltagem\s*:?\s*([^\n]{1,40})/i);
+  if (labeled) return labeled[1].trim().replace(/\s+/g, ' ');
+
+  const values = [...text.matchAll(/\b(110|127|220)\s*v\b/gi)].map((match) => `${match[1]}V`);
+  return [...new Set(values)].join(' / ');
+}
+
+function productColor(details = {}) {
+  const text = productSafeDetailText(details);
+  const labeled = text.match(/cor(?:\s+predominante)?\s*:?\s*([^\n]{1,40})/i);
+  if (labeled) return labeled[1].trim().replace(/\s+/g, ' ');
+
+  const n = normalize(details.name || '');
+  for (const [needle, label] of [
+    ['branco', 'Branco'],
+    ['branca', 'Branco'],
+    ['preto', 'Preto'],
+    ['preta', 'Preto'],
+    ['inox', 'Inox'],
+    ['cinza', 'Cinza'],
+    ['prata', 'Prata'],
+    ['vermelho', 'Vermelho'],
+    ['vermelha', 'Vermelho']
+  ]) {
+    if (new RegExp(`\\b${needle}\\b`).test(n)) return label;
+  }
+  return '';
+}
+
+function productDimensions(details = {}) {
+  return {
+    width: Number(details.width || 0),
+    height: Number(details.height || 0),
+    depth: Number(details.depth || 0)
+  };
+}
+
+function extractSpaceDimensions(text = '') {
+  const n = normalize(text).replace(/,/g, '.');
+  const pick = (pattern) => {
+    const match = n.match(pattern);
+    const value = Number(match?.[1] || 0);
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  };
+
+  return {
+    width: pick(/\blargura\b.{0,15}?(\d+(?:\.\d+)?)/),
+    height: pick(/\baltura\b.{0,15}?(\d+(?:\.\d+)?)/),
+    depth: pick(/\b(?:profundidade|fundo)\b.{0,15}?(\d+(?:\.\d+)?)/)
   };
 }
 
