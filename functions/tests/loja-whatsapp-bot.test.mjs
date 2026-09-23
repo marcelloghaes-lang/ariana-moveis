@@ -22,9 +22,9 @@ process.env.LOJA_BOT_API_TOKEN = 'test-loja-token';
 process.env.LOJA_EVOLUTION_INSTANCE = 'ariana loja';
 process.env.LOJA_VISION_OPENAI_API_KEY = 'test-vision-key';
 process.env.LOJA_VISION_MODEL = 'gpt-5.6-luna';
-process.env.LOJA_AUDIO_TRANSCRIBE_MODEL = 'gpt-4o-mini-transcribe';
+process.env.LOJA_AUDIO_TRANSCRIBE_MODEL = 'gpt-transcribe';
 process.env.LOJA_AUDIO_MAX_SECONDS = '600';
-process.env.LOJA_AUDIO_USD_PER_MINUTE = '0.003';
+process.env.LOJA_AUDIO_USD_PER_MINUTE = '0.0045';
 
 copyFileSync(sourcePath, modulePath);
 const imported = await import(pathToFileURL(modulePath).href + '?v=' + Date.now());
@@ -4014,6 +4014,17 @@ test('áudio recebido do cliente é transcrito e segue o mesmo atendimento de te
     requestLog.some((item) => item.href === 'https://api.openai.com/v1/audio/transcriptions'),
     'deve chamar a transcrição da OpenAI'
   );
+
+  const transcriptionRequest = requestLog.find(
+    (item) => item.href === 'https://api.openai.com/v1/audio/transcriptions'
+  );
+  assert.equal(transcriptionRequest.options.body.get('model'), 'gpt-transcribe');
+  assert.equal(transcriptionRequest.options.body.get('language'), 'pt');
+  assert.match(
+    String(transcriptionRequest.options.body.get('prompt') || ''),
+    /dinheiro da prestação|não deu para mandar no PIX/i
+  );
+
   assert.ok(
     sentMedia.some((item) => /Geladeira Frost Free 400L/i.test(item.caption || '')),
     'texto transcrito deve entrar na busca normal de produtos'
@@ -4022,7 +4033,7 @@ test('áudio recebido do cliente é transcrito e segue o mesmo atendimento de te
   const budget = bot.visionBudgetStatus();
   assert.equal(budget.audioRequests, 1);
   assert.equal(budget.audioSeconds, 12);
-  assert.equal(budget.usedBrl, 0.0036);
+  assert.equal(budget.usedBrl, 0.0054);
 });
 
 test('áudio avisando que dinheiro foi deixado para pagamento vai ao financeiro e não ao fallback comercial', async () => {
