@@ -5945,6 +5945,143 @@ test('objeção de preço procura alternativas realmente mais baratas da mesma c
   assert.doesNotMatch(sentMedia.map((item) => item.caption).join('\n'), /Premium 500/i);
 });
 
+test('comparação entende formas populares e frases imperfeitas do WhatsApp', () => {
+  const phrases = [
+    'qual a diferença desse produto por esse?',
+    'qual a diferença desses dois?',
+    'o que muda de um pro outro?',
+    'esse é melhor que aquele?',
+    'qual compensa mais?',
+    'qual vale mais a pena?',
+    'por que esse é mais caro?',
+    'qual tem mais capacidade?',
+    'qual tem a tela maior?',
+    'qual é mais potente?',
+    'qual parcela fica menor?',
+    'qual é mais econômico?',
+    'esse ou aquele?',
+    'qual dos dois?',
+    'esse tem o que o outro não tem?',
+    'compara o primeiro com o segundo'
+  ];
+
+  for (const phrase of phrases) {
+    assert.equal(bot.asksProductComparison(phrase), true, phrase);
+  }
+});
+
+test('frase "qual a diferença desse produto por esse?" compara os dois produtos exibidos', async () => {
+  const phone = '5533977777981';
+  const first = bot.compactProduct(product('cmp-natural-1', 'Geladeira HQ 230 Litros', {
+    category: 'Geladeiras',
+    pixPrice: 2197.40,
+    cardPrice: 2647
+  }));
+  const second = bot.compactProduct(product('cmp-natural-2', 'Geladeira Consul 451 Litros', {
+    category: 'Geladeiras',
+    pixPrice: 3974,
+    cardPrice: 4787.95
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastProducts: [first, second],
+    lastProductQuery: 'geladeira',
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'qual a diferença desse produto por esse?',
+    pushName: 'Cliente Comparação'
+  });
+
+  const reply = sentTexts.at(-1).text;
+  assert.match(reply, /Geladeira HQ 230 Litros/i);
+  assert.match(reply, /Geladeira Consul 451 Litros/i);
+  assert.match(reply, /R\$\s*2\.197,40/i);
+  assert.match(reply, /R\$\s*3\.974,00/i);
+  assert.doesNotMatch(reply, /melhor produto|qualidade superior|é muito melhor/i);
+});
+
+test('comparação por capacidade responde objetivamente quando os litros estão confirmados', async () => {
+  const phone = '5533977777982';
+  const first = bot.compactProduct(product('cmp-cap-1', 'Geladeira HQ 230 Litros', {
+    category: 'Geladeiras',
+    pixPrice: 2197.40,
+    cardPrice: 2647
+  }));
+  const second = bot.compactProduct(product('cmp-cap-2', 'Geladeira Consul 451 Litros', {
+    category: 'Geladeiras',
+    pixPrice: 3974,
+    cardPrice: 4787.95
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastProducts: [first, second],
+    lastProductQuery: 'geladeira',
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'qual tem mais capacidade?',
+    pushName: 'Cliente Comparação'
+  });
+
+  const reply = sentTexts.at(-1).text;
+  assert.equal(bot.comparisonFocus('qual tem mais capacidade?'), 'capacity');
+  assert.match(reply, /Consul 451 Litros.*451 L.*230 L/is);
+});
+
+test('comparação por tela e potência usa somente medidas presentes no nome do produto', () => {
+  const tv1 = bot.compactProduct(product('cmp-tv-1', 'Smart TV LG 43 4K', {
+    category: 'TVs',
+    pixPrice: 1800,
+    cardPrice: 2160
+  }));
+  const tv2 = bot.compactProduct(product('cmp-tv-2', 'Smart TV Samsung 50 4K', {
+    category: 'TVs',
+    pixPrice: 2200,
+    cardPrice: 2640
+  }));
+  const sound1 = bot.compactProduct(product('cmp-w-1', 'Caixa de Som 500W', {
+    category: 'Caixa de som',
+    pixPrice: 800,
+    cardPrice: 960
+  }));
+  const sound2 = bot.compactProduct(product('cmp-w-2', 'Caixa de Som 1200W', {
+    category: 'Caixa de som',
+    pixPrice: 1300,
+    cardPrice: 1560
+  }));
+
+  const tvReply = bot.productComparisonReply(tv1, tv2, 'qual tem a tela maior?');
+  assert.match(tvReply, /Samsung 50 4K.*50 polegadas.*43 polegadas/is);
+
+  const powerReply = bot.productComparisonReply(sound1, sound2, 'qual é mais potente?');
+  assert.match(powerReply, /1200W.*1200 W.*500 W/is);
+});
+
+test('pergunta sobre motivo de preço não faz Gustavo inventar justificativa técnica', () => {
+  const first = bot.compactProduct(product('cmp-reason-1', 'Geladeira A 300 Litros', {
+    category: 'Geladeiras',
+    pixPrice: 2500,
+    cardPrice: 3000
+  }));
+  const second = bot.compactProduct(product('cmp-reason-2', 'Geladeira B 400 Litros', {
+    category: 'Geladeiras',
+    pixPrice: 3200,
+    cardPrice: 3850
+  }));
+
+  const reply = bot.productComparisonReply(first, second, 'por que esse é mais caro?');
+
+  assert.equal(bot.comparisonFocus('por que esse é mais caro?'), 'price_reason');
+  assert.match(reply, /diferença de preço está confirmada/i);
+  assert.match(reply, /não comprovam o motivo técnico/i);
+  assert.doesNotMatch(reply, /porque.*qualidade|porque.*melhor|porque.*premium/i);
+});
+
 test('comparação de dois produtos usa dados objetivos e não inventa vencedor de qualidade', async () => {
   const phone = '5533977777912';
   const first = bot.compactProduct(product('cmp-1', 'Geladeira HQ 230 Litros', {
