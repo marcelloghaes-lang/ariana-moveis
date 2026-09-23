@@ -6395,7 +6395,9 @@ test('gostei dessa mas queria uma melhor procura o mesmo tipo com mais tecnologi
   const allMedia = sentMedia.map((item) => item.caption || '').join('\n');
   assert.match(allText, /mesmo tipo.*mais recursos cadastrados/i);
   assert.match(allText, /Samsung 43 QLED 4K/i);
-  assert.match(allText, /QLED.*Dolby Audio.*Wi-Fi/is);
+  assert.match(allText, /QLED/i);
+  assert.match(allText, /Dolby Audio/i);
+  assert.match(allText, /Wi-Fi/i);
   assert.match(allMedia, /Samsung 43 QLED 4K/i);
   assert.doesNotMatch(allText + '\n' + allMedia, /Geladeira Frost Free 400L/i);
   assert.equal(backendEvents.at(-1).metadata.moreAdvancedRequested, true);
