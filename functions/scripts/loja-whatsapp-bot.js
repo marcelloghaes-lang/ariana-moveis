@@ -5661,7 +5661,21 @@ function technicalFeatureList(details = {}) {
     ['Motor Direct Drive', /\bdirect drive\b/],
     ['USB-C', /\busb c\b/],
     ['Carregamento sem fio', /\bcarregamento sem fio\b|\bwireless charging\b/],
-    ['Biometria', /\bbiometr\w*\b|\bimpressao digital\b/]
+    ['Biometria', /\bbiometr\w*\b|\bimpressao digital\b/],
+    ['Retrátil', /\bretratil\b/],
+    ['Reclinável', /\breclinavel\b/],
+    ['Chaise', /\bchaise\b/],
+    ['Molas ensacadas', /\bmolas ensacadas\b/],
+    ['Pillow Top', /\bpillow top\b/],
+    ['Espelho', /\bespelho\b/],
+    ['Porta USB', /\bporta usb\b|\busb\b/],
+    ['Antiaderente', /\bantiaderente\b/],
+    ['Controle de temperatura', /\bcontrole de temperatura\b|\btemperatura ajustavel\b/],
+    ['Desligamento automático', /\bdesligamento automatico\b/],
+    ['Painel digital', /\bpainel digital\b/],
+    ['Manter aquecido', /\bmanter aquecido\b|\bmantem aquecido\b/],
+    ['Função pulsar', /\bfuncao pulsar\b|\bpulsar\b/],
+    ['Autolimpeza', /\bautolimpeza\b|\bauto limpeza\b/]
   ];
 
   const features = [];
@@ -5673,11 +5687,11 @@ function technicalFeatureList(details = {}) {
 
 function technicalCapacityLiters(product = {}, details = {}) {
   const text = productSafeDetailText(details);
-  const labeled = text.match(/capacidade(?:\s+liquida)?\s+total\s*:?\s*(\d{2,4}(?:[.,]\d+)?)\s*(?:l|litros?)/i);
+  const labeled = text.match(/capacidade(?:\s+liquida)?(?:\s+total|\s+do cesto|\s+do forno|\s+da cuba|\s+da jarra)?\s*:?\s*(\d{1,4}(?:[.,]\d+)?)\s*(?:l|litros?)/i);
   if (labeled) return Number(String(labeled[1]).replace(',', '.')) || 0;
 
-  const fallback = String(product.name || '').match(/\b(\d{2,4})\s*(?:l|litro|litros)\b/i);
-  return fallback ? Number(fallback[1]) || 0 : 0;
+  const fallback = String(product.name || '').match(/\b(\d{1,4}(?:[.,]\d+)?)\s*(?:l|litro|litros)\b/i);
+  return fallback ? Number(String(fallback[1]).replace(',', '.')) || 0 : 0;
 }
 
 function technicalEnergyClass(details = {}) {
