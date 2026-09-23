@@ -5111,7 +5111,7 @@ async function handlePendingConsultativeRecommendation({ phone, text, pushName =
   }
 
   const contributes =
-    Boolean(recommendationPriority(text)) ||
+    Boolean(recommendationPriority(text, pending.category)) ||
     extractBudgetLimit(text) > 0 ||
     extractHouseholdSize(text) > 0;
 
@@ -5230,7 +5230,7 @@ async function handleCommonProductQuestion({ phone, text, pushName = '', conv })
   const activeRecommendationCategory = recommendationCategoryFromConversation(conv);
   const recommendationHouseholdSize = extractHouseholdSize(text);
   const recommendationBudget = extractBudgetLimit(text);
-  const recommendationPriorityValue = recommendationPriority(text);
+  const recommendationPriorityValue = recommendationPriority(text, explicitRecommendationCategory || activeRecommendationCategory);
   const recommendationHasNeeds =
     recommendationHouseholdSize > 0 ||
     Boolean(recommendationPriorityValue);
