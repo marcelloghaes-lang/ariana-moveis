@@ -387,8 +387,10 @@ test('produto de ontem não é usado automaticamente em pergunta nova sem refer�
   });
 
   assert.doesNotMatch(sentTexts.at(-1).text, /Smart TV LG 43/i);
-  assert.match(sentTexts.at(-1).text, /qual produto|me diga qual produto|qual.*produto/i);
+  assert.match(sentTexts.at(-1).text, /produto|condição/i);
   assert.equal(bot.conversation(phone).selectedProduct, null);
+  assert.equal(bot.conversation(phone).lastProducts.length, 0);
+  assert.equal(bot.conversation(phone).pendingAction, '');
 });
 
 test('resposta "Tudo" após bom dia não retoma pergunta comercial antiga', async () => {
