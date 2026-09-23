@@ -4238,16 +4238,78 @@ function asksProductRecommendation(text = '') {
   );
 }
 
-function recommendationPriority(text = '') {
+function recommendationFamily(category = '') {
+  const c = normalize(category);
+  if (['sofa', 'cama', 'beliche', 'guarda-roupa', 'armario', 'cozinha completa', 'mesa', 'cadeira', 'rack/painel', 'multiuso', 'penteadeira', 'comoda'].includes(c)) {
+    return 'furniture';
+  }
+  if (['celular', 'notebook', 'computador', 'tablet', 'tv', 'caixa de som'].includes(c)) {
+    return 'electronics';
+  }
+  if (['air fryer', 'micro-ondas', 'forno eletrico', 'ventilador', 'liquidificador', 'batedeira', 'cafeteira'].includes(c)) {
+    return 'portable';
+  }
+  if (['geladeira', 'freezer', 'frigobar', 'fogao', 'maquina de lavar', 'tanquinho', 'ar-condicionado'].includes(c)) {
+    return 'appliance';
+  }
+  return 'general';
+}
+
+function recommendationPriority(text = '', category = '') {
   const n = normalize(text);
+  const c = normalize(category);
+  const family = recommendationFamily(c);
+
+  if (family === 'furniture') {
+    if (/\b(lugares?|assentos?|acomodar|acomoda)\b/.test(n) || /\b\d{1,2}\s+pessoas?\b/.test(n)) {
+      return 'seating';
+    }
+    if (/\b(medidas?|dimensoes?|dimensao|largura|altura|profundidade|fundo|cabe|cabem|espaco disponivel|meu espaco|compacto|compacta)\b/.test(n)) {
+      return 'fit';
+    }
+    if (
+      ['guarda-roupa', 'armario', 'cozinha completa', 'multiuso', 'penteadeira', 'comoda', 'rack/painel'].includes(c) &&
+      /\b(portas?|gavetas?|espaco interno|guardar|organizacao|organizacao interna|mais espaco)\b/.test(n)
+    ) {
+      return 'storage';
+    }
+    if (/\bespelho\b/.test(n)) return 'mirror';
+    if (/\b(mdf|mdp|madeira macica|madeira|aco|metal|vidro|suede|veludo|linho|corino|couro|material)\b/.test(n)) {
+      return 'material';
+    }
+    if (/\b(branco|branca|preto|preta|cinza|bege|marrom|amendoa|freijo|off white|cor)\b/.test(n)) {
+      return 'color';
+    }
+    if (c === 'cama' && /\b(solteiro|casal|queen|king)\b/.test(n)) {
+      return 'bed_size';
+    }
+    if (/\b(conforto|confortavel|retratil|reclinavel|chaise|molas|espuma|pillow top)\b/.test(n)) {
+      return 'comfort';
+    }
+  }
+
+  if (c === 'celular') {
+    if (/\b(camera|cameras|foto|fotos|fotografia|megapixel|mp)\b/.test(n)) return 'camera';
+    if (/\b(bateria|mah|autonomia)\b/.test(n)) return 'battery';
+    if (/\b(armazenamento|memoria interna|espaco no celular|gb)\b/.test(n)) return 'storage';
+    if (/\b(desempenho|performance|processador|ram|memoria ram|mais rapido|mais rapida)\b/.test(n)) return 'performance';
+  }
+
+  if (['notebook', 'computador', 'tablet'].includes(c)) {
+    if (/\b(desempenho|performance|processador|ram|memoria ram|mais rapido|mais rapida)\b/.test(n)) return 'performance';
+    if (/\b(armazenamento|ssd|hd|memoria interna|gb|tb)\b/.test(n)) return 'storage';
+    if (/\b(tela maior|maior tela|polegadas|tamanho da tela)\b/.test(n)) return 'screen';
+  }
+
+  if (c === 'fogao' && /\b(bocas?|queimadores?)\b/.test(n)) return 'burners';
 
   if (/\b(economia de energia|economizar energia|gasta menos energia|menor consumo|consumo de energia|mais economica|mais economico)\b/.test(n)) {
     return 'energy';
   }
-  if (/\b(tecnologia|tecnologica|tecnologico|recursos|funcoes|mais completa|mais completo|moderna|moderno)\b/.test(n)) {
+  if (/\b(tecnologia|tecnologica|tecnologico|recursos|funcoes|mais completa|mais completo|moderna|moderno|conectividade|bluetooth|wifi|wi-fi)\b/.test(n)) {
     return 'technology';
   }
-  if (/\b(capacidade|mais espaco|mais espacosa|mais espacoso|maior capacidade|litros|quilo|quilos|kg)\b/.test(n)) {
+  if (/\b(capacidade|mais espaco|mais espacosa|mais espacoso|maior capacidade|litros|quilo|quilos|kg|btus?|btu)\b/.test(n)) {
     return 'capacity';
   }
   if (/\b(tela maior|maior tela|polegadas|tamanho da tela)\b/.test(n)) {
@@ -4304,6 +4366,83 @@ function recommendationCategoryFromConversation(conv = {}) {
   );
 }
 
+function extractDesiredSeats(text = '', category = '') {
+  const c = normalize(category);
+  if (!['sofa', 'mesa', 'cadeira'].includes(c)) return 0;
+  const n = normalize(text);
+  const match =
+    n.match(/\b(?:para|de|com)\s+(\d{1,2})\s+(?:lugares?|pessoas?)\b/) ||
+    n.match(/\b(\d{1,2})\s+(?:lugares?|assentos?)\b/);
+  const value = Number(match?.[1] || 0);
+  return Number.isFinite(value) && value >= 1 && value <= 20 ? value : 0;
+}
+
+function extractMaterialPreference(text = '') {
+  const n = normalize(text);
+  const materials = [
+    ['MDF', /\bmdf\b/],
+    ['MDP', /\bmdp\b/],
+    ['Madeira maciça', /\bmadeira macica\b/],
+    ['Madeira', /\bmadeira\b/],
+    ['Aço', /\baco\b/],
+    ['Metal', /\bmetal\b/],
+    ['Vidro', /\bvidro\b/],
+    ['Suede', /\bsuede\b/],
+    ['Veludo', /\bveludo\b/],
+    ['Linho', /\blinho\b/],
+    ['Corino', /\bcorino\b/],
+    ['Couro', /\bcouro\b/]
+  ];
+  return materials.find(([, pattern]) => pattern.test(n))?.[0] || '';
+}
+
+function extractColorPreference(text = '') {
+  const n = normalize(text);
+  const colors = [
+    ['Branco', /\bbranc[oa]\b/],
+    ['Preto', /\bpret[oa]\b/],
+    ['Cinza', /\bcinza\b/],
+    ['Bege', /\bbege\b/],
+    ['Marrom', /\bmarrom\b/],
+    ['Amêndoa', /\bamendoa\b/],
+    ['Freijó', /\bfreijo\b/],
+    ['Off White', /\boff white\b/],
+    ['Inox', /\binox\b/],
+    ['Prata', /\bprata\b/],
+    ['Vermelho', /\bvermelh[oa]\b/]
+  ];
+  return colors.find(([, pattern]) => pattern.test(n))?.[0] || '';
+}
+
+function extractBedSizePreference(text = '') {
+  const n = normalize(text);
+  if (/\bqueen\b/.test(n)) return 'Queen';
+  if (/\bking\b/.test(n)) return 'King';
+  if (/\bcasal\b/.test(n)) return 'Casal';
+  if (/\bsolteiro\b/.test(n)) return 'Solteiro';
+  return '';
+}
+
+function extractFurnitureFeaturePreferences(text = '') {
+  const n = normalize(text);
+  const features = [
+    ['Retrátil', /\bretratil\b/],
+    ['Reclinável', /\breclinavel\b/],
+    ['Chaise', /\bchaise\b/],
+    ['Molas ensacadas', /\bmolas ensacadas\b/],
+    ['Pillow Top', /\bpillow top\b/]
+  ];
+  return features.filter(([, pattern]) => pattern.test(n)).map(([label]) => label);
+}
+
+function mergeSpaceDimensions(base = {}, incoming = {}) {
+  return {
+    width: Number(incoming.width || base.width || 0),
+    height: Number(incoming.height || base.height || 0),
+    depth: Number(incoming.depth || base.depth || 0)
+  };
+}
+
 function updateRecommendationContext(conv = {}, text = '', category = '') {
   const previous = activeRecommendationContext(conv);
   const targetCategory = category || previous?.category || recommendationCategoryFromConversation(conv);
@@ -4311,13 +4450,25 @@ function updateRecommendationContext(conv = {}, text = '', category = '') {
   const base = !previous || reset ? {} : previous;
   const budget = extractBudgetLimit(text);
   const householdSize = extractHouseholdSize(text);
-  const priority = recommendationPriority(text);
+  const priority = recommendationPriority(text, targetCategory);
+  const seats = extractDesiredSeats(text, targetCategory);
+  const materialPreference = extractMaterialPreference(text);
+  const colorPreference = extractColorPreference(text);
+  const bedSizePreference = extractBedSizePreference(text);
+  const furnitureFeatures = extractFurnitureFeaturePreferences(text);
+  const incomingSpace = extractSpaceDimensions(text);
 
   const next = {
     category: targetCategory,
     priority: priority || base.priority || '',
     budgetLimit: budget > 0 ? budget : Number(base.budgetLimit || 0),
     householdSize: householdSize > 0 ? householdSize : Number(base.householdSize || 0),
+    desiredSeats: seats > 0 ? seats : Number(base.desiredSeats || 0),
+    materialPreference: materialPreference || base.materialPreference || '',
+    colorPreference: colorPreference || base.colorPreference || '',
+    bedSizePreference: bedSizePreference || base.bedSizePreference || '',
+    furnitureFeatures: [...new Set([...(base.furnitureFeatures || []), ...furnitureFeatures])],
+    spaceDimensions: mergeSpaceDimensions(base.spaceDimensions || {}, incomingSpace),
     startedAt: Number(base.startedAt || Date.now()),
     updatedAt: Date.now()
   };
@@ -4336,22 +4487,56 @@ function recommendationPriorityLabel(priority = '') {
     energy: 'economia de energia',
     screen: 'tamanho da tela',
     power: 'potência',
+    seating: 'quantidade de lugares',
+    fit: 'medidas e espaço disponível',
+    storage: 'espaço de armazenamento',
+    mirror: 'espelho',
+    material: 'material',
+    color: 'cor',
+    bed_size: 'tamanho da cama/colchão',
+    comfort: 'conforto e recursos',
+    camera: 'câmera',
+    battery: 'bateria',
+    performance: 'desempenho',
+    burners: 'quantidade de bocas',
     balanced: 'equilíbrio entre as opções'
   }[priority] || 'sua prioridade';
 }
 
 function recommendationQuestion(category = '', context = {}) {
-  const normalizedCategory = normalize(category);
-  let options = '*preço* ou *tecnologia/recursos*';
+  const c = normalize(category);
+  let options = '*preço* ou *recursos/funções*';
 
-  if (['geladeira', 'freezer', 'frigobar', 'maquina de lavar', 'tanquinho'].includes(normalizedCategory)) {
+  if (c === 'sofa') {
+    options = '*quantidade de lugares, medidas da sala, conforto/recursos ou preço*';
+  } else if (['guarda-roupa', 'armario', 'cozinha completa', 'multiuso', 'penteadeira', 'comoda'].includes(c)) {
+    options = '*espaço interno (portas/gavetas), medidas, material/espelho ou preço*';
+  } else if (c === 'mesa') {
+    options = '*quantidade de lugares, medidas, material ou preço*';
+  } else if (c === 'cadeira') {
+    options = '*material, conforto/recursos ou preço*';
+  } else if (['cama', 'beliche'].includes(c)) {
+    options = '*tamanho, medidas, conforto/recursos ou preço*';
+  } else if (c === 'rack/painel') {
+    options = '*medidas, espaço para guardar, material/cor ou preço*';
+  } else if (['geladeira', 'freezer', 'frigobar', 'maquina de lavar', 'tanquinho'].includes(c)) {
     options = '*capacidade, tecnologia/recursos, economia de energia ou preço*';
-  } else if (normalizedCategory === 'tv') {
+  } else if (c === 'fogao') {
+    options = '*quantidade de bocas, tecnologia/recursos ou preço*';
+  } else if (c === 'tv') {
     options = '*tamanho da tela, tecnologia/recursos ou preço*';
-  } else if (['fogao', 'air fryer', 'micro-ondas', 'forno eletrico'].includes(normalizedCategory)) {
-    options = '*tecnologia/recursos, potência ou preço*';
-  } else if (['celular', 'notebook', 'tablet', 'computador'].includes(normalizedCategory)) {
-    options = '*tecnologia/recursos ou preço*';
+  } else if (c === 'celular') {
+    options = '*câmera, bateria, armazenamento/desempenho, tecnologia ou preço*';
+  } else if (['notebook', 'tablet', 'computador'].includes(c)) {
+    options = '*desempenho, armazenamento, tela, tecnologia ou preço*';
+  } else if (c === 'caixa de som') {
+    options = '*potência, conectividade/recursos ou preço*';
+  } else if (['air fryer', 'micro-ondas', 'forno eletrico', 'liquidificador', 'batedeira', 'cafeteira'].includes(c)) {
+    options = '*capacidade, potência, funções/recursos ou preço*';
+  } else if (c === 'ventilador') {
+    options = '*potência, recursos ou preço*';
+  } else if (c === 'ar-condicionado') {
+    options = '*capacidade, economia de energia, recursos ou preço*';
   }
 
   const household = Number(context.householdSize || 0) > 0
@@ -4371,6 +4556,113 @@ function technicalCapacityKg(product = {}, details = {}) {
 
   const fallback = String(product.name || '').match(/\b(\d{1,2}(?:[.,]\d+)?)\s*kg\b/i);
   return fallback ? Number(String(fallback[1]).replace(',', '.')) || 0 : 0;
+}
+
+function metricFromText(product = {}, details = {}, pattern) {
+  const text = productSafeDetailText({ ...details, name: [product?.name, details?.name].filter(Boolean).join(' ') });
+  const match = text.match(pattern);
+  const value = Number(String(match?.[1] || '').replace(',', '.'));
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function technicalSeatCount(product = {}, details = {}) {
+  return metricFromText(product, details, /\b(\d{1,2})\s*(?:lugares?|assentos?)\b/i);
+}
+
+function technicalDoorCount(product = {}, details = {}) {
+  return metricFromText(product, details, /\b(\d{1,2})\s*portas?\b/i);
+}
+
+function technicalDrawerCount(product = {}, details = {}) {
+  return metricFromText(product, details, /\b(\d{1,2})\s*gavetas?\b/i);
+}
+
+function technicalBurnerCount(product = {}, details = {}) {
+  return metricFromText(product, details, /\b(\d{1,2})\s*(?:bocas?|queimadores?)\b/i);
+}
+
+function technicalStorageGb(product = {}, details = {}) {
+  const text = productSafeDetailText({ ...details, name: [product?.name, details?.name].filter(Boolean).join(' ') });
+  const labeled = text.match(/(?:armazenamento|memoria interna|ssd|hd)\s*:?\s*(\d{2,4})\s*gb/i);
+  if (labeled) return Number(labeled[1] || 0);
+  const values = [...text.matchAll(/\b(\d{2,4})\s*gb\b/gi)].map((match) => Number(match[1] || 0)).filter(Boolean);
+  return values.length ? Math.max(...values) : 0;
+}
+
+function technicalRamGb(product = {}, details = {}) {
+  const text = productSafeDetailText({ ...details, name: [product?.name, details?.name].filter(Boolean).join(' ') });
+  const match = text.match(/(?:memoria\s+ram|ram)\s*:?\s*(\d{1,3})\s*gb/i);
+  return Number(match?.[1] || 0);
+}
+
+function technicalBatteryMah(product = {}, details = {}) {
+  return metricFromText(product, details, /(?:bateria|capacidade da bateria)\s*:?\s*(\d{3,6})\s*mah/i);
+}
+
+function technicalCameraMp(product = {}, details = {}) {
+  const text = productSafeDetailText({ ...details, name: [product?.name, details?.name].filter(Boolean).join(' ') });
+  const values = [...text.matchAll(/\b(\d{1,3})\s*mp\b/gi)].map((match) => Number(match[1] || 0)).filter(Boolean);
+  return values.length ? Math.max(...values) : 0;
+}
+
+function technicalBtu(product = {}, details = {}) {
+  return metricFromText(product, details, /\b(\d{4,6})\s*btus?\b/i);
+}
+
+function technicalPowerWatts(product = {}, details = {}) {
+  return metricFromText(product, details, /\b(\d{2,5})\s*w(?:atts?)?\b/i);
+}
+
+function technicalScreenInches(product = {}, details = {}) {
+  const category = detectCategory([product?.name, product?.category, details?.category].filter(Boolean).join(' '));
+  if (category === 'tv') return Number(productTvInches(product) || 0);
+  return metricFromText(product, details, /\b(\d{1,3}(?:[.,]\d+)?)\s*(?:polegadas?|pol\.?|["”])\b/i);
+}
+
+function technicalMaterialList(product = {}, details = {}) {
+  const n = normalize([product?.name, productSafeDetailText(details)].filter(Boolean).join('\n'));
+  const materials = [
+    ['MDF', /\bmdf\b/],
+    ['MDP', /\bmdp\b/],
+    ['Madeira maciça', /\bmadeira macica\b/],
+    ['Madeira', /\bmadeira\b/],
+    ['Aço', /\baco\b/],
+    ['Metal', /\bmetal\b/],
+    ['Vidro', /\bvidro\b/],
+    ['Suede', /\bsuede\b/],
+    ['Veludo', /\bveludo\b/],
+    ['Linho', /\blinho\b/],
+    ['Corino', /\bcorino\b/],
+    ['Couro', /\bcouro\b/]
+  ];
+  return materials.filter(([, pattern]) => pattern.test(n)).map(([label]) => label);
+}
+
+function technicalBedSize(product = {}, details = {}) {
+  const n = normalize([product?.name, productSafeDetailText(details)].filter(Boolean).join('\n'));
+  if (/\bqueen\b/.test(n)) return 'Queen';
+  if (/\bking\b/.test(n)) return 'King';
+  if (/\bcasal\b/.test(n)) return 'Casal';
+  if (/\bsolteiro\b/.test(n)) return 'Solteiro';
+  return '';
+}
+
+function technicalHasMirror(product = {}, details = {}) {
+  return /\bespelho\b/.test(normalize([product?.name, productSafeDetailText(details)].filter(Boolean).join('\n')));
+}
+
+function verifiedSpaceFit(dimensions = {}, space = {}) {
+  const wanted = ['width', 'height', 'depth'].filter((key) => Number(space?.[key] || 0) > 0);
+  if (!wanted.length) return null;
+  if (wanted.some((key) => Number(dimensions?.[key] || 0) <= 0)) return null;
+  return wanted.every((key) => Number(dimensions[key]) <= Number(space[key]));
+}
+
+function technicalStorageSummary(item = {}) {
+  const parts = [];
+  if (item.doors) parts.push(`${item.doors} porta(s)`);
+  if (item.drawers) parts.push(`${item.drawers} gaveta(s)`);
+  return parts.join(' e ');
 }
 
 async function recommendProductsConsultatively(phone, conv, context = {}, pushName = '') {
