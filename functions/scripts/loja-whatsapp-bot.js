@@ -730,8 +730,12 @@ function immediateAlternativeProduct(conv = {}, text = '') {
     .replace(/\s+/g, ' ')
     .trim();
 
-  if (!/^(?:nao\s+)?(?:(?:esse|essa)\s+)?(?:(?:o|a)\s+)?(?:outro|outra)$/.test(n) &&
-      !/^nao\s+(?:esse|essa)\s+(?:o|a)?\s*(?:outro|outra)$/.test(n)) {
+  if (
+    !/^(?:nao\s+)?(?:(?:esse|essa)\s+)?(?:(?:o|a)\s+)?(?:outro|outra)$/.test(n) &&
+    !/^nao\s+(?:esse|essa)\s+(?:o|a)?\s*(?:outro|outra)$/.test(n) &&
+    !/^nao\s+era\s+(?:esse|essa)\s+(?:era\s+)?(?:o|a)\s+(?:outro|outra)$/.test(n) &&
+    !/^nao\s+(?:esse|essa)\s+era\s+(?:o|a)\s+(?:outro|outra)$/.test(n)
+  ) {
     return null;
   }
 
@@ -3916,7 +3920,55 @@ function asksPurchaseClosing(text = '') {
   );
 }
 
+function correctedPaymentMethod(text = '') {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n) return '';
+
+  if (
+    isPaymentHandoffNotice(text) ||
+    asksPaymentPromiseUpdate(text) ||
+    /\b(?:parcela|prestacao|notinha|carne)\b/.test(n) && /\bnao\s+deu\b.{0,35}\bpix\b/.test(n)
+  ) {
+    return '';
+  }
+
+  const correctionLead = /\b(na verdade|quis dizer|queria dizer|melhor|prefiro|corrigindo|nao era|nao e|nao no|nao quero)\b/.test(n);
+  const pixAt = Math.max(n.lastIndexOf(' pix'), n.lastIndexOf('a vista'), n.lastIndexOf('avista'));
+  const cardAt = Math.max(n.lastIndexOf(' cartao'), n.lastIndexOf(' credito'));
+  const creditAt = Math.max(n.lastIndexOf(' carne'), n.lastIndexOf(' crediario'), n.lastIndexOf(' boleto'));
+
+  const mentioned = [
+    ['pix', pixAt],
+    ['card', cardAt],
+    ['credit', creditAt]
+  ].filter(([, at]) => at >= 0);
+
+  if (!mentioned.length || (!correctionLead && mentioned.length < 2)) return '';
+
+  mentioned.sort((a, b) => b[1] - a[1]);
+  return mentioned[0][0];
+}
+
+function isContextualProductConfirmation(text = '') {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return /^(?:e\s+)?(?:esse|essa)\s+(?:mesmo|mesma)$/.test(n) ||
+    /^(?:e\s+)?(?:isso\s+)?(?:esse|essa)\s+ai\s+(?:mesmo|mesma)$/.test(n) ||
+    /^(?:e\s+)?(?:e|eh)\s+(?:esse|essa)(?:\s+(?:mesmo|mesma))?$/.test(n) ||
+    /^(?:pode ser|vou nesse|vou nessa)\s+(?:esse|essa)?$/.test(n);
+}
+
 function purchasePaymentMethod(text = '') {
+  const corrected = correctedPaymentMethod(text);
+  if (corrected) return corrected;
+
   const n = normalize(text);
   if (/\b(pix|a vista|avista)\b/.test(n)) return 'pix';
   if (/\b(cartao|credito)\b/.test(n)) return 'card';
@@ -5809,6 +5861,93 @@ async function handleMessage({ phone, text, pushName = '', source = 'text' }) {
 
   if (await handlePending(phone, text, conv)) return;
 
+  {
+    const correctedMethod = correctedPaymentMethod(text);
+    const product = conv.selectedProduct || (
+      Array.isArray(conv.lastProducts) && conv.lastProducts.length === 1
+        ? conv.lastProducts[0]
+        : null
+    );
+
+    if (correctedMethod && product) {
+      conv.selectedProduct = product;
+      conv.lastIntent = 'produto';
+
+      if (correctedMethod === 'pix') {
+        conv.pendingAction = '';
+        markPixContext(conv);
+        saveStateSoon();
+        await sendText(
+          phone,
+          `Entendi 😊 Você quis dizer no PIX. Para *${product.name}*, fica por *${money(productCashPrice(product))}*.`
+        );
+        await markConversationStatus(
+          phone,
+          conv,
+          'Venda em andamento',
+          `Cliente corrigiu a forma de pagamento para PIX: ${product.name}`,
+          pushName,
+          { paymentMode: 'pix', productId: productId(product), correctedPaymentMethod: true }
+        );
+        return;
+      }
+
+      if (correctedMethod === 'card') {
+        conv.pendingAction = '';
+        const full = productFullPrice(product);
+        const count = Math.max(1, Number(product.installmentCount || 12));
+        saveStateSoon();
+        await sendText(
+          phone,
+          `Entendi 😊 Você quis dizer no cartão. *${product.name}* fica em até *${count}x de ${money(full / count)}*, total de *${money(full)}*.`
+        );
+        await markConversationStatus(
+          phone,
+          conv,
+          'Venda em andamento',
+          `Cliente corrigiu a forma de pagamento para cartão: ${product.name}`,
+          pushName,
+          { paymentMode: 'cartao', productId: productId(product), correctedPaymentMethod: true }
+        );
+        return;
+      }
+
+      markCreditContext(conv);
+      setPendingCreditInstallments(conv, product);
+      const plan = creditPlan(product, 0);
+      await sendText(
+        phone,
+        `Entendi 😊 Você quis dizer no crediário/carnê. Para *${product.name}*, consigo calcular em até *${plan.max}x*. Em quantas vezes você gostaria?`
+      );
+      await markConversationStatus(
+        phone,
+        conv,
+        'Venda em andamento',
+        `Cliente corrigiu a forma de pagamento para crediário: ${product.name}`,
+        pushName,
+        { paymentMode: 'crediario', productId: productId(product), correctedPaymentMethod: true }
+      );
+      return;
+    }
+  }
+
+  if (isContextualProductConfirmation(text) && conv.selectedProduct) {
+    const product = conv.selectedProduct;
+    conv.lastIntent = 'produto';
+    saveStateSoon();
+    rememberCommercialInterest(phone, conv, {
+      product,
+      category: product.category || conv.lastProductQuery || '',
+      stage: 'considering',
+      source: 'contextual_confirmation'
+    });
+    await sendText(
+      phone,
+      `Perfeito 😊 Então seguimos com *${product.name}*. Quer ver o valor no PIX, cartão, carnê, entrega ou continuar a compra?`
+    );
+    return;
+  }
+
   if (asksMarceloOrCallback(text)) {
     conv.pendingAction = '';
     conv.marceloCallbackRequested = true;
@@ -7189,6 +7328,8 @@ export const __test = {
   productComparisonReply,
   asksPausePurchaseDecision,
   asksPurchaseClosing,
+  correctedPaymentMethod,
+  isContextualProductConfirmation,
   purchasePaymentMethod,
   showCheaperAlternatives,
   isPixCopyPastePayload,
