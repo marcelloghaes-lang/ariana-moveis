@@ -6327,22 +6327,27 @@ test('referência com espelho escolhe item único da lista antes de responder', 
 
 test('referência ambígua por cinamomo pede qual opção em vez de escolher errado', async () => {
   const phone = '5533977778008';
-  const first = product('list-cina-1', 'Guarda Roupa Canadá Cinamomo 6 Portas 4 Gavetas', {
+  const first = product('list-cina-1', 'Guarda Roupa Casal 6 Portas 2 Gavetas Delta Leifer CinamomoOff White', {
+    category: 'Guarda-Roupas',
+    pixPrice: 1239,
+    stock: 2
+  });
+  const second = product('list-cina-2', 'Guarda Roupa Casal 6 Portas 4 Gavetas Canadá cinamomooff White', {
     category: 'Guarda-Roupas',
     pixPrice: 1596,
     stock: 2
   });
-  const second = product('list-cina-2', 'Guarda Roupa Delta Cinamomo 6 Portas 2 Gavetas', {
+  const third = product('list-cina-3', 'Guarda Roupa Canadá Cinamomo 6 Portas 4 Gavetas', {
     category: 'Guarda-Roupas',
-    pixPrice: 1239,
+    pixPrice: 1596,
     stock: 2
   });
 
   bot.patchTestConversation(phone, {
     lastAt: Date.now(),
     selectedProduct: null,
-    lastProducts: [first, second].map(bot.compactProduct),
-    allProductResults: [first, second].map(bot.compactProduct),
+    lastProducts: [first, second, third].map(bot.compactProduct),
+    allProductResults: [first, second, third].map(bot.compactProduct),
     lastIntent: 'produto'
   });
 
@@ -6354,8 +6359,9 @@ test('referência ambígua por cinamomo pede qual opção em vez de escolher err
 
   assert.equal(bot.conversation(phone).selectedProduct, null);
   assert.match(sentTexts.at(-1).text, /mais de uma opção.*qual delas/i);
-  assert.match(sentTexts.at(-1).text, /1ª opção.*Canadá/i);
-  assert.match(sentTexts.at(-1).text, /2ª opção.*Delta/i);
+  assert.match(sentTexts.at(-1).text, /1ª opção.*Delta Leifer CinamomoOff White/i);
+  assert.match(sentTexts.at(-1).text, /2ª opção.*Canadá cinamomooff White/i);
+  assert.match(sentTexts.at(-1).text, /3ª opção.*Canadá Cinamomo 6 Portas/i);
   assert.equal(sentMedia.length, 0);
 });
 
