@@ -116,6 +116,10 @@ const ACTIVE_COMMERCIAL_CONTEXT_TTL_MS = Math.max(
   Number(process.env.LOJA_ACTIVE_COMMERCIAL_CONTEXT_MINUTES || 45)
 ) * 60 * 1000;
 const SHORT_CONTEXT_MAX_TURNS = Math.max(3, Math.min(8, Number(process.env.LOJA_SHORT_CONTEXT_TURNS || 6)));
+const LIST_CLARIFICATION_TTL_MS = Math.max(
+  3,
+  Number(process.env.LOJA_LIST_CLARIFICATION_MINUTES || 10)
+) * 60 * 1000;
 const SUPPLIER_PHONES = new Set(
   String(process.env.LOJA_SUPPLIER_PHONES || '')
     .split(',')
@@ -826,6 +830,7 @@ function clearActiveCommercialContext(conv = {}) {
   conv.awaitingSimilarOptions = false;
   conv.pendingAlternativeCategory = '';
   conv.pendingAlternativeUntil = 0;
+  conv.pendingListClarification = null;
 
   if (isTransientCommercialPendingAction(conv.pendingAction)) {
     conv.pendingAction = '';
@@ -903,6 +908,7 @@ function conversation(phone) {
       lastColorVariants: [],
       lastColorVariantProductId: '',
       lastColorVariantAt: 0,
+      pendingListClarification: null,
       lastIntent: ''
     };
   }
@@ -936,6 +942,15 @@ function conversation(phone) {
   if (!Array.isArray(conv.lastColorVariants)) conv.lastColorVariants = [];
   if (typeof conv.lastColorVariantProductId !== 'string') conv.lastColorVariantProductId = '';
   if (!Number.isFinite(Number(conv.lastColorVariantAt))) conv.lastColorVariantAt = 0;
+  if (conv.pendingListClarification && typeof conv.pendingListClarification !== 'object') {
+    conv.pendingListClarification = null;
+  }
+  if (
+    conv.pendingListClarification &&
+    Number(conv.pendingListClarification.expiresAt || 0) <= now
+  ) {
+    conv.pendingListClarification = null;
+  }
   conv.recentTurns = recentShortConversationTurns(conv);
   if (!Number.isFinite(Number(conv.dailyDueCourtesyCount))) conv.dailyDueCourtesyCount = 0;
   if (!Number.isFinite(Number(conv.courtesyGreetingUntil))) conv.courtesyGreetingUntil = 0;
