@@ -1032,9 +1032,17 @@ function productVoltage(details = {}) {
 }
 
 function productColor(details = {}) {
-  const text = productSafeDetailText(details);
-  const labeled = text.match(/cor(?:\s+predominante)?\s*:?\s*([^\n]{1,40})/i);
-  if (labeled) return labeled[1].trim().replace(/\s+/g, ' ');
+  for (const source of [details.specs, details.description]) {
+    const labeled = String(source || '').match(
+      /^\s*cor(?:\s+predominante)?\s*:\s*([^\n]{1,40})\s*$/im
+    );
+    if (labeled) {
+      return labeled[1]
+        .trim()
+        .replace(/[.;,]+$/g, '')
+        .replace(/\s+/g, ' ');
+    }
+  }
 
   const n = normalize(details.name || '');
   for (const [needle, label] of [
