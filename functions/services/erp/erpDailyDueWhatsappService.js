@@ -102,6 +102,105 @@ function isLocalInstallmentOpen(installment = {}) {
   return localInstallmentRemaining(installment) > 0.009;
 }
 
+function ledgerOutstanding(entry = {}) {
+  const status = String(entry.status || '').trim().toLowerCase();
+  if (['paid', 'pago', 'recebido', 'quitado', 'cancelled', 'cancelado', 'estornado'].includes(status)) return 0;
+
+  const direct = Number(entry.outstanding);
+  if (Number.isFinite(direct)) return Math.max(0, direct);
+
+  const payments = Array.isArray(entry.payments) ? entry.payments : [];
+  const principalPaid = payments.length
+    ? payments.reduce((sum, payment) => sum + Number(payment?.principalApplied ?? payment?.amount ?? 0), 0)
+    : Number(entry.principalPaid ?? 0);
+
+  return Math.max(0, Number(entry.value || 0) - principalPaid);
+}
+
+async function resolveLedgerPhone(mongoose, entry = {}) {
+  if (entry.personPhone) return entry.personPhone;
+
+  const Person = mongoose?.models?.ErpPerson;
+  if (!Person) return '';
+
+  const sourcePersonId = String(entry?.migration?.sourcePersonId || '').trim();
+  const document = String(entry.personDocument || '').replace(/\D/g, '');
+  const or = [];
+  if (sourcePersonId) or.push({ sourceId: sourcePersonId });
+  if (document) or.push({ document });
+
+  if (!or.length) return '';
+
+  const person = await Person.findOne({
+    $or: or,
+    active: { $ne: false }
+  }).select('phone').lean();
+
+  return person?.phone || '';
+}
+
+async function listArianaLedgerDueRows({ mongoose, today, timeZone }) {
+  const Entry = mongoose?.models?.ErpFinancialEntry;
+  if (!Entry) return [];
+
+  const rawRows = await Entry.collection.find({
+    direction: 'receivable',
+    dueAt: { $exists: true, $ne: null }
+  }).project({
+    _id: 1,
+    origin: 1,
+    status: 1,
+    dueAt: 1,
+    value: 1,
+    outstanding: 1,
+    principalPaid: 1,
+    payments: 1,
+    personName: 1,
+    personDocument: 1,
+    personPhone: 1,
+    documentNumber: 1,
+    boletoNumber: 1,
+    orderId: 1,
+    installmentNumber: 1,
+    migration: 1
+  }).sort({ dueAt: 1 }).limit(30000).toArray();
+
+  const rows = [];
+
+  for (const entry of rawRows) {
+    if (dueDateKey(entry.dueAt, timeZone) !== today) continue;
+
+    // Mantém a mesma proteção de qualidade usada nos relatórios do ERP.
+    if (entry.origin === 'sige_import' && Math.abs(Number(entry.value || 0)) >= 10_000_000) continue;
+
+    const remaining = ledgerOutstanding(entry);
+    if (remaining <= 0.009) continue;
+
+    const phone = await resolveLedgerPhone(mongoose, entry);
+
+    rows.push({
+      source: 'ariana_erp_ledger',
+      orderId: String(entry.orderId || ''),
+      ledgerEntryId: String(entry._id || ''),
+      customerName: entry.personName || 'Cliente',
+      customerPhone: phone,
+      dueAt: entry.dueAt,
+      status: 'pendente',
+      remaining,
+      value: Number(entry.value || remaining),
+      installmentKey: String(
+        entry.documentNumber ||
+        entry.boletoNumber ||
+        entry.installmentNumber ||
+        entry._id ||
+        ''
+      )
+    });
+  }
+
+  return rows;
+}
+
 async function listArianaStoredDueRows({ mongoose, today, timeZone }) {
   const db = mongoose?.connection?.db;
   if (!db) return [];
@@ -208,14 +307,21 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
 
   // Fonte adicional 100% local da Ariana. Não consulta o SIGE nem qualquer serviço externo:
   // lê apenas os carnês/parcelas já persistidos no próprio banco financeiro da Ariana.
-  const storedDueRows = await listArianaStoredDueRows({ mongoose, today, timeZone });
-  const dueRows = [...nativeDueRows, ...storedDueRows];
+  const [ledgerDueRows, storedDueRows] = await Promise.all([
+    listArianaLedgerDueRows({ mongoose, today, timeZone }),
+    listArianaStoredDueRows({ mongoose, today, timeZone })
+  ]);
+  const dueRows = [...ledgerDueRows, ...nativeDueRows, ...storedDueRows];
 
   const groups = new Map();
+  let skippedMissingPhone = 0;
 
   for (const row of dueRows) {
     const phone = normalizeWhatsappPhone(row.customerPhone);
-    if (!phone) continue;
+    if (!phone) {
+      skippedMissingPhone += 1;
+      continue;
+    }
 
     if (!groups.has(phone)) {
       groups.set(phone, {
@@ -241,7 +347,6 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
 
   let sent = 0;
   let skippedAlreadySent = 0;
-  let skippedMissingPhone = dueRows.length - Array.from(groups.values()).reduce((sum, group) => sum + group.rows.length, 0);
   const errors = [];
 
   for (const group of groups.values()) {
@@ -348,7 +453,8 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
   return {
     ok: errors.length === 0,
     date: today,
-    source: 'ariana_erp_and_local_finance',
+    source: 'ariana_erp_ledger_and_local_finance',
+    ledgerDueInstallments: ledgerDueRows.length,
     nativeDueInstallments: nativeDueRows.length,
     storedDueInstallments: storedDueRows.length,
     dueInstallments: dueRows.length,
@@ -389,6 +495,7 @@ export function startErpDailyDueWhatsappWorker(context = {}) {
       console.log('[erp-daily-due-whatsapp]', {
         date: result.date,
         source: result.source,
+        ledgerDueInstallments: result.ledgerDueInstallments,
         nativeDueInstallments: result.nativeDueInstallments,
         storedDueInstallments: result.storedDueInstallments,
         dueInstallments: result.dueInstallments,
