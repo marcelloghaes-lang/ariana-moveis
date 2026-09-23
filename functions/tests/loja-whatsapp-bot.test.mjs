@@ -3984,6 +3984,169 @@ test('visão bloqueia novas chamadas antes de ultrapassar R$ 30 no mês', async 
 });
 
 
+test('novo produto explícito cancela pergunta comercial antiga de outra categoria', () => {
+  const phone = '5533977777968';
+  const tv = bot.compactProduct(product('tv-old-switch-1', 'Smart TV LG 43 polegadas', {
+    category: 'TV',
+    stock: 2
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: tv,
+    lastProducts: [tv],
+    lastProductQuery: 'tv',
+    pendingAction: 'installment_payment_method',
+    lastIntent: 'produto'
+  });
+
+  const conv = bot.conversation(phone);
+
+  assert.equal(
+    bot.clearTransientCommercialPromptOnTopicSwitch(
+      conv,
+      'Boa tarde, queria ver o valor do seu fogão. Qual que você está tendo aí?'
+    ),
+    true
+  );
+  assert.equal(conv.pendingAction, '');
+  assert.equal(conv.selectedProduct?.name, 'Smart TV LG 43 polegadas');
+
+  conv.pendingAction = 'installment_payment_method';
+  assert.equal(
+    bot.clearTransientCommercialPromptOnTopicSwitch(conv, 'e no cartão dessa TV?'),
+    false,
+    'continuação da mesma categoria não deve perder o pending'
+  );
+  assert.equal(conv.pendingAction, 'installment_payment_method');
+
+  conv.pendingAction = 'finance_cpf';
+  assert.equal(
+    bot.clearTransientCommercialPromptOnTopicSwitch(conv, 'quero ver fogão'),
+    false,
+    'pendência financeira sensível não deve ser apagada por esta regra'
+  );
+  assert.equal(conv.pendingAction, 'finance_cpf');
+});
+
+test('áudio realista sobre fogão não é sequestrado por pending antigo de TV', async () => {
+  const phone = '5533977777969';
+  const tv = bot.compactProduct(product('tv-old-audio-switch-1', 'Smart TV LG 43 polegadas', {
+    category: 'TV',
+    stock: 2
+  }));
+
+  catalogRows = [
+    product('fog-audio-switch-1', 'Fogão Atlas 4 Bocas Branco', {
+      category: 'Fogão',
+      stock: 3,
+      pixPrice: 899,
+      cardPrice: 1080
+    }),
+    product('fog-audio-switch-2', 'Fogão Dako 5 Bocas Preto', {
+      category: 'Fogão',
+      stock: 2,
+      pixPrice: 1299,
+      cardPrice: 1560
+    })
+  ];
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: tv,
+    lastProducts: [tv],
+    allProductResults: [tv],
+    lastProductQuery: 'tv',
+    pendingAction: 'installment_payment_method',
+    lastIntent: 'produto'
+  });
+
+  audioTranscriptionText = 'Boa tarde, queria ver o valor do seu fogão. Qual que você está tendo aí?';
+  mediaBase64Response = {
+    mimetype: 'audio/ogg; codecs=opus',
+    base64: 'T2dnUwBmYWtlLWF1ZGlvLWZvZ2FvLXN3aXRjaA=='
+  };
+
+  bot.patchTestIntentClassification({
+    intent: 'BUSCAR_PRODUTO',
+    confidence: 0.97,
+    category: 'fogão',
+    product_reference: '',
+    product_ordinal: 0,
+    installments: 0,
+    payment_method: 'unknown',
+    location_hint: ''
+  });
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'AUDIO-TOPIC-SWITCH-TV-FOGAO-1'
+      },
+      pushName: 'Cliente Troca',
+      message: {
+        audioMessage: {
+          mimetype: 'audio/ogg; codecs=opus',
+          seconds: 7,
+          ptt: true
+        }
+      }
+    }
+  });
+
+  assert.equal(result.audio, 'audio_transcribed');
+  assert.equal(bot.conversation(phone).pendingAction, '');
+  assert.ok(
+    sentMedia.some((item) => /Fogão (?:Atlas|Dako)/i.test(item.caption || '')),
+    'deve mostrar fogões do catálogo'
+  );
+  assert.equal(
+    sentTexts.some((item) => /Smart TV LG 43 polegadas.*cartão.*crediário/i.test(item.text || '')),
+    false,
+    'não deve repetir a pergunta antiga da TV'
+  );
+});
+
+test('texto sobre nova categoria também supera pergunta comercial antiga', async () => {
+  const phone = '5533977777970';
+  const tv = bot.compactProduct(product('tv-old-text-switch-1', 'Smart TV LG 43 polegadas', {
+    category: 'TV',
+    stock: 2
+  }));
+
+  catalogRows = [
+    product('fog-text-switch-1', 'Fogão Atlas 4 Bocas Branco', {
+      category: 'Fogão',
+      stock: 3
+    })
+  ];
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: tv,
+    lastProducts: [tv],
+    allProductResults: [tv],
+    lastProductQuery: 'tv',
+    pendingAction: 'installment_payment_method',
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'agora eu quero olhar fogão',
+    pushName: 'Cliente Troca'
+  });
+
+  assert.equal(bot.conversation(phone).pendingAction, '');
+  assert.ok(
+    sentMedia.some((item) => /Fogão Atlas 4 Bocas Branco/i.test(item.caption || ''))
+  );
+  assert.equal(
+    sentTexts.some((item) => /Smart TV LG 43 polegadas.*cartão.*crediário/i.test(item.text || '')),
+    false
+  );
+});
+
 test('áudio usa confiança mais tolerante em intenção comum sem reduzir segurança sensível', () => {
   assert.ok(
     bot.intentConfidenceRequired('BUSCAR_PRODUTO', 'audio') <
