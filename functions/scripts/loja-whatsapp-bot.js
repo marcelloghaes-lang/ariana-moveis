@@ -4696,10 +4696,28 @@ async function handleCommonProductQuestion({ phone, text, pushName = '', conv })
 
   const explicitRecommendationCategory = detectCategory(text);
   const activeRecommendationCategory = recommendationCategoryFromConversation(conv);
+  const recommendationHouseholdSize = extractHouseholdSize(text);
+  const recommendationBudget = extractBudgetLimit(text);
+  const recommendationPriorityValue = recommendationPriority(text);
   const recommendationHasNeeds =
-    extractHouseholdSize(text) > 0 ||
-    extractBudgetLimit(text) > 0 ||
-    Boolean(recommendationPriority(text));
+    recommendationHouseholdSize > 0 ||
+    Boolean(recommendationPriorityValue);
+  const recommendationBudgetOnly =
+    recommendationBudget > 0 &&
+    !recommendationHouseholdSize &&
+    !recommendationPriorityValue;
+
+  // Preserva o fluxo já aprovado de "tenho até X, qual você indica?":
+  // quando o único critério informado é orçamento, o catálogo continua
+  // mostrando diretamente as opções dentro do limite.
+  if (
+    wantsRecommendation &&
+    explicitRecommendationCategory &&
+    recommendationBudgetOnly &&
+    !rows.length
+  ) {
+    return false;
+  }
 
   if (
     wantsRecommendation &&
