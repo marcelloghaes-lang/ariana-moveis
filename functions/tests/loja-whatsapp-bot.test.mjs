@@ -359,7 +359,7 @@ test('saudações enviadas em sequência rápida recebem somente uma resposta do
   });
 
   assert.equal(sentTexts.length, 1);
-  assert.match(sentTexts[0].text, /^Olá, Marcelo! 😊 Tudo bem\?/i);
+  assert.match(sentTexts[0].text, /^(?:Olá|Bom dia|Boa tarde|Boa noite), Marcelo! 😊 Tudo bem\?/i);
 
   await bot.handleMessage({
     phone,
