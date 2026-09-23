@@ -2563,6 +2563,62 @@ function isNonPositiveWellbeingReply(text = '') {
   );
 }
 
+function expectedWellbeingReplyTone(text = '') {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n || asksBotWellbeingQuestion(text)) return '';
+
+  if (isClearlyNegativeWellbeingReply(text)) return 'negative';
+  if (isNonPositiveWellbeingReply(text)) return 'neutral';
+  if (isPositiveWellbeingReply(text)) return 'positive';
+
+  if (
+    /^(?:nao|n|negativo|mal|pessimo|pessima|horrivel|bem ruim|muito ruim|mais pra ruim)$/.test(n) ||
+    /^(?:to|tou|estou)\s+(?:bem\s+)?mal$/.test(n) ||
+    /^(?:nao\s+)?(?:to|tou|estou)\s+(?:muito\s+)?legal$/.test(n) && /^nao\b/.test(n)
+  ) {
+    return 'negative';
+  }
+
+  if (
+    /^(?:indo|vou indo|vamos indo|levando|vou levando|na luta|mais ou menos|mais ou menos ne|meio termo|meio assim|mais pra menos|sobrevivendo|devagar|empurrando)$/.test(n)
+  ) {
+    return 'neutral';
+  }
+
+  if (
+    /^(?:sim|sim estou|sim to|sim tou|tudo|tudo sim|tudo certo|tudo tranquilo|tudo joia|tudo beleza|tudo otimo|tudo otima|td|td bem|td certo|bem|otimo|otima|maravilha|show|de boa|suave|tranquilo|tranquila|beleza|joia|gracas a deus|bem gracas a deus|tudo gracas a deus)(?:\s+(?:tambem|tbm))?(?:\s+e\s+(?:voce|vc))?$/.test(n)
+  ) {
+    return 'positive';
+  }
+
+  return '';
+}
+
+function clearTransientCommercialPromptOnGreeting(conv = {}) {
+  const pending = String(conv?.pendingAction || '').trim();
+  if (!pending) return false;
+
+  const transient = new Set([
+    'installment_payment_method',
+    'purchase_payment_method',
+    'card_price_product',
+    'cash_price_product',
+    'special_condition_product',
+    'crediario_product',
+    'credit_installments'
+  ]);
+
+  if (!transient.has(pending)) return false;
+
+  conv.pendingAction = '';
+  saveStateSoon();
+  return true;
+}
+
 function wellbeingReplyLeadTone(text = '') {
   const n = normalize(text)
     .replace(/[!?.,;:]+/g, ' ')
@@ -2589,6 +2645,14 @@ function wellbeingReplyLeadTone(text = '') {
     /^nao\s+muito(?:\s+bem)?\b/.test(n)
   ) {
     return 'neutral';
+  }
+
+  if (
+    /^(?:tudo\s+)?(?:bem|otimo|otima|certo|tranquilo|tranquila|joia|beleza)\b/.test(n) ||
+    /^(?:to|tou|estou)\s+(?:bem|otimo|otima)\b/.test(n) ||
+    /^gracas\s+a\s+deus\b/.test(n)
+  ) {
+    return 'positive';
   }
 
   return '';
@@ -5733,7 +5797,9 @@ async function handleMessage({
       return;
     }
 
-    if (isPositiveWellbeingReply(text)) {
+    const expectedWellbeingTone = expectedWellbeingReplyTone(text);
+
+    if (expectedWellbeingTone === 'positive') {
       clearCourtesyGreetingContext(conv);
       await sendText(
         phone,
@@ -5744,13 +5810,13 @@ async function handleMessage({
       return;
     }
 
-    if (isClearlyNegativeWellbeingReply(text)) {
+    if (expectedWellbeingTone === 'negative') {
       clearCourtesyGreetingContext(conv);
       await sendText(phone, 'Poxa, entendi. Espero que melhore 😊 O que você tá precisando pra hoje?');
       return;
     }
 
-    if (isNonPositiveWellbeingReply(text)) {
+    if (expectedWellbeingTone === 'neutral') {
       clearCourtesyGreetingContext(conv);
       await sendText(phone, 'Entendi 😊 O que você tá precisando pra hoje?');
       return;
@@ -5768,7 +5834,9 @@ async function handleMessage({
         phone,
         wellbeingLeadTone === 'negative'
           ? `Poxa, entendi. Espero que melhore 😊${commercialLead}`
-          : `Entendi 😊${commercialLead}`
+          : wellbeingLeadTone === 'positive'
+            ? `Que bom 😊${commercialLead}`
+            : `Entendi 😊${commercialLead}`
       );
     } else {
       clearCourtesyGreetingContext(conv);
@@ -5779,6 +5847,7 @@ async function handleMessage({
     const greeting = courtesyGreetingLabel(text);
     const firstName = customerFirstName(pushName);
     const askedWellbeing = asksBotWellbeingQuestion(text);
+    clearTransientCommercialPromptOnGreeting(conv);
     startCourtesyGreetingContext(conv);
 
     await sendText(
@@ -7557,6 +7626,9 @@ export const __test = {
   isPositiveWellbeingReply,
   isClearlyNegativeWellbeingReply,
   isNonPositiveWellbeingReply,
+  expectedWellbeingReplyTone,
+  wellbeingReplyLeadTone,
+  clearTransientCommercialPromptOnGreeting,
   storeDaypartGreeting,
   courtesyGreetingLabel,
   hasCourtesyGreetingContext,
