@@ -532,6 +532,190 @@ test('conversa longa mantém continuidade entre saudação, áudio, produto, tro
   assert.ok(bot.recentShortConversationTurns(bot.conversation(phone)).length <= 6);
 });
 
+test('correção natural de pagamento respeita a intenção final sem capturar aviso financeiro', async () => {
+  assert.equal(
+    bot.correctedPaymentMethod('não, no PIX não, eu quis dizer no cartão'),
+    'card'
+  );
+  assert.equal(
+    bot.correctedPaymentMethod('não, no cartão não, quero no PIX'),
+    'pix'
+  );
+  assert.equal(
+    bot.correctedPaymentMethod('na verdade no carnê'),
+    'credit'
+  );
+  assert.equal(
+    bot.correctedPaymentMethod('não deu pra mandar no PIX, é o dinheiro da prestação'),
+    '',
+    'aviso financeiro real não pode virar correção comercial de pagamento'
+  );
+
+  const phone = '5533977777933';
+  const chosen = bot.compactProduct(product('tv-correction-1', 'Smart TV 55 Samsung 4K', {
+    category: 'TV',
+    pixPrice: 2499,
+    cardPrice: 3012,
+    stock: 3
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: chosen,
+    lastProducts: [chosen],
+    allProductResults: [chosen],
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'não, no PIX não, eu quis dizer no cartão',
+    pushName: 'Marina Cliente'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /quis dizer no cartão/i);
+  assert.match(sentTexts[0].text, /Smart TV 55 Samsung 4K/i);
+  assert.doesNotMatch(sentTexts[0].text, /No PIX/i);
+  assert.doesNotMatch(sentTexts[0].text, /me conta um pouco mais/i);
+});
+
+test('áudio com autocorreção de forma de pagamento preserva negação e usa a última escolha', async () => {
+  const phone = '5533977777932';
+  const chosen = bot.compactProduct(product('tv-audio-correction-1', 'Smart TV 50 LG NanoCell', {
+    category: 'TV',
+    pixPrice: 2299,
+    cardPrice: 2760,
+    stock: 2
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: chosen,
+    lastProducts: [chosen],
+    allProductResults: [chosen],
+    lastIntent: 'produto'
+  });
+
+  audioTranscriptionText = 'Não, no PIX não. Eu quis dizer no cartão.';
+  mediaBase64Response = {
+    mimetype: 'audio/ogg; codecs=opus',
+    base64: 'T2dnUwBmYWtlLWF1ZGlvLWNvcnJlY2Fv'
+  };
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'AUDIO-PAYMENT-CORRECTION-1'
+      },
+      pushName: 'Marina Cliente',
+      message: {
+        audioMessage: {
+          mimetype: 'audio/ogg; codecs=opus',
+          seconds: 7,
+          ptt: true
+        }
+      }
+    }
+  });
+
+  assert.equal(result.audio, 'audio_transcribed');
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /quis dizer no cartão/i);
+  assert.match(sentTexts[0].text, /Smart TV 50 LG NanoCell/i);
+  assert.doesNotMatch(sentTexts[0].text, /No PIX/i);
+
+  const turns = bot.recentShortConversationTurns(bot.conversation(phone));
+  assert.equal(turns.at(-1).source, 'audio');
+  assert.equal(turns.at(-1).excerpt, '');
+});
+
+test('segundo diálogo longo entende correções, troca de produto e confirmação sem perder contexto', async () => {
+  const phone = '5533977777931';
+
+  catalogRows = [
+    product('fridge-long-1', 'Geladeira Consul 340L Frost Free', {
+      category: 'Geladeira',
+      pixPrice: 2799,
+      cardPrice: 3372,
+      stock: 3
+    }),
+    product('fridge-long-2', 'Geladeira Electrolux 400L Inverter', {
+      category: 'Geladeira',
+      pixPrice: 3199,
+      cardPrice: 3852,
+      stock: 2
+    })
+  ];
+
+  await bot.handleMessage({ phone, text: 'boa tarde', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /^Boa tarde, Marina! 😊 Tudo bem\?/i);
+
+  await bot.handleMessage({ phone, text: 'tudo ótimo e você?', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /Por aqui tá tudo ótimo também/i);
+
+  await bot.handleMessage({ phone, text: 'quero ver geladeira', pushName: 'Marina Souza' });
+  assert.equal(bot.conversation(phone).lastProducts.length, 2);
+
+  await bot.handleMessage({ phone, text: 'a segunda', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /Geladeira Electrolux 400L Inverter/i);
+
+  await bot.handleMessage({ phone, text: 'quanto fica no cartão?', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /Geladeira Electrolux 400L Inverter/i);
+
+  await bot.handleMessage({
+    phone,
+    text: 'não, no cartão não, quis dizer no pix',
+    pushName: 'Marina Souza'
+  });
+  assert.match(sentTexts.at(-1).text, /quis dizer no PIX/i);
+  assert.match(sentTexts.at(-1).text, /Geladeira Electrolux 400L Inverter/i);
+  assert.match(sentTexts.at(-1).text, /3\.199,00/i);
+
+  const mediaBefore = sentMedia.length;
+  await bot.handleMessage({ phone, text: 'manda foto dela pra eu ver', pushName: 'Marina Souza' });
+  assert.equal(sentMedia.length, mediaBefore + 1);
+  assert.match(sentMedia.at(-1).caption || '', /Geladeira Electrolux 400L Inverter/i);
+
+  await bot.handleMessage({ phone, text: 'não era essa, era a outra', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /outra opção/i);
+  assert.match(sentTexts.at(-1).text, /Geladeira Consul 340L Frost Free/i);
+  assert.equal(bot.conversation(phone).selectedProduct.name, 'Geladeira Consul 340L Frost Free');
+
+  await bot.handleMessage({ phone, text: 'é esse mesmo', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /Então seguimos com/i);
+  assert.match(sentTexts.at(-1).text, /Geladeira Consul 340L Frost Free/i);
+
+  await bot.handleMessage({ phone, text: 'e no cartão?', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /Geladeira Consul 340L Frost Free/i);
+
+  await bot.handleMessage({ phone, text: 'vou pensar', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /continuo com você de onde paramos/i);
+
+  await bot.handleMessage({ phone, text: 'oi', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /Tudo bem\?/i);
+
+  await bot.handleMessage({ phone, text: 'tô indo', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /O que você tá precisando pra hoje/i);
+  assert.doesNotMatch(sentTexts.at(-1).text, /Ah, que bom/i);
+
+  await bot.handleMessage({ phone, text: 'aquele que eu vi', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /Geladeira Consul 340L Frost Free/i);
+
+  await bot.handleMessage({ phone, text: 'na verdade no pix', pushName: 'Marina Souza' });
+  assert.match(sentTexts.at(-1).text, /quis dizer no PIX/i);
+  assert.match(sentTexts.at(-1).text, /Geladeira Consul 340L Frost Free/i);
+  assert.match(sentTexts.at(-1).text, /2\.799,00/i);
+
+  assert.equal(
+    sentTexts.some((item) => /me conta um pouco mais do produto ou da condição/i.test(item.text || '')),
+    false,
+    'diálogo com correções naturais não deve cair no fallback comercial genérico'
+  );
+  assert.ok(bot.recentShortConversationTurns(bot.conversation(phone)).length <= 6);
+});
+
 test('resposta neutra à pergunta de cortesia usa acolhimento curto sem "Ah, que bom"', async () => {
   const replies = [
     'mais ou menos',
