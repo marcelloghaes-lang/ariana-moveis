@@ -1700,6 +1700,36 @@ test('"A vista tá qto?" mantém contexto da lista e pede qual produto', async (
 });
 
 
+test('"e no pix?" continua no produto selecionado sem cair no fallback', async () => {
+  const phone = '55339777777531';
+  const chosen = bot.compactProduct(product('pix-short-1', 'Smart TV 50 Samsung Crystal', {
+    category: 'TV',
+    pixPrice: 2199,
+    cardPrice: 2640,
+    stock: 2
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: chosen,
+    lastProducts: [chosen],
+    allProductResults: [chosen],
+    lastIntent: 'produto'
+  });
+
+  assert.equal(bot.asksPixPrice('e no pix?'), true);
+
+  await bot.handleMessage({
+    phone,
+    text: 'e no pix?',
+    pushName: 'Cliente TV'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Smart TV 50 Samsung Crystal/i);
+  assert.match(sentTexts[0].text, /2\.199,00/i);
+  assert.doesNotMatch(sentTexts[0].text, /me conta um pouco mais do produto ou da condição/i);
+});
+
 test('"à vista não tem desconto não?" explica que o PIX já contém o desconto', async () => {
   const phone = '5533977777754';
   const chosen = bot.compactProduct(product('discount-pix-1', 'Refrigerador Consul 451L Branco 110V', {
