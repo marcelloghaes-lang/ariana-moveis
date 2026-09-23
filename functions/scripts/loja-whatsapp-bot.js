@@ -2447,7 +2447,16 @@ function isCourtesyGreeting(text = '') {
 }
 
 function isRapidGreetingFollowup(conv = {}, text = '', windowMs = 15000) {
-  if (!isCourtesyGreeting(text)) return false;
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const pureGreeting =
+    /^(?:(?:oi+|oie+|ola+)\s*)?(?:bom dia|boa tarde|boa noite)?$/.test(n) &&
+    /\b(?:oi+|oie+|ola+|bom dia|boa tarde|boa noite)\b/.test(n);
+
+  if (!pureGreeting) return false;
 
   const previousTurns = recentShortConversationTurns(conv, { excludeLatest: true });
   const previous = previousTurns.at(-1);
