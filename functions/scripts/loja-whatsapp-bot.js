@@ -553,6 +553,22 @@ function resolveRememberedProductReference(phone, text, conv = {}) {
   let candidates = interests;
   if (wantsOther && currentId) {
     candidates = candidates.filter((item) => productId(item.product) !== currentId);
+
+    const currentCategory = detectCategory([
+      conv?.selectedProduct?.name,
+      conv?.selectedProduct?.category
+    ].filter(Boolean).join(' '));
+
+    if (currentCategory) {
+      const sameCategory = candidates.filter((item) => {
+        const itemCategory = detectCategory(
+          item.category || item.product?.category || item.product?.name || ''
+        );
+        return itemCategory && normalize(itemCategory) === normalize(currentCategory);
+      });
+
+      if (sameCategory.length) candidates = sameCategory;
+    }
   } else if (wantsOther && interests.length > 1) {
     candidates = interests.slice(1);
   }
@@ -744,6 +760,9 @@ function immediateAlternativeProduct(conv = {}, text = '') {
 
   const selectedId = productId(conv?.selectedProduct || {});
   if (!selectedId) return null;
+
+  const selectedIsInCurrentList = products.some((product) => productId(product) === selectedId);
+  if (!selectedIsInCurrentList) return null;
 
   return products.find((product) => productId(product) !== selectedId) || null;
 }
