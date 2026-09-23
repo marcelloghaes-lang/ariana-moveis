@@ -4259,6 +4259,15 @@ async function handleCommonProductQuestion({ phone, text, pushName = '', conv })
     return true;
   }
 
+  if (
+    wantsRecommendation &&
+    detectCategory(text) &&
+    !rows.length &&
+    !product
+  ) {
+    return false;
+  }
+
   if (wantsRecommendation) {
     const candidates = rows.length ? rows : (product ? [product] : []);
     const recommended = candidates.filter((item) => item.isRecommended === true);
@@ -4397,7 +4406,7 @@ async function handleCommonProductQuestion({ phone, text, pushName = '', conv })
     await sendText(
       phone,
       warranty
-        ? `A ficha técnica de *${product.name}* informa *garantia de ${warranty}*.`
+        ? `A ficha técnica de *${product.name}* informa garantia de *${warranty}*.`
         : `A garantia de *${product.name}* não está informada de forma clara no cadastro. Prefiro não chutar esse prazo.`
     );
     return true;
