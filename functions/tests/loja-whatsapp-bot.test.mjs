@@ -3841,6 +3841,138 @@ test('visão bloqueia novas chamadas antes de ultrapassar R$ 30 no mês', async 
 });
 
 
+test('áudio usa confiança mais tolerante em intenção comum sem reduzir segurança sensível', () => {
+  assert.ok(
+    bot.intentConfidenceRequired('BUSCAR_PRODUTO', 'audio') <
+    bot.intentConfidenceRequired('BUSCAR_PRODUTO', 'text')
+  );
+  assert.equal(
+    bot.intentConfidenceRequired('CONSULTA_FINANCEIRA', 'audio'),
+    bot.intentConfidenceRequired('CONSULTA_FINANCEIRA', 'text')
+  );
+  assert.equal(
+    bot.intentConfidenceRequired('NEGOCIACAO_PAGAMENTO', 'audio'),
+    bot.intentConfidenceRequired('NEGOCIACAO_PAGAMENTO', 'text')
+  );
+});
+
+test('áudio coloquial passa pela interpretação semântica antes do fallback genérico', async () => {
+  const phone = '5533923333411';
+
+  audioTranscriptionText = 'moço eu tô precisando daquele negócio grande de guardar comida gelada pra cozinha';
+  mediaBase64Response = {
+    mimetype: 'audio/ogg; codecs=opus',
+    base64: 'T2dnUwBmYWtlLWF1ZGlvLXNlbWFudGljbw=='
+  };
+
+  catalogRows = [
+    product('gel-audio-semantic-1', 'Geladeira Consul Frost Free 340L', {
+      category: 'Geladeira',
+      stock: 2
+    })
+  ];
+
+  bot.patchTestIntentClassification({
+    intent: 'BUSCAR_PRODUTO',
+    confidence: 0.78,
+    category: 'geladeira',
+    product_reference: '',
+    product_ordinal: 0,
+    installments: 0,
+    payment_method: 'unknown',
+    location_hint: ''
+  });
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'AUDIO-SEMANTIC-COLLOQUIAL-1'
+      },
+      pushName: 'Cliente Áudio',
+      message: {
+        audioMessage: {
+          mimetype: 'audio/ogg; codecs=opus',
+          seconds: 11,
+          ptt: true
+        }
+      }
+    }
+  });
+
+  assert.equal(result.audio, 'audio_transcribed');
+  assert.ok(
+    sentMedia.some((item) => /Geladeira Consul Frost Free 340L/i.test(item.caption || '')),
+    'intenção semântica do áudio deve consultar a categoria correta'
+  );
+  assert.equal(
+    sentTexts.some((item) => /me conta um pouco mais do produto ou da condição/i.test(item.text || '')),
+    false,
+    'áudio entendido semanticamente não deve cair no fallback comercial genérico'
+  );
+});
+
+test('áudio com múltiplas intenções continua respondendo todas antes da intenção semântica única', async () => {
+  const phone = '5533923333412';
+  const chosen = bot.compactProduct(product('audio-multi-priority-1', 'Smart TV 50 Samsung Crystal', {
+    category: 'TV',
+    pixPrice: 2199,
+    cardPrice: 2640,
+    stock: 2
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: chosen,
+    lastProducts: [chosen],
+    allProductResults: [chosen],
+    lastIntent: 'produto'
+  });
+
+  audioTranscriptionText = 'quanto fica no cartão e entrega aqui em Guanhães';
+  mediaBase64Response = {
+    mimetype: 'audio/ogg; codecs=opus',
+    base64: 'T2dnUwBmYWtlLWF1ZGlvLW11bHRpLXNlbWFudGlj'
+  };
+
+  bot.patchTestIntentClassification({
+    intent: 'PRECO_CARTAO',
+    confidence: 0.97,
+    category: '',
+    product_reference: 'Smart TV 50 Samsung Crystal',
+    product_ordinal: 0,
+    installments: 0,
+    payment_method: 'cartao',
+    location_hint: 'Guanhães'
+  });
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'AUDIO-MULTI-SEMANTIC-PRIORITY-1'
+      },
+      pushName: 'Cliente Áudio',
+      message: {
+        audioMessage: {
+          mimetype: 'audio/ogg; codecs=opus',
+          seconds: 8,
+          ptt: true
+        }
+      }
+    }
+  });
+
+  assert.equal(result.audio, 'audio_transcribed');
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /No cartão/i);
+  assert.match(sentTexts[0].text, /Entrega:/i);
+  assert.match(sentTexts[0].text, /24 horas/i);
+});
+
 test('áudio recebido do cliente é transcrito e segue o mesmo atendimento de texto', async () => {
   const phone = '5533923333401';
 
