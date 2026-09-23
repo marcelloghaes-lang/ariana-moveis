@@ -2711,7 +2711,8 @@ function clearTransientCommercialPromptOnGreeting(conv = {}) {
     'cash_price_product',
     'special_condition_product',
     'crediario_product',
-    'credit_installments'
+    'credit_installments',
+    'entry_amount_product'
   ]);
 
   if (!transient.has(pending)) return false;
@@ -2736,7 +2737,8 @@ function clearTransientCommercialPromptOnTopicSwitch(
     'cash_price_product',
     'special_condition_product',
     'crediario_product',
-    'credit_installments'
+    'credit_installments',
+    'entry_amount_product'
   ]);
 
   if (!transient.has(pending)) return false;
@@ -5935,6 +5937,48 @@ function parseFullName(text) {
 }
 
 async function handlePending(phone, text, conv) {
+  if (conv.pendingAction === 'entry_amount_product') {
+    const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
+    if (!product) {
+      conv.pendingAction = '';
+      saveStateSoon();
+      await sendText(phone, 'Não consegui recuperar o produto dessa condição. Me diga qual produto você está olhando e eu continuo.');
+      return true;
+    }
+
+    const amount = parseCommercialMoneyValue(text);
+    if (!amount) {
+      await sendText(phone, 'Qual valor você pretende dar de entrada? Pode me informar em reais, por exemplo *R$ 500*.');
+      return true;
+    }
+
+    if (amount >= productFullPrice(product)) {
+      await sendText(
+        phone,
+        `A entrada informada de *${money(amount)}* é igual ou maior que o preço cheio de *${product.name}*. Me passe um valor de entrada menor para eu registrar a condição corretamente.`
+      );
+      return true;
+    }
+
+    conv.pendingAction = '';
+    markSpecialConditionMarceloContext(conv, { resetHandoff: true });
+    saveStateSoon();
+
+    await sendText(
+      phone,
+      `Certo 😊 Registrei *${money(amount)} de entrada* para *${product.name}*. Vou deixar essa condição para o Marcelo analisar; eu não vou confirmar parcelas ou desconto antes dessa análise.`
+    );
+    await markConversationStatus(
+      phone,
+      conv,
+      'Aguardando retorno do Marcelo',
+      `Cliente informou entrada de ${money(amount)} para: ${product.name}`,
+      '',
+      { productId: productId(product), entryAmount: amount, specialCondition: true }
+    );
+    return true;
+  }
+
   if (conv.pendingAction === 'installment_payment_method') {
     const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
     if (!product) {
@@ -6995,6 +7039,17 @@ async function handleMessage({
       phone,
       'Recebi um código *PIX copia e cola*. Por segurança, eu não confirmo pagamento somente pelo código. Se você já realizou o pagamento, me envie o *comprovante*. Se você quer pagar a Ariana Móveis, também posso te enviar nossa chave PIX oficial 😊'
     );
+    return;
+  }
+
+  if (
+    await handleCommonProductQuestion({
+      phone,
+      text,
+      pushName,
+      conv
+    })
+  ) {
     return;
   }
 
@@ -8303,6 +8358,28 @@ export const __test = {
   parseCommercialMoneyValue,
   extractBudgetLimit,
   asksPriceObjection,
+  asksProductWarranty,
+  asksProductVoltage,
+  asksProductDimensions,
+  asksProductFit,
+  asksReadyStock,
+  asksDeliverySpeed,
+  asksProductColor,
+  asksOtherModel,
+  asksBrandQuality,
+  asksBestSeller,
+  asksProductRecommendation,
+  asksEntryPayment,
+  extractEntryAmount,
+  asksQuantityDiscount,
+  fetchProductSafeDetails,
+  productWarranty,
+  productVoltage,
+  productColor,
+  productDimensions,
+  extractSpaceDimensions,
+  productQuestionProduct,
+  handleCommonProductQuestion,
   asksProductComparison,
   comparisonFocus,
   comparisonOrdinalIndexes,
