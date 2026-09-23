@@ -1024,15 +1024,72 @@ function productWarranty(details = {}) {
   return `${match[1]} ${normalize(match[2]).startsWith('ano') ? (Number(match[1]) === 1 ? 'ano' : 'anos') : (Number(match[1]) === 1 ? 'mês' : 'meses')}`;
 }
 
+function voltageFamily(value = '') {
+  const match = String(value || '').match(/\b(110|127|220)\b/);
+  if (!match) return '';
+  return ['110', '127'].includes(match[1]) ? '127' : '220';
+}
+
+function productVoltageInfo(details = {}) {
+  const name = String(details.name || '');
+  const description = String(details.description || '');
+  const specs = String(details.specs || '');
+  const all = [name, description, specs].join('\n');
+
+  if (/\bbivolt\b/i.test(all)) {
+    return { value: 'Bivolt', conflict: false, nameValue: '', specValue: 'Bivolt' };
+  }
+
+  const labeled = [specs, description]
+    .map((source) => source.match(/voltagem\s*:?\s*((?:110|127|220)\s*v(?:\s*\((?:110|127|220)\s*v?\))?)/i))
+    .find(Boolean);
+
+  const specValue = labeled
+    ? labeled[1].trim().replace(/\s+/g, ' ')
+    : '';
+
+  const nameMatch = name.match(/\b(110|127|220)\s*v\b/i);
+  const nameValue = nameMatch ? `${nameMatch[1]}V` : '';
+
+  const nameFamily = voltageFamily(nameValue);
+  const specFamily = voltageFamily(specValue);
+  const conflict = Boolean(
+    nameFamily &&
+    specFamily &&
+    nameFamily !== specFamily
+  );
+
+  if (conflict) {
+    return {
+      value: '',
+      conflict: true,
+      nameValue,
+      specValue
+    };
+  }
+
+  if (specValue) {
+    return { value: specValue, conflict: false, nameValue, specValue };
+  }
+
+  if (nameValue) {
+    return { value: nameValue, conflict: false, nameValue, specValue: '' };
+  }
+
+  const values = [...all.matchAll(/\b(110|127|220)\s*v\b/gi)]
+    .map((match) => `${match[1]}V`);
+  const unique = [...new Set(values)];
+  return {
+    value: unique.length === 1 ? unique[0] : '',
+    conflict: unique.some((value) => voltageFamily(value) !== voltageFamily(unique[0])),
+    nameValue,
+    specValue
+  };
+}
+
 function productVoltage(details = {}) {
-  const text = productSafeDetailText(details);
-  if (/\bbivolt\b/i.test(text)) return 'Bivolt';
-
-  const labeled = text.match(/voltagem\s*:?\s*([^\n]{1,40})/i);
-  if (labeled) return labeled[1].trim().replace(/\s+/g, ' ');
-
-  const values = [...text.matchAll(/\b(110|127|220)\s*v\b/gi)].map((match) => `${match[1]}V`);
-  return [...new Set(values)].join(' / ');
+  const info = productVoltageInfo(details);
+  return info.conflict ? '' : info.value;
 }
 
 function productColor(details = {}) {
@@ -4425,11 +4482,19 @@ async function handleCommonProductQuestion({ phone, text, pushName = '', conv })
   }
 
   if (wantsVoltage) {
-    const voltage = productVoltage(details);
+    const voltageInfo = productVoltageInfo(details);
+    if (voltageInfo.conflict) {
+      await sendText(
+        phone,
+        `Encontrei uma *divergência no cadastro* de *${product.name}*: o nome/modelo indica *${voltageInfo.nameValue}*, mas a ficha técnica indica *${voltageInfo.specValue}*. Prefiro não afirmar a voltagem até esse cadastro ser conferido.`
+      );
+      return true;
+    }
+
     await sendText(
       phone,
-      voltage
-        ? `A voltagem cadastrada de *${product.name}* é *${voltage}*.`
+      voltageInfo.value
+        ? `A voltagem cadastrada de *${product.name}* é *${voltageInfo.value}*.`
         : `A voltagem de *${product.name}* não está confirmada na ficha técnica. Prefiro não te passar uma voltagem no chute.`
     );
     return true;
@@ -4704,6 +4769,7 @@ function technicalComparisonProfile(product = {}, details = {}) {
     dimensions: productDimensions(details),
     color: productColor(details),
     voltage: productVoltage(details),
+    voltageInfo: productVoltageInfo(details),
     warranty: productWarranty(details),
     defrost: technicalDefrost(details),
     energyClass: technicalEnergyClass(details),
@@ -4773,7 +4839,22 @@ async function detailedProductComparisonReply(first = {}, second = {}, text = ''
     );
   }
 
-  if (a.voltage && b.voltage && a.voltage !== b.voltage) {
+  if (a.voltageInfo?.conflict || b.voltageInfo?.conflict) {
+    const voltageParts = [];
+    if (a.voltageInfo?.conflict) {
+      voltageParts.push(`1º com cadastro divergente (nome: ${a.voltageInfo.nameValue}; ficha: ${a.voltageInfo.specValue})`);
+    } else if (a.voltage) {
+      voltageParts.push(`1º ${a.voltage}`);
+    }
+    if (b.voltageInfo?.conflict) {
+      voltageParts.push(`2º com cadastro divergente (nome: ${b.voltageInfo.nameValue}; ficha: ${b.voltageInfo.specValue})`);
+    } else if (b.voltage) {
+      voltageParts.push(`2º ${b.voltage}`);
+    }
+    if (voltageParts.length) {
+      lines.push(`• *Voltagem:* ${voltageParts.join(' • ')}. Não vou afirmar a voltagem onde o cadastro está divergente.`);
+    }
+  } else if (a.voltage && b.voltage && a.voltage !== b.voltage) {
     lines.push(`• *Voltagem cadastrada:* 1º *${a.voltage}* • 2º *${b.voltage}*.`);
   }
 
@@ -8798,6 +8879,8 @@ export const __test = {
   asksQuantityDiscount,
   fetchProductSafeDetails,
   productWarranty,
+  voltageFamily,
+  productVoltageInfo,
   productVoltage,
   productColor,
   productDimensions,
