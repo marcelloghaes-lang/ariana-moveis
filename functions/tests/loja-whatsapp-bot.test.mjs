@@ -6166,6 +6166,124 @@ test('mais vendido recomendação e marca usam somente sinais confirmados do cat
   assert.match(sentTexts.at(-1).text, /não tenho uma nota confiável de qualidade/i);
 });
 
+
+test('recomendação consultiva entende necessidade da família antes de despejar catálogo', async () => {
+  const phone = '5533977777994';
+  catalogRows = [
+    product('consult-fridge-1', 'Geladeira Frost Free 380L', {
+      category: 'Geladeiras',
+      pixPrice: 3234.11,
+      stock: 2,
+      specs: 'Capacidade Total: 380 litros\nSistema de Degelo: Frost Free\nIluminação LED'
+    }),
+    product('consult-fridge-2', 'Refrigerador Consul 451L', {
+      category: 'Geladeiras',
+      pixPrice: 3974,
+      stock: 2,
+      specs: 'Capacidade Total: 451 litros\nSistema de Degelo: Frost Free\nPainel eletrônico\nFiltro antiodor'
+    })
+  ];
+
+  await bot.handleMessage({
+    phone,
+    text: 'estou querendo uma geladeira boa pra minha casa, somos 5 pessoas. Qual você me indica?',
+    pushName: 'Cliente Consultivo'
+  });
+
+  assert.equal(sentMedia.length, 0);
+  assert.match(sentTexts.at(-1).text, /são \*5 pessoas\*/i);
+  assert.match(sentTexts.at(-1).text, /capacidade.*tecnologia\/recursos.*economia de energia.*preço/is);
+  assert.equal(bot.conversation(phone).recommendationContext.category, 'geladeira');
+  assert.equal(bot.conversation(phone).recommendationContext.householdSize, 5);
+});
+
+test('recomendação consultiva usa prioridade e orçamento para indicar e explicar com dado real', async () => {
+  const phone = '5533977777995';
+  catalogRows = [
+    product('consult-cap-1', 'Geladeira Frost Free 380L', {
+      category: 'Geladeiras',
+      pixPrice: 3234.11,
+      stock: 2,
+      specs: 'Capacidade Total: 380 litros\nSistema de Degelo: Frost Free\nIluminação LED'
+    }),
+    product('consult-cap-2', 'Refrigerador Consul 451L', {
+      category: 'Geladeiras',
+      pixPrice: 3974,
+      stock: 2,
+      specs: 'Capacidade Total: 451 litros\nSistema de Degelo: Frost Free\nPainel eletrônico\nFiltro antiodor'
+    }),
+    product('consult-cap-3', 'Geladeira Premium 500L Inverter', {
+      category: 'Geladeiras',
+      pixPrice: 4599,
+      stock: 2,
+      specs: 'Capacidade Total: 500 litros\nSistema de Degelo: Frost Free\nInverter\nPainel eletrônico'
+    })
+  ];
+
+  await bot.handleMessage({
+    phone,
+    text: 'quero uma geladeira boa, somos 5 pessoas, qual você me indica?',
+    pushName: 'Cliente Consultivo'
+  });
+
+  sentTexts = [];
+  backendEvents = [];
+
+  await bot.handleMessage({
+    phone,
+    text: 'priorizo capacidade e tenho até 4 mil',
+    pushName: 'Cliente Consultivo'
+  });
+
+  const reply = sentTexts.at(-1).text;
+  assert.match(reply, /eu começaria por \*Refrigerador Consul 451L\*/i);
+  assert.match(reply, /maior capacidade confirmada.*\*451 L\*/is);
+  assert.match(reply, /Preço no PIX.*R\$\s*3\.974,00/is);
+  assert.doesNotMatch(reply, /Premium 500L/i);
+  assert.equal(bot.conversation(phone).recommendationContext, null);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'consult-cap-2');
+  assert.ok(backendEvents.some((event) => event?.metadata?.consultativeRecommendation === true));
+});
+
+test('recomendação consultiva de TV prioriza tecnologia comprovada na ficha', async () => {
+  const phone = '5533977777996';
+  catalogRows = [
+    product('consult-tv-1', 'Smart TV 43 Roku 4K', {
+      category: 'TVs',
+      pixPrice: 1899,
+      stock: 3,
+      specs: 'Resolução 4K\nSistema Roku TV'
+    }),
+    product('consult-tv-2', 'Smart TV 50 QLED 4K HDR Google TV', {
+      category: 'TVs',
+      pixPrice: 2899,
+      stock: 2,
+      specs: 'Tecnologia QLED\nResolução 4K\nHDR\nGoogle TV\nComando de voz'
+    })
+  ];
+
+  await bot.handleMessage({
+    phone,
+    text: 'quero uma tv boa, qual você me indica?',
+    pushName: 'Cliente TV'
+  });
+
+  assert.match(sentTexts.at(-1).text, /tamanho da tela.*tecnologia\/recursos.*preço/is);
+
+  sentTexts = [];
+
+  await bot.handleMessage({
+    phone,
+    text: 'quero mais tecnologia e tenho até 3 mil',
+    pushName: 'Cliente TV'
+  });
+
+  const reply = sentTexts.at(-1).text;
+  assert.match(reply, /eu começaria por \*Smart TV 50 QLED 4K HDR Google TV\*/i);
+  assert.match(reply, /QLED|HDR|Google TV/i);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'consult-tv-2');
+});
+
 test('entrada guarda contexto e valor seguinte vai para análise do Marcelo sem inventar parcela', async () => {
   const phone = '5533977777987';
   const sofa = bot.compactProduct(product('faq-entry-1', 'Sofá Retrátil 3 Lugares', {
