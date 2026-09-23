@@ -4628,7 +4628,7 @@ function technicalFeatureList(details = {}) {
     ['Espaço Frio', /\bespaco frio\b/],
     ['Gelo Extra', /\bgelo extra\b/],
     ['Inverter', /\binverter\b/],
-    ['Wi-Fi', /\bwi fi\b|\bwifi\b/],
+    ['Wi-Fi', /\bwi[\s-]?fi\b|\bwifi\b/],
     ['Bluetooth', /\bbluetooth\b/],
     ['4K', /\b4k\b|\bultra hd\b|\buhd\b/],
     ['HDR', /\bhdr\b|\bdolby vision\b/],
@@ -4908,8 +4908,9 @@ function asksMoreAdvancedProduct(text = '') {
     .trim();
 
   return (
-    /\b(?:quero|queria|gostaria|tem|teria|mostra|mostrar|me mostra|procura|procurar)\b.{0,45}\b(?:uma|um|modelo|opcao)?\s*(?:melhor|mais completa|mais completo|mais moderna|mais moderno|mais tecnologia|mais tecnologica|mais tecnologico|mais recursos)\b/.test(n) ||
-    /\bgostei\b.{0,35}\b(?:mas|mais)\b.{0,25}\b(?:queria|quero)\b.{0,25}\b(?:melhor|mais completa|mais completo|mais tecnologia|mais recursos)\b/.test(n)
+    /\b(?:quero|queria|gostaria|tem|teria|mostra|mostrar|me mostra|procura|procurar)\b.{0,35}\b(?:uma|um|modelo|opcao)\s+(?:melhor|mais completa|mais completo|mais moderna|mais moderno|mais tecnologica|mais tecnologico)\b/.test(n) ||
+    /\b(?:quero|queria|gostaria|tem|teria|mostra|mostrar|me mostra|procura|procurar)\b.{0,45}\b(?:mais completa|mais completo|mais tecnologia|mais tecnologica|mais tecnologico|mais recursos)\b/.test(n) ||
+    /\bgostei\b.{0,35}\b(?:mas|mais)\b.{0,25}\b(?:queria|quero)\b.{0,25}\b(?:uma|um)?\s*(?:melhor|mais completa|mais completo|mais tecnologia|mais recursos)\b/.test(n)
   );
 }
 
