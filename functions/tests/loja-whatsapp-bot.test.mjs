@@ -349,6 +349,42 @@ test('saudação simples não inventa bem-estar e "tudo bem?" é pergunta ao Gus
   assert.equal(bot.hasCourtesyGreetingContext(bot.conversation(phone)), false);
 });
 
+test('saudações enviadas em sequência rápida recebem somente uma resposta do Gustavo', async () => {
+  const phone = '5533977777925';
+
+  await bot.handleMessage({
+    phone,
+    text: 'oi',
+    pushName: 'Marcelo Cliente'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /^Olá, Marcelo! 😊 Tudo bem\?/i);
+
+  await bot.handleMessage({
+    phone,
+    text: 'boa noite',
+    pushName: 'Marcelo Cliente'
+  });
+
+  assert.equal(
+    sentTexts.length,
+    1,
+    'segunda saudação imediata não deve gerar uma segunda resposta automática'
+  );
+  assert.equal(bot.isRapidGreetingFollowup(bot.conversation(phone), 'boa noite'), true);
+
+  await bot.handleMessage({
+    phone,
+    text: 'tô bem',
+    pushName: 'Marcelo Cliente'
+  });
+
+  assert.equal(sentTexts.length, 2);
+  assert.match(sentTexts.at(-1).text, /Ah, que bom/i);
+  assert.match(sentTexts.at(-1).text, /O que você tá precisando pra hoje/i);
+});
+
 test('resposta positiva com "e você?" responde ao cliente antes de seguir para venda', async () => {
   const replies = [
     'beleza e você ?',
@@ -2336,6 +2372,43 @@ test('se não houver TV de 50 polegadas não oferece outro tamanho no lugar', as
   assert.equal(sentTexts.length, 1);
   assert.match(sentTexts[0].text, /TV de 50 polegadas/i);
   assert.match(sentTexts[0].text, /não encontrei/i);
+});
+
+test('"qual você tem?" continua oferta de outros tamanhos após TV específica indisponível', async () => {
+  const phone = '5533977777924';
+
+  catalogRows = [
+    product('alt-natural-tv-32', 'Smart TV 32 LG Full HD', { category: 'TVs' }),
+    product('alt-natural-tv-43', 'Smart TV 43 Samsung 4K', { category: 'TVs' })
+  ];
+
+  const conv = bot.conversation(phone);
+  await bot.showProducts(phone, conv, 'tv', 'vocês têm TV de 50 polegadas?');
+
+  assert.equal(sentMedia.length, 0);
+  assert.match(sentTexts.at(-1).text, /TV de 50 polegadas/i);
+  assert.equal(bot.conversation(phone).pendingAlternativeCategory, 'tv');
+
+  assert.equal(bot.asksAcceptedAlternative('qual você tem?'), true);
+  assert.equal(bot.asksAcceptedAlternative('quais vc tem aí?'), true);
+
+  sentTexts = [];
+  sentMedia = [];
+
+  await bot.handleMessage({
+    phone,
+    text: 'qual você tem?',
+    pushName: 'Cliente TV'
+  });
+
+  assert.equal(sentMedia.length, 2);
+  assert.match(sentMedia[0].caption || '', /Smart TV 32 LG Full HD/i);
+  assert.match(sentMedia[1].caption || '', /Smart TV 43 Samsung 4K/i);
+  assert.doesNotMatch(
+    sentTexts.map((item) => item.text || '').join(' '),
+    /me conta um pouco mais do produto ou da condição/i
+  );
+  assert.equal(bot.conversation(phone).pendingAlternativeCategory, '');
 });
 
 test('"quero sim" continua oferta de outros celulares após iPhone indisponível', async () => {
