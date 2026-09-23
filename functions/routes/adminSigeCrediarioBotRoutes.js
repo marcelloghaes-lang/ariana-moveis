@@ -10503,7 +10503,11 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       const formaPagamento = String(body.formaPagamento || 'PIX').trim();
       const contaBancaria = String(body.contaBancaria || 'ariana moveis').trim();
       const dataInformada = body.data || body.dataPagamento || null;
-      const dataPagamento = dataInformada ? new Date(dataInformada) : new Date();
+      const dataPagamento = dataInformada
+        ? (/^\d{4}-\d{2}-\d{2}$/.test(String(dataInformada))
+            ? new Date(String(dataInformada) + 'T12:00:00-03:00')
+            : new Date(dataInformada))
+        : new Date();
 
       if (q.length < 2) {
         return res.status(400).json({ ok: false, error: 'Informe o cliente para registrar o recebimento.' });
