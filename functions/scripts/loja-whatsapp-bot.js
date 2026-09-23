@@ -2853,6 +2853,7 @@ function asksPixPrice(text) {
   return (
     /(quanto|qto|valor|fica|preco).{0,25}(no pix|pix)|(no pix|pix).{0,25}(quanto|qto|valor|fica|preco)/.test(n) ||
     /(quanto|qto|valor|fica|preco|ta|esta).{0,25}(a vista|avista)|(a vista|avista).{0,25}(quanto|qto|valor|fica|preco|ta|esta)/.test(n) ||
+    /^(?:e\s+)?(?:no\s+)?pix$/.test(n) ||
     /^(?:e\s+)?(?:a\s+vista|avista)$/.test(n)
   );
 }
