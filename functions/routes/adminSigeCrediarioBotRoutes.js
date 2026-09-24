@@ -3418,9 +3418,9 @@ function financeiroErpReference(row = {}) {
     }
   });
 
-  // FASE A - Endpoint financeiro canônico.
-  // O SIGE é a única fonte de parcelas, saldo, vencimentos e situação de pagamento.
-  // O MongoDB é consultado somente para enriquecer a resposta com histórico/auditoria.
+  // Endpoint financeiro canônico.
+  // O Ariana ERP é a fonte operacional de clientes, vendas, parcelas, saldo e pagamentos.
+  // Dados antigos importados permanecem no MongoDB apenas como histórico local.
   app.get('/api/admin/financeiro/carne', adminRequired, async (req, res) => {
     try {
       const q = String(req.query.cliente || req.query.q || '').trim();
@@ -3929,39 +3929,7 @@ function financeiroErpReference(row = {}) {
     };
   }
 
-  async function buscarTelefoneNoSigeFinanceiro({ cpf = '', nome = '' } = {}) {
-    if (typeof getSigePessoasByQuery !== 'function') {
-      return { telefone: '', fonte: '', detalhes: 'getSigePessoasByQuery_indisponivel' };
-    }
 
-    const tentativas = [cpf, nome].map((value) => String(value || '').trim()).filter(Boolean);
-
-    for (const query of tentativas) {
-      try {
-        const response = await getSigePessoasByQuery(query);
-        const rows = Array.isArray(response)
-          ? response
-          : (Array.isArray(response?.data) ? response.data
-            : (Array.isArray(response?.rows) ? response.rows
-              : (Array.isArray(response?.items) ? response.items : [])));
-
-        for (const row of rows) {
-          const phone = extrairTelefoneFinanceiro(row);
-          if (phone) {
-            return {
-              telefone: phone,
-              fonte: 'sige_pessoas',
-              detalhes: { query, pessoa: redact(row) }
-            };
-          }
-        }
-      } catch (error) {
-        console.warn('[financeiro telefone SIGE]', query, error.message || error);
-      }
-    }
-
-    return { telefone: '', fonte: '', detalhes: 'nao_encontrado_no_sige' };
-  }
 
   async function buscarTelefoneLocalFinanceiro({ cpf = '', nome = '' } = {}) {
     const candidates = [];
