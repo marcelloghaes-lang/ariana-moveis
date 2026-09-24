@@ -442,12 +442,33 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
     const legacyClaimKey = `erp_daily_due_whatsapp:${today}:${group.phone}`;
     const staleBefore = new Date(Date.now() - 30 * 60 * 1000);
 
-    // Compatibilidade com os registros de hoje gerados pela versão antiga,
-    // evitando duplicar lembrete no mesmo dia após o deploy.
+    // Compatibilidade com os registros gerados pela versão antiga.
+    // Em 23/09/2026, o operador confirmou que apenas Isabel recebeu de fato.
+    // Assim, preservamos Isabel e liberamos somente claims antigos não confirmados
+    // dos demais clientes para um reenvio único pelo fluxo corrigido.
     const previousLegacyClaim = await Setting.findOne({ key: legacyClaimKey }).lean().catch(() => null);
     if (previousLegacyClaim) {
-      skippedAlreadySent += 1;
-      continue;
+      const legacyMessageId = String(previousLegacyClaim?.value?.messageId || '').trim();
+      const legacyName = String(previousLegacyClaim?.value?.customerName || group.customerName || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+      const confirmedIsabelToday =
+        today === '2026-09-23' &&
+        (legacyName.includes('isabel') || legacyName.includes('izabel'));
+
+      if (confirmedIsabelToday || legacyMessageId) {
+        skippedAlreadySent += 1;
+        continue;
+      }
+
+      if (today === '2026-09-23') {
+        await Setting.deleteOne({ key: legacyClaimKey }).catch(() => null);
+      } else {
+        skippedAlreadySent += 1;
+        continue;
+      }
     }
 
     await Setting.deleteMany({
