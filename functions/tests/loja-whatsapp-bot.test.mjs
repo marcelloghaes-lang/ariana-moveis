@@ -6407,6 +6407,197 @@ test('"preço do cinamomo" pede qual opção quando a cor aparece em mais de um 
   assert.doesNotMatch(sentTexts.at(-1).text, /1\.239,51|1\.596,66/);
 });
 
+
+test('após "preço do cinamomo", resposta "3" retoma a 3ª opção e responde preço sem reabrir catálogo', async () => {
+  const phone = '5533977778017';
+  const white = product('pending-white-1', 'Guarda Roupa Delta 6 Pts Com Espelho Branco', {
+    category: 'Guarda-Roupas',
+    price: 1685.54,
+    pixPrice: 1399,
+    stock: 1
+  });
+  const second = product('pending-cina-2', 'Guarda Roupa Casal 6 Portas 2 Gavetas Delta Leifer CinamomoOff White', {
+    category: 'Guarda-Roupas',
+    price: 1685.54,
+    pixPrice: 1399,
+    stock: 4
+  });
+  const third = product('pending-cina-3', 'Guarda Roupa Casal 6 Portas 4 Gavetas Canadá cinamomooff White', {
+    category: 'Guarda-Roupas',
+    price: 1923.69,
+    pixPrice: 1596.66,
+    stock: 2
+  });
+  const fourth = product('pending-cina-4', 'Guarda Roupa Canadá Cinamomo 6 Portas 4 Gavetas', {
+    category: 'Guarda-Roupas',
+    price: 1923.69,
+    pixPrice: 1596.66,
+    stock: 3
+  });
+  catalogRows = [white, second, third, fourth];
+
+  bot.patchTestConversation(phone, {
+    lastAt: Date.now(),
+    selectedProduct: bot.compactProduct(white),
+    lastProducts: [white, second, third, fourth].map(bot.compactProduct),
+    allProductResults: [white, second, third, fourth].map(bot.compactProduct),
+    lastProductQuery: 'guarda-roupa',
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'preço do cinamomo',
+    pushName: 'Cliente Escolha'
+  });
+
+  assert.match(sentTexts.at(-1).text, /2ª opção.*3ª opção.*4ª opção/is);
+  assert.equal(bot.conversation(phone).pendingListClarification.intent, 'generic_price');
+
+  sentTexts = [];
+  sentMedia = [];
+
+  await bot.handleMessage({
+    phone,
+    text: '3',
+    pushName: 'Cliente Escolha'
+  });
+
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'pending-cina-3');
+  assert.equal(bot.conversation(phone).pendingListClarification, null);
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Guarda Roupa Casal 6 Portas 4 Gavetas Canadá cinamomooff White/i);
+  assert.match(sentTexts[0].text, /1\.596,66/);
+  assert.match(sentTexts[0].text, /12x de .*160,31/i);
+  assert.doesNotMatch(sentTexts[0].text, /Encontrei .*opções disponíveis|Vou te mostrar as primeiras/i);
+  assert.equal(sentMedia.length, 0);
+});
+
+test('escolha pendente aceita "a terceira" e continua a intenção de preço', async () => {
+  const phone = '5533977778018';
+  const white = product('pending-word-white', 'Guarda Roupa Branco', {
+    category: 'Guarda-Roupas',
+    price: 1500,
+    pixPrice: 1200,
+    stock: 1
+  });
+  const second = product('pending-word-2', 'Guarda Roupa Delta CinamomoOff White', {
+    category: 'Guarda-Roupas',
+    price: 1600,
+    pixPrice: 1300,
+    stock: 2
+  });
+  const third = product('pending-word-3', 'Guarda Roupa Canadá CinamomoOff White', {
+    category: 'Guarda-Roupas',
+    price: 1800,
+    pixPrice: 1494,
+    stock: 2
+  });
+
+  bot.patchTestConversation(phone, {
+    lastAt: Date.now(),
+    selectedProduct: bot.compactProduct(white),
+    lastProducts: [white, second, third].map(bot.compactProduct),
+    allProductResults: [white, second, third].map(bot.compactProduct),
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({ phone, text: 'preço do cinamomo', pushName: 'Cliente Escolha' });
+  sentTexts = [];
+
+  await bot.handleMessage({ phone, text: 'a terceira', pushName: 'Cliente Escolha' });
+
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'pending-word-3');
+  assert.match(sentTexts.at(-1).text, /Guarda Roupa Canadá CinamomoOff White/i);
+  assert.match(sentTexts.at(-1).text, /1\.494,00/i);
+});
+
+test('escolha pendente de "mais fotos" envia a galeria do número escolhido', async () => {
+  const phone = '5533977778019';
+  const white = product('pending-photo-white', 'Guarda Roupa Branco', {
+    category: 'Guarda-Roupas',
+    stock: 1
+  });
+  const second = product('pending-photo-2', 'Guarda Roupa Delta CinamomoOff White', {
+    category: 'Guarda-Roupas',
+    stock: 2,
+    imageUrl: 'https://img.test/pending-photo-2-main.jpg',
+    images: [
+      { url: 'https://img.test/pending-photo-2-main.jpg', isMain: true },
+      { url: 'https://img.test/pending-photo-2-inside.jpg' }
+    ]
+  });
+  const third = product('pending-photo-3', 'Guarda Roupa Canadá CinamomoOff White', {
+    category: 'Guarda-Roupas',
+    stock: 2,
+    imageUrl: 'https://img.test/pending-photo-3-main.jpg',
+    images: [
+      { url: 'https://img.test/pending-photo-3-main.jpg', isMain: true },
+      { url: 'https://img.test/pending-photo-3-inside.jpg' }
+    ]
+  });
+
+  catalogRows = [white, second, third];
+
+  bot.patchTestConversation(phone, {
+    lastAt: Date.now(),
+    selectedProduct: bot.compactProduct(white),
+    lastProducts: [white, second, third].map(bot.compactProduct),
+    allProductResults: [white, second, third].map(bot.compactProduct),
+    lastProductQuery: 'guarda-roupa',
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'gostei do cinamomo tem mais fotos?',
+    pushName: 'Cliente Fotos'
+  });
+
+  assert.match(sentTexts.at(-1).text, /2ª opção.*3ª opção/is);
+  assert.equal(bot.conversation(phone).pendingListClarification.intent, 'gallery_more');
+
+  sentTexts = [];
+  sentMedia = [];
+
+  await bot.handleMessage({
+    phone,
+    text: '2',
+    pushName: 'Cliente Fotos'
+  });
+
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'pending-photo-2');
+  assert.equal(bot.conversation(phone).pendingListClarification, null);
+  assert.ok(sentMedia.some((item) => item.media === 'https://img.test/pending-photo-2-inside.jpg'));
+  assert.equal(sentMedia.some((item) => item.media === 'https://img.test/pending-photo-3-inside.jpg'), false);
+});
+
+test('escolha pendente expirada é apagada e não fica presa por horas', () => {
+  const phone = '5533977778020';
+  bot.patchTestConversation(phone, {
+    lastAt: Date.now(),
+    pendingListClarification: {
+      createdAt: Date.now() - 20 * 60 * 1000,
+      expiresAt: Date.now() - 1,
+      originalText: 'preço do cinamomo',
+      intent: 'generic_price',
+      options: [
+        {
+          optionNumber: 3,
+          product: bot.compactProduct(product('expired-option-3', 'Guarda Roupa Cinamomo', {
+            category: 'Guarda-Roupas',
+            pixPrice: 1500,
+            stock: 1
+          }))
+        }
+      ]
+    }
+  });
+
+  const conv = bot.conversation(phone);
+  assert.equal(conv.pendingListClarification, null);
+});
+
 test('pergunta financeira com "valor" não vira preço genérico de produto', () => {
   assert.equal(bot.asksGenericProductPrice('qual o valor da minha parcela?'), false);
   assert.equal(bot.asksGenericProductPrice('quanto eu devo da minha notinha?'), false);
