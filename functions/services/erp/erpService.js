@@ -536,7 +536,7 @@ export function createErpService(context = {}) {
           receivables,
           paymentMethod: payment.method,
           fiscalStatus: currentErp.fiscalStatus || 'not_generated',
-          timeline: [...array(currentErp.timeline), timelineEntry('faturado', 'Venda faturada: financeiro gerado e estoque baixado', actor)]
+          timeline: [...array(currentErp.timeline), timelineEntry('faturado', 'Venda faturada: financeiro preservado e estoque baixado', actor)]
         }
       };
       await order.save();
@@ -548,7 +548,7 @@ export function createErpService(context = {}) {
     }
 
     await audit('erp.order.billed', order, {
-      message: 'Venda faturada; estoque baixado e financeiro gerado',
+      message: 'Venda faturada; estoque baixado e financeiro existente preservado',
       request: payload,
       metadata: { movements, receivables }
     });
