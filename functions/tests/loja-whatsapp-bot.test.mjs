@@ -4011,7 +4011,7 @@ test('intervenção manual pausa o bot por 60 minutos', async () => {
   });
 
   assert.equal(sentTexts.length, 1);
-  assert.match(sentTexts[0].text, /^Boa (?:dia|tarde|noite)! 😊 Tudo bem\?/i);
+  assert.match(sentTexts[0].text, /^(?:Bom dia|Boa tarde|Boa noite)! 😊 Tudo bem\?/i);
 });
 
 test('mensagem enviada pelo próprio bot não ativa pausa humana', async () => {
@@ -8138,6 +8138,51 @@ test('comprovante continua sendo reconhecido pelo conteúdo da imagem sem memór
   assert.equal(result.vision, 'payment_receipt_pix');
   assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), false);
   assert.match(sentTexts.at(-1).text, /pagamento está sendo analisado/i);
+});
+
+
+test('resposta financeira depois de lembrete é entendida pelo texto atual sem criar memória de cobrança', async () => {
+  const phone = '5533977777787';
+
+  await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: true,
+        id: 'STATELESS-DUE-REMINDER-FINANCE-1'
+      },
+      pushName: 'Cliente Financeiro',
+      message: {
+        conversation: [
+          'Bom dia, Cliente! Tudo bem?',
+          'Passando para lembrar que hoje vence uma parcela referente à sua compra realizada aqui na Ariana Móveis.',
+          'Se o pagamento já tiver sido realizado, por favor desconsidere esta mensagem.'
+        ].join('\n')
+      }
+    }
+  });
+
+  sentTexts = [];
+  backendEvents = [];
+
+  await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'STATELESS-DUE-FINANCE-REPLY-1'
+      },
+      pushName: 'Cliente Financeiro',
+      message: { conversation: 'Hoje não consigo, posso pagar amanhã?' }
+    }
+  });
+
+  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), false);
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Marcelo|pagamento/i);
+  assert.doesNotMatch(sentTexts[0].text, /Estou acompanhando o lembrete|parcela que vence hoje/i);
 });
 
 test('Gustavo mantém negociação de nova data dentro da cobrança e encaminha ao Marcelo sem prometer acordo', async () => {
