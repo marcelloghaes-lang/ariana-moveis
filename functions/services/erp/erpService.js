@@ -499,8 +499,8 @@ export function createErpService(context = {}) {
       ...(payload.payment || {}),
       method: normalizePaymentMethod(payload.paymentMethod || payload.payment?.method || order.payment?.method),
       installments: Math.max(1, Math.min(60, Number(payload.installments || payload.payment?.installments || order.payment?.installments || 1))),
-      firstDueDate: payload.firstDueDate || payload.payment?.firstDueDate || null,
-      status: payload.paymentStatus || payload.payment?.status || ''
+      firstDueDate: payload.firstDueDate || payload.payment?.firstDueDate || order.payment?.firstDueDate || null,
+      status: payload.paymentStatus || payload.payment?.status || order.payment?.status || ''
     };
     const existingReceivables = array(currentErp.receivables).map(row => ({ ...row }));
     const receivables = existingReceivables.length ? existingReceivables : buildReceivables(order.total, payment);
@@ -511,14 +511,14 @@ export function createErpService(context = {}) {
       const allReceived = financeState.allReceived;
       order.status = 'faturado';
       order.statusLabel = LABELS.faturado;
-      order.paymentStatus = allReceived ? 'approved' : 'pending';
+      order.paymentStatus = financeState.paymentStatus;
       order.payment = {
         ...(order.payment || {}),
         method: payment.method,
         installments: payment.installments,
         installmentValue: money(order.total / payment.installments),
         firstDueDate: payment.firstDueDate || null,
-        status: allReceived ? 'approved' : 'pending',
+        status: financeState.paymentStatus,
         received: allReceived,
         receivedAt: allReceived ? new Date() : null
       };
