@@ -3488,7 +3488,7 @@ async function sincronizarCarneDigitalErp(q = '', req = {}, options = {}) {
     let lastError = null;
     for (const termo of [...new Set(termos)]) {
       try {
-        const candidate = await getUnifiedFinancialData(termo, options);
+        const candidate = await getArianaErpFinancialData(termo, options);
         if (candidate && Array.isArray(candidate.grupos) && candidate.grupos.length) {
           data = candidate;
           break;
@@ -3501,7 +3501,7 @@ async function sincronizarCarneDigitalErp(q = '', req = {}, options = {}) {
 
     if (!data) {
       if (lastError) throw lastError;
-      data = await getUnifiedFinancialData(String(q || '').trim(), options);
+      data = await getArianaErpFinancialData(String(q || '').trim(), options);
     }
 
     if (!Array.isArray(data.grupos) || !data.grupos.length) {
@@ -6717,7 +6717,7 @@ function financeiroErpReference(row = {}) {
     };
   }
 
-  async function getUnifiedFinancialData(q = '', options = {}) {
+  async function getArianaErpFinancialData(q = '', options = {}) {
     const carne = await getArianaErpFinancialData(q, options);
     let auditoriaMongo = null;
     try {
@@ -10260,7 +10260,7 @@ function financeiroErpReference(row = {}) {
     };
   }
 
-  async function getUnifiedFinancialData(q = '', options = {}) {
+  async function getArianaErpFinancialData(q = '', options = {}) {
     const carne = await getArianaErpFinancialData(q, options);
     let auditoriaMongo = null;
     try {
@@ -10630,7 +10630,7 @@ function financeiroErpReference(row = {}) {
   app.get('/api/admin/financeiro/carne', adminRequired, async (req, res) => {
     try {
       const q = String(req.query.cliente || req.query.q || '').trim();
-      const data = await getUnifiedFinancialData(q, {
+      const data = await getArianaErpFinancialData(q, {
         limit: req.query.limit || 5000,
         maxRecords: req.query.maxRecords || 20000
       });
