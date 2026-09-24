@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { buildReceivables } from './erpService.js';
 
 const clean=(v='',m=500)=>String(v??'').trim().slice(0,m);
 const money=v=>Math.round((Number(v||0)+Number.EPSILON)*100)/100;
@@ -22,9 +23,21 @@ export function createErpParityAnalyticsService(context={}){
  if(!Order)throw new Error('[erp-parity] Order não informado');
 
  async function currentReceivables(){
-  const orders=await Order.find({origin:'erp_ariana',status:{$in:['pedido','venda','faturado']},'televendas.erp.receivables.0':{$exists:true}}).select('_id customerName customerCpf customerPhone customerEmail payment televendas updatedAt').lean(),out=[];
+  const orders=await Order.find({origin:'erp_ariana',status:{$in:['pedido','venda','faturado']}}).select('_id customerName customerCpf customerPhone customerEmail payment paymentStatus total televendas updatedAt'),out=[];
   for(const o of orders){
-   for(const r of o.televendas?.erp?.receivables||[]){
+   const erp=o.televendas?.erp||{};
+   let receivables=array(erp.receivables);
+   if(!receivables.length){
+    receivables=buildReceivables(o.total,o.payment||{});
+    const all=receivables.length>0&&receivables.every(r=>String(r.status||'').toLowerCase()==='recebido');
+    const some=receivables.some(r=>String(r.status||'').toLowerCase()==='recebido'||Number(r.receivedAmount||0)>0);
+    const financialStatus=all?'settled':(some?'partial':'generated');
+    o.paymentStatus=all?'approved':(some?'partial':'pending');
+    o.payment={...(o.payment||{}),status:o.paymentStatus,received:all,receivedAt:all?(o.payment?.receivedAt||new Date()):null};
+    o.televendas={...(o.televendas||{}),erp:{...erp,receivables,financialStatus,financialGeneratedAt:erp.financialGeneratedAt||new Date(),timeline:[...array(erp.timeline),{status:'financeiro',label:'Financeiro gerado automaticamente para venda já existente',at:new Date(),by:'Ariana ERP'}]}};
+    await o.save();
+   }
+   for(const r of receivables){
     if(['cancelado','estornado'].includes(r.status))continue;
     const payments=array(r.payments),principalPaid=money(payments.length?payments.reduce((s,p)=>s+Number(p.principalApplied??p.amount??0),0):Number(r.receivedAmount??(r.status==='recebido'?r.value:0))),cashPaid=money(payments.length?payments.reduce((s,p)=>s+Number(p.totalPaid??p.principalApplied??p.amount??0),0):principalPaid),open=Math.max(0,money(Number(r.value||0)-principalPaid)),paid=r.status==='recebido'||open<=0.009;
     out.push({id:`order:${o._id}:${r.number||out.length}`,source:'ariana_sale',origin:'ariana_sale',direction:'receivable',personName:o.customerName||'Consumidor',personDocument:o.customerCpf||'',personPhone:o.customerPhone||'',personEmail:o.customerEmail||'',description:o.televendas?.erp?.code||'Venda Ariana',categoryName:r.categoryName||'Vendas',bankAccountName:r.bankAccountName||'',paymentMethod:r.receivedMethod||r.method||o.payment?.method||'',value:Number(r.value||0),principalPaid,paidValue:cashPaid,outstanding:open,status:paid?'paid':'pending',partial:!paid&&principalPaid>0,dueAt:r.dueAt,competenceAt:r.competenceAt||o.updatedAt,paidAt:r.receivedAt||payments.at(-1)?.at||null,orderId:String(o._id),installmentNumber:Number(r.number||1),installments:Number(r.installments||1),payments})
