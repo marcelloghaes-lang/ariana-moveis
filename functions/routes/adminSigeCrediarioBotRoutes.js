@@ -1,6 +1,7 @@
 import { createErpParityAnalyticsService } from '../services/erp/erpParityAnalyticsService.js';
 import { createErpFinanceService } from '../services/erp/erpFinanceService.js';
 import { createErpLedgerService } from '../services/erp/erpLedgerService.js';
+import { createErpFinanceCustomerContactService } from '../services/erp/erpFinanceCustomerContactService.js';
 
 // ============================================================
 // ROTAS ADMIN SIGE / CREDIÁRIO / BOTS - ARIANA MÓVEIS
@@ -197,6 +198,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
   const erpParityFinance = createErpParityAnalyticsService(context);
   const erpFinanceOperations = createErpFinanceService(context);
   const erpLedgerOperations = createErpLedgerService(context);
+  const erpFinanceCustomerContact = createErpFinanceCustomerContactService(context);
 
   function botFinanceDaysLate(dueAt) {
     if (!dueAt) return 0;
