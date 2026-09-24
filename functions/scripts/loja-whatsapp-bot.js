@@ -820,8 +820,20 @@ function activeCreditPlanContext(conv = {}, now = Date.now()) {
 }
 
 function clearActiveCommercialContext(conv = {}, { preserveCreditPlan = false } = {}) {
-  const preservedCreditPlan = preserveCreditPlan ? conv.lastCreditPlan : null;
+  let preservedCreditPlan = preserveCreditPlan ? conv.lastCreditPlan : null;
   const preservedCreditUntil = preserveCreditPlan ? Number(conv.creditContextUntil || 0) : 0;
+
+  if (
+    preservedCreditPlan &&
+    !preservedCreditPlan.product &&
+    conv.selectedProduct &&
+    String(preservedCreditPlan.productId || '') === productId(conv.selectedProduct)
+  ) {
+    preservedCreditPlan = {
+      ...preservedCreditPlan,
+      product: compactProduct(conv.selectedProduct)
+    };
+  }
 
   conv.lastProducts = [];
   conv.allProductResults = [];
@@ -2243,15 +2255,8 @@ async function handleGeneralIntent({
       return true;
     }
 
-    conv.lastCreditPlan = {
-      productId: productId(product),
-      count,
-      divisor: plan.divisor,
-      total: plan.total,
-      installment: plan.installment
-    };
+    rememberCreditPlan(conv, product, count, plan);
     clearPendingCreditInstallments(conv);
-    saveStateSoon();
 
     await sendText(
       phone,
@@ -7249,6 +7254,20 @@ function creditPlan(product, count) {
   return { base, max, divisor, total, installment, invalid: false };
 }
 
+function rememberCreditPlan(conv, product, count, plan) {
+  conv.lastCreditPlan = {
+    productId: productId(product),
+    product: compactProduct(product),
+    count,
+    divisor: plan.divisor,
+    total: plan.total,
+    installment: plan.installment
+  };
+  markCreditContext(conv);
+  saveStateSoon();
+  return conv.lastCreditPlan;
+}
+
 function ordinalIndex(text) {
   const n = normalize(text);
   const entries = [
@@ -8743,16 +8762,8 @@ Se quiser, também posso conferir a entrega com você.`
     }
 
     conv.selectedProduct = product;
-    conv.lastCreditPlan = {
-      productId: productId(product),
-      count,
-      divisor: plan.divisor,
-      total: plan.total,
-      installment: plan.installment
-    };
+    rememberCreditPlan(conv, product, count, plan);
     clearPendingCreditInstallments(conv);
-    markCreditContext(conv);
-    saveStateSoon();
 
     await sendText(
       phone,
@@ -9223,15 +9234,8 @@ async function handleMessage({
         return;
       }
 
-      conv.lastCreditPlan = {
-        productId: productId(rememberedReferenceProduct),
-        count,
-        divisor: plan.divisor,
-        total: plan.total,
-        installment: plan.installment
-      };
+      rememberCreditPlan(conv, rememberedReferenceProduct, count, plan);
       clearPendingCreditInstallments(conv);
-      saveStateSoon();
 
       await sendText(
         phone,
@@ -10162,15 +10166,8 @@ ${productCaption(product)}`
       return;
     }
 
-    conv.lastCreditPlan = {
-      productId: productId(product),
-      count,
-      divisor: plan.divisor,
-      total: plan.total,
-      installment: plan.installment
-    };
+    rememberCreditPlan(conv, product, count, plan);
     clearPendingCreditInstallments(conv);
-    saveStateSoon();
     await sendText(
       phone,
       `No crediário próprio, para *${product.name}*, em *${count}x* fica aproximadamente *${count}x de ${money(plan.installment)}*, total de *${money(plan.total)}*. A compra no carnê é sujeita à análise de crédito.\n\nSe quiser seguir com o carnê, eu já posso iniciar a solicitação para você.`
