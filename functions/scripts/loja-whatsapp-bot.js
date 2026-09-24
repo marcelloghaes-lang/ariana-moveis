@@ -961,14 +961,11 @@ function conversation(phone) {
   if (typeof conv.contactRole !== 'string') conv.contactRole = '';
   if (!Number.isFinite(Number(conv.contactRoleAt))) conv.contactRoleAt = 0;
   if (!Number.isFinite(Number(conv.supplierAcknowledgedAt))) conv.supplierAcknowledgedAt = 0;
-  // O lembrete de vencimento é stateless: nunca deve dominar mensagens futuras.
-  // Limpa estados legados de versões anteriores assim que a conversa é carregada.
-  conv.dailyDueContextUntil = 0;
-  conv.dailyDueReminderAt = 0;
-  conv.dailyDueReplyCount = 0;
-  conv.dailyDueLookupAt = 0;
-  conv.dailyDueLookupActive = false;
-  if (conv.pendingAction === 'daily_due_finance_cpf') conv.pendingAction = '';
+  if (!Number.isFinite(Number(conv.dailyDueContextUntil))) conv.dailyDueContextUntil = 0;
+  if (!Number.isFinite(Number(conv.dailyDueReminderAt))) conv.dailyDueReminderAt = 0;
+  if (!Number.isFinite(Number(conv.dailyDueReplyCount))) conv.dailyDueReplyCount = 0;
+  if (!Number.isFinite(Number(conv.dailyDueLookupAt))) conv.dailyDueLookupAt = 0;
+  if (typeof conv.dailyDueLookupActive !== 'boolean') conv.dailyDueLookupActive = false;
   if (!Number.isFinite(Number(conv.dailyDueCourtesyAt))) conv.dailyDueCourtesyAt = 0;
   if (!Array.isArray(conv.recentTurns)) conv.recentTurns = [];
   if (!Array.isArray(conv.lastComparedProducts)) conv.lastComparedProducts = [];
