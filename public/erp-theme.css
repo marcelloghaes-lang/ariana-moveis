@@ -176,3 +176,76 @@ table tbody tr:hover{background:#f6f9fd}
   .card,.panel,.box,.hero,.tablebox,.table-box,.filters,.filter-box,.summary,
   .form-card,.content-card,.section-card,.login-card,.modal-card{box-shadow:none!important}
 }
+
+
+/* ===== Painel inicial: contraste reforçado sobre o fundo azul ===== */
+.actionbar a{
+  color:#ffffff!important;
+  background:rgba(255,255,255,.08)!important;
+  opacity:1!important;
+  text-shadow:0 1px 1px rgba(0,0,0,.12);
+}
+.actionbar a:hover,
+.actionbar a:focus,
+.actionbar a:focus-visible{
+  color:#ffffff!important;
+  background:rgba(255,255,255,.18)!important;
+}
+.actionbar a[aria-current="page"],
+.actionbar a.active{
+  color:#003b8f!important;
+  background:#ffffff!important;
+  box-shadow:inset 0 -3px 0 #f4c400!important;
+  text-shadow:none!important;
+}
+
+/* títulos colocados diretamente sobre o fundo azul do dashboard */
+.content > .section-title h2{
+  color:#ffffff!important;
+  text-shadow:0 1px 1px rgba(0,0,0,.14);
+}
+.content > .section-title span{
+  color:#dceaff!important;
+  opacity:1!important;
+}
+
+/* informações do cabeçalho do painel */
+.top .server,
+.top .server span,
+.top .userinfo small{
+  color:#dceaff!important;
+  opacity:1!important;
+}
+.top .userinfo b{
+  color:#ffffff!important;
+}
+
+/* cartões rápidos: impedir aparência de item desabilitado */
+.quick a,
+.quick b,
+.quick small,
+.quick .qicon{
+  opacity:1!important;
+}
+.quick a{
+  color:#172033!important;
+}
+.quick a:hover{
+  color:#172033!important;
+}
+.quick .qicon{
+  color:#0047ab!important;
+  background:#eef5ff!important;
+}
+
+/* métricas e textos de apoio devem permanecer nítidos */
+.metric small,
+.panel small,
+.due-count{
+  opacity:1!important;
+}
+
+/* no dashboard, links internos de ação mantêm contraste próprio */
+.actionbar a:not(.btn):not(.primary):not(.secondary){
+  color:#ffffff!important;
+}
