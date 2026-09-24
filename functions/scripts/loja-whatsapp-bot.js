@@ -115,6 +115,10 @@ const ACTIVE_COMMERCIAL_CONTEXT_TTL_MS = Math.max(
   15,
   Number(process.env.LOJA_ACTIVE_COMMERCIAL_CONTEXT_MINUTES || 45)
 ) * 60 * 1000;
+const CREDIT_PLAN_FOLLOWUP_TTL_MS = Math.max(
+  30,
+  Number(process.env.LOJA_CREDIT_PLAN_FOLLOWUP_MINUTES || 120)
+) * 60 * 1000;
 const SHORT_CONTEXT_MAX_TURNS = Math.max(3, Math.min(8, Number(process.env.LOJA_SHORT_CONTEXT_TURNS || 6)));
 const LIST_CLARIFICATION_TTL_MS = Math.max(
   3,
@@ -808,7 +812,17 @@ function isTransientCommercialPendingAction(action = '') {
   ]).has(String(action || '').trim());
 }
 
-function clearActiveCommercialContext(conv = {}) {
+function activeCreditPlanContext(conv = {}, now = Date.now()) {
+  return Boolean(
+    conv?.lastCreditPlan &&
+    Number(conv?.creditContextUntil || 0) > now
+  );
+}
+
+function clearActiveCommercialContext(conv = {}, { preserveCreditPlan = false } = {}) {
+  const preservedCreditPlan = preserveCreditPlan ? conv.lastCreditPlan : null;
+  const preservedCreditUntil = preserveCreditPlan ? Number(conv.creditContextUntil || 0) : 0;
+
   conv.lastProducts = [];
   conv.allProductResults = [];
   conv.productResultOffset = 0;
@@ -838,6 +852,11 @@ function clearActiveCommercialContext(conv = {}) {
   if (conv.lastIntent === 'produto') {
     conv.lastIntent = '';
   }
+
+  if (preserveCreditPlan && preservedCreditPlan && preservedCreditUntil > Date.now()) {
+    conv.lastCreditPlan = preservedCreditPlan;
+    conv.creditContextUntil = preservedCreditUntil;
+  }
 }
 
 function expireInactiveCommercialContext(conv = {}, now = Date.now()) {
@@ -845,7 +864,8 @@ function expireInactiveCommercialContext(conv = {}, now = Date.now()) {
   if (!previousAt) return false;
   if (now - previousAt <= ACTIVE_COMMERCIAL_CONTEXT_TTL_MS) return false;
 
-  clearActiveCommercialContext(conv);
+  const preserveCreditPlan = activeCreditPlanContext(conv, now);
+  clearActiveCommercialContext(conv, { preserveCreditPlan });
   conv.recentTurns = [];
   return true;
 }
@@ -864,6 +884,7 @@ function conversation(phone) {
       humanUntil: 0,
       manualHumanUntil: 0,
       customerName: '',
+      lastCreditPlan: null,
       creditContextUntil: 0,
       pixContextUntil: 0,
       pendingImageIntent: '',
@@ -4134,7 +4155,7 @@ function asksHowToBuyCredit(text) {
 }
 
 function markCreditContext(conv) {
-  conv.creditContextUntil = Date.now() + 30 * 60 * 1000;
+  conv.creditContextUntil = Date.now() + CREDIT_PLAN_FOLLOWUP_TTL_MS;
   saveStateSoon();
 }
 
@@ -4142,8 +4163,7 @@ function isCreditContext(conv, text = '') {
   const n = normalize(text);
   if (/(carne|crediario|boleto)/.test(n)) return true;
   if (String(conv?.pendingAction || '').startsWith('crediario_')) return true;
-  if (conv?.lastCreditPlan) return true;
-  return Number(conv?.creditContextUntil || 0) > Date.now();
+  return activeCreditPlanContext(conv);
 }
 
 function asksToWriteOnCredit(text) {
