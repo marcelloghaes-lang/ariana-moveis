@@ -73,6 +73,37 @@ jobs:
           const paid = buildReceivables(799, { method: 'pix', installments: 1, status: 'approved' });
           assert.equal(paid[0].status, 'recebido');
           NODE
+      - name: Validate sales report deduplication
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { dedupeCurrentOrders, orderSaleDate } from './functions/services/erp/erpSalesReportUtils.js';
+
+          const base={
+            customerName:'Cliente Teste',
+            customerCpf:'12345678909',
+            total:1000,
+            payment:{method:'crediario'},
+            items:[{productId:'p1',name:'Produto',qty:1,totalPrice:1000}],
+            createdAt:new Date('2026-09-14T12:00:00Z'),
+            updatedAt:new Date('2026-09-24T18:00:00Z'),
+            televendas:{erp:{sellerName:'Marcelo'}}
+          };
+          const pedido={...base,_id:'1',status:'pedido'};
+          const faturado={...base,_id:'2',status:'faturado'};
+          const reconciled=dedupeCurrentOrders([pedido,faturado]);
+          assert.equal(reconciled.orders.length,1);
+          assert.equal(reconciled.orders[0].status,'faturado');
+          assert.equal(reconciled.suppressed,1);
+          assert.equal(orderSaleDate(pedido).toISOString(),'2026-09-14T12:00:00.000Z');
+
+          const vendaA={...base,_id:'3',status:'faturado'};
+          const vendaB={...base,_id:'4',status:'faturado'};
+          const legitimate=dedupeCurrentOrders([vendaA,vendaB]);
+          assert.equal(legitimate.orders.length,2);
+          assert.equal(legitimate.suppressed,0);
+          NODE
+
       - name: Validate ERP permission matrix
         run: |
           node --input-type=module <<'NODE'
