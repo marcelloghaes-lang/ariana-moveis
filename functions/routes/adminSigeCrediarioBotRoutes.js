@@ -3424,7 +3424,7 @@ function financeiroErpReference(row = {}) {
   app.get('/api/admin/financeiro/carne', adminRequired, async (req, res) => {
     try {
       const q = String(req.query.cliente || req.query.q || '').trim();
-      const data = await getUnifiedFinancialData(q, {
+      const data = await getArianaErpFinancialData(q, {
         limit: req.query.limit || 5000,
         maxRecords: req.query.maxRecords || 20000
       });
@@ -3433,8 +3433,8 @@ function financeiroErpReference(row = {}) {
       console.error('Erro financeiro unificado:', error.message || error);
       return res.status(error.statusCode || 500).json({
         ok: false,
-        error: error.message || 'Erro ao consultar dados financeiros oficiais no SIGE',
-        fonteFinanceira: 'sige'
+        error: error.message || 'Erro ao consultar dados financeiros no Ariana ERP',
+        fonteFinanceira: 'ariana_erp'
       });
     }
   });
@@ -3445,7 +3445,7 @@ function financeiroErpReference(row = {}) {
   app.post('/api/admin/financeiro/carnes/sincronizar', adminRequired, async (req, res) => {
     try {
       const q = String(req.body?.cliente || req.body?.q || '').trim();
-      const result = await sincronizarCarneDigitalSige(q, req, {
+      const result = await sincronizarCarneDigitalErp(q, req, {
         limit: req.body?.limit || 5000,
         maxRecords: req.body?.maxRecords || 20000
       });
@@ -3627,7 +3627,7 @@ function financeiroErpReference(row = {}) {
         ''
       ).trim();
 
-      const result = await sincronizarCarneDigitalSige(termo, req, {
+      const result = await sincronizarCarneDigitalErp(termo, req, {
         limit: req.body?.limit || 5000,
         maxRecords: req.body?.maxRecords || 20000,
         existingCarne: existente,
@@ -3651,22 +3651,33 @@ function financeiroErpReference(row = {}) {
     try {
       const q = String(req.query.q || req.query.nome || '').trim();
       const limit = Math.max(1, Math.min(Number(req.query.limit || 50), 200));
-      const pessoas = await getSigePessoasByQuery(q, limit);
-      return res.json({
-        ok: true,
-        clientes: pessoas,
-        total: pessoas.length,
-        fonte: 'sige',
-        fonteFinanceira: 'sige',
-        estadoFinanceiroSomenteLeitura: true
-      });
+      const Person = mongoose.models.ErpPerson;
+      if (!Person) return res.json({ ok: true, clientes: [], total: 0, fonte: 'ariana_erp', fonteFinanceira: 'ariana_erp' });
+      const filter = { active: { $ne: false } };
+      if (q) {
+        const rx = new RegExp(escapeRegex(q), 'i');
+        const qDigits = onlyDigits(q);
+        filter.$or = [{ name: rx }, { companyName: rx }, { email: rx }, { phone: rx }, { document: rx }];
+        if (qDigits) filter.$or.push({ document: new RegExp(escapeRegex(qDigits), 'i') }, { phone: new RegExp(escapeRegex(qDigits), 'i') });
+      }
+      const pessoas = await Person.find(filter).sort({ name: 1 }).limit(limit).lean();
+      const clientes = pessoas.map((p) => ({
+        id: String(p._id),
+        codigo: String(p._id),
+        nome: String(p.name || p.companyName || ''),
+        nomeFantasia: String(p.companyName || ''),
+        cpf: onlyDigits(p.document || ''),
+        documento: onlyDigits(p.document || ''),
+        telefone: String(p.phone || ''),
+        email: String(p.email || ''),
+        cidade: String(p.address?.city || ''),
+        uf: String(p.address?.stateCode || ''),
+        fonte: 'ariana_erp'
+      }));
+      return res.json({ ok: true, clientes, total: clientes.length, fonte: 'ariana_erp', fonteFinanceira: 'ariana_erp', estadoFinanceiroSomenteLeitura: false });
     } catch (error) {
-      console.error('Erro financeiro clientes SIGE:', error.message || error);
-      return res.status(error.statusCode || 500).json({
-        ok: false,
-        error: error.message || 'Erro ao consultar clientes financeiros no SIGE',
-        fonteFinanceira: 'sige'
-      });
+      console.error('Erro financeiro clientes Ariana ERP:', error.message || error);
+      return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao consultar clientes financeiros no Ariana ERP', fonteFinanceira: 'ariana_erp' });
     }
   });
 
