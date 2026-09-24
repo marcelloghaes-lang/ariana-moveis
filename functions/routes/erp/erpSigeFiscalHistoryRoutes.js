@@ -55,6 +55,30 @@ export default function createErpSigeFiscalHistoryRoutes(context={}){
     try{return res.json({ok:true,settings:await settings.get()})}
     catch(e){return sendError(res,e,'Erro ao consultar configuração fiscal.')}
   });
+  router.get('/erp/comprovante/emitente',operationalRequired,async(_req,res)=>{
+    try{
+      const fiscal=await settings.get(),issuer=fiscal?.emission?.issuer||{};
+      return res.json({
+        ok:true,
+        issuer:{
+          razaoSocial:String(issuer.razaoSocial||'').trim(),
+          nomeFantasia:String(issuer.nomeFantasia||'ARIANA MÓVEIS').trim(),
+          cnpj:String(issuer.cnpj||'').trim(),
+          ie:String(issuer.ie||'').trim(),
+          logradouro:String(issuer.logradouro||'').trim(),
+          numero:String(issuer.numero||'').trim(),
+          complemento:String(issuer.complemento||'').trim(),
+          bairro:String(issuer.bairro||'').trim(),
+          municipio:String(issuer.municipio||'').trim(),
+          uf:String(issuer.uf||'MG').trim(),
+          cep:String(issuer.cep||'').trim(),
+          phone:String(issuer.phone||'').trim(),
+          email:'contato@arianamoveis.com.br',
+          site:'arianamoveis.com.br'
+        }
+      });
+    }catch(e){return sendError(res,e,'Erro ao consultar dados do emitente do comprovante.')}
+  });
   router.put('/erp/fiscal/configuracao/sefaz',context.adminRequired,async(req,res)=>{
     try{return res.json({ok:true,settings:await settings.setFiscalConfig(req.body||{},actor(req))})}
     catch(e){return sendError(res,e,'Erro ao salvar configuração da SEFAZ.')}
