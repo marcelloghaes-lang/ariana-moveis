@@ -3966,6 +3966,170 @@ function financeiroErpReference(row = {}) {
   async function buscarTelefoneLocalFinanceiro({ cpf = '', nome = '' } = {}) {
     const candidates = [];
 
+    const Person = mongoose.models.ErpPerson;
+    if (Person) {
+      const filter = { active: { $ne: false }, $or: [] };
+      if (cpf) filter.$or.push({ document: cleanPhone(cpf) });
+      if (nome) filter.$or.push(
+        { name: new RegExp('^' + escapeRegex(nome) + '
+    if (CrediarioCliente) {
+      const filter = { $or: [] };
+      if (cpf) {
+        filter.$or.push(
+          { cpf },
+          { documento: cpf },
+          { cpfCnpj: cpf },
+          { 'cliente.cpf': cpf }
+        );
+      }
+      if (nome) {
+        filter.$or.push(
+          { nome: new RegExp(`^${escapeRegex(nome)}$`, 'i') },
+          { clienteNome: new RegExp(`^${escapeRegex(nome)}$`, 'i') },
+          { 'cliente.nome': new RegExp(`^${escapeRegex(nome)}$`, 'i') }
+        );
+      }
+
+      if (filter.$or.length) {
+        try {
+          const row = await CrediarioCliente.findOne(filter).lean();
+          if (row) candidates.push({ fonte: 'crediario_clientes', row });
+        } catch (error) {
+          console.warn('[financeiro telefone crediario]', error.message || error);
+        }
+      }
+    }
+
+    if (Order) {
+      const filter = { $or: [] };
+      if (cpf) {
+        filter.$or.push(
+          { customerCpf: cpf },
+          { clienteCpf: cpf },
+          { cpfCliente: cpf },
+          { 'customer.cpf': cpf },
+          { 'cliente.cpf': cpf },
+          { 'billingAddress.cpf': cpf },
+          { 'shippingAddress.cpf': cpf }
+        );
+      }
+      if (nome) {
+        filter.$or.push(
+          { customerName: new RegExp(`^${escapeRegex(nome)}$`, 'i') },
+          { clienteNome: new RegExp(`^${escapeRegex(nome)}$`, 'i') },
+          { 'customer.name': new RegExp(`^${escapeRegex(nome)}$`, 'i') },
+          { 'cliente.nome': new RegExp(`^${escapeRegex(nome)}$`, 'i') }
+        );
+      }
+
+      if (filter.$or.length) {
+        try {
+          const row = await Order.findOne(filter).sort({ createdAt: -1 }).lean();
+          if (row) candidates.push({ fonte: 'pedidos', row });
+        } catch (error) {
+          console.warn('[financeiro telefone pedidos]', error.message || error);
+        }
+      }
+    }
+
+    for (const candidate of candidates) {
+      const phone = extrairTelefoneFinanceiro(candidate.row);
+      if (phone) {
+        return {
+          telefone: phone,
+          fonte: candidate.fonte,
+          detalhes: redact(candidate.row)
+        };
+      }
+    }
+
+    return { telefone: '', fonte: '', detalhes: 'nao_encontrado_localmente' };
+  }, 'i') },
+        { companyName: new RegExp('^' + escapeRegex(nome) + '
+    if (CrediarioCliente) {
+      const filter = { $or: [] };
+      if (cpf) {
+        filter.$or.push(
+          { cpf },
+          { documento: cpf },
+          { cpfCnpj: cpf },
+          { 'cliente.cpf': cpf }
+        );
+      }
+      if (nome) {
+        filter.$or.push(
+          { nome: new RegExp(`^${escapeRegex(nome)}$`, 'i') },
+          { clienteNome: new RegExp(`^${escapeRegex(nome)}$`, 'i') },
+          { 'cliente.nome': new RegExp(`^${escapeRegex(nome)}$`, 'i') }
+        );
+      }
+
+      if (filter.$or.length) {
+        try {
+          const row = await CrediarioCliente.findOne(filter).lean();
+          if (row) candidates.push({ fonte: 'crediario_clientes', row });
+        } catch (error) {
+          console.warn('[financeiro telefone crediario]', error.message || error);
+        }
+      }
+    }
+
+    if (Order) {
+      const filter = { $or: [] };
+      if (cpf) {
+        filter.$or.push(
+          { customerCpf: cpf },
+          { clienteCpf: cpf },
+          { cpfCliente: cpf },
+          { 'customer.cpf': cpf },
+          { 'cliente.cpf': cpf },
+          { 'billingAddress.cpf': cpf },
+          { 'shippingAddress.cpf': cpf }
+        );
+      }
+      if (nome) {
+        filter.$or.push(
+          { customerName: new RegExp(`^${escapeRegex(nome)}$`, 'i') },
+          { clienteNome: new RegExp(`^${escapeRegex(nome)}$`, 'i') },
+          { 'customer.name': new RegExp(`^${escapeRegex(nome)}$`, 'i') },
+          { 'cliente.nome': new RegExp(`^${escapeRegex(nome)}$`, 'i') }
+        );
+      }
+
+      if (filter.$or.length) {
+        try {
+          const row = await Order.findOne(filter).sort({ createdAt: -1 }).lean();
+          if (row) candidates.push({ fonte: 'pedidos', row });
+        } catch (error) {
+          console.warn('[financeiro telefone pedidos]', error.message || error);
+        }
+      }
+    }
+
+    for (const candidate of candidates) {
+      const phone = extrairTelefoneFinanceiro(candidate.row);
+      if (phone) {
+        return {
+          telefone: phone,
+          fonte: candidate.fonte,
+          detalhes: redact(candidate.row)
+        };
+      }
+    }
+
+    return { telefone: '', fonte: '', detalhes: 'nao_encontrado_localmente' };
+  }, 'i') }
+      );
+      if (filter.$or.length) {
+        try {
+          const row = await Person.findOne(filter).lean();
+          if (row) candidates.push({ fonte: 'erp_people', row });
+        } catch (error) {
+          console.warn('[financeiro telefone ERP cliente]', error.message || error);
+        }
+      }
+    }
+
     if (CrediarioCliente) {
       const filter = { $or: [] };
       if (cpf) {
@@ -4121,16 +4285,7 @@ function financeiroErpReference(row = {}) {
       return { ok: true, encontrado: true, ...propagated };
     }
 
-    const sige = await buscarTelefoneNoSigeFinanceiro(dados);
-    if (sige.telefone) {
-      const propagated = await propagarTelefoneFinanceiro({
-        carne,
-        telefone: sige.telefone,
-        fonte: sige.fonte,
-        req
-      });
-      return { ok: true, encontrado: true, ...propagated };
-    }
+
 
     return {
       ok: true,
@@ -4138,7 +4293,7 @@ function financeiroErpReference(row = {}) {
       atualizado: false,
       telefone: '',
       reason: 'telefone_nao_encontrado',
-      fontesConsultadas: ['carne_digital', 'crediario_clientes', 'pedidos', 'sige_pessoas']
+      fontesConsultadas: ['carne_digital', 'erp_people', 'crediario_clientes', 'pedidos']
     };
   }
 
@@ -6395,7 +6550,7 @@ function financeiroErpReference(row = {}) {
           comTelefone,
           semTelefone,
           coberturaPercentual: totalAtivos > 0 ? Number(((comTelefone / totalAtivos) * 100).toFixed(2)) : 0,
-          fontes: ['carne_digital', 'crediario_clientes', 'pedidos', 'sige_pessoas']
+          fontes: ['carne_digital', 'erp_people', 'crediario_clientes', 'pedidos']
         });
       } catch (error) {
         return res.status(500).json({ ok: false, error: error.message || 'Erro ao consultar a cobertura de telefones.' });
