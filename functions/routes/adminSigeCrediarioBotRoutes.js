@@ -13630,7 +13630,7 @@ async function executarSincronizacaoCarnesErp({
           comTelefone,
           semTelefone,
           coberturaPercentual: totalAtivos > 0 ? Number(((comTelefone / totalAtivos) * 100).toFixed(2)) : 0,
-          fontes: ['carne_digital', 'crediario_clientes', 'pedidos', 'sige_pessoas']
+          fontes: ['carne_digital', 'erp_people', 'crediario_clientes', 'pedidos']
         });
       } catch (error) {
         return res.status(500).json({ ok: false, error: error.message || 'Erro ao consultar a cobertura de telefones.' });
