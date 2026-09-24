@@ -2,390 +2,345 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Revisar NF-e | Ariana ERP</title>
-<meta name="theme-color" content="#0646a5">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Emissão de NF-e • Ariana ERP</title>
 <style>
-:root{--b:#0646a5;--bg:#f4f6f9;--line:#dce3ec;--text:#172033;--muted:#69758a;--green:#087a52;--amber:#8a5a00;--red:#b62d3b;--shadow:0 8px 24px rgba(23,32,51,.07)}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);font:14px Inter,Segoe UI,Arial,sans-serif;color:var(--text)}
-header{background:#fff;border-bottom:1px solid var(--line);padding:14px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px;position:sticky;top:0;z-index:20}
-header h1{font-size:19px;margin:0}
-header small{color:var(--muted)}
-header a{color:var(--b);font-weight:800;text-decoration:none}
-.wrap{max-width:1180px;margin:auto;padding:20px}
-.hero{background:linear-gradient(120deg,#fff,#eef5ff);border:1px solid #d5e3f5;border-radius:16px;padding:19px;margin-bottom:14px}
-.hero h2{margin:0 0 6px;font-size:20px}
-.hero p{margin:0;color:var(--muted);line-height:1.5}
-.notice{padding:12px 14px;border-radius:11px;background:#fff7e8;border:1px solid #efd49b;color:#684600;margin:0 0 14px;line-height:1.5}
-.notice.ok{background:#eaf7f2;border-color:#bee5d6;color:#245d4b}
-.notice.bad{background:#fdebed;border-color:#efc3c7;color:#8b2630}
-.grid{display:grid;grid-template-columns:1.35fr .65fr;gap:14px}
-.card{background:#fff;border:1px solid var(--line);border-radius:15px;padding:17px;box-shadow:var(--shadow);margin-bottom:14px}
-.card h3{font-size:15px;margin:0 0 13px}
-.rows{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-.row{border:1px solid #edf0f5;border-radius:10px;padding:10px 12px;min-width:0}
-.row.full{grid-column:1/-1}
-.row small{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;font-weight:900;margin-bottom:4px}
-.row b,.row span{word-break:break-word}
-.items{width:100%;border-collapse:collapse}
-.items th{font-size:10px;text-transform:uppercase;color:#778296;text-align:left;padding:9px;border-bottom:1px solid var(--line)}
-.items td{padding:10px 9px;border-bottom:1px solid #edf0f5}
-.money{text-align:right;white-space:nowrap}
-.sum{display:flex;justify-content:space-between;padding:8px 0;color:#536075}
-.sum.total{border-top:1px solid var(--line);margin-top:7px;padding-top:13px;font-size:20px;font-weight:1000;color:var(--text)}
-.actions{display:grid;gap:9px;margin-top:14px}
-.btn{border:0;border-radius:10px;padding:13px 14px;font-weight:900;cursor:pointer;text-align:center;text-decoration:none}
-.btn.primary{background:var(--green);color:#fff}
-.btn.secondary{background:#fff;color:var(--b);border:1px solid #a9bfdc}
-.btn:disabled{opacity:.5;cursor:not-allowed}
-.statusline{font-size:12px;line-height:1.5;color:var(--muted)}
-.pill{display:inline-block;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:900;background:#fff0cf;color:var(--amber)}
-.pill.ok{background:#e6f6ef;color:var(--green)}
-.issues{margin:10px 0 0;padding-left:20px;color:#8b2630}
-.issues li{margin:8px 0}
-.fixlink{display:inline-block;margin:5px 0 0 7px;padding:4px 8px;border-radius:7px;background:#fff;color:var(--b);border:1px solid #a9bfdc;font-size:11px;font-weight:900;text-decoration:none}
-.result{display:none}
-.result strong{display:block;font-size:16px;margin-bottom:6px}
-.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;word-break:break-all}
-.spinner{display:inline-block;width:13px;height:13px;border:2px solid #c7d5e7;border-top-color:var(--b);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:5px}
-@keyframes spin{to{transform:rotate(360deg)}}
-@media(max-width:850px){
-  .grid{grid-template-columns:1fr}
-  .rows{grid-template-columns:1fr}
-  .row.full{grid-column:auto}
-  .wrap{padding:11px}
-  header{align-items:flex-start;flex-direction:column}
-  .items{font-size:12px}
-  .items th:nth-child(2),.items td:nth-child(2){display:none}
-}
-
-/* Ariana ERP — padrão operacional azul/dourado */
-:root{--ariana-blue:#0047ab;--ariana-blue-dark:#00377f;--ariana-yellow:#f4c400}
-body{background:#f2f6fb}
-header,.top{background:linear-gradient(90deg,var(--ariana-blue-dark),var(--ariana-blue))!important;color:#fff!important;border-bottom:0!important;box-shadow:0 4px 16px rgba(0,40,100,.16)}
-header h1,.top h1{color:#fff!important}header small,.top small{color:#dceaff!important}header a,.top a{color:#fff!important}header a:hover,.top a:hover{color:var(--ariana-yellow)!important}
-.card,.box,.hero,.tablebox,.panel{border-radius:8px!important;box-shadow:0 8px 22px rgba(0,49,118,.08)!important}
-.btn{border-radius:6px!important}input:focus,select:focus,textarea:focus{outline:none;border-color:#6c9ddd!important;box-shadow:0 0 0 3px rgba(0,71,171,.09)}
+:root{--blue:#0646a5;--blue2:#083875;--bg:#f3f6fa;--line:#dce3ec;--text:#172033;--muted:#66748b;--green:#11845b;--red:#c83f49;--amber:#b97000;--shadow:0 8px 24px rgba(23,32,51,.07)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px Inter,Segoe UI,Arial,sans-serif}button,input,select,textarea{font:inherit}
+.top{min-height:66px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:10px 19px;position:sticky;top:0;z-index:30}
+.brand h1{font-size:19px;margin:0}.brand small{color:var(--muted)}.top a{color:var(--blue);font-weight:850;text-decoration:none}
+.wrap{max-width:1480px;margin:auto;padding:18px}.hero{background:linear-gradient(135deg,var(--blue2),var(--blue));color:#fff;border-radius:15px;padding:17px 19px;margin-bottom:15px;box-shadow:var(--shadow)}
+.hero h2{margin:0 0 5px;font-size:21px}.hero p{margin:0;opacity:.9}.grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(355px,.68fr);gap:15px}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:var(--shadow)}.card h3{font-size:15px;margin:0 0 13px}
+.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.fields.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.field label{display:block;font-size:11px;font-weight:850;color:#57647a;margin-bottom:5px}.field small{display:block;color:var(--muted);margin-top:5px;line-height:1.4}
+input,select,textarea{width:100%;border:1px solid #cfd8e5;background:#fff;border-radius:9px;padding:10px 11px;outline:none}textarea{resize:vertical;min-height:88px}
+input:focus,select:focus,textarea:focus{border-color:#78a4df;box-shadow:0 0 0 3px rgba(6,70,165,.08)}
+.readonly{background:#f7f9fc}.rows{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.row{border:1px solid #e5eaf1;background:#fafbfd;border-radius:9px;padding:9px 10px;min-height:57px}.row.full{grid-column:1/-1}.row small{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;font-weight:800;margin-bottom:4px}.row b,.row span{word-break:break-word}
+.items{width:100%;border-collapse:collapse}.items th{font-size:10px;text-transform:uppercase;color:#778296;text-align:left;padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}.items td{padding:9px 8px;border-bottom:1px solid #edf0f5}.money{text-align:right!important}.muted{color:var(--muted)}
+.notice{padding:11px 12px;border-radius:10px;background:#eef5ff;color:#214b82;line-height:1.45}.notice.ok{background:#eaf7f2;color:#22634e}.notice.bad{background:#fff0f1;color:#8d2c34}.notice.warn{background:#fff4df;color:#79510a}
+.issues{padding-left:19px;color:#8d2c34}.issues li{margin:6px 0}.fixlink{font-weight:900;color:var(--blue);margin-left:7px}
+.pill{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:#edf1f7;color:#536075;font-size:11px;font-weight:900}.pill.ok{background:#e7f6ef;color:#176147}
+.sum{display:flex;justify-content:space-between;padding:8px 0;color:#536075}.sum.total{font-size:21px;font-weight:950;color:var(--text);border-top:1px solid var(--line);margin-top:7px;padding-top:13px}
+.actions{display:grid;gap:9px;margin-top:12px}.btn{border:0;border-radius:10px;padding:12px 11px;font-weight:900;cursor:pointer;text-decoration:none;text-align:center}.btn:disabled{opacity:.48;cursor:not-allowed}.primary{background:var(--blue);color:#fff}.green{background:var(--green);color:#fff}.secondary{background:#edf3fb;color:var(--blue)}.danger{background:#fff0f1;color:var(--red)}
+.result{display:none}.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;word-break:break-all}.government{display:none}
+.modal{position:fixed;inset:0;background:rgba(10,18,32,.82);z-index:1000;display:none;overflow:auto;padding:26px 18px}.modal.show{display:block}.preview-shell{max-width:1160px;margin:auto}.preview-actions{display:flex;justify-content:space-between;gap:10px;align-items:center;background:#152033;color:#fff;padding:12px 14px;border-radius:12px 12px 0 0;position:sticky;top:0;z-index:4}.preview-actions .right{display:flex;gap:8px;flex-wrap:wrap}.preview-actions button{width:auto}
+.paper{position:relative;background:#fff;color:#111;min-height:1350px;padding:18px;border:1px solid #bbb;box-shadow:0 20px 60px rgba(0,0,0,.28);overflow:hidden}.watermark{position:absolute;left:50%;top:48%;transform:translate(-50%,-50%) rotate(-34deg);font-size:58px;font-weight:1000;color:rgba(120,0,0,.10);white-space:nowrap;pointer-events:none;z-index:0}.paper>*:not(.watermark){position:relative;z-index:1}
+.draft-alert{text-align:center;border:3px solid #a72424;color:#a72424;font-weight:1000;font-size:18px;padding:8px;margin-bottom:8px;letter-spacing:.5px}
+.danfe-head{display:grid;grid-template-columns:1.1fr 1.2fr .8fr;border:1px solid #111}.danfe-head>div{padding:10px;border-right:1px solid #111;min-height:112px}.danfe-head>div:last-child{border-right:0}.issuer-name{font-size:17px;font-weight:1000}.danfe-title{text-align:center;font-size:23px;font-weight:1000;margin-top:15px}.danfe-title small{display:block;font-size:11px;font-weight:600;margin-top:4px}.draft-number{text-align:center;font-size:14px}.draft-number b{font-size:18px}
+.box-title{font-size:10px;font-weight:900;text-transform:uppercase;margin:0 0 3px}.danfe-grid{display:grid;grid-template-columns:repeat(12,1fr);border-left:1px solid #111;border-top:1px solid #111;margin-top:6px}.dcell{border-right:1px solid #111;border-bottom:1px solid #111;padding:5px 6px;min-height:43px}.dcell small{display:block;font-size:8px;text-transform:uppercase}.dcell b,.dcell span{font-size:11px}.c12{grid-column:span 12}.c8{grid-column:span 8}.c7{grid-column:span 7}.c6{grid-column:span 6}.c5{grid-column:span 5}.c4{grid-column:span 4}.c3{grid-column:span 3}.c2{grid-column:span 2}
+.draft-table{width:100%;border-collapse:collapse;margin-top:7px;font-size:9px}.draft-table th,.draft-table td{border:1px solid #111;padding:4px}.draft-table th{text-transform:uppercase;background:#f4f4f4}.draft-section{margin-top:9px}.draft-section h4{font-size:10px;text-transform:uppercase;margin:0 0 3px}.draft-text{border:1px solid #111;min-height:75px;padding:7px;white-space:pre-wrap;font-size:10px}.draft-footer{margin-top:12px;text-align:center;font-weight:900;color:#a72424}
+@media(max-width:980px){.grid{grid-template-columns:1fr}.fields.three{grid-template-columns:1fr 1fr}}@media(max-width:650px){.wrap{padding:10px}.fields,.fields.three,.rows{grid-template-columns:1fr}.row.full{grid-column:auto}.modal{padding:0}.preview-actions{border-radius:0}.paper{padding:8px;min-width:900px}.preview-shell{overflow:auto}}
+@media print{body>*:not(#draft-modal){display:none!important}#draft-modal{display:block!important;position:static;background:#fff;padding:0}.preview-actions{display:none!important}.paper{box-shadow:none;border:0;min-height:auto}.watermark{color:rgba(120,0,0,.13)}}
 </style>
 </head>
 <body>
-<header>
-  <div><h1>Revisão da NF-e</h1><small>Ariana ERP • conferência antes da emissão fiscal</small></div>
-  <a href="erp_ariana.html">← Central ERP</a>
+<header class="top">
+  <div class="brand"><h1>Emissão de NF-e</h1><small>Ariana ERP • conferência fiscal antes da SEFAZ</small></div>
+  <div><a href="erp_fiscal.html">Fiscal / NF-e</a> &nbsp; <a href="erp_ariana.html">Central ERP</a></div>
 </header>
 <main class="wrap">
   <section class="hero">
-    <h2>Confira a venda antes de emitir</h2>
-    <p>Esta tela é de revisão. Em Produção, a venda só é faturada após autorização da SEFAZ. Em Homologação, a emissão é apenas de teste e não movimenta estoque, caixa nem financeiro.</p>
+    <h2>Preparar Nota Fiscal Eletrônica</h2>
+    <p>Preencha e confira os dados abaixo. O Ariana ERP gera primeiro um rascunho sem validade fiscal; somente depois da sua confirmação a NF-e é transmitida à SEFAZ.</p>
   </section>
-  <div id="missing" class="notice bad" style="display:none">Não encontrei uma venda em revisão. Volte para Nova Venda e clique em “Revisar NF-e”.</div>
-  <div class="grid" id="review" style="display:none">
+  <div id="missing" class="notice bad" style="display:none">Não encontrei uma venda preparada para emissão. Volte à venda e clique em “Revisar NF-e antes de faturar”.</div>
+  <div id="editor" class="grid" style="display:none">
     <section>
       <div class="card">
-        <h3>Destinatário</h3>
+        <h3>1. Destinatário</h3>
         <div class="rows">
-          <div class="row"><small>Nome / Razão social</small><b id="c-name"></b></div>
-          <div class="row"><small>CPF / CNPJ</small><b id="c-doc"></b></div>
-          <div class="row"><small>Telefone</small><span id="c-phone"></span></div>
-          <div class="row"><small>E-mail</small><span id="c-email"></span></div>
-          <div class="row"><small>Situação ICMS</small><span id="c-icms">Aguardando validação</span></div>
-          <div class="row"><small>Consumidor final</small><select id="consumer-final" style="width:100%;border:1px solid #cfd8e5;border-radius:8px;padding:8px;background:#fff"><option value="1">Sim</option><option value="0">Não</option></select></div>
-          <div class="row full"><small>Endereço / entrega</small><span id="c-address"></span></div>
+          <div class="row"><small>Nome / Razão social</small><b id="c-name">—</b></div>
+          <div class="row"><small>CPF / CNPJ</small><b id="c-doc">—</b></div>
+          <div class="row"><small>Situação ICMS</small><span id="c-icms">—</span></div>
+          <div class="row"><small>Inscrição Estadual</small><span id="c-ie">—</span></div>
+          <div class="row"><small>Telefone / E-mail</small><span id="c-contact">—</span></div>
+          <div class="row"><small>Tipo de cadastro</small><span id="c-type">—</span></div>
+          <div class="row full"><small>Endereço fiscal / entrega</small><span id="c-address">—</span></div>
+        </div>
+        <div class="actions" style="grid-template-columns:1fr 1fr">
+          <a id="edit-customer" class="btn secondary" href="erp_clientes.html">Editar cadastro do cliente</a>
+          <a class="btn secondary" href="erp_nova_venda.html?revisao=1">Voltar à venda</a>
         </div>
       </div>
+
       <div class="card">
-        <h3>Produtos da venda</h3>
+        <h3>2. Identificação fiscal da operação</h3>
+        <div class="fields three">
+          <div class="field"><label>Natureza da operação *</label><input id="nature-operation" maxlength="60" placeholder="Venda de mercadoria"></div>
+          <div class="field"><label>Finalidade</label><input class="readonly" value="NF-e normal" readonly></div>
+          <div class="field"><label>Tipo da operação</label><input class="readonly" value="Saída" readonly></div>
+          <div class="field"><label>Consumidor final</label><select id="consumer-final"><option value="1">Sim</option><option value="0">Não</option></select></div>
+          <div class="field"><label>Presença do comprador</label><select id="buyer-presence"><option value="1">1 - Operação presencial</option><option value="2">2 - Internet</option><option value="3">3 - Teleatendimento</option><option value="5">5 - Presencial fora do estabelecimento</option><option value="0">0 - Não se aplica</option><option value="9">9 - Outros</option></select></div>
+          <div class="field"><label>Documento</label><input class="readonly" value="NF-e modelo 55" readonly></div>
+        </div>
+      </div>
+
+      <div id="government-card" class="card government">
+        <h3>3. Referências da compra pública</h3>
+        <div class="notice warn" style="margin-bottom:12px">Estes campos são referências administrativas da compra e serão incluídos nas Informações Complementares. Eles não ativam automaticamente o grupo tributário específico de compra governamental.</div>
+        <div class="fields">
+          <div class="field"><label>Nº do empenho</label><input id="gov-commitment" maxlength="120"></div>
+          <div class="field"><label>Nº do pedido de compra</label><input id="gov-order" maxlength="120"></div>
+          <div class="field"><label>Contrato</label><input id="gov-contract" maxlength="120"></div>
+          <div class="field"><label>Processo / licitação</label><input id="gov-process" maxlength="120"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>4. Produtos e tributação</h3>
         <div style="overflow:auto">
           <table class="items">
-            <thead><tr><th>Produto</th><th>SKU</th><th>Qtd.</th><th class="money">Unitário</th><th class="money">Total</th></tr></thead>
+            <thead><tr><th>Produto</th><th>SKU</th><th>NCM</th><th>CFOP</th><th>CSOSN</th><th>UN</th><th>Qtd.</th><th class="money">Unitário</th><th class="money">Total</th></tr></thead>
             <tbody id="items"></tbody>
           </table>
         </div>
+        <p class="muted" style="font-size:12px">NCM, CFOP, CSOSN e unidade vêm do cadastro fiscal do produto. Se houver divergência, corrija o produto antes de gerar o rascunho.</p>
       </div>
+
       <div class="card">
-        <h3>Dados comerciais</h3>
+        <h3>5. Pagamento</h3>
         <div class="rows">
-          <div class="row"><small>Data da venda</small><b id="sale-date">—</b></div>
-          <div class="row"><small>Vendedor</small><b id="seller-name">—</b></div>
-          <div class="row full"><small>Tabela de preço</small><span id="price-table">Preço Padrão</span></div>
+          <div class="row"><small>Forma de pagamento</small><b id="payment">—</b></div>
+          <div class="row"><small>Parcelamento</small><b id="installments">—</b></div>
+          <div class="row" id="due-row"><small>Primeiro vencimento</small><span id="due">—</span></div>
+          <div class="row"><small>Vendedor / Data</small><span id="commercial">—</span></div>
         </div>
       </div>
-      <div class="card"><h3>Observações</h3><div class="row"><span id="notes">—</span></div></div>
+
+      <div class="card">
+        <h3>6. Transporte</h3>
+        <div class="fields three">
+          <div class="field"><label>Modalidade do frete</label><select id="freight-mode"><option value="9">9 - Sem frete</option><option value="0">0 - Por conta do emitente</option><option value="1">1 - Por conta do destinatário</option><option value="2">2 - Por conta de terceiros</option><option value="3">3 - Transporte próprio emitente</option><option value="4">4 - Transporte próprio destinatário</option></select></div>
+          <div class="field"><label>CNPJ da transportadora</label><input id="carrier-cnpj" inputmode="numeric"></div>
+          <div class="field"><label>Razão social da transportadora</label><input id="carrier-name" maxlength="60"></div>
+          <div class="field"><label>IE da transportadora</label><input id="carrier-ie" maxlength="20"></div>
+          <div class="field"><label>Endereço</label><input id="carrier-address" maxlength="60"></div>
+          <div class="field"><label>Município</label><input id="carrier-city" maxlength="60"></div>
+          <div class="field"><label>UF</label><input id="carrier-uf" maxlength="2"></div>
+          <div class="field"><label>Quantidade de volumes</label><input id="volume-quantity" type="number" min="0" step="1"></div>
+          <div class="field"><label>Espécie</label><input id="volume-species" maxlength="60" placeholder="Ex.: Caixa"></div>
+          <div class="field"><label>Marca</label><input id="volume-brand" maxlength="60"></div>
+          <div class="field"><label>Peso bruto (kg)</label><input id="gross-weight" type="number" min="0" step="0.001"></div>
+          <div class="field"><label>Peso líquido (kg)</label><input id="net-weight" type="number" min="0" step="0.001"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>7. Informações adicionais da NF-e</h3>
+        <div class="fields">
+          <div class="field"><label>Informações Complementares</label><textarea id="additional-info" maxlength="5000" placeholder="Informações que devem constar no campo de informações complementares da NF-e/DANFE."></textarea><small>Campo infCpl. Use para referências comerciais/fiscais pertinentes ao documento.</small></div>
+          <div class="field"><label>Informações de Interesse do Fisco</label><textarea id="tax-authority-info" maxlength="2000" placeholder="Informações destinadas ao Fisco, quando necessárias."></textarea><small>Campo infAdFisco. Não use para observações internas da loja.</small></div>
+        </div>
+        <div class="field" style="margin-top:11px"><label>Observação interna da venda</label><textarea id="internal-notes" class="readonly" readonly></textarea><small>Esta observação é do ERP e não é enviada automaticamente como informação fiscal.</small></div>
+      </div>
     </section>
+
     <aside>
       <div class="card">
-        <h3>Pagamento</h3>
-        <div class="rows" style="grid-template-columns:1fr">
-          <div class="row"><small>Forma de pagamento</small><b id="payment"></b></div>
-          <div class="row"><small>Parcelas</small><b id="installments"></b></div>
-          <div class="row" id="due-row"><small>Primeiro vencimento</small><span id="due"></span></div>
-        </div>
-      </div>
-      <div class="card">
         <h3>Resumo</h3>
-        <div class="sum"><span>Produtos</span><b id="s-products"></b></div>
-        <div class="sum"><span>Frete</span><b id="s-shipping"></b></div>
-        <div class="sum"><span>Montagem / serviço</span><b id="s-assembly"></b></div>
-        <div class="sum"><span>Desconto</span><b id="s-discount"></b></div>
-        <div class="sum total"><span>Total</span><span id="s-total"></span></div>
+        <div class="sum"><span>Produtos</span><b id="s-products">—</b></div>
+        <div class="sum"><span>Frete</span><b id="s-shipping">—</b></div>
+        <div class="sum"><span>Montagem / serviço</span><b id="s-assembly">—</b></div>
+        <div class="sum"><span>Desconto</span><b id="s-discount">—</b></div>
+        <div class="sum total"><span>Total NF-e</span><span id="s-total">—</span></div>
       </div>
+
       <div class="card">
         <h3>Validação fiscal</h3>
-        <div id="preflight" class="notice"><span class="spinner"></span>Conferindo A1, emitente, cliente, produtos e tributação…</div>
+        <div id="preflight" class="notice">Conferindo certificado, emitente, destinatário, produtos e tributação…</div>
         <ul id="issues" class="issues"></ul>
-        <div class="statusline">
-          <span id="env" class="pill">Aguardando validação</span>
-          <p id="env-help">O ERP só envia quando todas as verificações obrigatórias estiverem aprovadas.</p>
-        </div>
+        <div style="margin-top:10px"><span id="env" class="pill">Aguardando</span></div>
+        <p id="env-help" class="muted" style="font-size:12px;line-height:1.5"></p>
         <div class="actions">
-          <button class="btn primary" id="emit" disabled>Emitir NF-e na SEFAZ e faturar venda</button>
+          <button class="btn primary" id="preview" disabled>Gerar rascunho da NF-e</button>
           <a class="btn secondary" href="erp_nova_venda.html?revisao=1">← Voltar e corrigir a venda</a>
         </div>
       </div>
+
       <div id="result" class="card result">
-        <strong id="result-title">NF-e autorizada</strong>
-        <div>Número: <b id="r-number"></b> • Série: <b id="r-series"></b></div>
-        <div>Protocolo: <span id="r-protocol" class="mono"></span></div>
-        <div>Chave: <span id="r-key" class="mono"></span></div>
-        <div id="commercial-warning" class="notice bad" style="display:none;margin-top:12px;margin-bottom:0"></div>
-        <div class="actions">
-          <button id="viewDanfe" class="btn secondary" style="display:none">Ver DANFE</button>
-          <a class="btn primary" href="erp_nova_venda.html">Nova venda</a>
-        </div>
+        <h3 id="result-title">NF-e autorizada</h3>
+        <div>Número / série: <b id="r-number">—</b></div>
+        <div style="margin-top:7px">Protocolo: <span id="r-protocol" class="mono">—</span></div>
+        <div style="margin-top:7px">Chave: <span id="r-key" class="mono">—</span></div>
+        <div id="commercial-warning" class="notice bad" style="display:none;margin-top:12px"></div>
+        <div class="actions"><button id="viewDanfe" class="btn secondary" style="display:none">Ver DANFE autorizado</button><a class="btn primary" href="erp_nova_venda.html">Nova venda</a></div>
       </div>
     </aside>
   </div>
 </main>
+
+<div id="draft-modal" class="modal" role="dialog" aria-modal="true" aria-label="Rascunho da NF-e">
+  <div class="preview-shell">
+    <div class="preview-actions">
+      <div><b>Prévia da NF-e</b><br><small>Confira tudo antes da transmissão.</small></div>
+      <div class="right">
+        <button id="print-draft" class="btn secondary">Imprimir rascunho</button>
+        <button id="close-draft" class="btn secondary">Voltar e corrigir</button>
+        <button id="send-nfe" class="btn green">Confirmar e enviar à SEFAZ</button>
+      </div>
+    </div>
+    <div id="draft-paper" class="paper"></div>
+  </div>
+</div>
+
 <script>
 const API=location.hostname==='localhost'?'http://localhost:3000/api':'https://ariana-backend.onrender.com/api';
-const $=id=>document.getElementById(id);
-const storageKey='ariana_erp_nfe_review';
+const $=id=>document.getElementById(id),storageKey='ariana_erp_nfe_review';
 const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-let data=null,preflightReady=false,lastFiscalDocumentId='';
+const digits=v=>String(v??'').replace(/\D/g,'');
+let data=null,lastReview=null,preflightReady=false,lastFiscalDocumentId='',preflightTimer=null,sending=false;
 
-function token(){
-  const t=localStorage.getItem('admin_token')||localStorage.getItem('adminToken')||localStorage.getItem('auth_token')||localStorage.getItem('token')||'';
-  if(t)return t;
-  try{return JSON.parse(localStorage.getItem('banner_admin_session')||'null')?.token||''}catch{return''}
-}
-function clearSession(){
-  ['admin_token','adminToken','auth_token','token','banner_admin_session','admin_name','admin_email','admin_id'].forEach(k=>localStorage.removeItem(k));
-}
+function token(){const t=localStorage.getItem('admin_token')||localStorage.getItem('adminToken')||localStorage.getItem('auth_token')||localStorage.getItem('token')||'';if(t)return t;try{return JSON.parse(localStorage.getItem('banner_admin_session')||'null')?.token||''}catch{return''}}
+function clearSession(){['admin_token','adminToken','auth_token','token','banner_admin_session','admin_name','admin_email','admin_id'].forEach(k=>localStorage.removeItem(k))}
 function goLogin(){clearSession();location.replace('erp_login.html?return=erp_revisao_nfe.html')}
 function headers(){return{'Content-Type':'application/json',Authorization:'Bearer '+token()}}
 function saveDraft(){sessionStorage.setItem(storageKey,JSON.stringify(data))}
-function labelPayment(v=''){
-  return({dinheiro:'Dinheiro',pix:'PIX',cartao_debito:'Cartão de débito',cartao_credito:'Cartão de crédito',crediario:'Crediário próprio',boleto:'Boleto',outro:'Outro'})[v]||v||'—';
-}
-function status(text,bad=false,ok=false){
-  $('preflight').className='notice'+(bad?' bad':ok?' ok':'');
-  $('preflight').innerHTML=esc(text);
-}
-function formatDate(value=''){
-  const v=String(value||'').trim();
-  if(!v)return'—';
-  const d=new Date(v.length===10?v+'T12:00:00':v);
-  return Number.isNaN(d.getTime())?v:d.toLocaleDateString('pt-BR');
+function fmtDate(value=''){const v=String(value||'').trim();if(!v)return'—';const d=new Date(v.length===10?v+'T12:00:00':v);return Number.isNaN(d.getTime())?v:d.toLocaleDateString('pt-BR')}
+function labelPayment(v=''){return({dinheiro:'Dinheiro',pix:'PIX',cartao_debito:'Cartão de débito',cartao_credito:'Cartão de crédito',crediario:'Crediário próprio',boleto:'Boleto',outro:'Outro'})[v]||v||'—'}
+function labelIcms(c={}){const s=String(c.icmsTaxpayerStatus||'auto');return s==='contribuinte'?'Contribuinte do ICMS':s==='isento'?'Contribuinte isento':s==='nao_contribuinte'?'Não contribuinte':'Cadastro legado / automático'}
+function labelPresence(v){return({0:'Não se aplica',1:'Operação presencial',2:'Internet',3:'Teleatendimento',4:'NFC-e em domicílio',5:'Presencial fora do estabelecimento',9:'Outros'})[Number(v)]||String(v)}
+function labelFreight(v){return({0:'Por conta do emitente',1:'Por conta do destinatário',2:'Por conta de terceiros',3:'Transporte próprio emitente',4:'Transporte próprio destinatário',9:'Sem frete'})[Number(v)]||String(v)}
+function status(text,kind=''){$('preflight').className='notice'+(kind?' '+kind:'');$('preflight').textContent=text}
+function renderProblems(problems=[]){$('issues').innerHTML=problems.map(x=>'<li><span>'+esc(x.message||x.code)+'</span>'+correctionLink(x)+'</li>').join('')}
+function correctionLink(problem={}){
+  const field=String(problem.field||'');
+  if(field.startsWith('customer.')){const id=String(data?.customer?.id||''),q=new URLSearchParams();if(id)q.set('edit',id);q.set('return','erp_revisao_nfe.html');return'<a class="fixlink" href="erp_clientes.html?'+q.toString()+'">Corrigir cliente</a>'}
+  const m=field.match(/^items\.(\d+)(?:\.|$)/);if(m){const idx=Math.max(0,Number(m[1])-1),id=String(data?.items?.[idx]?.productId||'');if(id){const q=new URLSearchParams({edit:id,return:'erp_revisao_nfe.html'});return'<a class="fixlink" href="erp_produtos.html?'+q.toString()+'">Editar produto</a>'}}
+  return'';
 }
 try{data=JSON.parse(sessionStorage.getItem(storageKey)||'null')}catch{}
 
-function render(){
-  if(!data){$('missing').style.display='block';return}
-  $('review').style.display='grid';
-  const c=data.customer||{},t=data.totals||{},p=data.payment||{},cm=data.commercial||{},rows=Array.isArray(data.items)?data.items:[];data.fiscal=data.fiscal||{};
-  $('c-name').textContent=c.name||'Consumidor';
-  $('c-doc').textContent=c.document||'—';
-  $('c-phone').textContent=c.phone||'—';
-  $('c-email').textContent=c.email||'—';
-  $('c-address').textContent=c.address||'—';$('consumer-final').value=String(Number(data.fiscal.consumerFinal??1)?1:0);
-  $('items').innerHTML=rows.map(i=>`<tr><td><b>${esc(i.name||'Produto')}</b></td><td>${esc(i.sku||'—')}</td><td>${Number(i.qty||0)}</td><td class="money">${money(i.unitPrice)}</td><td class="money"><b>${money(Number(i.qty||0)*Number(i.unitPrice||0))}</b></td></tr>`).join('');
-  $('sale-date').textContent=formatDate(cm.saleDate);
-  $('seller-name').textContent=cm.sellerName||'—';
-  $('price-table').textContent=cm.priceTable||'Preço Padrão';
-  $('notes').textContent=data.notes||'—';
-  $('payment').textContent=labelPayment(p.method);
-  $('installments').textContent=`${Number(p.installments||1)}x de ${money(Number(t.total||0)/Math.max(1,Number(p.installments||1)))}`;
-  $('due').textContent=p.firstDueDate?new Date(p.firstDueDate+'T12:00:00').toLocaleDateString('pt-BR'):'—';
-  $('due-row').style.display=p.firstDueDate?'block':'none';
-  $('s-products').textContent=money(t.products);
-  $('s-shipping').textContent=money(t.shipping);
-  $('s-assembly').textContent=money(t.assembly);
-  $('s-discount').textContent='- '+money(t.discount);
-  $('s-total').textContent=money(t.total);
+function ensureData(){
+  if(!data)return;
+  data.fiscal=data.fiscal||{};
+  data.fiscal.publicPurchase=data.fiscal.publicPurchase||{};
+  data.transport=data.transport||{};
+  if(data.fiscal.consumerFinal===undefined)data.fiscal.consumerFinal=1;
+  if(data.fiscal.buyerPresence===undefined)data.fiscal.buyerPresence=1;
+  if(data.transport.freightMode===undefined)data.transport.freightMode=9;
 }
-function correctionLink(problem={}){
-  const field=String(problem.field||'');
-  if(field.startsWith('customer.')){
-    const id=String(data?.customer?.id||''),qs=new URLSearchParams();
-    if(id)qs.set('edit',id);
-    qs.set('return','erp_revisao_nfe.html');
-    return`<a class="fixlink" href="erp_clientes.html?${qs.toString()}">Corrigir cliente</a>`;
-  }
-  const m=field.match(/^items\.(\d+)(?:\.|$)/);
-  if(m){
-    const idx=Math.max(0,Number(m[1])-1),id=String(data?.items?.[idx]?.productId||'');
-    if(id){
-      const qs=new URLSearchParams({edit:id,return:'erp_revisao_nfe.html'});
-      return`<a class="fixlink" href="erp_produtos.html?${qs.toString()}">Editar produto</a>`;
-    }
-  }
-  return'';
+function syncToInputs(){
+  if(!data)return;ensureData();
+  const c=data.customer||{},t=data.totals||{},p=data.payment||{},cm=data.commercial||{},f=data.fiscal||{},tr=data.transport||{},pub=f.publicPurchase||{};
+  $('c-name').textContent=c.name||'Consumidor';$('c-doc').textContent=c.document||'—';$('c-contact').textContent=[c.phone,c.email].filter(Boolean).join(' • ')||'—';$('c-address').textContent=c.address||'—';
+  $('c-type').textContent=digits(c.document).length===14?'Pessoa Jurídica':'Pessoa Física';
+  $('edit-customer').href='erp_clientes.html?'+new URLSearchParams({edit:String(c.id||''),return:'erp_revisao_nfe.html'}).toString();
+  $('consumer-final').value=String(Number(f.consumerFinal??1)===0?0:1);$('buyer-presence').value=String(Number(f.buyerPresence??1));$('nature-operation').value=f.natureOperation||'';
+  $('gov-commitment').value=pub.commitmentNumber||'';$('gov-order').value=pub.orderNumber||'';$('gov-contract').value=pub.contractNumber||'';$('gov-process').value=pub.processNumber||'';
+  $('freight-mode').value=String(Number(tr.freightMode??9));$('carrier-cnpj').value=tr.carrierCnpj||'';$('carrier-name').value=tr.carrierName||'';$('carrier-ie').value=tr.carrierIe||'';$('carrier-address').value=tr.carrierAddress||'';$('carrier-city').value=tr.carrierCity||'';$('carrier-uf').value=tr.carrierUf||'';
+  $('volume-quantity').value=Number(tr.volumeQuantity||0)||'';$('volume-species').value=tr.volumeSpecies||'';$('volume-brand').value=tr.volumeBrand||'';$('gross-weight').value=Number(tr.grossWeight||0)||'';$('net-weight').value=Number(tr.netWeight||0)||'';
+  $('additional-info').value=f.additionalInfo||'';$('tax-authority-info').value=f.taxAuthorityInfo||'';$('internal-notes').value=data.notes||'';
+  $('payment').textContent=labelPayment(p.method);$('installments').textContent=Number(p.installments||1)+'x de '+money(Number(t.total||0)/Math.max(1,Number(p.installments||1)));$('due').textContent=p.firstDueDate?fmtDate(p.firstDueDate):'—';$('due-row').style.display=p.firstDueDate?'block':'none';
+  $('commercial').textContent=[cm.sellerName,fmtDate(cm.saleDate)].filter(x=>x&&x!=='—').join(' • ')||'—';
+  $('s-products').textContent=money(t.products);$('s-shipping').textContent=money(t.shipping);$('s-assembly').textContent=money(t.assembly);$('s-discount').textContent='- '+money(t.discount);$('s-total').textContent=money(t.total);
+  renderProductRows(null);
 }
-function renderProblems(problems=[]){
-  $('issues').innerHTML=problems.map(x=>`<li><span>${esc(x.message||x.code)}</span>${correctionLink(x)}</li>`).join('');
+function readInputs(){
+  ensureData();
+  data.fiscal.natureOperation=$('nature-operation').value.trim();
+  data.fiscal.consumerFinal=Number($('consumer-final').value);
+  data.fiscal.buyerPresence=Number($('buyer-presence').value);
+  data.fiscal.additionalInfo=$('additional-info').value;
+  data.fiscal.taxAuthorityInfo=$('tax-authority-info').value;
+  data.fiscal.publicPurchase={commitmentNumber:$('gov-commitment').value.trim(),orderNumber:$('gov-order').value.trim(),contractNumber:$('gov-contract').value.trim(),processNumber:$('gov-process').value.trim()};
+  data.transport={freightMode:Number($('freight-mode').value),carrierCnpj:digits($('carrier-cnpj').value),carrierName:$('carrier-name').value.trim(),carrierIe:$('carrier-ie').value.trim(),carrierAddress:$('carrier-address').value.trim(),carrierCity:$('carrier-city').value.trim(),carrierUf:$('carrier-uf').value.trim().toUpperCase(),volumeQuantity:Number($('volume-quantity').value||0),volumeSpecies:$('volume-species').value.trim(),volumeBrand:$('volume-brand').value.trim(),grossWeight:Number($('gross-weight').value||0),netWeight:Number($('net-weight').value||0)};
+  saveDraft();
 }
-function fillResult(d){
-  lastFiscalDocumentId=d.fiscalDocumentId||d.fiscal?.fiscalDocumentId||'';
-  $('r-number').textContent=d.number||'—';
-  $('r-series').textContent=d.series||'—';
-  $('r-protocol').textContent=d.protocol||'—';
-  $('r-key').textContent=d.key||'—';
-  $('result').style.display='block';
-  $('viewDanfe').style.display=(lastFiscalDocumentId&&d.xmlAvailable!==false)?'block':'none';
+function changed(){readInputs();preflightReady=false;$('preview').disabled=true;clearTimeout(preflightTimer);preflightTimer=setTimeout(preflight,450)}
+function renderProductRows(review){
+  const draftRows=Array.isArray(data?.items)?data.items:[],preRows=Array.isArray(review?.products)?review.products:[];
+  $('items').innerHTML=draftRows.map((i,index)=>{const p=preRows[index]||{},s=p.specs||{},f=p.fiscal||{};return'<tr><td><b>'+esc(i.name||p.name||'Produto')+'</b></td><td>'+esc(i.sku||p.sku||'—')+'</td><td>'+esc(s.ncm||'—')+'</td><td>'+esc(f.cfop||'—')+'</td><td>'+esc(f.csosn||'—')+'</td><td>'+esc(f.unit||'—')+'</td><td>'+Number(i.qty||0)+'</td><td class="money">'+money(i.unitPrice)+'</td><td class="money"><b>'+money(Number(i.qty||0)*Number(i.unitPrice||0))+'</b></td></tr>'}).join('');
 }
-async function persistCommercial(orderId){
-  const cm=data?.commercial||{},id=String(orderId||'').trim();
-  const payload={
-    sellerName:String(cm.sellerName||'').trim(),
-    priceTable:String(cm.priceTable||'Preço Padrão').trim()||'Preço Padrão',
-    saleDate:String(cm.saleDate||'').trim()
-  };
-  if(!id)return{ok:false,error:'a venda foi faturada, mas o identificador interno não retornou para registrar vendedor/data/tabela de preço.'};
-  if(!payload.sellerName&&!payload.saleDate&&!payload.priceTable)return{ok:true};
-  try{
-    const r=await fetch(API+'/erp/orders/'+encodeURIComponent(id)+'/sige-fields',{
-      method:'PATCH',headers:headers(),body:JSON.stringify(payload),cache:'no-store'
-    });
-    const d=await r.json().catch(()=>({}));
-    if(!r.ok)return{ok:false,error:d.error||`não foi possível registrar os dados comerciais (HTTP ${r.status}).`};
-    return{ok:true};
-  }catch(e){
-    return{ok:false,error:e.message||'não foi possível registrar os dados comerciais.'};
-  }
-}
-function showCommercialWarning(message=''){
-  const box=$('commercial-warning');
-  if(!message){box.style.display='none';box.textContent='';return}
-  box.textContent='A NF-e e o faturamento foram concluídos. Atenção: '+message+' Não tente emitir a NF-e novamente; ajuste apenas os dados comerciais na ficha da venda.';
-  box.style.display='block';
+function applyReview(review={}){
+  lastReview=review;const c=review.customer||{},f=review.fiscal||{};
+  $('c-icms').textContent=labelIcms(c);$('c-ie').textContent=c.ie||((c.indicatorIE===2)?'ISENTO':'—');$('c-type').textContent=[digits(c.document).length===14?'Pessoa Jurídica':'Pessoa Física',c.publicAgency?'Órgão público':''].filter(Boolean).join(' • ');
+  if(c.addressData){const a=c.addressData;$('c-address').textContent=[a.logradouro,a.numero,a.bairro,a.municipio,a.uf,a.cep].filter(Boolean).join(', ')||$('c-address').textContent}
+  $('government-card').style.display=c.publicAgency?'block':'none';
+  if(!$('nature-operation').value.trim()&&f.natureOperation){$('nature-operation').value=f.natureOperation;data.fiscal.natureOperation=f.natureOperation;saveDraft()}
+  renderProductRows(review);
 }
 async function preflight(){
   if(!data||!token())return token()?null:goLogin();
-  preflightReady=false;
-  $('emit').disabled=true;
-  $('issues').innerHTML='';
-  status('Conferindo A1, emitente, cliente, produtos e tributação…');
+  readInputs();preflightReady=false;$('preview').disabled=true;$('issues').innerHTML='';status('Conferindo A1, emitente, destinatário, produtos, tributação, transporte e dados adicionais…');
   try{
-    const r=await fetch(API+'/erp/fiscal/nfe/preflight',{method:'POST',headers:headers(),body:JSON.stringify({draft:data})});
-    const d=await r.json();
-    if(r.status===401)return goLogin();
-    const review=d.review||{},problems=review.problems||[];const rc=review.customer||{};const st=String(rc.icmsTaxpayerStatus||'auto');$('c-icms').textContent=st==='contribuinte'?`Contribuinte${rc.ie?' • IE '+rc.ie:''}`:st==='isento'?'Contribuinte isento':st==='nao_contribuinte'?'Não contribuinte':'Cadastro legado / automático';
-    const isProd=review.environment==='producao';
-    $('env').textContent=isProd?'PRODUÇÃO':'HOMOLOGAÇÃO';
-    $('env').className='pill'+(review.ready?' ok':'');
-    $('env-help').textContent=isProd
-      ?'Após autorização em Produção, a venda será faturada e o estoque/financeiro serão processados.'
-      :'Homologação é teste: a venda, estoque, caixa e financeiro não serão alterados.';
-    $('emit').textContent=isProd?'Emitir NF-e na SEFAZ e faturar venda':'Emitir NF-e de teste na SEFAZ';
-    if(!r.ok||!review.ready){
-      renderProblems(problems);
-      status(problems.length?`${problems.length} pendência(s) impedem a emissão.`:(d.error||'A emissão ainda não está liberada.'),true);
-      return;
-    }
-    preflightReady=true;
-    $('emit').disabled=false;
-    status(`Tudo conferido. NF-e pronta para envio à SEFAZ em ${isProd?'PRODUÇÃO':'HOMOLOGAÇÃO'}.`,false,true);
-  }catch(e){status(e.message||'Erro ao validar a NF-e.',true)}
+    const r=await fetch(API+'/erp/fiscal/nfe/preflight',{method:'POST',headers:headers(),body:JSON.stringify({draft:data}),cache:'no-store'});
+    const d=await r.json().catch(()=>({}));if(r.status===401)return goLogin();
+    const review=d.review||{},problems=review.problems||[];applyReview(review);renderProblems(problems);
+    const isProd=review.environment==='producao';$('env').textContent=isProd?'PRODUÇÃO':'HOMOLOGAÇÃO';$('env').className='pill'+(review.ready?' ok':'');
+    $('env-help').textContent=isProd?'Após a conferência do rascunho e autorização da SEFAZ, a venda será faturada e estoque/financeiro serão processados.':'Homologação é teste: mesmo após autorização, venda, estoque, caixa e financeiro não serão alterados.';
+    if(!r.ok||!review.ready){status(problems.length?problems.length+' pendência(s) impedem gerar o rascunho.':(d.error||'A NF-e ainda não está pronta.'),'bad');return}
+    preflightReady=true;$('preview').disabled=false;status('Tudo validado. Gere o rascunho para conferir a NF-e antes do envio.','ok');
+  }catch(e){status(e.message||'Erro ao validar a NF-e.','bad')}
 }
-$('emit').onclick=async()=>{
-  if(!preflightReady||!data)return;
-  const isProd=$('env').textContent==='PRODUÇÃO';
-  const question=isProd
-    ?'Confirmar emissão da NF-e na SEFAZ em PRODUÇÃO? Depois da autorização, a venda será faturada e o estoque/financeiro serão processados.'
-    :'Confirmar emissão da NF-e de teste em HOMOLOGAÇÃO? A venda, estoque, caixa e financeiro NÃO serão alterados.';
-  if(!confirm(question))return;
-  const b=$('emit');
-  b.disabled=true;
-  b.textContent='Emitindo e aguardando SEFAZ…';
-  status('Enviando a NF-e assinada com o certificado A1. Não feche esta tela…');
+function previewCell(label,value,cls='c4'){return'<div class="dcell '+cls+'"><small>'+esc(label)+'</small><b>'+esc(value||'—')+'</b></div>'}
+function publicRefsText(f={}){
+  const p=f.publicPurchase||{};return[p.commitmentNumber?'Empenho: '+p.commitmentNumber:'',p.orderNumber?'Pedido: '+p.orderNumber:'',p.contractNumber?'Contrato: '+p.contractNumber:'',p.processNumber?'Processo: '+p.processNumber:''].filter(Boolean).join(' | ');
+}
+function buildDraftPreview(){
+  if(!lastReview||!preflightReady)return;
+  readInputs();
+  const r=lastReview,iss=r.issuer||{},c=r.customer||{},a=c.addressData||{},t=data.totals||{},p=data.payment||{},f=data.fiscal||{},tr=data.transport||{};
+  const products=r.products||[];
+  const complement=[f.additionalInfo,publicRefsText(f)].filter(Boolean).join(' | ');
+  const carrier=[tr.carrierName,tr.carrierCnpj?'CNPJ '+tr.carrierCnpj:'',tr.carrierIe?'IE '+tr.carrierIe:'',[tr.carrierAddress,tr.carrierCity,tr.carrierUf].filter(Boolean).join(', ')].filter(Boolean).join(' • ')||'Não informado';
+  const rows=products.map((x,i)=>'<tr><td>'+esc(x.sku||x.id||String(i+1))+'</td><td>'+esc(x.name)+'</td><td>'+esc(x.specs?.ncm||'')+'</td><td>'+esc(x.fiscal?.csosn||'')+'</td><td>'+esc(x.fiscal?.cfop||'')+'</td><td>'+esc(x.fiscal?.unit||'')+'</td><td class="money">'+Number(x.qty||0).toLocaleString('pt-BR')+'</td><td class="money">'+money(x.unitPrice)+'</td><td class="money">'+money(Number(x.qty||0)*Number(x.unitPrice||0))+'</td></tr>').join('');
+  $('draft-paper').innerHTML=
+    '<div class="watermark">RASCUNHO • SEM VALOR FISCAL</div>'+
+    '<div class="draft-alert">RASCUNHO — SEM VALOR FISCAL — NÃO ENVIADO À SEFAZ</div>'+
+    '<div class="danfe-head">'+
+      '<div><div class="issuer-name">'+esc(iss.razaoSocial||'ARIANA MÓVEIS')+'</div><div>'+esc([iss.logradouro,iss.numero,iss.bairro].filter(Boolean).join(', '))+'</div><div>'+esc([iss.municipio,iss.uf,iss.cep].filter(Boolean).join(' • '))+'</div><div>CNPJ: '+esc(iss.cnpj||'—')+' • IE: '+esc(iss.ie||'—')+'</div></div>'+
+      '<div><div class="danfe-title">PRÉVIA DANFE<small>Documento Auxiliar de conferência da NF-e</small></div><div style="text-align:center;margin-top:12px">Natureza: <b>'+esc(f.natureOperation||r.fiscal?.natureOperation||iss.naturezaOperacao||'Venda de mercadoria')+'</b></div></div>'+
+      '<div class="draft-number">NF-e modelo 55<br><b>Nº provisório '+esc(r.nextNumber||'—')+'</b><br>Série '+esc(r.serie||'—')+'<br><br><b>SEM CHAVE / SEM PROTOCOLO</b></div>'+
+    '</div>'+
+    '<div class="danfe-grid">'+
+      previewCell('Destinatário / Razão social',c.name,'c6')+previewCell('CPF / CNPJ',c.document,'c3')+previewCell('IE',c.ie||(c.indicatorIE===2?'ISENTO':'—'),'c3')+
+      previewCell('Endereço',[a.logradouro,a.numero,a.complemento].filter(Boolean).join(', '),'c6')+previewCell('Bairro',a.bairro,'c2')+previewCell('Município / UF',[a.municipio,a.uf].filter(Boolean).join(' / '),'c2')+previewCell('CEP',a.cep,'c2')+
+      previewCell('Consumidor final',Number(f.consumerFinal)===1?'Sim':'Não','c3')+previewCell('Presença do comprador',labelPresence(f.buyerPresence),'c3')+previewCell('Situação ICMS',labelIcms(c),'c3')+previewCell('Finalidade','NF-e normal','c3')+
+    '</div>'+
+    '<div class="draft-section"><h4>Dados dos produtos / serviços</h4><table class="draft-table"><thead><tr><th>Cód.</th><th>Descrição</th><th>NCM</th><th>CSOSN</th><th>CFOP</th><th>UN</th><th>Qtd.</th><th>Vlr Unit.</th><th>Vlr Total</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+    '<div class="danfe-grid">'+previewCell('Produtos',money(t.products),'c3')+previewCell('Frete',money(t.shipping),'c2')+previewCell('Montagem / serviço',money(t.assembly),'c2')+previewCell('Desconto',money(t.discount),'c2')+previewCell('Valor total da NF-e',money(t.total),'c3')+'</div>'+
+    '<div class="danfe-grid">'+previewCell('Pagamento',labelPayment(p.method),'c4')+previewCell('Parcelas',String(Number(p.installments||1))+'x','c2')+previewCell('1º vencimento',p.firstDueDate?fmtDate(p.firstDueDate):'—','c2')+previewCell('Modalidade do frete',labelFreight(tr.freightMode),'c4')+'</div>'+
+    '<div class="draft-section"><h4>Transportador / volumes</h4><div class="draft-text">'+esc(carrier)+'\nVolumes: '+esc(tr.volumeQuantity||0)+' • Espécie: '+esc(tr.volumeSpecies||'—')+' • Marca: '+esc(tr.volumeBrand||'—')+' • Peso bruto: '+esc(tr.grossWeight||0)+' kg • Peso líquido: '+esc(tr.netWeight||0)+' kg</div></div>'+
+    '<div class="draft-section"><h4>Informações complementares</h4><div class="draft-text">'+esc(complement||'Nenhuma informação complementar informada.')+'</div></div>'+
+    '<div class="draft-section"><h4>Reservado ao Fisco / Informações de interesse do Fisco</h4><div class="draft-text">'+esc(f.taxAuthorityInfo||'Nenhuma informação específica para o Fisco informada.')+'</div></div>'+
+    '<div class="draft-footer">ESTE DOCUMENTO É APENAS PARA CONFERÊNCIA. NÃO POSSUI CHAVE, PROTOCOLO OU VALIDADE FISCAL.</div>';
+  const isProd=r.environment==='producao';$('send-nfe').textContent=isProd?'Confirmar e enviar à SEFAZ (PRODUÇÃO)':'Confirmar e enviar teste à SEFAZ';$('draft-modal').classList.add('show');document.body.style.overflow='hidden';
+}
+function closePreview(){$('draft-modal').classList.remove('show');document.body.style.overflow=''}
+function fillResult(d){lastFiscalDocumentId=d.fiscalDocumentId||d.fiscal?.fiscalDocumentId||'';$('r-number').textContent=(d.number||'—')+' / '+(d.series||'—');$('r-protocol').textContent=d.protocol||'—';$('r-key').textContent=d.key||'—';$('result').style.display='block';$('viewDanfe').style.display=(lastFiscalDocumentId&&d.xmlAvailable!==false)?'block':'none'}
+async function persistCommercial(orderId){
+  const cm=data?.commercial||{},id=String(orderId||'').trim(),payload={sellerName:String(cm.sellerName||'').trim(),priceTable:String(cm.priceTable||'Preço Padrão').trim()||'Preço Padrão',saleDate:String(cm.saleDate||'').trim()};
+  if(!id)return{ok:false,error:'a venda foi faturada, mas o identificador interno não retornou para registrar vendedor/data/tabela de preço.'};
+  try{const r=await fetch(API+'/erp/orders/'+encodeURIComponent(id)+'/sige-fields',{method:'PATCH',headers:headers(),body:JSON.stringify(payload),cache:'no-store'});const d=await r.json().catch(()=>({}));if(!r.ok)return{ok:false,error:d.error||'não foi possível registrar os dados comerciais.'};return{ok:true}}catch(e){return{ok:false,error:e.message||'não foi possível registrar os dados comerciais.'}}
+}
+function showCommercialWarning(message=''){const box=$('commercial-warning');if(!message){box.style.display='none';box.textContent='';return}box.style.display='block';box.textContent='A NF-e e o faturamento foram concluídos. Atenção: '+message+' Não emita a NF-e novamente.'}
+async function emitNfe(){
+  if(!preflightReady||!data||sending)return;readInputs();sending=true;const b=$('send-nfe');b.disabled=true;b.textContent='Enviando e aguardando SEFAZ…';
   try{
-    const r=await fetch(API+'/erp/fiscal/nfe/emitir-e-faturar',{
-      method:'POST',
-      headers:headers(),
-      body:JSON.stringify({draft:data,orderId:data.pendingOrderId||''})
-    });
-    const d=await r.json();
-    if(r.status===401)return goLogin();
-    if(d.orderId){data.pendingOrderId=d.orderId;saveDraft()}
-
-    if(d.recoveryPending){
-      status(d.error||'A SEFAZ confirma a NF-e, mas a recuperação do XML ainda está pendente. Não tente emitir outra nota.',true);
-      b.disabled=true;
-      b.textContent='NF-e já autorizada — recuperação pendente';
-      return;
-    }
-
+    const r=await fetch(API+'/erp/fiscal/nfe/emitir-e-faturar',{method:'POST',headers:headers(),body:JSON.stringify({draft:data,orderId:data.pendingOrderId||''}),cache:'no-store'});
+    const d=await r.json().catch(()=>({}));if(r.status===401)return goLogin();if(d.orderId){data.pendingOrderId=d.orderId;saveDraft()}
+    if(d.recoveryPending){closePreview();status(d.error||'A NF-e foi autorizada, mas a recuperação do XML está pendente. Não emita outra nota.','bad');return}
     if(!r.ok){
-      if(d.authorized===true){
-        status(`A NF-e foi autorizada, mas o faturamento interno ficou pendente. Clique novamente para concluir o mesmo pedido sem emitir outra nota. ${d.error||''}`,true);
-        b.disabled=false;
-        b.textContent='Concluir faturamento da NF-e já autorizada';
-        return;
-      }
-      const details=d.details||{};
-      if(details.orderId){data.pendingOrderId=details.orderId;saveDraft()}
-      throw new Error(d.error||d.message||'A SEFAZ não autorizou a NF-e.');
+      if(d.authorized===true){closePreview();status('A NF-e foi autorizada pela SEFAZ, mas o faturamento interno ficou pendente. Use esta mesma venda para concluir; não emita outra NF-e. '+(d.error||''),'bad');return}
+      const details=d.details||{};if(details.orderId){data.pendingOrderId=details.orderId;saveDraft()}throw new Error(d.error||d.message||'A SEFAZ não autorizou a NF-e.')
     }
-
-    if(d.authorized&&d.homologation){
-      fillResult(d);
-      $('result-title').textContent=d.recovered
-        ?'NF-e de homologação recuperada — sem faturar a venda'
-        :'NF-e de homologação autorizada — sem faturar a venda';
-      const extra=d.xmlAvailable===false?' O XML desta tentativa antiga não pôde ser recuperado; faça um novo teste limpo depois para validar também XML/DANFE.':'';
-      status(`✓ NF-e autorizada em HOMOLOGAÇÃO. Venda, estoque, caixa e financeiro não foram alterados.${extra}`,false,true);
-      sessionStorage.removeItem(storageKey);
-      b.disabled=true;
-      b.textContent='Teste de homologação concluído';
-      return;
-    }
-
+    closePreview();fillResult(d);
+    if(d.authorized&&d.homologation){$('result-title').textContent='NF-e de homologação autorizada — sem faturar a venda';status('NF-e autorizada em HOMOLOGAÇÃO. Venda, estoque, caixa e financeiro não foram alterados.','ok');sessionStorage.removeItem(storageKey);$('preview').disabled=true;return}
     if(!d.authorized||!d.billingCompleted)throw new Error('A operação não foi concluída.');
-    fillResult(d);
-    $('result-title').textContent='NF-e autorizada e venda faturada';
-    const commercial=await persistCommercial(d.orderId||data.pendingOrderId||'');
-    showCommercialWarning(commercial.ok?'':commercial.error);
-    status('✓ NF-e autorizada pela SEFAZ e venda faturada no Ariana ERP.',false,true);
-    sessionStorage.removeItem(storageKey);
-    b.disabled=true;
-    b.textContent='NF-e emitida e venda faturada';
-  }catch(e){
-    status(e.message||'Falha na emissão.',true);
-    b.disabled=false;
-    b.textContent='Tentar emissão novamente';
-  }
-};
-$('consumer-final').onchange=()=>{if(!data)return;data.fiscal={...(data.fiscal||{}),consumerFinal:Number($('consumer-final').value)};saveDraft();preflight()};
-$('viewDanfe').onclick=async()=>{
-  if(!lastFiscalDocumentId)return;
-  try{
-    const r=await fetch(API+'/erp/fiscal/historico/nfe/'+encodeURIComponent(lastFiscalDocumentId)+'/danfe.pdf',{
-      headers:{Authorization:'Bearer '+token()},
-      cache:'no-store'
-    });
-    if(!r.ok){
-      const d=await r.json().catch(()=>({}));
-      throw new Error(d.error||'Erro ao abrir DANFE.');
-    }
-    const blob=await r.blob(),url=URL.createObjectURL(blob);
-    window.open(url,'_blank','noopener');
-    setTimeout(()=>URL.revokeObjectURL(url),60000);
-  }catch(e){alert(e.message)}
-};
-render();
-if(data)preflight();
+    $('result-title').textContent='NF-e autorizada e venda faturada';const commercial=await persistCommercial(d.orderId||data.pendingOrderId||'');showCommercialWarning(commercial.ok?'':commercial.error);status('NF-e autorizada pela SEFAZ e venda faturada no Ariana ERP.','ok');sessionStorage.removeItem(storageKey);$('preview').disabled=true;
+  }catch(e){status(e.message||'Falha na emissão.','bad');closePreview();preflightReady=false;await preflight()}finally{sending=false;b.disabled=false}
+}
+$('preview').onclick=buildDraftPreview;$('close-draft').onclick=closePreview;$('print-draft').onclick=()=>window.print();$('send-nfe').onclick=emitNfe;
+$('viewDanfe').onclick=async()=>{if(!lastFiscalDocumentId)return;try{const r=await fetch(API+'/erp/fiscal/historico/nfe/'+encodeURIComponent(lastFiscalDocumentId)+'/danfe.pdf',{headers:{Authorization:'Bearer '+token()},cache:'no-store'});if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.error||'Erro ao abrir DANFE.')}const blob=await r.blob(),url=URL.createObjectURL(blob);window.open(url,'_blank','noopener');setTimeout(()=>URL.revokeObjectURL(url),120000)}catch(e){alert(e.message)}};
+
+const liveIds=['nature-operation','consumer-final','buyer-presence','gov-commitment','gov-order','gov-contract','gov-process','freight-mode','carrier-cnpj','carrier-name','carrier-ie','carrier-address','carrier-city','carrier-uf','volume-quantity','volume-species','volume-brand','gross-weight','net-weight','additional-info','tax-authority-info'];
+liveIds.forEach(id=>$(id).addEventListener(['consumer-final','buyer-presence','freight-mode'].includes(id)?'change':'input',changed));
+
+if(!data){$('missing').style.display='block'}else{
+  $('editor').style.display='grid';ensureData();syncToInputs();if(!token())goLogin();else preflight();
+}
 </script>
 </body>
 </html>
