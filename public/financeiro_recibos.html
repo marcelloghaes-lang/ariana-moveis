@@ -2712,6 +2712,65 @@ async function enviarCarneWhatsapp(){
 
 let sigePagamentoAlvo=null;
 let sigePagamentoEnviando=false;
+let receiptPhoneContext=null;
+let receiptPhoneSaving=false;
+
+function abrirTelefoneComprovante(ctx={}){
+  receiptPhoneContext={...ctx};
+  const overlay=document.getElementById('receiptPhoneOverlay');
+  const input=document.getElementById('receiptPhoneInput');
+  const status=document.getElementById('receiptPhoneStatus');
+  const customer=document.getElementById('receiptPhoneCustomer');
+  if(customer){
+    customer.innerHTML=`<div class="row"><strong>Cliente</strong><span>${esc(ctx.customerName||'Cliente')}</span></div>
+      <div class="row"><strong>CPF/CNPJ</strong><span>${esc(ctx.customerDocument||'—')}</span></div>
+      <div class="row"><strong>Comprovante</strong><span>${esc(ctx.receiptCode||'Gerado')}</span></div>`;
+  }
+  if(input)input.value=shortPhone(ctx.phone||'');
+  if(status){status.classList.add('hidden');status.textContent='';}
+  overlay?.classList.remove('hidden');
+  setTimeout(()=>input?.focus(),100);
+}
+
+function fecharTelefoneComprovante(){
+  if(receiptPhoneSaving)return;
+  document.getElementById('receiptPhoneOverlay')?.classList.add('hidden');
+  receiptPhoneContext=null;
+}
+
+async function salvarTelefoneEEnviarComprovante(){
+  if(receiptPhoneSaving)return;
+  const ctx=receiptPhoneContext||{};
+  const input=document.getElementById('receiptPhoneInput');
+  const btn=document.getElementById('receiptPhoneSave');
+  const status=document.getElementById('receiptPhoneStatus');
+  const telefoneNovo=shortPhone(input?.value||'');
+  if(!ctx.receiptId){toast('Comprovante não localizado. Atualize a tela e tente novamente.');return}
+  if(!telefoneNovo||telefoneNovo.length<10){toast('Informe um celular válido com DDD.');input?.focus();return}
+
+  receiptPhoneSaving=true;
+  if(btn){btn.disabled=true;btn.textContent='⏳ Salvando e enviando...';}
+  if(status){status.classList.remove('hidden');status.style.background='#eff6ff';status.style.borderColor='#bfdbfe';status.style.color='#1e40af';status.textContent='Salvando o telefone no cadastro do cliente e enviando o comprovante...';}
+
+  try{
+    const result=await apiJson('/admin/crediario/recibos/'+encodeURIComponent(ctx.receiptId)+'/enviar-whatsapp',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({telefone:telefoneNovo,reference:ctx.reference||''})
+    });
+    if(status){status.style.background='#ecfdf5';status.style.borderColor='#bbf7d0';status.style.color='#166534';status.textContent='✅ Telefone salvo no cadastro do cliente e comprovante enviado pelo WhatsApp.';}
+    toast('Telefone salvo e comprovante enviado com sucesso.');
+    await Promise.allSettled([loadRecibos(),loadClientes()]);
+    setTimeout(()=>{receiptPhoneSaving=false;fecharTelefoneComprovante();},900);
+    return result;
+  }catch(e){
+    if(status){status.style.background='#fff7ed';status.style.borderColor='#fed7aa';status.style.color='#9a3412';status.textContent='O telefone foi salvo antes da tentativa de envio. Erro no WhatsApp: '+(e.message||e);}
+    toast('Telefone salvo, mas o envio do comprovante precisa ser tentado novamente.');
+  }finally{
+    receiptPhoneSaving=false;
+    if(btn){btn.disabled=false;btn.textContent='💾 Salvar e enviar comprovante';}
+  }
+}
 
 function parseMoneyInput(v){
   const raw=String(v??'').trim();
@@ -2740,7 +2799,7 @@ function gerarDocumentoPagamentoSige(codigo){
 function normalizarAlvoPagamentoSige(item={}){
   const saldo=Number(item.saldoParcela??item.saldo??0);
   return {
-    codigo:Number(item.codigo||item.Codigo||item.codigoLancamento||0),
+    codigo:String(item.codigo||item.Codigo||item.codigoLancamento||item.sourceRef||'').trim(),
     cliente:String(item.cliente||item.nome||item.Cliente||'').trim(),
     documento:String(item.documento||item.NumeroDocumento||item.parcelaLabel||'').trim(),
     descricao:String(item.descricao||item.Descricao||'').trim(),
@@ -2756,8 +2815,8 @@ function normalizarAlvoPagamentoSige(item={}){
 }
 function abrirPagamentoSige(item){
   const alvo=normalizarAlvoPagamentoSige(item);
-  if(!Number.isInteger(alvo.codigo)||alvo.codigo<=0){toast('Este lançamento não possui código válido do SIGE.');return}
-  if(alvo.quitado||alvo.saldo<=0){toast('Esta parcela já está quitada no SIGE.');return}
+  if(!/^(ERP_[a-f0-9]{24}_\d+|LEDGER_[a-f0-9]{24})$/i.test(alvo.codigo)){toast('Atualize o carnê para obter a referência financeira do Ariana ERP.');return}
+  if(alvo.quitado||alvo.saldo<=0){toast('Esta parcela já está quitada no Ariana ERP.');return}
   sigePagamentoAlvo=alvo;
   sigePayCodigo.value=String(alvo.codigo);
   const calc=alvo.calculoAtualizacao||calcularAtualizacaoParcela(alvo.saldo,alvo.vencimento,'');
@@ -2790,7 +2849,7 @@ function fecharPagamentoSige(){
 async function confirmarPagamentoSige(){
   if(sigePagamentoEnviando)return;
   const alvo=sigePagamentoAlvo;
-  if(!alvo){toast('Selecione uma parcela do SIGE.');return}
+  if(!alvo){toast('Selecione uma parcela do Ariana ERP.');return}
   const valorPagamento=parseMoneyInput(sigePayValor.value);
   const formaPagamento=String(sigePayForma.value||'').trim();
   const contaBancaria=String(sigePayConta.value||'').trim();
@@ -2804,12 +2863,12 @@ async function confirmarPagamentoSige(){
   if(!numeroDocumento){toast('Informe o número do documento.');sigePayDocumento.focus();return}
   if(!dataPagamento){toast('Informe a data do pagamento.');return}
 
-  if(!confirm(`Confirmar pagamento de ${money(valorPagamento)} no lançamento ${alvo.codigo} do SIGE?\n\nCliente: ${alvo.cliente||'—'}\nDocumento: ${numeroDocumento}`))return;
+  if(!confirm(`Confirmar pagamento de ${money(valorPagamento)} no Ariana ERP?\n\nCliente: ${alvo.cliente||'—'}\nParcela: ${alvo.parcela||alvo.documento||'—'}\nDocumento: ${numeroDocumento}`))return;
 
   sigePagamentoEnviando=true;
   sigePayConfirmar.disabled=true;
   const textoOriginal=sigePayConfirmar.textContent;
-  sigePayConfirmar.textContent='⏳ Registrando no SIGE...';
+  sigePayConfirmar.textContent='⏳ Registrando no Ariana ERP...';
 
   try{
     const resultado=await apiJson('/admin/financeiro/lancamentos/'+encodeURIComponent(alvo.codigo)+'/pagamentos',{
@@ -2835,18 +2894,30 @@ async function confirmarPagamentoSige(){
     if(resultado.reciboCriado){
       lastRecibo=resultado.recibo||null;
       if(resultado.whatsappEnviado){
-        toast(resultado.message||'Pagamento, recibo e WhatsApp concluídos com sucesso.');
+        toast(resultado.message||'Pagamento, comprovante e WhatsApp concluídos com sucesso.');
+      }else if(resultado.requiresPhone||resultado.whatsapp?.reason==='cliente_sem_whatsapp'){
+        toast('Pagamento registrado. Informe o WhatsApp do cliente para enviar o comprovante.');
       }else{
-        const motivo=resultado.whatsapp?.reason==='cliente_sem_whatsapp'
-          ? ' Cliente sem WhatsApp cadastrado.'
-          : '';
-        toast((resultado.message||'Pagamento e recibo concluídos, mas o WhatsApp não foi enviado.')+motivo);
+        toast(resultado.message||'Pagamento e comprovante concluídos, mas o WhatsApp não foi enviado.');
       }
     }else{
-      toast(resultado.message||'Pagamento confirmado no SIGE, mas o recibo não foi criado.');
+      toast(resultado.message||'Pagamento confirmado no Ariana ERP, mas o comprovante não foi criado.');
     }
 
     sigePagamentoOverlay.classList.add('hidden');
+
+    if(resultado.requiresPhone||resultado.whatsapp?.reason==='cliente_sem_whatsapp'){
+      const promptData=resultado.phonePrompt||{};
+      abrirTelefoneComprovante({
+        receiptId:promptData.receiptId||resultado.recibo?.id||'',
+        receiptCode:resultado.recibo?.recibo||'',
+        reference:promptData.reference||alvo.codigo,
+        customerName:promptData.customerName||resultado.recibo?.clienteNome||alvo.cliente||'Cliente',
+        customerDocument:promptData.customerDocument||resultado.recibo?.clienteCpf||alvo.cpf||'',
+        phone:''
+      });
+    }
+
     sigePagamentoAlvo=null;
 
     await Promise.allSettled([loadRecibos(),loadClientes()]);
@@ -2860,7 +2931,7 @@ async function confirmarPagamentoSige(){
       await buscarSigeLancamentos();
     }
   }catch(e){
-    console.error('Erro ao registrar pagamento no SIGE:',e.data||e);
+    console.error('Erro ao registrar pagamento no Ariana ERP:',e.data||e);
     toast('Pagamento não registrado: '+(e.message||e));
   }finally{
     sigePagamentoEnviando=false;
