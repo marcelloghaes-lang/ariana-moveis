@@ -10911,7 +10911,7 @@ function financeiroErpReference(row = {}) {
     return String(req.admin?.email || req.auth?.email || req.user?.email || 'admin');
   }
 
-  async function executarSincronizacaoCarnesSige({
+async function executarSincronizacaoCarnesErp({
     req,
     somenteDesatualizados = true,
     minutosDesatualizado = 60,
@@ -10919,34 +10919,104 @@ function financeiroErpReference(row = {}) {
     ids = []
   } = {}) {
     const agora = new Date();
+    const max = Math.max(1, Math.min(Number(limite || 100), 1000));
     const cutoff = new Date(agora.getTime() - Math.max(1, Number(minutosDesatualizado || 60)) * 60000);
-    const filter = { status: 'ATIVO' };
+    const candidates = new Map();
+
+    const addCandidate = (query = '', existingCarne = null, metadata = {}) => {
+      const value = String(query || '').trim();
+      if (!value) return;
+      const key = existingCarne?._id
+        ? `carne:${existingCarne._id}`
+        : (onlyDigits(value) ? `digits:${onlyDigits(value)}` : `text:${normalizeSearch(value)}`);
+      if (!candidates.has(key)) candidates.set(key, { query: value, existingCarne, metadata });
+    };
 
     if (Array.isArray(ids) && ids.length) {
       const objectIds = ids
         .filter((id) => mongoose.Types.ObjectId.isValid(String(id)))
         .map((id) => new mongoose.Types.ObjectId(String(id)));
-      filter._id = { $in: objectIds };
-    } else if (somenteDesatualizados) {
-      filter.$or = [
-        { ultimaSincronizacaoEm: { $lt: cutoff } },
-        { ultimaSincronizacaoEm: null },
-        { ultimaSincronizacaoEm: { $exists: false } }
-      ];
+      const rows = await FinanceiroCarneDigital.find({ _id: { $in: objectIds } }).limit(max);
+      for (const row of rows) {
+        addCandidate(row.cliente?.cpf || row.cliente?.telefone || row.cliente?.nome, row, { origem: 'carne_existente' });
+      }
+    } else {
+      const existingFilter = somenteDesatualizados
+        ? {
+            status: 'ATIVO',
+            $or: [
+              { ultimaSincronizacaoEm: { $lt: cutoff } },
+              { ultimaSincronizacaoEm: null },
+              { ultimaSincronizacaoEm: { $exists: false } },
+              { fonte: 'sige' },
+              { fonte: 'legado_local' }
+            ]
+          }
+        : { status: 'ATIVO' };
+
+      const existingRows = await FinanceiroCarneDigital.find(existingFilter)
+        .sort({ ultimaSincronizacaoEm: 1, updatedAt: 1 })
+        .limit(max);
+
+      for (const row of existingRows) {
+        addCandidate(row.cliente?.cpf || row.cliente?.telefone || row.cliente?.nome, row, { origem: 'carne_existente' });
+      }
+
+      if (candidates.size < max) {
+        const orders = await Order.find({
+          origin: 'erp_ariana',
+          status: 'faturado',
+          'televendas.erp.receivables.0': { $exists: true }
+        })
+          .select('_id customerName customerCpf customerPhone updatedAt')
+          .sort({ updatedAt: -1 })
+          .limit(max * 2)
+          .lean();
+
+        for (const order of orders) {
+          addCandidate(
+            order.customerCpf || order.customerPhone || order.customerName,
+            null,
+            { origem: 'venda_ariana', orderId: String(order._id) }
+          );
+          if (candidates.size >= max) break;
+        }
+      }
+
+      if (candidates.size < max) {
+        const Entry = mongoose.models.ErpFinancialEntry;
+        if (Entry) {
+          const entries = await Entry.collection.find({
+            direction: 'receivable',
+            status: { $ne: 'cancelled' }
+          }).project({
+            personName: 1,
+            personDocument: 1,
+            personPhone: 1,
+            dueAt: 1
+          }).sort({ dueAt: -1 }).limit(max * 2).toArray();
+
+          for (const entry of entries) {
+            addCandidate(
+              entry.personDocument || entry.personPhone || entry.personName,
+              null,
+              { origem: 'historico_local', entryId: String(entry._id) }
+            );
+            if (candidates.size >= max) break;
+          }
+        }
+      }
     }
 
-    const rows = await FinanceiroCarneDigital.find(filter)
-      .sort({ ultimaSincronizacaoEm: 1, updatedAt: 1 })
-      .limit(Math.max(1, Math.min(Number(limite || 100), 500)));
-
+    const selected = [...candidates.values()].slice(0, max);
     const log = await FinanceiroSincronizacaoLog.create({
-      origem: 'sige',
-      tipo: ids?.length ? 'SELECIONADOS' : (somenteDesatualizados ? 'DESATUALIZADOS' : 'TODOS'),
+      origem: 'ariana_erp',
+      tipo: ids?.length ? 'SELECIONADOS' : (somenteDesatualizados ? 'DESATUALIZADOS_E_NOVOS' : 'TODOS'),
       status: 'PROCESSANDO',
       iniciadoEm: agora,
       solicitadoPor: getSyncUser(req),
-      totalSelecionado: rows.length,
-      parametros: { somenteDesatualizados, minutosDesatualizado, limite, ids: ids || [] }
+      totalSelecionado: selected.length,
+      parametros: { somenteDesatualizados, minutosDesatualizado, limite: max, ids: ids || [], fonte: 'ariana_erp' }
     });
 
     const resultados = [];
@@ -10954,65 +11024,60 @@ function financeiroErpReference(row = {}) {
     let erros = 0;
     let ignorados = 0;
 
-    for (const row of rows) {
+    for (const candidate of selected) {
       try {
-        const termo = String(
-          row.cliente?.nome ||
-          row.cliente?.cpf ||
-          row.cliente?.telefone ||
-          ''
-        ).trim();
-
-        if (!termo) {
-          ignorados += 1;
-          resultados.push({
-            id: String(row._id),
-            codigo: row.codigo,
-            ok: false,
-            ignorado: true,
-            motivo: 'Carnê sem CPF, nome ou telefone para consultar o SIGE.'
-          });
-          continue;
-        }
-
-        const result = await sincronizarCarneDigitalSige(termo, req, {
-          limit: 5000,
-          maxRecords: 20000,
-          existingCarne: row,
-          termos: [
-            row.cliente?.cpf,
-            row.cliente?.nome,
-            row.cliente?.telefone
-          ]
+        const result = await sincronizarCarneDigitalErp(candidate.query, req, {
+          existingCarne: candidate.existingCarne,
+          termos: candidate.existingCarne
+            ? [
+                candidate.existingCarne.cliente?.cpf,
+                candidate.existingCarne.cliente?.nome,
+                candidate.existingCarne.cliente?.telefone
+              ]
+            : []
         });
 
         if (result.preservado) ignorados += 1;
         else atualizados += 1;
 
         resultados.push({
-          id: String(row._id),
-          codigo: row.codigo,
-          cliente: row.cliente?.nome || '',
           ok: true,
-          preservado: result.preservado === true,
-          warning: result.warning || '',
-          saldo: result.carne?.resumo?.saldo || 0,
-          atrasadas: result.carne?.resumo?.atrasadas || 0,
-          diagnosticoConsulta: result.diagnosticoConsulta || null
+          query: candidate.query,
+          origem: candidate.metadata?.origem || '',
+          carneId: result.carne?.id || '',
+          codigo: result.carne?.codigo || '',
+          cliente: result.carne?.cliente?.nome || '',
+          criadoAgora: Boolean(result.criadoAgora),
+          preservado: Boolean(result.preservado),
+          saldo: Number(result.carne?.resumo?.saldo || 0),
+          atrasadas: Number(result.carne?.resumo?.atrasadas || 0)
         });
       } catch (error) {
+        if (Number(error?.statusCode || 0) === 404) {
+          ignorados += 1;
+          resultados.push({
+            ok: true,
+            ignorado: true,
+            query: candidate.query,
+            origem: candidate.metadata?.origem || '',
+            motivo: error.message || 'Nenhuma parcela localizada.'
+          });
+          continue;
+        }
+
         erros += 1;
         resultados.push({
-          id: String(row._id),
-          codigo: row.codigo,
-          cliente: row.cliente?.nome || '',
           ok: false,
+          query: candidate.query,
+          origem: candidate.metadata?.origem || '',
           error: error.message || String(error)
         });
       }
     }
 
-    log.status = erros > 0 && atualizados === 0 ? 'FALHOU' : (erros > 0 ? 'CONCLUIDO_COM_ERROS' : 'CONCLUIDO');
+    log.status = erros > 0 && atualizados === 0
+      ? 'FALHOU'
+      : (erros > 0 ? 'CONCLUIDO_COM_ERROS' : 'CONCLUIDO');
     log.concluidoEm = new Date();
     log.processados = resultados.length;
     log.atualizados = atualizados;
@@ -11023,9 +11088,10 @@ function financeiroErpReference(row = {}) {
 
     return {
       ok: true,
+      fonte: 'ariana_erp',
       sincronizacaoId: String(log._id),
       status: log.status,
-      totalSelecionado: rows.length,
+      totalSelecionado: selected.length,
       processados: resultados.length,
       atualizados,
       ignorados,
@@ -11033,7 +11099,6 @@ function financeiroErpReference(row = {}) {
       resultados
     };
   }
-
 
 
   function extrairTelefoneFinanceiro(value = null, depth = 0) {
@@ -13309,7 +13374,7 @@ function financeiroErpReference(row = {}) {
 
     try {
       const sincronizacao = await executarEtapa('SINCRONIZAR_SIGE', () =>
-        executarSincronizacaoCarnesSige({
+        executarSincronizacaoCarnesErp({
           req,
           somenteDesatualizados: false,
           minutosDesatualizado: 1,
@@ -14300,7 +14365,7 @@ function financeiroErpReference(row = {}) {
   app.post('/api/admin/financeiro/sincronizacao/executar', adminRequired, async (req, res) => {
     try {
       const body = req.body || {};
-      const result = await executarSincronizacaoCarnesSige({
+      const result = await executarSincronizacaoCarnesErp({
         req,
         somenteDesatualizados: body.somenteDesatualizados !== false,
         minutosDesatualizado: body.minutosDesatualizado || 60,
