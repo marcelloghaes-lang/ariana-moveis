@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NF-e de Devolução • Ariana ERP</title>
+<style>
+:root{--blue:#0646a5;--bg:#f4f6f9;--line:#dce3ec;--text:#172033;--muted:#69758a;--green:#11845b;--red:#c83f49;--amber:#b97000}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px Inter,Segoe UI,Arial,sans-serif}
+header{background:#fff;border-bottom:1px solid var(--line);padding:15px 20px;display:flex;justify-content:space-between;align-items:center;gap:15px;position:sticky;top:0;z-index:10}
+header h1{font-size:19px;margin:0}header small{color:var(--muted)}header a{color:var(--blue);font-weight:800;text-decoration:none}
+.wrap{max-width:1350px;margin:auto;padding:18px}.grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(340px,.75fr);gap:15px}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}.card h2{font-size:15px;margin:0 0 13px}
+.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.field label{display:block;font-size:11px;font-weight:850;color:#57647a;margin-bottom:5px}
+input,select,textarea{width:100%;border:1px solid #cfd8e5;border-radius:9px;padding:10px 11px;font:inherit;background:#fff}
+textarea{min-height:76px;resize:vertical}.search{display:flex;gap:8px}.search input{flex:1}
+.results{border:1px solid var(--line);border-radius:10px;margin-top:8px;max-height:230px;overflow:auto}.hidden{display:none!important}
+.result{padding:10px 12px;border-bottom:1px solid #edf0f5;cursor:pointer}.result:hover{background:#f4f8ff}.result b{display:block}.result small{color:var(--muted)}
+.selected{margin-top:9px;padding:10px 12px;border:1px solid #bde2d2;background:#eef9f4;color:#245d4b;border-radius:9px}
+table{width:100%;border-collapse:collapse}th{font-size:10px;text-transform:uppercase;color:#778296;text-align:left;padding:8px;border-bottom:1px solid var(--line)}td{padding:8px;border-bottom:1px solid #edf0f5;vertical-align:middle}
+td input{padding:7px}.qty{width:75px}.cfop{width:90px}.itemno{width:78px}.money{text-align:right}.remove{border:0;background:#fff0f1;color:var(--red);border-radius:7px;padding:7px 9px;font-weight:900;cursor:pointer}
+.btn{border:0;border-radius:9px;padding:11px 12px;font-weight:900;cursor:pointer}.btn:disabled{opacity:.5;cursor:not-allowed}.primary{background:var(--blue);color:#fff}.green{background:var(--green);color:#fff}.secondary{background:#edf3fb;color:var(--blue)}.danger{background:#fff0f1;color:var(--red)}
+.actions{display:grid;gap:9px}.notice{border-radius:10px;padding:11px 12px;background:#eef5ff;color:#214b82;line-height:1.45}.notice.ok{background:#eaf7f2;color:#22634e}.notice.bad{background:#fff0f1;color:#8d2c34}.notice.warn{background:#fff4df;color:#79510a}
+.issues{padding-left:19px;color:#8d2c34}.sum{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #edf0f5}.sum.total{font-size:20px;font-weight:900;border-bottom:0}
+.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;word-break:break-all}.help{font-size:12px;color:var(--muted);line-height:1.5}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}@media(max-width:620px){.wrap{padding:10px}.fields{grid-template-columns:1fr}table{font-size:12px}}
+</style>
+</head>
+<body>
+<header><div><h1>NF-e de Devolução</h1><small>Ariana ERP • operação fiscal separada da venda</small></div><div><a href="erp_fiscal.html">Fiscal / NF-e</a> &nbsp; <a href="erp_ariana.html">Central ERP</a></div></header>
+<main class="wrap">
+  <div class="notice warn" style="margin-bottom:14px"><b>Segurança fiscal:</b> a devolução só movimenta estoque depois que a SEFAZ autorizar a NF-e em produção. Em homologação, nenhum saldo é alterado.</div>
+  <div class="grid">
+    <section>
+      <div class="card">
+        <h2>1. Documento original e direção</h2>
+        <div class="fields">
+          <div class="field"><label>Direção da devolução</label><select id="direction"><option value="entrada">Entrada — mercadoria retornando para a Ariana</option><option value="saida">Saída — Ariana devolvendo mercadoria ao fornecedor</option></select></div>
+          <div class="field"><label>Chave de acesso da NF-e original *</label><input id="reference-key" inputmode="numeric" maxlength="54" placeholder="44 dígitos"></div>
+        </div>
+        <p class="help">Cada item também precisa informar o número que ele ocupava na NF-e original. O ERP grava essa referência no item da devolução.</p>
+      </div>
+
+      <div class="card">
+        <h2>2. Destinatário da NF-e de devolução</h2>
+        <div class="search"><input id="customer-search" placeholder="Buscar por nome, CPF/CNPJ, telefone ou e-mail"><button class="btn secondary" id="customer-btn" type="button">Buscar</button></div>
+        <div id="customer-results" class="results hidden"></div>
+        <div id="selected-customer" class="selected hidden"></div>
+        <p class="help">Para segurança fiscal, selecione um cadastro do ERP. CNPJ contribuinte precisa ter situação ICMS e Inscrição Estadual corretas.</p>
+      </div>
+
+      <div class="card">
+        <h2>3. Produtos devolvidos</h2>
+        <div class="search"><input id="product-search" placeholder="Buscar produto por nome, SKU ou código"><button class="btn secondary" id="product-btn" type="button">Buscar</button></div>
+        <div id="product-results" class="results hidden"></div>
+        <div style="overflow:auto;margin-top:12px">
+          <table>
+            <thead><tr><th>Produto</th><th>Qtd.</th><th>Valor unit.</th><th>CFOP devolução</th><th>Item original</th><th></th></tr></thead>
+            <tbody id="items"><tr><td colspan="6" class="help">Nenhum produto adicionado.</td></tr></tbody>
+          </table>
+        </div>
+        <p class="help">Informe o CFOP de devolução aplicável à operação. Entrada aceita família 1/2/3; saída aceita família 5/6/7. O ERP bloqueia prefixo incompatível, mas a classificação fiscal continua devendo corresponder à operação real.</p>
+      </div>
+
+      <div class="card"><h2>4. Observações</h2><textarea id="notes" placeholder="Motivo da devolução, referência interna ou outras informações relevantes"></textarea></div>
+    </section>
+
+    <aside>
+      <div class="card">
+        <h2>Resumo</h2>
+        <div class="sum"><span>Itens</span><b id="item-count">0</b></div>
+        <div class="sum total"><span>Total</span><span id="total">R$ 0,00</span></div>
+      </div>
+      <div class="card">
+        <h2>Validação fiscal</h2>
+        <div id="status" class="notice">Preencha os dados e valide antes de transmitir.</div>
+        <ul id="issues" class="issues"></ul>
+        <div class="actions">
+          <button id="validate" class="btn secondary">Validar devolução</button>
+          <button id="emit" class="btn green" disabled>Emitir NF-e de devolução</button>
+        </div>
+      </div>
+      <div id="result-card" class="card hidden">
+        <h2 id="result-title">NF-e autorizada</h2>
+        <div class="sum"><span>Número / série</span><b id="result-number">—</b></div>
+        <div><small>Protocolo</small><div id="result-protocol" class="mono">—</div></div>
+        <div style="margin-top:10px"><small>Chave</small><div id="result-key" class="mono">—</div></div>
+        <button id="danfe" class="btn primary hidden" style="margin-top:12px;width:100%">Ver DANFE</button>
+      </div>
+    </aside>
+  </div>
+</main>
+<script>
+const API=location.hostname==='localhost'?'http://localhost:3000/api':'https://ariana-backend.onrender.com/api';
+const $=id=>document.getElementById(id);
+let selectedCustomer=null,products=[],items=[],operationId='',fiscalDocumentId='',preflightReady=false;
+function token(){const t=localStorage.getItem('admin_token')||localStorage.getItem('adminToken')||localStorage.getItem('auth_token')||localStorage.getItem('token')||'';if(t)return t;try{return JSON.parse(localStorage.getItem('banner_admin_session')||'null')?.token||''}catch{return''}}
+function goLogin(){location.replace('erp_login.html?return=erp_devolucao_nfe.html')}
+function headers(){return{'Content-Type':'application/json',Authorization:'Bearer '+token()}}
+function esc(v=''){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+function digits(v=''){return String(v||'').replace(/\D/g,'')}
+function money(v){return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+async function api(path,opts={}){const r=await fetch(API+path,{...opts,headers:{...headers(),...(opts.headers||{})},cache:'no-store'});const d=await r.json().catch(()=>({}));if(r.status===401)return goLogin();if(!r.ok)throw Object.assign(new Error(d.error||('Erro HTTP '+r.status)),{data:d,status:r.status});return d}
+function status(text,kind=''){$('status').className='notice'+(kind?' '+kind:'');$('status').textContent=text}
+function closeResults(id){$(id).classList.add('hidden');$(id).innerHTML=''}
+function total(){return items.reduce((s,i)=>s+Number(i.qty||0)*Number(i.unitPrice||0),0)}
+function invalidate(){preflightReady=false;$('emit').disabled=true}
+function renderItems(){
+  $('item-count').textContent=String(items.length);
+  $('total').textContent=money(total());
+  $('items').innerHTML=items.length?items.map((i,index)=>'<tr><td><b>'+esc(i.name)+'</b><br><small>'+esc(i.sku||'')+'</small></td><td><input class="qty" data-qty="'+index+'" type="number" min="1" max="'+Number(i.stock||999999)+'" value="'+Number(i.qty||1)+'"></td><td><input data-price="'+index+'" type="number" min="0.01" step="0.01" value="'+Number(i.unitPrice||0).toFixed(2)+'"></td><td><input class="cfop" data-cfop="'+index+'" inputmode="numeric" maxlength="4" placeholder="'+($('direction').value==='entrada'?'1202':'5202')+'" value="'+esc(i.returnCfop||'')+'"></td><td><input class="itemno" data-itemno="'+index+'" type="number" min="1" max="990" value="'+Number(i.originalItemNumber||index+1)+'"></td><td><button class="remove" data-remove="'+index+'">Excluir</button></td></tr>').join(''):'<tr><td colspan="6" class="help">Nenhum produto adicionado.</td></tr>';
+  invalidate();
+}
+async function searchCustomers(){
+  const q=$('customer-search').value.trim();if(q.length<2)return status('Digite pelo menos 2 caracteres para buscar o destinatário.','bad');
+  try{
+    const d=await api('/erp/people?q='+encodeURIComponent(q)+'&limit=12');
+    const rows=d.people||[];window.__returnCustomers=rows;
+    $('customer-results').innerHTML=rows.length?rows.map(p=>'<div class="result" data-customer="'+esc(p.id)+'"><b>'+esc(p.name)+'</b><small>'+esc([p.document,p.ie?('IE '+p.ie):'',p.publicAgency?'Órgão público':''].filter(Boolean).join(' • '))+'</small></div>').join(''):'<div class="result"><small>Nenhum cadastro encontrado.</small></div>';
+    $('customer-results').classList.remove('hidden');
+  }catch(e){status(e.message,'bad')}
+}
+async function searchProducts(){
+  const q=$('product-search').value.trim();if(q.length<2)return status('Digite pelo menos 2 caracteres para buscar o produto.','bad');
+  try{
+    const d=await api('/erp/products?q='+encodeURIComponent(q)+'&limit=12');products=d.products||[];
+    $('product-results').innerHTML=products.length?products.map(p=>'<div class="result" data-product="'+esc(p.id)+'"><b>'+esc(p.name)+'</b><small>'+esc([p.sku,p.brand,p.category].filter(Boolean).join(' • '))+' • estoque '+Number(p.stock||0)+' • '+money(p.price)+'</small></div>').join(''):'<div class="result"><small>Nenhum produto encontrado.</small></div>';
+    $('product-results').classList.remove('hidden');
+  }catch(e){status(e.message,'bad')}
+}
+function buildDraft(){
+  if(!selectedCustomer)throw new Error('Selecione o destinatário no cadastro do ERP.');
+  const key=digits($('reference-key').value);if(key.length!==44)throw new Error('Informe a chave de acesso original com 44 dígitos.');
+  if(!items.length)throw new Error('Adicione pelo menos um produto à devolução.');
+  return{
+    fiscal:{mode:'devolucao',direction:$('direction').value,referenceKey:key,natureOperation:'Devolução de mercadoria'},
+    customer:{id:selectedCustomer.id,name:selectedCustomer.name,document:selectedCustomer.document,phone:selectedCustomer.phone,email:selectedCustomer.email,address:selectedCustomer.addressText,addressData:selectedCustomer.address,ie:selectedCustomer.ie,ieExempt:selectedCustomer.ieExempt,icmsTaxpayerStatus:selectedCustomer.icmsTaxpayerStatus,publicAgency:selectedCustomer.publicAgency,publicEntityType:selectedCustomer.publicEntityType},
+    items:items.map(i=>({productId:i.productId,name:i.name,sku:i.sku,qty:Number(i.qty),unitPrice:Number(i.unitPrice),returnCfop:digits(i.returnCfop),originalItemNumber:Number(i.originalItemNumber)})),
+    totals:{products:total(),shipping:0,assembly:0,discount:0,total:total()},
+    payment:{method:'outro',installments:1},
+    notes:$('notes').value.trim()
+  };
+}
+function renderProblems(problems=[]){$('issues').innerHTML=problems.map(x=>'<li>'+esc(x.message||x.code)+'</li>').join('')}
+async function validateReturn(){
+  invalidate();$('issues').innerHTML='';
+  let draft;try{draft=buildDraft()}catch(e){return status(e.message,'bad')}
+  status('Conferindo certificado A1, destinatário, produtos, CFOP e referência da NF-e original…');
+  try{
+    const r=await fetch(API+'/erp/fiscal/nfe/devolucao/preflight',{method:'POST',headers:headers(),body:JSON.stringify({draft}),cache:'no-store'});
+    const d=await r.json().catch(()=>({}));if(r.status===401)return goLogin();
+    const review=d.review||{},problems=review.problems||[];renderProblems(problems);
+    if(!r.ok||!review.ready)return status(problems.length?String(problems.length)+' pendência(s) impedem a devolução.':(d.error||'A devolução ainda não está pronta.'),'bad');
+    preflightReady=true;$('emit').disabled=false;
+    status('Tudo conferido. NF-e de devolução pronta para '+(review.environment==='producao'?'PRODUÇÃO':'HOMOLOGAÇÃO')+'.','ok');
+  }catch(e){status(e.message||'Erro ao validar devolução.','bad')}
+}
+async function emitReturn(){
+  if(!preflightReady)return;
+  let draft;try{draft=buildDraft()}catch(e){return status(e.message,'bad')}
+  const b=$('emit');b.disabled=true;b.textContent=operationId?'Continuando operação…':'Emitindo e aguardando SEFAZ…';
+  status('Transmitindo a NF-e de devolução. Não faça uma nova emissão se houver interrupção; esta operação é identificada para retomada segura.');
+  try{
+    const r=await fetch(API+'/erp/fiscal/nfe/devolucao/emitir',{method:'POST',headers:headers(),body:JSON.stringify({draft,operationId}),cache:'no-store'});
+    const d=await r.json().catch(()=>({}));if(r.status===401)return goLogin();
+    operationId=d.operationId||d.details?.operationId||operationId;
+    if(d.authorized){
+      fiscalDocumentId=d.fiscalDocumentId||fiscalDocumentId;
+      $('result-card').classList.remove('hidden');$('result-number').textContent=(d.number||'—')+' / '+(d.series||'—');$('result-protocol').textContent=d.protocol||'—';$('result-key').textContent=d.key||'—';
+      if(fiscalDocumentId&&d.xmlAvailable!==false)$('danfe').classList.remove('hidden');
+      if(d.recoveryPending){
+        $('result-title').textContent='NF-e autorizada — recuperação do XML pendente';
+        status('A SEFAZ autorizou a NF-e, mas o XML ainda precisa ser recuperado. O estoque NÃO foi movimentado e você não deve emitir outra nota.','bad');
+        b.textContent='NF-e já autorizada';b.disabled=true;return;
+      }
+      if(d.stockPending){
+        $('result-title').textContent='NF-e autorizada — estoque pendente';
+        status('A NF-e foi autorizada. Falta concluir somente a movimentação interna de estoque; nenhuma nova NF-e será emitida.','bad');
+        b.textContent='Concluir movimentação de estoque';b.disabled=false;preflightReady=true;return;
+      }
+      $('result-title').textContent=d.homologation?'NF-e de devolução autorizada em homologação':'NF-e de devolução autorizada';
+      status(d.homologation?'Teste autorizado. Nenhum estoque foi alterado.':'NF-e autorizada e movimentação de estoque concluída.','ok');
+      b.textContent=d.homologation?'Teste concluído':'Devolução concluída';b.disabled=true;return;
+    }
+    const problems=d.details?.problems||[];renderProblems(problems);throw new Error(d.error||'A SEFAZ não autorizou a devolução.');
+  }catch(e){
+    const d=e.data||{};operationId=d.operationId||d.details?.operationId||operationId;
+    status(e.message||'Falha na emissão da devolução.','bad');b.textContent=operationId?'Retomar a mesma operação':'Tentar novamente';b.disabled=false;preflightReady=true;
+  }
+}
+$('customer-btn').onclick=searchCustomers;$('customer-search').addEventListener('keydown',e=>{if(e.key==='Enter')searchCustomers()});
+$('customer-results').onclick=e=>{const row=e.target.closest('[data-customer]');if(!row)return;selectedCustomer=(window.__returnCustomers||[]).find(x=>x.id===row.dataset.customer)||null;if(!selectedCustomer)return;$('selected-customer').innerHTML='<b>'+esc(selectedCustomer.name)+'</b><br><small>'+esc([selectedCustomer.document,selectedCustomer.ie?('IE '+selectedCustomer.ie):'',selectedCustomer.publicAgency?'Órgão público':''].filter(Boolean).join(' • '))+'</small>';$('selected-customer').classList.remove('hidden');closeResults('customer-results');invalidate()};
+$('product-btn').onclick=searchProducts;$('product-search').addEventListener('keydown',e=>{if(e.key==='Enter')searchProducts()});
+$('product-results').onclick=e=>{const row=e.target.closest('[data-product]');if(!row)return;const p=products.find(x=>x.id===row.dataset.product);if(!p)return;if(items.some(x=>x.productId===p.id))return status('Este produto já foi adicionado.','bad');items.push({productId:p.id,name:p.name,sku:p.sku,stock:Number(p.stock||0),qty:1,unitPrice:Number(p.price||0),returnCfop:'',originalItemNumber:items.length+1});closeResults('product-results');$('product-search').value='';renderItems()};
+$('items').addEventListener('input',e=>{const index=Number(e.target.dataset.qty??e.target.dataset.price??e.target.dataset.cfop??e.target.dataset.itemno);if(!Number.isInteger(index)||!items[index])return;if(e.target.dataset.qty!==undefined)items[index].qty=Math.max(1,Number(e.target.value||1));if(e.target.dataset.price!==undefined)items[index].unitPrice=Math.max(.01,Number(e.target.value||0));if(e.target.dataset.cfop!==undefined)items[index].returnCfop=digits(e.target.value).slice(0,4);if(e.target.dataset.itemno!==undefined)items[index].originalItemNumber=Math.max(1,Number(e.target.value||1));$('total').textContent=money(total());invalidate()});
+$('items').onclick=e=>{const b=e.target.closest('[data-remove]');if(!b)return;items.splice(Number(b.dataset.remove),1);renderItems()};
+$('direction').onchange=()=>{items.forEach(i=>i.returnCfop='');renderItems()};$('reference-key').addEventListener('input',invalidate);$('notes').addEventListener('input',invalidate);
+$('validate').onclick=validateReturn;$('emit').onclick=emitReturn;
+$('danfe').onclick=async()=>{if(!fiscalDocumentId)return;try{const r=await fetch(API+'/erp/fiscal/historico/nfe/'+encodeURIComponent(fiscalDocumentId)+'/danfe.pdf',{headers:{Authorization:'Bearer '+token()},cache:'no-store'});if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.error||'Erro ao abrir DANFE.')}const blob=await r.blob(),url=URL.createObjectURL(blob);window.open(url,'_blank','noopener');setTimeout(()=>URL.revokeObjectURL(url),120000)}catch(e){status(e.message,'bad')}};
+if(!token())goLogin();else renderItems();
+</script>
+</body>
+</html>
