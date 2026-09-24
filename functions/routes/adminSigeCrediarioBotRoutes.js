@@ -647,13 +647,13 @@ function financeiroErpReference(row = {}) {
 
   // ============================================================
   // FINANCEIRO ARIANA ERP - carteira local e operacional
-  // Um único registro permanente por cliente. O SIGE continua
-  // sendo a fonte oficial; o MongoDB guarda o snapshot e auditoria.
+  // Um único registro permanente por cliente. O Ariana ERP é a fonte operacional.
+  // O histórico migrado permanece local no MongoDB, sem novas consultas ao SIGE.
   // ============================================================
   const financeiroCarneDigitalSchema = new mongoose.Schema({
     codigo: { type: String, required: true, unique: true, index: true },
     uniqueKey: { type: String, required: true, unique: true, index: true },
-    fonte: { type: String, default: 'sige', index: true },
+    fonte: { type: String, default: 'ariana_erp', index: true },
     status: { type: String, default: 'ATIVO', index: true },
     cliente: {
       nome: { type: String, default: '', index: true },
@@ -692,7 +692,7 @@ function financeiroErpReference(row = {}) {
 
 
   const financeiroSincronizacaoLogSchema = new mongoose.Schema({
-    origem: { type: String, default: 'sige', index: true },
+    origem: { type: String, default: 'ariana_erp', index: true },
     tipo: { type: String, default: 'MANUAL', index: true },
     status: { type: String, default: 'PROCESSANDO', index: true },
     iniciadoEm: { type: Date, default: Date.now, index: true },
@@ -1052,11 +1052,11 @@ function financeiroErpReference(row = {}) {
 
   function buildCarneUniqueKey(carne = {}) {
     const cpf = cleanPhone(carne.cpf || '');
-    if (cpf) return `sige:cpf:${cpf}`;
+    if (cpf) return `ariana_erp:cpf:${cpf}`;
     const nome = normalizeCarneIdentity(carne.cliente || '');
     const telefone = cleanPhone(carne.telefone || '');
-    if (telefone) return `sige:telefone:${telefone}`;
-    return `sige:nome:${nome}`;
+    if (telefone) return `ariana_erp:telefone:${telefone}`;
+    return `ariana_erp:nome:${nome}`;
   }
 
   function createCarneCode() {
@@ -1156,7 +1156,7 @@ function financeiroErpReference(row = {}) {
         ? interestMonthlyPercent
         : 1,
       formula: 'juros simples proporcionais aos dias: saldo × taxa mensal × dias ÷ 30',
-      fonteSaldoOriginal: 'SIGE',
+      fonteSaldoOriginal: 'Ariana ERP',
       calculadoNoBackend: true
     };
   }
@@ -2457,7 +2457,7 @@ function financeiroErpReference(row = {}) {
       id: String(row._id || row.id || ''),
       codigo: row.codigo || '',
       uniqueKey: row.uniqueKey || '',
-      fonte: row.fonte || 'sige',
+      fonte: row.fonte || 'ariana_erp',
       status: row.status || 'ATIVO',
       cliente: row.cliente || {},
       resumo: row.resumo || {},
