@@ -10723,6 +10723,31 @@ function financeiroErpReference(row = {}) {
         quitado = String(entry.status || '').toLowerCase() === 'paid' || saldoDepois <= 0.009;
       }
 
+      const resolvedContact = await erpFinanceCustomerContact.resolveContact({
+        cpf: clienteCpf,
+        name: clienteNome,
+        referenceRaw
+      });
+      clienteNome = clienteNome || resolvedContact.customerName || 'Cliente';
+      clienteCpf = clienteCpf || resolvedContact.customerCpf || '';
+      telefone = telefone || resolvedContact.customerPhone || '';
+
+      let contactSaved = null;
+      if (telefone) {
+        try {
+          contactSaved = await erpFinanceCustomerContact.savePhone({
+            phone: telefone,
+            cpf: clienteCpf,
+            name: clienteNome,
+            referenceRaw,
+            actor
+          });
+          telefone = contactSaved.phone || telefone;
+        } catch (contactError) {
+          console.warn('[financeiro baixa ERP] telefone localizado, mas não foi possível sincronizar cadastro:', contactError.message || contactError);
+        }
+      }
+
       const importHash = crypto
         .createHash('sha256')
         .update(`ariana-erp-baixa|${referenceRaw}|${numeroDocumento}`)
@@ -10738,6 +10763,9 @@ function financeiroErpReference(row = {}) {
 
         recibo = await CrediarioRecibo.create({
           recibo: reciboNumber,
+          clienteId: contactSaved?.clientId && mongoose.Types.ObjectId.isValid(contactSaved.clientId)
+            ? new mongoose.Types.ObjectId(contactSaved.clientId)
+            : null,
           clienteNome,
           clienteCpf,
           telefone,
@@ -10777,6 +10805,15 @@ function financeiroErpReference(row = {}) {
         }
       } else if (recibo.enviadoWhatsapp) {
         whatsapp = { ok: true, alreadySent: true };
+      } else if (enviarWhatsapp && !recibo.telefone) {
+        whatsapp = {
+          ok: false,
+          skipped: true,
+          reason: 'cliente_sem_whatsapp',
+          requiresPhone: true
+        };
+        recibo.whatsappResultado = whatsapp;
+        await recibo.save();
       }
 
       const termoSync = clienteCpf || telefone || clienteNome;
@@ -10828,6 +10865,13 @@ function financeiroErpReference(row = {}) {
         reciboNovo: criadoAgora,
         recibo: normalizeCrediarioRecibo(recibo),
         whatsappEnviado: recibo.enviadoWhatsapp === true,
+        requiresPhone: Boolean(enviarWhatsapp && !recibo.enviadoWhatsapp && !recibo.telefone),
+        phonePrompt: enviarWhatsapp && !recibo.enviadoWhatsapp && !recibo.telefone ? {
+          reference: referenceRaw,
+          receiptId: String(recibo._id),
+          customerName: recibo.clienteNome || clienteNome,
+          customerDocument: recibo.clienteCpf || clienteCpf
+        } : null,
         whatsapp
       });
     } catch (error) {
