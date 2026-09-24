@@ -129,14 +129,36 @@ async function resolveLedgerPhone(mongoose, entry = {}) {
   if (sourcePersonId) or.push({ sourceId: sourcePersonId });
   if (document) or.push({ document });
 
-  if (!or.length) return '';
+  if (or.length) {
+    const person = await Person.findOne({
+      $or: or,
+      active: { $ne: false }
+    }).select('phone').lean();
 
-  const person = await Person.findOne({
-    $or: or,
-    active: { $ne: false }
-  }).select('phone').lean();
+    if (person?.phone) return person.phone;
+  }
 
-  return person?.phone || '';
+  const name = String(entry.personName || '').trim();
+  if (!name) return '';
+
+  const escaped = name.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+  const exactName = new RegExp('^' + escaped + '$', 'i');
+
+  const matches = await Person.find({
+    active: { $ne: false },
+    $or: [
+      { name: exactName },
+      { companyName: exactName }
+    ]
+  }).select('phone').limit(3).lean();
+
+  const phones = Array.from(new Set(
+    matches
+      .map((person) => normalizeWhatsappPhone(person?.phone || ''))
+      .filter(Boolean)
+  ));
+
+  return phones.length === 1 ? phones[0] : '';
 }
 
 async function listArianaLedgerDueRows({ mongoose, today, timeZone }) {
@@ -253,6 +275,18 @@ async function listArianaStoredDueRows({ mongoose, today, timeZone }) {
 function maskedPhone(phone = '') {
   const value = String(phone || '');
   return value.length > 6 ? `${value.slice(0, 4)}******${value.slice(-3)}` : '***';
+}
+
+function evolutionMessageId(result = {}) {
+  const data = result?.data || {};
+  return String(
+    result?.messageId ||
+    data?.messageId ||
+    data?.id ||
+    data?.key?.id ||
+    data?.message?.key?.id ||
+    ''
+  ).trim();
 }
 
 async function audit(IntegrationAuditLog, payload = {}) {
@@ -390,6 +424,13 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
         instanceName: String(process.env.ERP_DAILY_DUE_WHATSAPP_INSTANCE || 'ariana loja').trim()
       });
 
+      const messageId = evolutionMessageId(result);
+      if (!messageId) {
+        const confirmationError = new Error('Evolution aceitou a requisição, mas não retornou identificador da mensagem.');
+        confirmationError.code = 'WHATSAPP_SEND_UNCONFIRMED';
+        throw confirmationError;
+      }
+
       const sentAt = new Date();
       await Setting.updateOne(
         { key: claimKey },
@@ -404,7 +445,8 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
               orderIds: Array.from(new Set(group.rows.map((row) => String(row.orderId || '')).filter(Boolean))),
               sentAt,
               provider: result?.provider || 'evolution',
-              instanceName: result?.instanceName || ''
+              instanceName: result?.instanceName || '',
+              messageId
             },
             updatedBy: 'erp-daily-due-worker'
           }
@@ -421,13 +463,30 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
           customerName: group.customerName,
           phone: maskedPhone(group.phone),
           installmentCount: group.rows.length,
-          instanceName: result?.instanceName || ''
+          instanceName: result?.instanceName || '',
+          messageId
         }
       });
 
       sent += 1;
     } catch (error) {
-      await Setting.deleteOne({ key: claimKey, 'value.status': 'sending' }).catch(() => null);
+      const unconfirmed = String(error?.code || '') === 'WHATSAPP_SEND_UNCONFIRMED';
+
+      if (unconfirmed) {
+        await Setting.updateOne(
+          { key: claimKey },
+          {
+            $set: {
+              'value.status': 'unconfirmed',
+              'value.unconfirmedAt': new Date(),
+              'value.error': text(error?.message || error, 500),
+              updatedBy: 'erp-daily-due-worker'
+            }
+          }
+        ).catch(() => null);
+      } else {
+        await Setting.deleteOne({ key: claimKey, 'value.status': 'sending' }).catch(() => null);
+      }
 
       errors.push({
         customerName: group.customerName,
