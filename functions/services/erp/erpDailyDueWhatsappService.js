@@ -129,6 +129,30 @@ async function resolveLedgerPhone(mongoose, entry = {}) {
   if (sourcePersonId) or.push({ sourceId: sourcePersonId });
   if (document) or.push({ document });
 
+  if (or.length) {
+    const person = await Person.findOne({
+      $or: or,
+      active: { $ne: false }
+    }).select('phone').lean();
+
+    if (person?.phone) return person.phone;
+  }
+
+  const name = String(entry.personName || '').trim();
+  if (!name) return '';
+
+  const escaped = name.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\async function resolveLedgerPhone(mongoose, entry = {}) {
+  if (entry.personPhone) return entry.personPhone;
+
+  const Person = mongoose?.models?.ErpPerson;
+  if (!Person) return '';
+
+  const sourcePersonId = String(entry?.migration?.sourcePersonId || '').trim();
+  const document = String(entry.personDocument || '').replace(/\D/g, '');
+  const or = [];
+  if (sourcePersonId) or.push({ sourceId: sourcePersonId });
+  if (document) or.push({ document });
+
   if (!or.length) return '';
 
   const person = await Person.findOne({
@@ -137,6 +161,446 @@ async function resolveLedgerPhone(mongoose, entry = {}) {
   }).select('phone').lean();
 
   return person?.phone || '';
+}');
+  const exactName = new RegExp('^' + escaped + '
+
+async function listArianaLedgerDueRows({ mongoose, today, timeZone }) {
+  const Entry = mongoose?.models?.ErpFinancialEntry;
+  if (!Entry) return [];
+
+  const rawRows = await Entry.collection.find({
+    direction: 'receivable',
+    dueAt: { $exists: true, $ne: null }
+  }).project({
+    _id: 1,
+    origin: 1,
+    status: 1,
+    dueAt: 1,
+    value: 1,
+    outstanding: 1,
+    principalPaid: 1,
+    payments: 1,
+    personName: 1,
+    personDocument: 1,
+    personPhone: 1,
+    documentNumber: 1,
+    boletoNumber: 1,
+    orderId: 1,
+    installmentNumber: 1,
+    migration: 1
+  }).sort({ dueAt: 1 }).limit(30000).toArray();
+
+  const rows = [];
+
+  for (const entry of rawRows) {
+    if (dueDateKey(entry.dueAt, timeZone) !== today) continue;
+
+    // Mantém a mesma proteção de qualidade usada nos relatórios do ERP.
+    if (entry.origin === 'sige_import' && Math.abs(Number(entry.value || 0)) >= 10_000_000) continue;
+
+    const remaining = ledgerOutstanding(entry);
+    if (remaining <= 0.009) continue;
+
+    const phone = await resolveLedgerPhone(mongoose, entry);
+
+    rows.push({
+      source: 'ariana_erp_ledger',
+      orderId: String(entry.orderId || ''),
+      ledgerEntryId: String(entry._id || ''),
+      customerName: entry.personName || 'Cliente',
+      customerPhone: phone,
+      dueAt: entry.dueAt,
+      status: 'pendente',
+      remaining,
+      value: Number(entry.value || remaining),
+      installmentKey: String(
+        entry.documentNumber ||
+        entry.boletoNumber ||
+        entry.installmentNumber ||
+        entry._id ||
+        ''
+      )
+    });
+  }
+
+  return rows;
+}
+
+async function listArianaStoredDueRows({ mongoose, today, timeZone }) {
+  const db = mongoose?.connection?.db;
+  if (!db) return [];
+
+  const rows = [];
+  const cursor = db.collection('financeiro_carnes_digitais').find(
+    { status: 'ATIVO' },
+    {
+      projection: {
+        codigo: 1,
+        cliente: 1,
+        parcelas: 1
+      }
+    }
+  ).limit(5000);
+
+  for await (const carne of cursor) {
+    const installments = Array.isArray(carne?.parcelas) ? carne.parcelas : [];
+    for (const installment of installments) {
+      const dueAt = installment?.dataVencimento ?? installment?.vencimento ?? null;
+      if (!isLocalInstallmentOpen(installment)) continue;
+      if (dueDateKey(dueAt, timeZone) !== today) continue;
+
+      rows.push({
+        source: 'ariana_financeiro_local',
+        orderId: '',
+        localCarneId: String(carne?._id || ''),
+        localCarneCode: String(carne?.codigo || ''),
+        customerName: carne?.cliente?.nome || 'Cliente',
+        customerPhone: carne?.cliente?.telefone || '',
+        dueAt,
+        status: 'pendente',
+        remaining: localInstallmentRemaining(installment),
+        value: localInstallmentRemaining(installment),
+        installmentKey: String(
+          installment?.codigo ||
+          installment?.id ||
+          installment?.codigoLancamento ||
+          installment?.parcelaLabel ||
+          installment?.parcelaNumero ||
+          ''
+        )
+      });
+    }
+  }
+
+  return rows;
+}
+
+function maskedPhone(phone = '') {
+  const value = String(phone || '');
+  return value.length > 6 ? `${value.slice(0, 4)}******${value.slice(-3)}` : '***';
+}
+
+function evolutionMessageId(result = {}) {
+  const data = result?.data || {};
+  return String(
+    result?.messageId ||
+    data?.messageId ||
+    data?.id ||
+    data?.key?.id ||
+    data?.message?.key?.id ||
+    ''
+  ).trim();
+}
+
+async function audit(IntegrationAuditLog, payload = {}) {
+  if (!IntegrationAuditLog) return;
+  try {
+    await IntegrationAuditLog.create({
+      scope: 'erp_ariana',
+      eventType: payload.eventType || 'daily_due_whatsapp',
+      orderId: payload.orderId || null,
+      status: payload.status || '',
+      message: payload.message || '',
+      metadata: payload.metadata || {}
+    });
+  } catch (error) {
+    console.warn('[erp-daily-due-whatsapp/audit]', error?.message || error);
+  }
+}
+
+export async function runErpDailyDueWhatsappSweep(context = {}) {
+  const {
+    Order,
+    Setting,
+    IntegrationAuditLog,
+    mongoose,
+    waSendTextMessage,
+    toJSON,
+    redact,
+    force = false,
+    now = new Date()
+  } = context;
+
+  if (!Order || !Setting || typeof waSendTextMessage !== 'function') {
+    return { ok: false, skipped: true, reason: 'dependencies_missing' };
+  }
+
+  const enabled = String(process.env.ERP_DAILY_DUE_WHATSAPP_ENABLED || 'false').toLowerCase() === 'true';
+  if (!enabled && !force) return { ok: true, skipped: true, reason: 'disabled' };
+
+  if (mongoose && mongoose.connection?.readyState !== 1) {
+    return { ok: false, skipped: true, reason: 'database_not_ready' };
+  }
+
+  const timeZone = String(process.env.ERP_DAILY_DUE_WHATSAPP_TIMEZONE || process.env.FINANCEIRO_AUTOMACAO_TIMEZONE || 'America/Sao_Paulo').trim();
+  const today = localDateKey(now, timeZone);
+  const finance = createErpFinanceService({ Order, IntegrationAuditLog, toJSON, redact });
+  const data = await finance.list({});
+
+  const nativeDueRows = (data.receivables || []).filter((row) => {
+    if (!isOpenDueRow(row)) return false;
+    return dueDateKey(row.dueAt, timeZone) === today;
+  });
+
+  // Fonte adicional 100% local da Ariana. Não consulta o SIGE nem qualquer serviço externo:
+  // lê apenas os carnês/parcelas já persistidos no próprio banco financeiro da Ariana.
+  const [ledgerDueRows, storedDueRows] = await Promise.all([
+    listArianaLedgerDueRows({ mongoose, today, timeZone }),
+    listArianaStoredDueRows({ mongoose, today, timeZone })
+  ]);
+  const dueRows = [...ledgerDueRows, ...nativeDueRows, ...storedDueRows];
+
+  const groups = new Map();
+  let skippedMissingPhone = 0;
+
+  for (const row of dueRows) {
+    const phone = normalizeWhatsappPhone(row.customerPhone);
+    if (!phone) {
+      skippedMissingPhone += 1;
+      continue;
+    }
+
+    if (!groups.has(phone)) {
+      groups.set(phone, {
+        phone,
+        customerName: row.customerName || 'Cliente',
+        rows: [],
+        fingerprints: new Set()
+      });
+    }
+
+    const remaining = Number(row.remaining ?? row.value ?? 0);
+    const fingerprint = [
+      phone,
+      dueDateKey(row.dueAt, timeZone),
+      Number.isFinite(remaining) ? remaining.toFixed(2) : '0.00'
+    ].join('|');
+
+    const group = groups.get(phone);
+    if (group.fingerprints.has(fingerprint)) continue;
+    group.fingerprints.add(fingerprint);
+    group.rows.push(row);
+  }
+
+  let sent = 0;
+  let skippedAlreadySent = 0;
+  const errors = [];
+
+  for (const group of groups.values()) {
+    const claimKey = `erp_daily_due_whatsapp:${today}:${group.phone}`;
+    const staleBefore = new Date(Date.now() - 30 * 60 * 1000);
+
+    await Setting.deleteMany({
+      key: claimKey,
+      'value.status': 'sending',
+      'value.attemptedAt': { $lt: staleBefore }
+    }).catch(() => null);
+
+    try {
+      await Setting.create({
+        key: claimKey,
+        value: {
+          status: 'sending',
+          date: today,
+          customerName: group.customerName,
+          phone: group.phone,
+          installmentCount: group.rows.length,
+          attemptedAt: new Date()
+        },
+        updatedBy: 'erp-daily-due-worker'
+      });
+    } catch (error) {
+      if (Number(error?.code) === 11000) {
+        skippedAlreadySent += 1;
+        continue;
+      }
+      throw error;
+    }
+
+    const message = buildDailyDueReminderMessage(group.customerName, group.rows.length);
+
+    try {
+      const result = await waSendTextMessage({
+        number: group.phone,
+        text: message,
+        delay: Math.max(0, Number(process.env.ERP_DAILY_DUE_WHATSAPP_DELAY_MS || 900) || 900),
+        instanceName: String(process.env.ERP_DAILY_DUE_WHATSAPP_INSTANCE || 'ariana loja').trim()
+      });
+
+      const messageId = evolutionMessageId(result);
+      if (!messageId) {
+        const confirmationError = new Error('Evolution aceitou a requisição, mas não retornou identificador da mensagem.');
+        confirmationError.code = 'WHATSAPP_SEND_UNCONFIRMED';
+        throw confirmationError;
+      }
+
+      const sentAt = new Date();
+      await Setting.updateOne(
+        { key: claimKey },
+        {
+          $set: {
+            value: {
+              status: 'sent',
+              date: today,
+              customerName: group.customerName,
+              phone: group.phone,
+              installmentCount: group.rows.length,
+              orderIds: Array.from(new Set(group.rows.map((row) => String(row.orderId || '')).filter(Boolean))),
+              sentAt,
+              provider: result?.provider || 'evolution',
+              instanceName: result?.instanceName || '',
+              messageId
+            },
+            updatedBy: 'erp-daily-due-worker'
+          }
+        }
+      );
+
+      await audit(IntegrationAuditLog, {
+        eventType: 'erp_daily_due_whatsapp_sent',
+        orderId: String(group.rows[0]?.orderId || ''),
+        status: 'success',
+        message: 'Lembrete de vencimento do dia enviado ao cliente.',
+        metadata: {
+          date: today,
+          customerName: group.customerName,
+          phone: maskedPhone(group.phone),
+          installmentCount: group.rows.length,
+          instanceName: result?.instanceName || '',
+          messageId
+        }
+      });
+
+      sent += 1;
+    } catch (error) {
+      const unconfirmed = String(error?.code || '') === 'WHATSAPP_SEND_UNCONFIRMED';
+
+      if (unconfirmed) {
+        await Setting.updateOne(
+          { key: claimKey },
+          {
+            $set: {
+              'value.status': 'unconfirmed',
+              'value.unconfirmedAt': new Date(),
+              'value.error': text(error?.message || error, 500),
+              updatedBy: 'erp-daily-due-worker'
+            }
+          }
+        ).catch(() => null);
+      } else {
+        await Setting.deleteOne({ key: claimKey, 'value.status': 'sending' }).catch(() => null);
+      }
+
+      errors.push({
+        customerName: group.customerName,
+        phone: maskedPhone(group.phone),
+        error: text(error?.message || error, 500)
+      });
+
+      await audit(IntegrationAuditLog, {
+        eventType: 'erp_daily_due_whatsapp_failed',
+        orderId: String(group.rows[0]?.orderId || ''),
+        status: 'error',
+        message: text(error?.message || error, 1000),
+        metadata: {
+          date: today,
+          customerName: group.customerName,
+          phone: maskedPhone(group.phone),
+          installmentCount: group.rows.length
+        }
+      });
+    }
+  }
+
+  return {
+    ok: errors.length === 0,
+    date: today,
+    source: 'ariana_erp_ledger_and_local_finance',
+    ledgerDueInstallments: ledgerDueRows.length,
+    nativeDueInstallments: nativeDueRows.length,
+    storedDueInstallments: storedDueRows.length,
+    dueInstallments: dueRows.length,
+    eligibleCustomers: groups.size,
+    sent,
+    skippedAlreadySent,
+    skippedMissingPhone,
+    errors
+  };
+}
+
+export function startErpDailyDueWhatsappWorker(context = {}) {
+  const enabled = String(process.env.ERP_DAILY_DUE_WHATSAPP_ENABLED || 'false').toLowerCase() === 'true';
+  const timeZone = String(process.env.ERP_DAILY_DUE_WHATSAPP_TIMEZONE || process.env.FINANCEIRO_AUTOMACAO_TIMEZONE || 'America/Sao_Paulo').trim();
+  const schedule = String(process.env.ERP_DAILY_DUE_WHATSAPP_HORA || '09:00').trim();
+  const sweepMinutes = Math.max(5, Number(process.env.ERP_DAILY_DUE_WHATSAPP_SWEEP_MINUTES || 10) || 10);
+  const instanceName = String(process.env.ERP_DAILY_DUE_WHATSAPP_INSTANCE || 'ariana loja').trim();
+
+  if (!enabled) {
+    console.log('📵 Lembrete ERP de vencimentos do dia: desativado.');
+    return { enabled: false };
+  }
+
+  let running = false;
+  const run = async () => {
+    if (running) return;
+    const current = new Date();
+    if (localMinutes(current, timeZone) < scheduleMinutes(schedule)) return;
+
+    running = true;
+    try {
+      const result = await runErpDailyDueWhatsappSweep({
+        ...context,
+        force: true,
+        now: current
+      });
+
+      console.log('[erp-daily-due-whatsapp]', {
+        date: result.date,
+        source: result.source,
+        ledgerDueInstallments: result.ledgerDueInstallments,
+        nativeDueInstallments: result.nativeDueInstallments,
+        storedDueInstallments: result.storedDueInstallments,
+        dueInstallments: result.dueInstallments,
+        eligibleCustomers: result.eligibleCustomers,
+        sent: result.sent,
+        skippedAlreadySent: result.skippedAlreadySent,
+        skippedMissingPhone: result.skippedMissingPhone,
+        errors: result.errors?.length || 0
+      });
+    } catch (error) {
+      console.error('[erp-daily-due-whatsapp]', error?.message || error);
+    } finally {
+      running = false;
+    }
+  };
+
+  const initialTimer = setTimeout(run, 60 * 1000);
+  initialTimer.unref?.();
+
+  const interval = setInterval(run, sweepMinutes * 60 * 1000);
+  interval.unref?.();
+
+  console.log(`📲 Lembrete ERP de vencimentos do dia: ativo a partir de ${schedule} (${timeZone}); instância ${instanceName}; varredura a cada ${sweepMinutes} min.`);
+
+  return { enabled: true, initialTimer, interval, schedule, timeZone, sweepMinutes };
+}
+, 'i');
+
+  const matches = await Person.find({
+    active: { $ne: false },
+    $or: [
+      { name: exactName },
+      { companyName: exactName }
+    ]
+  }).select('phone').limit(3).lean();
+
+  const phones = Array.from(new Set(
+    matches
+      .map((person) => normalizeWhatsappPhone(person?.phone || ''))
+      .filter(Boolean)
+  ));
+
+  return phones.length === 1 ? phones[0] : '';
 }
 
 async function listArianaLedgerDueRows({ mongoose, today, timeZone }) {
