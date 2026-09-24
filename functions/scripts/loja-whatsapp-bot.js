@@ -9094,7 +9094,7 @@ async function handleMessage({
       );
       await sendText(
         phone,
-        'Tenho sim 😊 Só me diga qual das opções que eu acabei de mostrar você quer ver melhor — pode responder *“1”*, *“2”*, *“3”*, *“a terceira”*, a cor, o modelo ou uma característica como *“o com espelho”*.'
+        'Tenho sim 😊 Só me diga qual das opções que eu acabei de mostrar você quer ver melhor — pode responder *“1”/“a primeira”*, *“2”/“a segunda”*, *“3”/“a terceira”*, a cor, o modelo ou uma característica como *“o com espelho”*.'
       );
       return;
     }
