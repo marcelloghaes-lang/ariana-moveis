@@ -12,7 +12,8 @@ header a,.top a,.header a{color:#fff!important}header a:hover,.top a:hover,.head
 .card,.box,.panel,.hero,.tablebox,.toolbar,.filters,.summary,.kpi{border-radius:8px!important;box-shadow:0 8px 22px rgba(0,49,118,.08)!important}
 button,.btn{border-radius:6px!important}input,select,textarea{border-color:#c8d6e7!important}input:focus,select:focus,textarea:focus{outline:none!important;border-color:#6c9ddd!important;box-shadow:0 0 0 3px rgba(0,71,171,.09)!important}
 table thead th{color:#315273}table tbody tr:hover{background:#f6f9fd}
-</style></head><body>
+</style><link rel="stylesheet" href="erp-theme.css?v=20260924-1">
+</head><body>
 <header><div><b>Compras → Contas a Pagar</b><div class="muted">Geração controlada das parcelas do fornecedor</div></div><div><a href="erp_compras_fornecedores.html">Compras</a> &nbsp; <a href="erp_financeiro_completo.html">Financeiro</a> &nbsp; <a href="erp_ariana.html">← Central ERP</a></div></header>
 <main class="wrap"><div class="notice" style="margin-bottom:13px"><b>Importante:</b> o valor das parcelas é o valor que você efetivamente deve ao fornecedor. Ele é independente da conferência de ICMS-ST, DIFAL, IPI e outros ajustes de custo. O Ariana não acrescenta tributos automaticamente ao Contas a Pagar.</div>
 <div class="grid"><section class="panel"><div class="toolbar"><input id="q" placeholder="Compra, fornecedor ou NF" style="flex:1;border:1px solid #cfd9e6;border-radius:9px;padding:10px"><button class="btn" id="search">Buscar</button></div><div class="table"><table><thead><tr><th>Compra</th><th>Fornecedor</th><th>Total</th><th></th></tr></thead><tbody id="purchases"></tbody></table></div></section>
