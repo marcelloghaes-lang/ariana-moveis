@@ -322,7 +322,7 @@
       </div>
     </aside>
     <main class="main">
-      <div class="top"><div><h1>Financeiro de Parcelas</h1><p class="help">Consulte parcelas e saldos oficiais do SIGE, registre comprovantes e envie pelo Ariana Notificações.</p></div><button class="light" onclick="loadAll()">🔄 Atualizar</button><button id="installAppBtn" class="primary" style="display:none;margin-left:10px" type="button">⬇️ Instalar aplicativo</button></div>
+      <div class="top"><div><h1>Financeiro de Parcelas</h1><p class="help">Consulte parcelas e saldos do Ariana ERP, registre pagamentos e envie comprovantes automaticamente pelo WhatsApp.</p></div><button class="light" onclick="loadAll()">🔄 Atualizar</button><button id="installAppBtn" class="primary" style="display:none;margin-left:10px" type="button">⬇️ Instalar aplicativo</button></div>
       <div id="promiseDueAlert" class="promise-due-alert hidden" role="alert" aria-live="polite">
         <div>
           <strong id="promiseDueAlertTitle">🔔 Promessas de pagamento para hoje</strong>
@@ -344,7 +344,7 @@
 
       <section id="tab-novo">
         <div class="grid">
-          <div class="card"><h2>Novo comprovante</h2><p class="help">Digite o nome do cliente e consulte o cadastro financeiro oficial do SIGE para preencher CPF, WhatsApp e referência automaticamente.</p>
+          <div class="card"><h2>Novo comprovante</h2><p class="help">Digite o nome do cliente e consulte o cadastro do Ariana ERP para preencher CPF, WhatsApp e referência automaticamente.</p>
             <input type="hidden" id="clienteId">
             <div class="formgrid">
               <div class="autocomplete-wrap"><label>Cliente</label><input id="nome" placeholder="Digite parte do nome, CPF ou telefone" autocomplete="off"><div id="clienteSugestoes" class="suggestions hidden"></div><div id="clienteSelecionado" class="selected-client hidden"></div><button type="button" class="light small" style="margin-top:8px" onclick="buscarEPreencherCliente()">🔎 Buscar e preencher cliente</button></div>
@@ -1758,8 +1758,8 @@
     <div class="sige-pay-modal">
       <div class="sige-pay-head">
         <div>
-          <h2 id="sigePagamentoTitulo">💰 Registrar pagamento no SIGE</h2>
-          <div class="help" style="margin:5px 0 0">O pagamento será gravado primeiro no financeiro oficial do SIGE.</div>
+          <h2 id="sigePagamentoTitulo">💰 Registrar pagamento no Ariana ERP</h2>
+          <div class="help" style="margin:5px 0 0">A baixa será gravada no financeiro do Ariana ERP e o comprovante será enviado automaticamente.</div>
         </div>
         <button type="button" class="sige-pay-close" onclick="fecharPagamentoSige()" aria-label="Fechar">×</button>
       </div>
@@ -1795,12 +1795,39 @@
       </div>
 
       <div class="sige-pay-alert">
-        Após o SIGE confirmar a baixa, o sistema cria o recibo e tenta enviá-lo automaticamente pelo WhatsApp.
+        Após confirmar a baixa, o Ariana Financeiro cria o comprovante e envia automaticamente pelo WhatsApp.
       </div>
 
       <div class="sige-pay-actions">
         <button type="button" class="light" onclick="fecharPagamentoSige()">Cancelar</button>
-        <button type="button" class="green" id="sigePayConfirmar" onclick="confirmarPagamentoSige()">✅ Confirmar no SIGE</button>
+        <button type="button" class="green" id="sigePayConfirmar" onclick="confirmarPagamentoSige()">✅ Confirmar pagamento</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="receiptPhoneOverlay" class="sige-pay-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="receiptPhoneTitle" style="z-index:230">
+    <div class="sige-pay-modal" style="max-width:520px">
+      <div class="sige-pay-head">
+        <div>
+          <h2 id="receiptPhoneTitle">📱 WhatsApp do cliente</h2>
+          <div class="help" style="margin:5px 0 0">A baixa já foi registrada. Falta somente o telefone para enviar o comprovante.</div>
+        </div>
+        <button type="button" class="sige-pay-close" onclick="fecharTelefoneComprovante()" aria-label="Fechar">×</button>
+      </div>
+
+      <div id="receiptPhoneCustomer" class="sige-pay-summary"></div>
+
+      <div>
+        <label>Celular / WhatsApp com DDD</label>
+        <input id="receiptPhoneInput" inputmode="tel" autocomplete="tel" placeholder="Ex.: 33999999999">
+        <div class="help" style="margin-top:7px">O número será salvo diretamente no cadastro do cliente do Ariana ERP.</div>
+      </div>
+
+      <div id="receiptPhoneStatus" class="sige-pay-alert hidden" style="margin-top:14px"></div>
+
+      <div class="sige-pay-actions">
+        <button type="button" class="light" onclick="fecharTelefoneComprovante()">Agora não</button>
+        <button type="button" class="green" id="receiptPhoneSave" onclick="salvarTelefoneEEnviarComprovante()">💾 Salvar e enviar comprovante</button>
       </div>
     </div>
   </div>
@@ -2447,7 +2474,7 @@ function renderSigeLancamentos(rows){
     const status=l.quitado?'✅ Quitado':(l.atrasado?'⚠️ Atrasado':'🟡 Em aberto');
     const doc=l.documento||l.codigoVenda||l.codigo||'—';
     const valor=l.saldo&&l.saldo>0?l.saldo:l.valor;
-    return `<tr><td><b>${esc(l.cliente||l.nome)}</b><br><small>${esc(l.telefone?shortPhone(l.telefone):'')}</small></td><td>${esc(doc)}<br><small>${esc(l.descricao||'')}</small></td><td>${formatDateBR(l.dataVencimento)}</td><td><b>${money(valor)}</b><br><small>Recebido: ${money(l.totalRecebido||0)}</small></td><td>${status}</td><td>${(!l.quitado&&Number(l.codigo||0)>0)?`<button type="button" class="green small pay-btn" onclick="abrirPagamentoLancamentoSige(${i})">💰 Pagar</button> `:''}<button type="button" class="blue small" onclick="verCarneLancamentoSige(${i})">📋 Carnê</button> <button type="button" class="yellow small" onclick="cobrarLancamentoSige(${i})">🔔 Cobrar</button></td></tr>`
+    return `<tr><td><b>${esc(l.cliente||l.nome)}</b><br><small>${esc(l.telefone?shortPhone(l.telefone):'')}</small></td><td>${esc(doc)}<br><small>${esc(l.descricao||'')}</small></td><td>${formatDateBR(l.dataVencimento)}</td><td><b>${money(valor)}</b><br><small>Recebido: ${money(l.totalRecebido||0)}</small></td><td>${status}</td><td>${(!l.quitado&&isArianaFinanceRef(l.codigo))?`<button type="button" class="green small pay-btn" onclick="abrirPagamentoLancamentoSige(${i})">💰 Pagar</button> `:''}<button type="button" class="blue small" onclick="verCarneLancamentoSige(${i})">📋 Carnê</button> <button type="button" class="yellow small" onclick="cobrarLancamentoSige(${i})">🔔 Cobrar</button></td></tr>`
   }).join('')||(resumo||'<tr><td colspan="6">Nenhum lançamento encontrado.</td></tr>');
 }
 function cobrarLancamentoSige(i){
@@ -2649,7 +2676,7 @@ function renderSigeCarne(carne){
       const st=p.status==='paga'?'✅ Paga':(p.status==='atrasada'?'⚠️ Atrasada':'⏳ Aberta');
       const canCobrar=p.status!=='paga';
       const idx=window.sigeCarneParcelasCache.push({...p,telefone:carne.telefone,cpf:carne.cpf})-1;
-      const canPagar=canCobrar&&Number(p.codigo||0)>0&&Number(p.saldoParcela||p.saldo||0)>0;
+      const canPagar=canCobrar&&isArianaFinanceRef(p.codigo)&&Number(p.saldoParcela||p.saldo||0)>0;
       const calc=calcularAtualizacaoParcela(Number(p.saldoParcela??p.valorParcela??0),p.dataVencimento,p.status);
       window.sigeCarneParcelasCache[idx]={...window.sigeCarneParcelasCache[idx],calculoAtualizacao:calc};
       const atraso=calc.diasAtraso>0?`<br><small style="color:#b91c1c">${calc.diasAtraso} dia(s) em atraso</small>`:'';
@@ -2685,6 +2712,65 @@ async function enviarCarneWhatsapp(){
 
 let sigePagamentoAlvo=null;
 let sigePagamentoEnviando=false;
+let receiptPhoneContext=null;
+let receiptPhoneSaving=false;
+
+function abrirTelefoneComprovante(ctx={}){
+  receiptPhoneContext={...ctx};
+  const overlay=document.getElementById('receiptPhoneOverlay');
+  const input=document.getElementById('receiptPhoneInput');
+  const status=document.getElementById('receiptPhoneStatus');
+  const customer=document.getElementById('receiptPhoneCustomer');
+  if(customer){
+    customer.innerHTML=`<div class="row"><strong>Cliente</strong><span>${esc(ctx.customerName||'Cliente')}</span></div>
+      <div class="row"><strong>CPF/CNPJ</strong><span>${esc(ctx.customerDocument||'—')}</span></div>
+      <div class="row"><strong>Comprovante</strong><span>${esc(ctx.receiptCode||'Gerado')}</span></div>`;
+  }
+  if(input)input.value=shortPhone(ctx.phone||'');
+  if(status){status.classList.add('hidden');status.textContent='';}
+  overlay?.classList.remove('hidden');
+  setTimeout(()=>input?.focus(),100);
+}
+
+function fecharTelefoneComprovante(){
+  if(receiptPhoneSaving)return;
+  document.getElementById('receiptPhoneOverlay')?.classList.add('hidden');
+  receiptPhoneContext=null;
+}
+
+async function salvarTelefoneEEnviarComprovante(){
+  if(receiptPhoneSaving)return;
+  const ctx=receiptPhoneContext||{};
+  const input=document.getElementById('receiptPhoneInput');
+  const btn=document.getElementById('receiptPhoneSave');
+  const status=document.getElementById('receiptPhoneStatus');
+  const telefoneNovo=shortPhone(input?.value||'');
+  if(!ctx.receiptId){toast('Comprovante não localizado. Atualize a tela e tente novamente.');return}
+  if(!telefoneNovo||telefoneNovo.length<10){toast('Informe um celular válido com DDD.');input?.focus();return}
+
+  receiptPhoneSaving=true;
+  if(btn){btn.disabled=true;btn.textContent='⏳ Salvando e enviando...';}
+  if(status){status.classList.remove('hidden');status.style.background='#eff6ff';status.style.borderColor='#bfdbfe';status.style.color='#1e40af';status.textContent='Salvando o telefone no cadastro do cliente e enviando o comprovante...';}
+
+  try{
+    const result=await apiJson('/admin/crediario/recibos/'+encodeURIComponent(ctx.receiptId)+'/enviar-whatsapp',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({telefone:telefoneNovo,reference:ctx.reference||''})
+    });
+    if(status){status.style.background='#ecfdf5';status.style.borderColor='#bbf7d0';status.style.color='#166534';status.textContent='✅ Telefone salvo no cadastro do cliente e comprovante enviado pelo WhatsApp.';}
+    toast('Telefone salvo e comprovante enviado com sucesso.');
+    await Promise.allSettled([loadRecibos(),loadClientes()]);
+    setTimeout(()=>{receiptPhoneSaving=false;fecharTelefoneComprovante();},900);
+    return result;
+  }catch(e){
+    if(status){status.style.background='#fff7ed';status.style.borderColor='#fed7aa';status.style.color='#9a3412';status.textContent='O telefone foi salvo antes da tentativa de envio. Erro no WhatsApp: '+(e.message||e);}
+    toast('Telefone salvo, mas o envio do comprovante precisa ser tentado novamente.');
+  }finally{
+    receiptPhoneSaving=false;
+    if(btn){btn.disabled=false;btn.textContent='💾 Salvar e enviar comprovante';}
+  }
+}
 
 function parseMoneyInput(v){
   const raw=String(v??'').trim();
@@ -2697,6 +2783,9 @@ function parseMoneyInput(v){
 }
 function moneyInput(v){
   return Number(v||0).toFixed(2).replace('.',',');
+}
+function isArianaFinanceRef(value){
+  return /^(ERP_[a-f0-9]{24}_\d+|LEDGER_[a-f0-9]{24})$/i.test(String(value||'').trim());
 }
 function gerarDocumentoPagamentoSige(codigo){
   const d=new Date();
@@ -2713,7 +2802,7 @@ function gerarDocumentoPagamentoSige(codigo){
 function normalizarAlvoPagamentoSige(item={}){
   const saldo=Number(item.saldoParcela??item.saldo??0);
   return {
-    codigo:Number(item.codigo||item.Codigo||item.codigoLancamento||0),
+    codigo:String(item.codigo||item.Codigo||item.codigoLancamento||item.sourceRef||'').trim(),
     cliente:String(item.cliente||item.nome||item.Cliente||'').trim(),
     documento:String(item.documento||item.NumeroDocumento||item.parcelaLabel||'').trim(),
     descricao:String(item.descricao||item.Descricao||'').trim(),
@@ -2729,8 +2818,8 @@ function normalizarAlvoPagamentoSige(item={}){
 }
 function abrirPagamentoSige(item){
   const alvo=normalizarAlvoPagamentoSige(item);
-  if(!Number.isInteger(alvo.codigo)||alvo.codigo<=0){toast('Este lançamento não possui código válido do SIGE.');return}
-  if(alvo.quitado||alvo.saldo<=0){toast('Esta parcela já está quitada no SIGE.');return}
+  if(!isArianaFinanceRef(alvo.codigo)){toast('Atualize o carnê para obter a referência financeira do Ariana ERP.');return}
+  if(alvo.quitado||alvo.saldo<=0){toast('Esta parcela já está quitada no Ariana ERP.');return}
   sigePagamentoAlvo=alvo;
   sigePayCodigo.value=String(alvo.codigo);
   const calc=alvo.calculoAtualizacao||calcularAtualizacaoParcela(alvo.saldo,alvo.vencimento,'');
@@ -2763,7 +2852,7 @@ function fecharPagamentoSige(){
 async function confirmarPagamentoSige(){
   if(sigePagamentoEnviando)return;
   const alvo=sigePagamentoAlvo;
-  if(!alvo){toast('Selecione uma parcela do SIGE.');return}
+  if(!alvo){toast('Selecione uma parcela do Ariana ERP.');return}
   const valorPagamento=parseMoneyInput(sigePayValor.value);
   const formaPagamento=String(sigePayForma.value||'').trim();
   const contaBancaria=String(sigePayConta.value||'').trim();
@@ -2777,12 +2866,12 @@ async function confirmarPagamentoSige(){
   if(!numeroDocumento){toast('Informe o número do documento.');sigePayDocumento.focus();return}
   if(!dataPagamento){toast('Informe a data do pagamento.');return}
 
-  if(!confirm(`Confirmar pagamento de ${money(valorPagamento)} no lançamento ${alvo.codigo} do SIGE?\n\nCliente: ${alvo.cliente||'—'}\nDocumento: ${numeroDocumento}`))return;
+  if(!confirm(`Confirmar pagamento de ${money(valorPagamento)} no Ariana ERP?\n\nCliente: ${alvo.cliente||'—'}\nParcela: ${alvo.parcela||alvo.documento||'—'}\nDocumento: ${numeroDocumento}`))return;
 
   sigePagamentoEnviando=true;
   sigePayConfirmar.disabled=true;
   const textoOriginal=sigePayConfirmar.textContent;
-  sigePayConfirmar.textContent='⏳ Registrando no SIGE...';
+  sigePayConfirmar.textContent='⏳ Registrando no Ariana ERP...';
 
   try{
     const resultado=await apiJson('/admin/financeiro/lancamentos/'+encodeURIComponent(alvo.codigo)+'/pagamentos',{
@@ -2808,18 +2897,30 @@ async function confirmarPagamentoSige(){
     if(resultado.reciboCriado){
       lastRecibo=resultado.recibo||null;
       if(resultado.whatsappEnviado){
-        toast(resultado.message||'Pagamento, recibo e WhatsApp concluídos com sucesso.');
+        toast(resultado.message||'Pagamento, comprovante e WhatsApp concluídos com sucesso.');
+      }else if(resultado.requiresPhone||resultado.whatsapp?.reason==='cliente_sem_whatsapp'){
+        toast('Pagamento registrado. Informe o WhatsApp do cliente para enviar o comprovante.');
       }else{
-        const motivo=resultado.whatsapp?.reason==='cliente_sem_whatsapp'
-          ? ' Cliente sem WhatsApp cadastrado.'
-          : '';
-        toast((resultado.message||'Pagamento e recibo concluídos, mas o WhatsApp não foi enviado.')+motivo);
+        toast(resultado.message||'Pagamento e comprovante concluídos, mas o WhatsApp não foi enviado.');
       }
     }else{
-      toast(resultado.message||'Pagamento confirmado no SIGE, mas o recibo não foi criado.');
+      toast(resultado.message||'Pagamento confirmado no Ariana ERP, mas o comprovante não foi criado.');
     }
 
     sigePagamentoOverlay.classList.add('hidden');
+
+    if(resultado.requiresPhone||resultado.whatsapp?.reason==='cliente_sem_whatsapp'){
+      const promptData=resultado.phonePrompt||{};
+      abrirTelefoneComprovante({
+        receiptId:promptData.receiptId||resultado.recibo?.id||'',
+        receiptCode:resultado.recibo?.recibo||'',
+        reference:promptData.reference||alvo.codigo,
+        customerName:promptData.customerName||resultado.recibo?.clienteNome||alvo.cliente||'Cliente',
+        customerDocument:promptData.customerDocument||resultado.recibo?.clienteCpf||alvo.cpf||'',
+        phone:''
+      });
+    }
+
     sigePagamentoAlvo=null;
 
     await Promise.allSettled([loadRecibos(),loadClientes()]);
@@ -2833,7 +2934,7 @@ async function confirmarPagamentoSige(){
       await buscarSigeLancamentos();
     }
   }catch(e){
-    console.error('Erro ao registrar pagamento no SIGE:',e.data||e);
+    console.error('Erro ao registrar pagamento no Ariana ERP:',e.data||e);
     toast('Pagamento não registrado: '+(e.message||e));
   }finally{
     sigePagamentoEnviando=false;

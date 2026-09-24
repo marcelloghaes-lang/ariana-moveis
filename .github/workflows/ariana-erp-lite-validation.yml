@@ -10,6 +10,7 @@ on:
       - 'functions/routes/televendas/index.js'
       - 'functions/server.js'
       - 'public/erp_*.html'
+      - 'public/financeiro_recibos.html'
       - '.github/workflows/ariana-erp-lite-validation.yml'
   push:
     branches:
@@ -30,6 +31,7 @@ on:
       - 'functions/routes/televendas/index.js'
       - 'functions/server.js'
       - 'public/erp_*.html'
+      - 'public/financeiro_recibos.html'
       - '.github/workflows/ariana-erp-lite-validation.yml'
 
 jobs:
@@ -104,6 +106,16 @@ jobs:
           assert.equal(legitimate.suppressed,0);
           NODE
 
+      - name: Validate automatic receipt contact contract
+        shell: bash
+        run: |
+          grep -Fq "ERP_([a-f0-9]{24})" functions/services/erp/erpFinanceCustomerContactService.js
+          grep -Fq "LEDGER_([a-f0-9]{24})" functions/services/erp/erpFinanceCustomerContactService.js
+          grep -Fq "cliente_sem_whatsapp" functions/routes/adminSigeCrediarioBotRoutes.js
+          grep -Fq "requiresPhone" functions/routes/adminSigeCrediarioBotRoutes.js
+          grep -Fq "receiptPhoneOverlay" public/financeiro_recibos.html
+          grep -Fq "Salvar e enviar comprovante" public/financeiro_recibos.html
+
       - name: Validate ERP permission matrix
         run: |
           node --input-type=module <<'NODE'
@@ -143,8 +155,11 @@ jobs:
           out = Path('/tmp/erp-inline')
           out.mkdir(parents=True, exist_ok=True)
           files = sorted(Path('public').glob('erp_*.html'))
+          finance = Path('public/financeiro_recibos.html')
+          if finance.exists():
+              files.append(finance)
           if not files:
-              raise SystemExit('Nenhuma tela ERP encontrada.')
+              raise SystemExit('Nenhuma tela ERP/Financeiro encontrada.')
           generated = []
           for html in files:
               text = html.read_text(encoding='utf-8')
