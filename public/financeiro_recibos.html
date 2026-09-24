@@ -1758,8 +1758,8 @@
     <div class="sige-pay-modal">
       <div class="sige-pay-head">
         <div>
-          <h2 id="sigePagamentoTitulo">💰 Registrar pagamento no SIGE</h2>
-          <div class="help" style="margin:5px 0 0">O pagamento será gravado primeiro no financeiro oficial do SIGE.</div>
+          <h2 id="sigePagamentoTitulo">💰 Registrar pagamento no Ariana ERP</h2>
+          <div class="help" style="margin:5px 0 0">A baixa será gravada no financeiro do Ariana ERP e o comprovante será enviado automaticamente.</div>
         </div>
         <button type="button" class="sige-pay-close" onclick="fecharPagamentoSige()" aria-label="Fechar">×</button>
       </div>
@@ -1795,12 +1795,39 @@
       </div>
 
       <div class="sige-pay-alert">
-        Após o SIGE confirmar a baixa, o sistema cria o recibo e tenta enviá-lo automaticamente pelo WhatsApp.
+        Após confirmar a baixa, o Ariana Financeiro cria o comprovante e envia automaticamente pelo WhatsApp.
       </div>
 
       <div class="sige-pay-actions">
         <button type="button" class="light" onclick="fecharPagamentoSige()">Cancelar</button>
-        <button type="button" class="green" id="sigePayConfirmar" onclick="confirmarPagamentoSige()">✅ Confirmar no SIGE</button>
+        <button type="button" class="green" id="sigePayConfirmar" onclick="confirmarPagamentoSige()">✅ Confirmar pagamento</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="receiptPhoneOverlay" class="sige-pay-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="receiptPhoneTitle" style="z-index:230">
+    <div class="sige-pay-modal" style="max-width:520px">
+      <div class="sige-pay-head">
+        <div>
+          <h2 id="receiptPhoneTitle">📱 WhatsApp do cliente</h2>
+          <div class="help" style="margin:5px 0 0">A baixa já foi registrada. Falta somente o telefone para enviar o comprovante.</div>
+        </div>
+        <button type="button" class="sige-pay-close" onclick="fecharTelefoneComprovante()" aria-label="Fechar">×</button>
+      </div>
+
+      <div id="receiptPhoneCustomer" class="sige-pay-summary"></div>
+
+      <div>
+        <label>Celular / WhatsApp com DDD</label>
+        <input id="receiptPhoneInput" inputmode="tel" autocomplete="tel" placeholder="Ex.: 33999999999">
+        <div class="help" style="margin-top:7px">O número será salvo diretamente no cadastro do cliente do Ariana ERP.</div>
+      </div>
+
+      <div id="receiptPhoneStatus" class="sige-pay-alert hidden" style="margin-top:14px"></div>
+
+      <div class="sige-pay-actions">
+        <button type="button" class="light" onclick="fecharTelefoneComprovante()">Agora não</button>
+        <button type="button" class="green" id="receiptPhoneSave" onclick="salvarTelefoneEEnviarComprovante()">💾 Salvar e enviar comprovante</button>
       </div>
     </div>
   </div>
