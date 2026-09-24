@@ -12,7 +12,8 @@ header a,.top a,.header a{color:#fff!important}header a:hover,.top a:hover,.head
 .card,.box,.panel,.hero,.tablebox,.toolbar,.filters,.summary,.kpi{border-radius:8px!important;box-shadow:0 8px 22px rgba(0,49,118,.08)!important}
 button,.btn{border-radius:6px!important}input,select,textarea{border-color:#c8d6e7!important}input:focus,select:focus,textarea:focus{outline:none!important;border-color:#6c9ddd!important;box-shadow:0 0 0 3px rgba(0,71,171,.09)!important}
 table thead th{color:#315273}table tbody tr:hover{background:#f6f9fd}
-</style></head><body>
+</style><link rel="stylesheet" href="erp-theme.css?v=20260924-1">
+</head><body>
 <header><div><b>Conferência contábil de custos</b><div class="muted" style="font-size:12px">Finalize o custo após a contabilidade informar os tributos que realmente entram no custo</div></div><div><a href="erp_compras_fornecedores.html">Compras</a> &nbsp; <a href="erp_rentabilidade.html">Rentabilidade</a> &nbsp; <a href="erp_ariana.html">← Central ERP</a></div></header>
 <main class="wrap"><div class="notice"><b>Importante:</b> receber a mercadoria continua atualizando o estoque imediatamente, mas o custo fica <b>provisório</b>. Nesta tela você informa os tributos depois da conferência da contabilidade. Marque “Incluir no custo” somente quando o contador confirmar que aquele valor não é recuperável e deve compor o custo da mercadoria.</div>
 <section class="panel"><div class="toolbar"><input id="q" placeholder="Buscar compra, fornecedor ou NF"><button class="btn primary" id="search">Buscar</button><button class="btn" id="refresh">↻ Atualizar</button></div><div class="table"><table><thead><tr><th>Compra</th><th>Fornecedor</th><th>NF</th><th>Recebimento</th><th>Custo provisório</th><th>Situação</th><th>Ação</th></tr></thead><tbody id="body"></tbody></table></div></section>
