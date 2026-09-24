@@ -54,6 +54,18 @@ function simplesXmlBuilder(DefaultXmlBuilder){
 }
 function ufCode(uf=''){return UF_CODES[String(uf).toUpperCase()]||''}
 function destinationType(issuerUf,customerUf){return String(issuerUf).toUpperCase()===String(customerUf).toUpperCase()?1:2}
+function customerFiscalProfile(customer={}){
+  const doc=digits(customer.document),ie=clean(customer.ie,20);
+  if(doc.length!==14)return{status:'nao_contribuinte',indicatorIE:9,ie:''};
+  let status=clean(customer.icmsTaxpayerStatus||'auto',40).toLowerCase();
+  if(!['auto','contribuinte','isento','nao_contribuinte'].includes(status))status='auto';
+  if(status==='auto'&&ie)status='contribuinte';
+  if(status==='auto'&&customer.ieExempt)status='isento';
+  if(status==='contribuinte')return{status,indicatorIE:1,ie};
+  if(status==='isento')return{status,indicatorIE:2,ie:''};
+  if(status==='nao_contribuinte')return{status,indicatorIE:9,ie:''};
+  return{status:'auto',indicatorIE:9,ie:''};
+}
 function paymentParts(total,installments){
   const n=Math.max(1,Number(installments||1));
   const base=Math.floor((money(total)*100)/n);
@@ -173,9 +185,11 @@ export function createErpNfeSefazService(context={},settings){
     if(!Number.isInteger(Number(cfg.serie))||Number(cfg.serie)<1)problems.push(publicProblem('SERIE_INVALID','Informe uma série de NF-e válida.','serie'));
     if(!Number.isInteger(Number(cfg.nextNumber))||Number(cfg.nextNumber)<1)problems.push(publicProblem('NFE_NUMBER_INVALID','Informe o próximo número da NF-e.','nextNumber'));
 
-    const customer=await resolvedCustomer(draft),doc=digits(customer.document),a=customer.addressData||{};
+    const customer=await resolvedCustomer(draft),doc=digits(customer.document),a=customer.addressData||{},recipientFiscal=customerFiscalProfile(customer);
     if(!clean(customer.name))problems.push(publicProblem('CUSTOMER_NAME_MISSING','Informe o nome/razão social do cliente.','customer.name'));
     if(![11,14].includes(doc.length))problems.push(publicProblem('CUSTOMER_DOCUMENT_INVALID','O destinatário precisa ter CPF ou CNPJ para a NF-e.','customer.document'));
+    if(doc.length===14&&recipientFiscal.status==='auto')problems.push(publicProblem('CUSTOMER_ICMS_STATUS_REQUIRED','Defina no cadastro do CNPJ se o destinatário é contribuinte, isento ou não contribuinte do ICMS.','customer.icmsTaxpayerStatus'));
+    if(doc.length===14&&recipientFiscal.status==='contribuinte'&&!recipientFiscal.ie)problems.push(publicProblem('CUSTOMER_IE_REQUIRED','Informe a Inscrição Estadual do destinatário contribuinte do ICMS.','customer.ie'));
     const ca={
       logradouro:first(a,'street','logradouro'),
       numero:first(a,'number','numero'),
@@ -222,7 +236,7 @@ export function createErpNfeSefazService(context={},settings){
       environment:cfg.environment||'homologacao',
       a1:cfg.a1||{},
       issuer,
-      customer:{...customer,addressData:ca},
+      customer:{...customer,addressData:ca,icmsTaxpayerStatus:recipientFiscal.status,indicatorIE:recipientFiscal.indicatorIE,ie:recipientFiscal.ie||clean(customer.ie,20)},
       products:products.map(x=>({
         id:String(x.product?._id||''),
         name:x.draft?.name||x.product?.name||'',
@@ -283,7 +297,7 @@ export function createErpNfeSefazService(context={},settings){
       if(cest)item.cest=cest;
       return item;
     });
-    const doc=digits(customer.document);
+    const doc=digits(customer.document),recipientFiscal=customerFiscalProfile(customer);
     const parts=paymentParts(draft.totals.total,draft.payment?.installments);
     const code=paymentCode[draft.payment?.method]||'99';
     const cobranca=buildCobranca(draft,number,parts);
@@ -293,7 +307,7 @@ export function createErpNfeSefazService(context={},settings){
         tipoOperacao:1,
         destinoOperacao:destinationType(issuerUf,custUf),
         finalidade:1,
-        consumidorFinal:1,
+        consumidorFinal:Number(draft?.fiscal?.consumerFinal??1)===0?0:1,
         presencaComprador:1,
         ambiente:pre.environment==='producao'?1:2,
         uf:issuerUf,
@@ -322,7 +336,8 @@ export function createErpNfeSefazService(context={},settings){
       destinatario:{
         ...(doc.length===14?{cnpj:doc}:{cpf:doc}),
         nome:clean(customer.name,60),
-        indicadorIE:9,
+        indicadorIE:recipientFiscal.indicatorIE,
+        ...(recipientFiscal.indicatorIE===1&&recipientFiscal.ie?{inscricaoEstadual:recipientFiscal.ie}:{}),
         email:clean(customer.email,60)||undefined,
         endereco:{
           logradouro:clean(customer.addressData.logradouro,60),
