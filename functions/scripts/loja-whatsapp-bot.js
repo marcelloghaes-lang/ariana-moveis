@@ -4668,6 +4668,200 @@ function currentListClarificationText(conv = {}, result = {}) {
   return 'Encontrei mais de uma opção que combina com o que você falou 😊 Qual delas você quis dizer?\n' + options.join('\n');
 }
 
+
+function pendingListClarificationIntent(text = '') {
+  if (asksProductInteriorPhotos(text)) return 'gallery_inside';
+  if (asksMoreProductPhotos(text) || asksSelectedProductPhoto(text)) return 'gallery_more';
+  if (asksGenericProductPrice(text) && !asksCardQuote(text) && !asksPixPrice(text)) return 'generic_price';
+  if (asksPixPrice(text)) return 'pix_price';
+  if (asksCardQuote(text)) return 'card_price';
+  if (asksGenericInstallmentQuote(text)) return 'installment';
+  if (asksProductColor(text)) return 'color';
+  return 'selection';
+}
+
+function rememberPendingListClarification(conv = {}, result = {}, originalText = '') {
+  const products = Array.isArray(conv?.lastProducts) ? conv.lastProducts : [];
+  const candidates = Array.isArray(result?.candidates) ? result.candidates : [];
+  const options = candidates.map((product, candidateIndex) => {
+    const listIndex = products.findIndex((item) => productId(item) === productId(product));
+    return {
+      optionNumber: listIndex >= 0 ? listIndex + 1 : candidateIndex + 1,
+      product: compactProduct(product)
+    };
+  }).filter((item) => productId(item.product));
+
+  if (!options.length) {
+    conv.pendingListClarification = null;
+    return null;
+  }
+
+  const now = Date.now();
+  conv.pendingListClarification = {
+    createdAt: now,
+    expiresAt: now + LIST_CLARIFICATION_TTL_MS,
+    originalText: String(originalText || '').trim(),
+    intent: pendingListClarificationIntent(originalText),
+    options
+  };
+  saveStateSoon();
+  return conv.pendingListClarification;
+}
+
+function activePendingListClarification(conv = {}) {
+  const pending = conv?.pendingListClarification;
+  if (!pending || typeof pending !== 'object') return null;
+
+  if (Number(pending.expiresAt || 0) <= Date.now()) {
+    conv.pendingListClarification = null;
+    saveStateSoon();
+    return null;
+  }
+
+  if (!Array.isArray(pending.options) || !pending.options.length) {
+    conv.pendingListClarification = null;
+    saveStateSoon();
+    return null;
+  }
+
+  return pending;
+}
+
+function pendingListChoiceNumber(text = '') {
+  const n = normalize(text)
+    .replace(/[!?.,;:()[\]{}]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n) return 0;
+
+  const numeric = n.match(/^(?:(?:quero|escolho|fico com|pode ser|manda|mostra|me mostra|a|o|opcao)\s+)*(\d{1,2})(?:\s*(?:opcao))?$/);
+  if (numeric) return Number(numeric[1]) || 0;
+
+  const ordinal = ordinalIndex(n);
+  const looksLikeShortChoice =
+    ordinal >= 0 &&
+    n.split(/\s+/).length <= 6 &&
+    /(?:primeir|segund|terceir|quart|quint|sext|setim|oitav|non|decim)/.test(n);
+
+  return looksLikeShortChoice ? ordinal + 1 : 0;
+}
+
+async function respondResolvedListClarification({ phone, pushName = '', conv, pending, selected }) {
+  const product = selected?.product;
+  if (!product) return false;
+
+  conv.selectedProduct = product;
+  conv.lastIntent = 'produto';
+  conv.pendingListClarification = null;
+  saveStateSoon();
+
+  const intent = String(pending?.intent || 'selection');
+  const originalText = String(pending?.originalText || '').trim();
+
+  if (intent === 'generic_price') {
+    const full = productFullPrice(product);
+    const count = Math.max(1, Number(product.installmentCount || 12));
+    await sendText(
+      phone,
+      'O *' + product.name + '* está por *' +
+      money(productCashPrice(product)) +
+      ' à vista no PIX*. No cartão, fica em até *' +
+      count + 'x de ' + money(full / count) +
+      '*, total de *' + money(full) + '*.'
+    );
+    return true;
+  }
+
+  if (intent === 'pix_price') {
+    markPixContext(conv);
+    saveStateSoon();
+    await sendText(phone, 'No PIX, *' + product.name + '* fica por *' + money(productCashPrice(product)) + '*.');
+    return true;
+  }
+
+  if (intent === 'card_price') {
+    const full = productFullPrice(product);
+    const count = Math.max(1, Number(product.installmentCount || 12));
+    await sendText(
+      phone,
+      'No cartão, *' + product.name + '* fica em até *' +
+      count + 'x de ' + money(full / count) +
+      '*, total de *' + money(full) + '*.'
+    );
+    return true;
+  }
+
+  if (intent === 'installment') {
+    conv.pendingAction = 'installment_payment_method';
+    saveStateSoon();
+    await sendText(
+      phone,
+      'Para calcular *' + product.name + '*, você quer ver no *cartão* ou no *crediário/carnê*?'
+    );
+    return true;
+  }
+
+  if (intent === 'gallery_more' || intent === 'gallery_inside') {
+    await sendProductGalleryPhotos(
+      phone,
+      conv,
+      product,
+      { mode: intent === 'gallery_inside' ? 'inside' : 'more' }
+    );
+    return true;
+  }
+
+  if (intent === 'color') {
+    const details = await fetchProductSafeDetails(product);
+    if (details) {
+      return handleProductColorQuestion({
+        phone,
+        text: originalText,
+        pushName,
+        conv,
+        product,
+        details
+      });
+    }
+  }
+
+  await sendText(
+    phone,
+    'Perfeito 😊 Você escolheu *' + product.name + '*. Quer ver mais fotos, preço no PIX, cartão, carnê, entrega ou outra informação dele?'
+  );
+  return true;
+}
+
+async function handlePendingListClarificationChoice({ phone, text, pushName = '', conv }) {
+  const pending = activePendingListClarification(conv);
+  if (!pending) return false;
+
+  const choiceNumber = pendingListChoiceNumber(text);
+  if (!choiceNumber) {
+    const newTopic = detectCategory(text);
+    const substantive = normalize(text).split(/\s+/).filter(Boolean).length >= 3;
+    if (newTopic || substantive || isCasualSmallTalk(text)) {
+      conv.pendingListClarification = null;
+      saveStateSoon();
+    }
+    return false;
+  }
+
+  const selected = pending.options.find((item) => Number(item.optionNumber) === Number(choiceNumber));
+  if (!selected) {
+    const available = pending.options.map((item) => item.optionNumber).join(', ');
+    await sendText(
+      phone,
+      'Essa opção não estava entre as que eu te pedi para escolher 😊 Pode responder com *' + available + '*.'
+    );
+    return true;
+  }
+
+  await respondResolvedListClarification({ phone, pushName, conv, pending, selected });
+  return true;
+}
+
 function descriptiveSelectionOnly(text = '') {
   const n = normalize(text);
   const hasActionQuestion =
@@ -8743,6 +8937,10 @@ async function handleMessage({
     return;
   }
 
+  if (await handlePendingListClarificationChoice({ phone, text, pushName, conv })) {
+    return;
+  }
+
   {
     const alternativeProduct = immediateAlternativeProduct(conv, text);
     if (alternativeProduct) {
@@ -8775,6 +8973,7 @@ async function handleMessage({
     if (listReference.status === 'ambiguous') {
       const clarification = currentListClarificationText(conv, listReference);
       if (clarification) {
+        rememberPendingListClarification(conv, listReference, text);
         await sendText(phone, clarification);
         return;
       }
@@ -10780,6 +10979,11 @@ export const __test = {
   currentListReferenceCue,
   currentListProductReference,
   currentListClarificationText,
+  pendingListClarificationIntent,
+  rememberPendingListClarification,
+  activePendingListClarification,
+  pendingListChoiceNumber,
+  handlePendingListClarificationChoice,
   descriptiveSelectionOnly,
   clearActiveCommercialContext,
   expireInactiveCommercialContext,
