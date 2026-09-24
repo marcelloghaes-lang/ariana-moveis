@@ -6512,6 +6512,136 @@ test('escolha pendente aceita "a terceira" e continua a intenção de preço', a
   assert.match(sentTexts.at(-1).text, /1\.494,00/i);
 });
 
+
+test('"o 3 você tem mais fotos dela?" seleciona a 3ª opção e envia a galeria sem perguntar de novo', async () => {
+  const phone = '5533977778021';
+  const first = product('air-list-1', 'Air Fryer 4L 1400W', {
+    category: 'Eletroportáteis',
+    stock: 2,
+    imageUrl: 'https://img.test/air-1-main.jpg',
+    images: [
+      { url: 'https://img.test/air-1-main.jpg', isMain: true },
+      { url: 'https://img.test/air-1-detail.jpg' }
+    ]
+  });
+  const second = product('air-list-2', 'Air Fryer 5L 1500W', {
+    category: 'Eletroportáteis',
+    stock: 2,
+    imageUrl: 'https://img.test/air-2-main.jpg',
+    images: [
+      { url: 'https://img.test/air-2-main.jpg', isMain: true },
+      { url: 'https://img.test/air-2-detail.jpg' }
+    ]
+  });
+  const third = product('air-list-3', 'Air Fryer 12L Oven 1800W', {
+    category: 'Eletroportáteis',
+    stock: 2,
+    imageUrl: 'https://img.test/air-3-main.jpg',
+    images: [
+      { url: 'https://img.test/air-3-main.jpg', isMain: true },
+      { url: 'https://img.test/air-3-inside.jpg' },
+      { url: 'https://img.test/air-3-detail.jpg' }
+    ]
+  });
+  const fourth = product('air-list-4', 'Air Fryer Britânia 5,5L Gold BFR51 1500W', {
+    category: 'Eletroportáteis',
+    stock: 2,
+    imageUrl: 'https://img.test/air-4-main.jpg',
+    images: [
+      { url: 'https://img.test/air-4-main.jpg', isMain: true },
+      { url: 'https://img.test/air-4-detail.jpg' }
+    ]
+  });
+  catalogRows = [first, second, third, fourth];
+
+  bot.patchTestConversation(phone, {
+    lastAt: Date.now(),
+    selectedProduct: null,
+    lastProducts: [first, second, third, fourth].map(bot.compactProduct),
+    allProductResults: [first, second, third, fourth].map(bot.compactProduct),
+    lastProductQuery: 'air fryer',
+    lastIntent: 'produto'
+  });
+
+  assert.equal(bot.explicitListOptionNumber('o 3 voce tem mais fotos dela?', 4), 3);
+
+  await bot.handleMessage({
+    phone,
+    text: 'o 3 voce tem mais fotos dela?',
+    pushName: 'Cliente Air Fryer'
+  });
+
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'air-list-3');
+  assert.equal(bot.conversation(phone).pendingListClarification, null);
+  assert.ok(sentMedia.some((item) => item.media === 'https://img.test/air-3-inside.jpg'));
+  assert.ok(sentMedia.some((item) => item.media === 'https://img.test/air-3-detail.jpg'));
+  assert.equal(sentMedia.some((item) => item.media === 'https://img.test/air-1-detail.jpg'), false);
+  assert.doesNotMatch(sentTexts.map((item) => item.text).join('\n'), /Só me diga qual das opções/i);
+});
+
+test('pedido genérico de foto em lista múltipla salva escolha pendente e "3" continua nas fotos', async () => {
+  const phone = '5533977778022';
+  const first = product('photo-list-1', 'Produto Um', {
+    category: 'Eletroportáteis',
+    stock: 2
+  });
+  const second = product('photo-list-2', 'Produto Dois', {
+    category: 'Eletroportáteis',
+    stock: 2
+  });
+  const third = product('photo-list-3', 'Produto Três', {
+    category: 'Eletroportáteis',
+    stock: 2,
+    imageUrl: 'https://img.test/photo-list-3-main.jpg',
+    images: [
+      { url: 'https://img.test/photo-list-3-main.jpg', isMain: true },
+      { url: 'https://img.test/photo-list-3-detail.jpg' }
+    ]
+  });
+  catalogRows = [first, second, third];
+
+  bot.patchTestConversation(phone, {
+    lastAt: Date.now(),
+    selectedProduct: null,
+    lastProducts: [first, second, third].map(bot.compactProduct),
+    allProductResults: [first, second, third].map(bot.compactProduct),
+    lastProductQuery: 'air fryer',
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'voce tem mais fotos dela?',
+    pushName: 'Cliente Fotos'
+  });
+
+  assert.match(sentTexts.at(-1).text, /qual das opções/i);
+  assert.equal(bot.conversation(phone).pendingListClarification.intent, 'gallery_more');
+  assert.equal(bot.conversation(phone).pendingListClarification.options.length, 3);
+
+  sentTexts = [];
+  sentMedia = [];
+
+  await bot.handleMessage({
+    phone,
+    text: '3',
+    pushName: 'Cliente Fotos'
+  });
+
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'photo-list-3');
+  assert.equal(bot.conversation(phone).pendingListClarification, null);
+  assert.ok(sentMedia.some((item) => item.media === 'https://img.test/photo-list-3-detail.jpg'));
+  assert.doesNotMatch(sentTexts.map((item) => item.text).join('\n'), /Me ajuda só com um detalhe|Me conta um pouco mais/i);
+});
+
+test('número de especificação não vira referência de posição da lista', () => {
+  assert.equal(bot.explicitListOptionNumber('quero uma air fryer de 3 litros', 4), 0);
+  assert.equal(bot.explicitListOptionNumber('tem uma de 3 litros?', 4), 0);
+  assert.equal(bot.explicitListOptionNumber('a 3 tem mais fotos?', 4), 3);
+  assert.equal(bot.explicitListOptionNumber('opção 3', 4), 3);
+  assert.equal(bot.explicitListOptionNumber('quero o 3', 4), 3);
+});
+
 test('escolha pendente de "mais fotos" envia a galeria do número escolhido', async () => {
   const phone = '5533977778019';
   const white = product('pending-photo-white', 'Guarda Roupa Branco', {
