@@ -137,6 +137,19 @@ jobs:
           grep -Fq "Salvar telefone e enviar comprovante" public/erp_venda_detalhe.html
           grep -Fq "✅ Pagamento registrado com sucesso" functions/server.js
 
+      - name: Validate safe SIGE purchase enrichment
+        shell: bash
+        run: |
+          grep -Fq "Pedidos/Pesquisar" functions/services/erp/erpSigeHistoricalPurchaseEnrichmentService.js
+          grep -Fq "financeUntouched:true" functions/services/erp/erpSigeHistoricalPurchaseEnrichmentService.js
+          grep -Fq "metadata.sigeLive" functions/services/erp/erpSigeHistoricalPurchaseEnrichmentService.js
+          grep -Fq "ENRIQUECER_COMPRAS_SIGE" functions/routes/erp/erpSigeHistoryRoutes.js
+          grep -Fq "purchase-history-detail" public/erp_financeiro_completo.html
+          if grep -Eq "ErpFinancialEntry|ledger\.pay|Entry\.update|Entry\.bulkWrite" functions/services/erp/erpSigeHistoricalPurchaseEnrichmentService.js; then
+            echo "A rotina de enriquecimento não pode escrever no financeiro do Ariana ERP."
+            exit 1
+          fi
+
       - name: Validate historical receipt product and installment
         run: |
           node --input-type=module <<'NODE'
@@ -175,6 +188,9 @@ jobs:
           assert.deepEqual(rule('POST', '/erp/orders/abc/cancelar').any, ['orders:cancel']);
           assert.deepEqual(rule('POST', '/erp/financeiro/lancamentos/abc/quitar').any, ['payments:receive']);
           assert.deepEqual(rule('POST', '/erp/financeiro/comprovantes/abc/telefone-enviar').any, ['payments:receive']);
+          assert.deepEqual(rule('GET', '/erp/migracao/sige/compras/status').any, ['finance:read','reports:read','orders:read']);
+          assert.deepEqual(rule('GET', '/erp/migracao/sige/compras/123').any, ['finance:read','reports:read','orders:read']);
+          assert.deepEqual(rule('POST', '/erp/migracao/sige/compras/sincronizar').any, ['settings:update']);
           assert.deepEqual(rule('GET', '/erp/finance-panel/clientes').any, ['customers:read','finance:read','payments:read']);
           assert.deepEqual(rule('GET', '/erp/finance-panel/lancamentos').any, ['finance:read','payments:read']);
           assert.deepEqual(rule('GET', '/erp/finance-panel/inadimplentes').any, ['finance:read','payments:read']);
