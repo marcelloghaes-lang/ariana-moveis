@@ -79,6 +79,9 @@ export function resolveErpRequirement(req={}){
   if(path==='/erp/configuracoes'&&read)return requirement(['settings:read','settings:update'],'consultar configurações');
   if(path==='/erp/configuracoes'&&(method==='PUT'||method==='PATCH'))return requirement(['settings:update'],'alterar configurações');
 
+  if(/^\/erp\/migracao\/sige\/compras\/(status|[^/]+)$/.test(path)&&read)return requirement(['finance:read','reports:read','orders:read'],'consultar dados históricos de compras');
+  if(path==='/erp/migracao/sige/compras/sincronizar'&&method==='POST')return requirement(['settings:update'],'sincronizar dados históricos do SIGE');
+
   if(path==='/erp/financeiro'&&read)return requirement(['finance:read','payments:read'],'consultar o financeiro');
   if(path==='/erp/financeiro/completo'&&read)return requirement(['finance:read','finance:reports','reports:read'],'consultar o financeiro completo');
   if(path==='/erp/financeiro/categorias'&&read)return requirement(['finance:read','payments:read','settings:read'],'consultar categorias financeiras');
