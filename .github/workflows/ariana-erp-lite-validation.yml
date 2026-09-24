@@ -51,6 +51,28 @@ jobs:
             -type f -name '*.js' -print0 \
             | sort -z \
             | xargs -0 -n1 node --check
+      - name: Validate finance-before-NFe rules
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { buildReceivables } from './functions/services/erp/erpService.js';
+
+          const crediario = buildReceivables(2256, {
+            method: 'crediario',
+            installments: 12,
+            firstDueDate: '2026-10-24'
+          });
+          assert.equal(crediario.length, 12);
+          assert.equal(crediario[0].value, 188);
+          assert.equal(crediario[0].status, 'pendente');
+
+          const pix = buildReceivables(799, { method: 'pix', installments: 1 });
+          assert.equal(pix.length, 1);
+          assert.equal(pix[0].status, 'pendente');
+
+          const paid = buildReceivables(799, { method: 'pix', installments: 1, status: 'approved' });
+          assert.equal(paid[0].status, 'recebido');
+          NODE
       - name: Validate ERP permission matrix
         run: |
           node --input-type=module <<'NODE'
