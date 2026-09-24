@@ -454,9 +454,10 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
         .replace(/[\u0300-\u036f]/g, '')
         .toLowerCase()
         .trim();
+      const legacyFirstName = legacyName.split(/\s+/).filter(Boolean)[0] || '';
       const confirmedIsabelToday =
         today === '2026-09-23' &&
-        (legacyName.includes('isabel') || legacyName.includes('izabel'));
+        (legacyFirstName === 'isabel' || legacyFirstName === 'izabel');
 
       if (confirmedIsabelToday || legacyMessageId) {
         skippedAlreadySent += 1;
