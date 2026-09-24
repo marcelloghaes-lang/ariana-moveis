@@ -91,9 +91,9 @@ export default function createTelevendasRouter(context = {}) {
 
   // ============================================================
   // ARIANA ERP LITE
-  // Fluxo próprio: orçamento -> pedido -> venda -> faturamento.
-  // Faturar gera financeiro interno e baixa estoque real; estornar restaura.
-  // Não chama SIGE e não depende da disponibilidade do SIGE.
+  // Fluxo próprio: orçamento -> pedido/venda -> faturamento fiscal.
+  // Pedido/venda já gera o financeiro interno; faturar preserva o financeiro e baixa o estoque real.
+  // Não consulta sistema financeiro de terceiros; dados históricos migrados permanecem no Ariana ERP.
   // ============================================================
   router.get('/erp/dashboard', context.adminRequired, erpHandler(async () => ({ dashboard: await erp.dashboard() })));
   router.get('/erp/products', context.adminRequired, erpHandler(async (req) => ({ products: await erpProducts.list(req.query || {}) })));
