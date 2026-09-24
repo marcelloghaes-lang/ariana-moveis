@@ -70,6 +70,7 @@ jobs:
           assert.deepEqual(rule('GET', '/erp/relatorios/inadimplentes/cobranca/entry123/preview').any, ['finance:read','payments:read']);
           assert.deepEqual(rule('POST', '/erp/relatorios/inadimplentes/cobranca/entry123/enviar').any, ['payments:receive','finance:read']);
           assert.equal(rule('POST', '/erp/migracao/sige/importar').mapped, false);
+          assert.deepEqual(rule('GET', '/erp/comprovante/emitente').any, ['orders:read']);
           assert.deepEqual(rule('POST', '/erp/fiscal/nfe/preflight').any, ['fiscal:nfe:emit']);
           assert.deepEqual(rule('POST', '/erp/fiscal/nfe/devolucao/preflight').any, ['fiscal:nfe:emit']);
           assert.deepEqual(rule('POST', '/erp/fiscal/nfe/devolucao/emitir').any, ['fiscal:nfe:emit']);

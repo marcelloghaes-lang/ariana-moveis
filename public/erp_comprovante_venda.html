@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Comprovante de Compra | Ariana ERP</title>
+<style>
+:root{--blue:#0646a5;--bg:#eef3f8;--line:#d8e1ec;--text:#172033;--muted:#66748b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:12px Arial,sans-serif}
+.toolbar{max-width:920px;margin:14px auto 0;display:flex;justify-content:space-between;gap:10px;align-items:center}.toolbar .left{color:var(--muted)}.actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:0;border-radius:7px;padding:10px 13px;font-weight:700;cursor:pointer;text-decoration:none}.primary{background:var(--blue);color:#fff}.secondary{background:#fff;color:var(--blue);border:1px solid #bfcddd}
+.sheet{max-width:920px;margin:10px auto 22px;background:#fff;border:1px solid var(--line);box-shadow:0 8px 28px rgba(18,43,70,.12)}.brandbar{height:8px;background:var(--blue)}.header{display:grid;grid-template-columns:1.35fr .85fr;gap:20px;padding:22px 25px 18px;border-bottom:2px solid var(--blue)}.brand h1{margin:0;color:var(--blue);font-size:26px}.legal{font-size:11px;color:#526173;margin-top:3px}.company-lines{margin-top:10px;line-height:1.55;color:#344357}.docbox{text-align:right}.docbox h2{margin:0;font-size:18px}.code{font-size:14px;font-weight:700;color:var(--blue);margin-top:8px}.generated{margin-top:8px;color:var(--muted);font-size:11px;line-height:1.5}.content{padding:18px 25px 24px}.section{margin-top:15px}.section:first-child{margin-top:0}.section-title{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--blue);font-weight:700;border-bottom:1px solid #cfd9e6;padding-bottom:5px;margin-bottom:9px}.info-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px 24px}.wide{grid-column:1/-1}
+table{width:100%;border-collapse:collapse;margin-top:4px}th{background:#f3f6fa;color:#4f5f73;text-transform:uppercase;font-size:9px;letter-spacing:.04em;padding:8px 7px;border:1px solid #dbe3ec;text-align:left}td{padding:8px 7px;border:1px solid #e0e6ee;vertical-align:top}.right{text-align:right}.center{text-align:center}.sub{font-size:9px;color:#758195;margin-top:2px}.summary{width:360px;margin:10px 0 0 auto}.line{display:flex;justify-content:space-between;padding:4px 0}.line.total{font-size:17px;font-weight:700;color:var(--blue);border-top:2px solid var(--blue);padding-top:7px;margin-top:5px}.payment-box{display:grid;grid-template-columns:repeat(2,1fr);gap:8px 24px;padding:10px 12px;background:#f7f9fc;border:1px solid #dce4ed}.badge{display:inline-block;padding:3px 7px;border-radius:10px;background:#eef5ff;color:var(--blue);font-weight:700}.no-fiscal{text-align:center;margin-top:17px;padding:8px;border:1px dashed #bdc9d8;color:#68758a;font-size:10px}.note{margin-top:18px;padding-top:10px;border-top:1px solid #dce4ed;color:#5d697b;font-size:10px}.loading,.error{max-width:920px;margin:50px auto;background:#fff;border:1px solid var(--line);padding:28px;text-align:center;border-radius:12px}.error{color:#9a2f38}
+@media(max-width:700px){.toolbar{margin:8px}.sheet{margin:8px}.header{grid-template-columns:1fr}.docbox{text-align:left}.info-grid,.payment-box{grid-template-columns:1fr}.wide{grid-column:auto}.summary{width:100%}}
+@media print{@page{size:A4;margin:12mm}body{background:#fff}.toolbar{display:none!important}.sheet{margin:0;max-width:none;border:0;box-shadow:none}.section,table,tr{break-inside:avoid;page-break-inside:avoid}.header{padding-top:0}}
+</style>
+</head>
+<body>
+<div class="toolbar" id="toolbar" style="display:none"><div class="left">Comprovante salvo no Ariana ERP • pode ser reimpresso a qualquer momento</div><div class="actions"><a class="btn secondary" id="back-sale">Voltar à venda</a><button class="btn primary" id="print">Imprimir / salvar PDF</button></div></div>
+<div id="loading" class="loading">Carregando a venda e preparando o comprovante…</div>
+<div id="error" class="error" style="display:none"></div>
+<article class="sheet" id="sheet" style="display:none">
+  <div class="brandbar"></div>
+  <header class="header">
+    <div class="brand">
+      <h1 id="company-name">ARIANA MÓVEIS</h1>
+      <div class="legal" id="company-legal"></div>
+      <div class="company-lines" id="company-lines"></div>
+    </div>
+    <div class="docbox">
+      <h2>COMPROVANTE DE COMPRA</h2>
+      <div class="code" id="sale-code">Venda —</div>
+      <div class="generated" id="sale-meta"></div>
+    </div>
+  </header>
+  <main class="content">
+    <section class="section"><div class="section-title">Dados do cliente</div><div class="info-grid" id="customer-info"></div></section>
+    <section class="section"><div class="section-title">Itens da compra</div><table><thead><tr><th>Produto</th><th class="center">Qtd.</th><th class="right">Valor unitário</th><th class="right">Subtotal</th></tr></thead><tbody id="items"></tbody></table><div class="summary" id="summary"></div></section>
+    <section class="section"><div class="section-title">Pagamento</div><div class="payment-box" id="payment"></div></section>
+    <section class="section" id="installments-section" style="display:none"><div class="section-title">Parcelas</div><table><thead><tr><th class="center">Parcela</th><th class="right">Valor</th><th class="center">Vencimento</th><th class="center">Pagamento</th></tr></thead><tbody id="installments"></tbody></table></section>
+    <section class="section" id="notes-section" style="display:none"><div class="section-title">Observações</div><div id="notes"></div></section>
+    <div class="no-fiscal">COMPROVANTE COMERCIAL DE COMPRA • Este documento não substitui NF-e, DANFE, recibo fiscal ou documento de quitação.</div>
+    <div class="note" id="footer"></div>
+  </main>
+</article>
+<script>
+const API=location.hostname==='localhost'?'http://localhost:3000/api':'https://ariana-backend.onrender.com/api';
+const $=id=>document.getElementById(id),params=new URLSearchParams(location.search),ORDER_ID=params.get('id')||params.get('orderId')||'',AUTO_PRINT=params.get('print')==='1';
+function token(){const t=localStorage.getItem('admin_token')||localStorage.getItem('adminToken')||localStorage.getItem('auth_token')||localStorage.getItem('token')||'';if(t)return t;try{return JSON.parse(localStorage.getItem('banner_admin_session')||'null')?.token||''}catch{return''}}
+function esc(v=''){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+function money(v){return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+function digits(v=''){return String(v??'').replace(/\D/g,'')}
+function date(v){if(!v)return'—';const s=String(v),d=/^\d{4}-\d{2}-\d{2}$/.test(s)?new Date(s+'T12:00:00'):new Date(v);return Number.isNaN(d.getTime())?'—':d.toLocaleDateString('pt-BR')}
+function doc(v=''){const d=digits(v);if(d.length===11)return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4');if(d.length===14)return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,'$1.$2.$3/$4-$5');return String(v||'—')}
+function cep(v=''){const d=digits(v);return d.length===8?d.replace(/(\d{5})(\d{3})/,'$1-$2'):String(v||'')}
+function phone(v=''){const d=digits(v);if(d.length===11)return d.replace(/(\d{2})(\d{5})(\d{4})/,'($1) $2-$3');if(d.length===10)return d.replace(/(\d{2})(\d{4})(\d{4})/,'($1) $2-$3');return String(v||'')}
+function address(v){if(!v)return'—';if(typeof v==='string')return v;return[v.logradouro||v.street,v.numero||v.number,v.complemento||v.complement,v.bairro||v.district,v.cidade||v.city||v.municipio,v.uf||v.state,v.cep?cep(v.cep):''].filter(Boolean).join(', ')||'—'}
+function method(v){return({dinheiro:'Dinheiro',pix:'PIX',cartao_debito:'Cartão de débito',cartao_credito:'Cartão de crédito',crediario:'Crediário próprio',boleto:'Boleto',outro:'Outro'})[v]||v||'Não informado'}
+function statusLabel(v=''){const s=String(v||'').toLowerCase();if(['approved','paid','recebido','settled','quitado'].includes(s))return'Quitado';if(['partial','parcial'].includes(s))return'Parcial';if(['pending','pendente'].includes(s))return'Pendente';if(['not_started','nao_iniciado','não iniciado'].includes(s))return'Não iniciado';if(['cancelled','canceled','cancelado'].includes(s))return'Cancelado';return s?String(v):'Não iniciado'}
+function addMonths(value,n){const d=new Date(value);const day=d.getDate();d.setDate(1);d.setMonth(d.getMonth()+n);const last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();d.setDate(Math.min(day,last));return d}
+function installmentRows(o){const real=o?.televendas?.erp?.receivables||[];if(real.length)return real.map((r,i)=>({number:Number(r.number||i+1),installments:Number(r.installments||real.length),value:Number(r.value||0),dueAt:r.dueAt||null,status:r.status||'',receivedAt:r.receivedAt||null}));const p=o?.payment||{},count=Math.max(1,Number(p.installments||1)),financed=['crediario','boleto'].includes(String(p.method||''));if(!financed)return[];const first=p.firstDueDate?new Date(String(p.firstDueDate).slice(0,10)+'T12:00:00'):null;if(!first||Number.isNaN(first.getTime()))return[];const total=Number(o.total||0),base=Math.floor(total*100/count)/100;let sum=0;return Array.from({length:count},(_,i)=>{const value=i===count-1?Math.round((total-sum)*100)/100:base;sum=Math.round((sum+value)*100)/100;return{number:i+1,installments:count,value,dueAt:addMonths(first,i),status:'pendente',receivedAt:null}})}
+async function api(path){const r=await fetch(API+path,{headers:{Authorization:'Bearer '+token()},cache:'no-store'}),d=await r.json().catch(()=>({}));if(r.status===401){location.replace('erp_login.html?return='+encodeURIComponent(location.pathname+location.search));throw new Error('Login necessário.')}if(!r.ok)throw new Error(d.error||'Erro ao carregar dados.');return d}
+function computedPaymentStatus(o,rows){if(rows.length){const paid=rows.filter(r=>String(r.status||'').toLowerCase()==='recebido').length;if(paid===rows.length)return'Quitado';if(paid>0)return'Parcial';return'Pendente'}return statusLabel(o.paymentStatus||o.payment?.status)}
+async function load(){
+  if(!ORDER_ID){$('loading').style.display='none';$('error').style.display='block';$('error').textContent='Venda não informada.';return}
+  try{
+    const [orderResult,issuerResult]=await Promise.all([api('/erp/orders/'+encodeURIComponent(ORDER_ID)),api('/erp/comprovante/emitente')]);
+    const o=orderResult.order||orderResult.data||orderResult,issuer=issuerResult.issuer||{},e=o.televendas?.erp||{},rows=installmentRows(o),p=o.payment||{},count=Math.max(1,Number(p.installments||1)),payMethod=method(p.method),condition=count>1?count+'x de '+money(Number(o.total||0)/count):(payMethod==='Dinheiro'||payMethod==='PIX'?'À vista':'1x de '+money(o.total)),firstDue=p.firstDueDate?date(p.firstDueDate):(rows[0]?.dueAt?date(rows[0].dueAt):'—'),productsTotal=(o.items||[]).reduce((s,i)=>s+Number(i.totalPrice??Number(i.qty||1)*Number(i.unitPrice||0)),0),shipping=Number(o.shippingCost||0),assembly=Number(o.montagemCost||0),discount=Number(e.discount||o.discount||0),code=e.code||String(o._id||o.id||''),seller=e.sellerName||o.operatorName||'—',legal=issuer.razaoSocial&&String(issuer.razaoSocial).toUpperCase()!==String(issuer.nomeFantasia||'ARIANA MÓVEIS').toUpperCase()?issuer.razaoSocial:'',companyAddress=[issuer.logradouro,issuer.numero,issuer.complemento,issuer.bairro,[issuer.municipio,issuer.uf].filter(Boolean).join('/'),cep(issuer.cep)].filter(Boolean).join(', ');
+    document.title=code+' - Comprovante de Compra';
+    $('company-name').textContent=issuer.nomeFantasia||'ARIANA MÓVEIS';$('company-legal').textContent=legal;
+    $('company-lines').innerHTML=(issuer.cnpj?'<b>CNPJ:</b> '+esc(doc(issuer.cnpj)):'')+(issuer.ie?' &nbsp; <b>IE:</b> '+esc(issuer.ie):'')+(issuer.cnpj||issuer.ie?'<br>':'')+(companyAddress?esc(companyAddress)+'<br>':'')+'<b>Telefone / WhatsApp:</b> '+esc(phone(issuer.phone)||'—')+'<br><b>E-mail:</b> '+esc(issuer.email||'contato@arianamoveis.com.br')+' &nbsp; <b>Site:</b> '+esc(issuer.site||'arianamoveis.com.br');
+    $('sale-code').textContent='Venda '+code;$('sale-meta').innerHTML='<b>Data da venda:</b> '+esc(date(e.saleDate||o.createdAt))+'<br><b>Emitido em:</b> '+esc(new Date().toLocaleString('pt-BR'))+'<br><b>Vendedor:</b> '+esc(seller);
+    $('customer-info').innerHTML='<div><b>Cliente:</b> '+esc(o.customerName||'Consumidor')+'</div><div><b>CPF/CNPJ:</b> '+esc(doc(o.customerCpf))+'</div><div><b>Telefone:</b> '+esc(phone(o.customerPhone)||'—')+'</div><div><b>E-mail:</b> '+esc(o.customerEmail||'—')+'</div><div class="wide"><b>Endereço:</b> '+esc(address(o.shippingAddress))+'</div>';
+    $('items').innerHTML=(o.items||[]).map(i=>{const qty=Number(i.qty||1),unit=Number(i.unitPrice||0),line=Number(i.totalPrice??qty*unit);return'<tr><td><b>'+esc(i.name||'Produto')+'</b>'+(i.sku?'<div class="sub">Cód./SKU: '+esc(i.sku)+'</div>':'')+'</td><td class="center">'+qty+'</td><td class="right">'+money(unit)+'</td><td class="right"><b>'+money(line)+'</b></td></tr>'}).join('');
+    $('summary').innerHTML='<div class="line"><span>Produtos</span><b>'+money(productsTotal)+'</b></div>'+(shipping?'<div class="line"><span>Frete</span><b>'+money(shipping)+'</b></div>':'')+(assembly?'<div class="line"><span>Montagem / serviço</span><b>'+money(assembly)+'</b></div>':'')+(discount?'<div class="line"><span>Desconto</span><b>- '+money(discount)+'</b></div>':'')+'<div class="line total"><span>Total da compra</span><span>'+money(o.total)+'</span></div>';
+    $('payment').innerHTML='<div><b>Forma:</b> '+esc(payMethod)+'</div><div><b>Condição:</b> '+esc(condition)+'</div><div><b>Primeiro vencimento:</b> '+esc(firstDue)+'</div><div><b>Situação:</b> <span class="badge">'+esc(computedPaymentStatus(o,rows))+'</span></div>';
+    if(rows.length){$('installments-section').style.display='block';$('installments').innerHTML=rows.map((r,i)=>'<tr><td class="center">'+Number(r.number||i+1)+'/'+Number(r.installments||rows.length)+'</td><td class="right">'+money(r.value)+'</td><td class="center">'+(r.dueAt?date(r.dueAt):'—')+'</td><td class="center">'+(String(r.status||'').toLowerCase()==='recebido'?(r.receivedAt?'PG '+date(r.receivedAt):'PAGO'):'—')+'</td></tr>').join('')}
+    if(o.notes){$('notes-section').style.display='block';$('notes').textContent=o.notes}
+    $('footer').textContent=(issuer.nomeFantasia||'Ariana Móveis')+' • '+(issuer.site||'arianamoveis.com.br')+' • '+(phone(issuer.phone)||'');
+    $('back-sale').href='erp_venda_detalhe.html?id='+encodeURIComponent(ORDER_ID);$('loading').style.display='none';$('sheet').style.display='block';$('toolbar').style.display='flex';
+    if(AUTO_PRINT)setTimeout(()=>window.print(),300);
+  }catch(e){$('loading').style.display='none';$('error').style.display='block';$('error').textContent=e.message||'Não foi possível carregar o comprovante.'}
+}
+$('print').onclick=()=>window.print();
+if(!token())location.replace('erp_login.html?return='+encodeURIComponent(location.pathname+location.search));else load();
+</script>
+</body>
+</html>

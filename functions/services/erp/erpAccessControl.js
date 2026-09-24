@@ -62,6 +62,7 @@ export function resolveErpRequirement(req={}){
   if(/^\/erp\/orders\/[^/]+\/faturar$/.test(path)&&method==='POST')return requirement(['orders:update'],'faturar vendas');
   if(/^\/erp\/orders\/[^/]+\/(estornar|cancelar)$/.test(path)&&method==='POST')return requirement(['orders:cancel'],'estornar ou cancelar vendas');
   if(path==='/erp/orders'&&read)return requirement(['orders:read'],'consultar vendas');
+  if(path==='/erp/comprovante/emitente'&&read)return requirement(['orders:read'],'imprimir comprovantes de venda');
   if(path==='/erp/orders'&&method==='POST')return requirement(['orders:update'],'criar vendas');
   if(/^\/erp\/orders\/[^/]+$/.test(path)&&read)return requirement(['orders:read'],'consultar vendas');
   if(/^\/erp\/orders\/[^/]+$/.test(path)&&(method==='PUT'||method==='PATCH'))return requirement(['orders:update'],'alterar vendas');
