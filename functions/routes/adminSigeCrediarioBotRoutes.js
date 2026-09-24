@@ -8147,7 +8147,7 @@ function financeiroErpReference(row = {}) {
   );
 
   app.post(
-    '/api/admin/financeiro/fila-cobranca/adicionar-sige',
+    ['/api/admin/financeiro/fila-cobranca/adicionar-erp','/api/admin/financeiro/fila-cobranca/adicionar-sige'],
     adminRequired,
     financeiroPermissionRequired('financeiro.cobranca'),
     async (req, res) => {
@@ -8155,7 +8155,7 @@ function financeiroErpReference(row = {}) {
         const clientes = Array.isArray(req.body?.clientes) ? req.body.clientes.slice(0, 50) : [];
         const dataReferencia = req.body?.dataReferencia || new Date();
         if (!clientes.length) {
-          return res.status(400).json({ ok: false, error: 'Selecione ao menos um cliente do SIGE.' });
+          return res.status(400).json({ ok: false, error: 'Selecione ao menos um cliente do Ariana ERP.' });
         }
 
         const resultados = [];
@@ -8174,7 +8174,7 @@ function financeiroErpReference(row = {}) {
           }
 
           try {
-            const sincronizacao = await sincronizarCarneDigitalSige(termo, req, {
+            const sincronizacao = await sincronizarCarneDigitalErp(termo, req, {
               limit: 5000,
               maxRecords: 20000,
               termos: [cliente?.nome, cliente?.cpf, cliente?.telefone]
@@ -8204,7 +8204,7 @@ function financeiroErpReference(row = {}) {
 
         await registrarAuditoriaFinanceira({
           req,
-          acao: 'FILA_COBRANCA_IMPORTADA_SIGE',
+          acao: 'FILA_COBRANCA_IMPORTADA_ARIANA_ERP',
           entidade: 'FinanceiroFilaCobranca',
           codigo: dateKey(dataReferencia),
           depois: {
@@ -8220,7 +8220,7 @@ function financeiroErpReference(row = {}) {
         return res.status(clientesAdicionados > 0 ? 200 : 422).json({
           ok: clientesAdicionados > 0,
           message: clientesAdicionados > 0
-            ? `${clientesAdicionados} cliente(s) do SIGE incluído(s) na Fila do Dia.`
+            ? `${clientesAdicionados} cliente(s) do Ariana ERP incluído(s) na Fila do Dia.`
             : 'Nenhum cliente pôde ser incluído na Fila do Dia.',
           selecionados: clientes.length,
           clientesAdicionados,
@@ -8233,7 +8233,7 @@ function financeiroErpReference(row = {}) {
       } catch (error) {
         return res.status(error.statusCode || 500).json({
           ok: false,
-          error: error.message || 'Erro ao adicionar clientes do SIGE à Fila do Dia.'
+          error: error.message || 'Erro ao adicionar clientes do Ariana ERP à Fila do Dia.'
         });
       }
     }
