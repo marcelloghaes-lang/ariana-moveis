@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { buildReceivables } from './erpService.js';
 
 const PAGE_W=595.28;
 const PAGE_H=841.89;
@@ -67,8 +68,8 @@ export function createErpDelinquencyReportService(context={}){
    const Entry=mongoose.models.ErpFinancialEntry;let legacy=[];
    if(Entry){legacy=await Entry.collection.find({direction:'receivable',status:{$nin:['paid','cancelled']},dueAt:{$gte:pr.from,$lte:pr.effectiveTo}}).sort({dueAt:1}).limit(50000).toArray()}
    const rows=legacy.map(r=>normalizeEntry(r,pr.todayStart)).filter(r=>r.outstanding>0.009);
-   const orders=await Order.find({origin:'erp_ariana',status:{$in:['pedido','venda','faturado']},'televendas.erp.receivables.0':{$exists:true}}).select('_id customerName customerCpf customerPhone customerEmail payment televendas updatedAt').lean();
-   for(const o of orders){for(const r of arr(o.televendas?.erp?.receivables)){const st=String(r.status||'').toLowerCase();if(['recebido','cancelado','estornado'].includes(st))continue;const due=new Date(r.dueAt||0);if(Number.isNaN(due.getTime())||due<pr.from||due>pr.effectiveTo)continue;const row=normalizeOrder(o,r,pr.todayStart);if(row.outstanding>0.009)rows.push(row)}}
+   const orders=await Order.find({origin:'erp_ariana',status:{$in:['pedido','venda','faturado']}}).select('_id customerName customerCpf customerPhone customerEmail payment total televendas updatedAt').lean();
+   for(const o of orders){const stored=arr(o.televendas?.erp?.receivables),receivables=stored.length?stored:buildReceivables(o.total,o.payment||{});for(const r of receivables){const st=String(r.status||'').toLowerCase();if(['recebido','cancelado','estornado'].includes(st))continue;const due=new Date(r.dueAt||0);if(Number.isNaN(due.getTime())||due<pr.from||due>pr.effectiveTo)continue;const row=normalizeOrder(o,r,pr.todayStart);if(row.outstanding>0.009)rows.push(row)}}
    const qtext=clean(q.q||q.search,180);let filtered=rows;if(qtext){const rx=new RegExp(escRx(qtext),'i');filtered=rows.filter(r=>rx.test([r.name,r.document,r.reference,r.phone,r.email].join(' ')))}
    filtered.sort((a,b)=>compareNames(a.name,b.name)||new Date(a.dueAt)-new Date(b.dueAt));return{period:pr,rows:filtered}
  }
