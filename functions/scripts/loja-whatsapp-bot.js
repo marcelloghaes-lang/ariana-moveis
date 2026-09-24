@@ -1389,19 +1389,11 @@ async function fetchDailyDueReminderContext(phone, conv = null) {
 }
 
 async function syncDailyDueContextFromBackend(phone, conv, text = '') {
-  if (!conv || hasDailyDueCollectionContext(conv)) return false;
-
-  // Não atrasa nem prende uma nova intenção comercial clara.
-  if (text && asksDailyDueSubjectChange(text)) return false;
-
-  const active = await fetchDailyDueReminderContext(phone, conv);
-  if (!active) return false;
-
-  markDailyDueCollectionContext(conv);
-  conv.dailyDueLookupAt = Date.now();
-  conv.dailyDueLookupActive = true;
-  saveStateSoon();
-  return true;
+  // Compatibilidade: o backend ainda pode informar que houve lembrete,
+  // mas o Gustavo não transforma isso em memória/contexo dominante.
+  if (!conv) return false;
+  clearDailyDueCollectionContext(conv);
+  return false;
 }
 
 async function evolution(path, body) {
@@ -3633,6 +3625,8 @@ function clearDailyDueCollectionContext(conv) {
   conv.dailyDueContextUntil = 0;
   conv.dailyDueReminderAt = 0;
   conv.dailyDueReplyCount = 0;
+  conv.dailyDueLookupAt = 0;
+  conv.dailyDueLookupActive = false;
   if (conv.pendingAction === 'daily_due_finance_cpf') conv.pendingAction = '';
   saveStateSoon();
 }
@@ -10717,7 +10711,7 @@ async function handleWebhook(payload) {
   if (incoming.fromMe) {
     if (isDailyDueReminderOutbound(incoming.text)) {
       const conv = conversation(incoming.phone);
-      markDailyDueCollectionContext(conv);
+      clearDailyDueCollectionContext(conv);
       clearReviewNeeded(conv);
 
       await syncTicket(incoming.phone, {
@@ -10726,9 +10720,10 @@ async function handleWebhook(payload) {
         name: incoming.pushName,
         metadata: {
           assunto: 'vencimento_do_dia',
-          contextoCobranca: true,
+          contextoCobranca: false,
           lembreteAutomatico: true,
-          gustavoRespondeNoContexto: true
+          lembreteStateless: true,
+          gustavoRespondePelaMensagemAtual: true
         }
       });
 
@@ -10736,7 +10731,8 @@ async function handleWebhook(payload) {
         ok: true,
         dailyDueReminder: true,
         skipLegacy: true,
-        contextHours: Math.round(DAILY_DUE_CONTEXT_TTL_MS / 3600000)
+        stateless: true,
+        contextHours: 0
       };
     }
 
@@ -10781,9 +10777,9 @@ async function handleWebhook(payload) {
     return { ignored: 'manual_human_mode' };
   }
 
-  await syncDailyDueContextFromBackend(incoming.phone, conv, incoming.text);
-
-  const dailyDueContextAtStart = hasDailyDueCollectionContext(conv);
+  // O lembrete de vencimento não cria memória. Cada mensagem é roteada
+  // pelo conteúdo atual: financeiro, produto, saudação, comprovante etc.
+  clearDailyDueCollectionContext(conv);
 
   const supplierInbound = await handleSupplierInbound(incoming, conv);
   if (supplierInbound.handled) {
@@ -10802,20 +10798,6 @@ async function handleWebhook(payload) {
         media: true,
         audio: audio.kind || 'handled',
         durationSeconds: Number(audio.durationSeconds || incoming.mediaDurationSeconds || 0)
-      };
-    }
-  }
-
-  if (incoming.hasMedia && ['image', 'document'].includes(incoming.mediaType) && hasDailyDueCollectionContext(conv)) {
-    const collectionMedia = await handleDailyDueCollectionMedia(incoming, conv);
-    if (collectionMedia?.handled) {
-      return {
-        ok: true,
-        media: true,
-        collectionContext: true,
-        skipLegacy: true,
-        collectionMedia: collectionMedia.kind || 'handled',
-        confidence: Number(collectionMedia.confidence || 0)
       };
     }
   }
@@ -10853,14 +10835,10 @@ async function handleWebhook(payload) {
   try {
     await handleMessage(incoming);
 
-    const changedToSales =
-      dailyDueContextAtStart &&
-      asksDailyDueSubjectChange(incoming.text);
-
     return {
       ok: true,
-      collectionContext: dailyDueContextAtStart && !changedToSales,
-      skipLegacy: dailyDueContextAtStart && !changedToSales
+      collectionContext: false,
+      skipLegacy: false
     };
   } catch (error) {
     console.error('[loja-bot] erro ao processar mensagem:', error?.stack || error?.message || error);
@@ -10947,31 +10925,21 @@ const server = http.createServer((req, res) => {
         return sendJson(res, 400, { ok: false, error: 'invalid_phone' });
       }
 
-      const active = payload.active !== false;
       const aliases = brazilWhatsappPhoneAliases(phone);
 
       for (const alias of aliases) {
         const conv = conversation(alias);
-        if (active) {
-          markDailyDueCollectionContext(conv);
-          conv.dailyDueLookupAt = Date.now();
-          conv.dailyDueLookupActive = true;
-        } else {
-          clearDailyDueCollectionContext(conv);
-          conv.dailyDueLookupAt = Date.now();
-          conv.dailyDueLookupActive = false;
-        }
+        clearDailyDueCollectionContext(conv);
       }
       saveStateSoon();
-
-      const primaryConv = conversation(phone);
 
       return sendJson(res, 200, {
         ok: true,
         phone,
         aliases,
-        active: hasDailyDueCollectionContext(primaryConv),
-        contextHours: Math.round(DAILY_DUE_CONTEXT_TTL_MS / 3600000)
+        active: false,
+        stateless: true,
+        contextHours: 0
       });
     }
 
