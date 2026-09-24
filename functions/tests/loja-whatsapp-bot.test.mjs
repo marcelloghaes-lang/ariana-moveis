@@ -3109,7 +3109,7 @@ test('"crediário lógico" continua a pergunta "cartão ou crediário" no mesmo 
   assert.equal(bot.conversation(phone).selectedProduct.id, last.id);
   assert.equal(bot.conversation(phone).pendingAction, 'credit_installments');
   assert.match(sentTexts.at(-1).text, /Geladeira HQ Defrost 230 Litros/i);
-  assert.match(sentTexts.at(-1).text, /crediário próprio em até \\*?15x\\*?/i);
+  assert.match(sentTexts.at(-1).text, /crediário próprio em até \*?15x\*?/i);
   assert.match(sentTexts.at(-1).text, /Em quantas vezes/i);
   assert.doesNotMatch(sentTexts.at(-1).text, /Me conta um pouco mais|pegar certinho/i);
 });
@@ -3418,7 +3418,7 @@ test('primeiro produto em 10 vezes no boleto seleciona e calcula na mesma respos
 
   assert.equal(sentTexts.length, 1);
   assert.match(sentTexts[0].text, /Guarda Roupa Primeiro/);
-  assert.match(sentTexts[0].text, /10x de R\$\s+100,00/);
+  assert.match(sentTexts[0].text, /10x de R\$\s+107,69/);
   assert.match(sentTexts[0].text, /total de \*?R\$\s+1\.000,00/);
   assert.equal(bot.conversation(phone).selectedProduct.id, 'cred-ord-1');
   assert.equal(bot.conversation(phone).lastCreditPlan.count, 10);
@@ -3439,9 +3439,9 @@ test('erro "beto" em contexto de parcela reaproveita o último plano do boleto',
     lastCreditPlan: {
       productId: 'cred-beto-1',
       count: 10,
-      divisor: 0.70,
-      total: 1000,
-      installment: 100
+      divisor: 0.65,
+      total: 1076.92,
+      installment: 107.69
     }
   });
 
