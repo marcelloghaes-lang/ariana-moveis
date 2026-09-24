@@ -147,10 +147,24 @@ export function createErpNfeSefazService(context={},settings){
 
   async function resolvedCustomer(draft={}){
     const input=draft.customer||{};
+    const mergeSaved=saved=>({
+      ...input,
+      ...saved,
+      addressData:saved?.address||input.addressData||{},
+      address:saved?.addressText||input.address||''
+    });
     if(input.id){
       try{
         const saved=await people.get(input.id);
-        return{...input,...saved,addressData:saved.address||input.addressData||{}};
+        return mergeSaved(saved);
+      }catch{}
+    }
+    const doc=digits(input.document);
+    if([11,14].includes(doc.length)){
+      try{
+        const listed=await people.list({q:doc,limit:20});
+        const exact=(listed.people||[]).find(p=>digits(p.document)===doc);
+        if(exact)return mergeSaved(exact);
       }catch{}
     }
     return{...input,addressData:input.addressData||{}};
