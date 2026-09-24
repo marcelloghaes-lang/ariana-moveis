@@ -18,6 +18,7 @@ import registerExternalIntegrationRoutes from './externalIntegrationRoutes.js';
 import createAdminOperationalController from '../controllers/adminOperationalController.js';
 import createWhatsappController from '../controllers/whatsappController.js';
 import createMarketplacePricingController from '../controllers/marketplacePricingController.js';
+import { createErpSigeHistoricalPurchaseEnrichmentService } from '../services/erp/erpSigeHistoricalPurchaseEnrichmentService.js';
 
 // ============================================================
 // ROTAS LEGADAS - ARIANA MÓVEIS
@@ -229,6 +230,40 @@ export default function registerLegacyRuntimeRoutes(app, context = {}) {
 registerOrderSupportRoutes(app, { ...context, calculateShipping, getShippingSettings });
 registerAdminSigeCrediarioBotRoutes(app, context);
 registerAdminAtendimentoRoutes(app, context);
+
+// Compra histórica SIGE: somente enriquecimento comercial.
+// Esta rotina NÃO altera lançamentos, saldos, baixas, vencimentos ou pagamentos do Ariana ERP.
+const historicalPurchaseEnrichment=createErpSigeHistoricalPurchaseEnrichmentService({mongoose});
+const enrichmentActor=req=>{
+  const u=req.admin||req.auth||req.user||{};
+  return String(u.name||u.nome||u.email||'Administrador').trim()||'Administrador';
+};
+app.get('/api/erp/migracao/sige/compras/status',adminRequired,async(_req,res)=>{
+  try{return res.json({ok:true,enrichment:await historicalPurchaseEnrichment.status()})}
+  catch(error){return res.status(Number(error?.statusCode||500)).json({ok:false,error:error?.message||'Erro ao consultar sincronização das compras.'})}
+});
+app.get('/api/erp/migracao/sige/compras/:sourceSaleId',adminRequired,async(req,res)=>{
+  try{return res.json({ok:true,purchase:await historicalPurchaseEnrichment.purchase(req.params.sourceSaleId)})}
+  catch(error){return res.status(Number(error?.statusCode||500)).json({ok:false,error:error?.message||'Compra histórica não encontrada.'})}
+});
+app.post('/api/erp/migracao/sige/compras/sincronizar',adminRequired,async(req,res)=>{
+  try{
+    if(String(req.body?.confirmation||'')!=='ENRIQUECER_COMPRAS_SIGE')return res.status(409).json({ok:false,error:'Confirmação inválida.'});
+    const result=await historicalPurchaseEnrichment.startInBackground({
+      force:req.body?.force===true,
+      actor:enrichmentActor(req),
+      delayMs:Math.max(3500,Number(req.body?.delayMs||4000)||4000)
+    });
+    return res.status(202).json({ok:true,result});
+  }catch(error){return res.status(Number(error?.statusCode||500)).json({ok:false,error:error?.message||'Erro ao iniciar sincronização das compras.'})}
+});
+const historicalPurchaseEnrichmentTimer=setTimeout(()=>{
+  historicalPurchaseEnrichment.startInBackground({
+    actor:'Ariana ERP - sincronização automática',
+    delayMs:4000
+  }).catch(error=>console.error('[erp-sige-enrichment] não foi possível iniciar:',error?.message||error));
+},30000);
+historicalPurchaseEnrichmentTimer.unref?.();
 
 const {
   BUILD_ID,
