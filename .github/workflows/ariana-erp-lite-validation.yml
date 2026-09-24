@@ -145,6 +145,10 @@ jobs:
           grep -Fq "metadata.sigeLive" functions/services/erp/erpSigeHistoricalPurchaseEnrichmentService.js
           grep -Fq "ENRIQUECER_COMPRAS_SIGE" functions/routes/erp/erpSigeHistoryRoutes.js
           grep -Fq "purchase-history-detail" public/erp_financeiro_completo.html
+          grep -Fq "historicalPurchaseEnrichment.startInBackground" functions/routes/legacyRuntimeRoutes.js
+          grep -Fq "/api/erp/migracao/sige/compras/status" functions/routes/legacyRuntimeRoutes.js
+          grep -Fq "delayMs:4000" functions/routes/legacyRuntimeRoutes.js
+          grep -Fq "limite do SIGE" functions/services/erp/erpSigeHistoricalPurchaseEnrichmentService.js
           if grep -Eq "ErpFinancialEntry|ledger\.pay|Entry\.update|Entry\.bulkWrite" functions/services/erp/erpSigeHistoricalPurchaseEnrichmentService.js; then
             echo "A rotina de enriquecimento não pode escrever no financeiro do Ariana ERP."
             exit 1
