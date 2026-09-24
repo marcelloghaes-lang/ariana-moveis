@@ -109,12 +109,12 @@ jobs:
       - name: Validate automatic receipt contact contract
         shell: bash
         run: |
-          grep -q "ERP_([a-f0-9]{24})" functions/services/erp/erpFinanceCustomerContactService.js
-          grep -q "LEDGER_([a-f0-9]{24})" functions/services/erp/erpFinanceCustomerContactService.js
-          grep -q "cliente_sem_whatsapp" functions/routes/adminSigeCrediarioBotRoutes.js
-          grep -q "requiresPhone" functions/routes/adminSigeCrediarioBotRoutes.js
-          grep -q "receiptPhoneOverlay" public/financeiro_recibos.html
-          grep -q "Salvar e enviar comprovante" public/financeiro_recibos.html
+          grep -Fq "ERP_([a-f0-9]{24})" functions/services/erp/erpFinanceCustomerContactService.js
+          grep -Fq "LEDGER_([a-f0-9]{24})" functions/services/erp/erpFinanceCustomerContactService.js
+          grep -Fq "cliente_sem_whatsapp" functions/routes/adminSigeCrediarioBotRoutes.js
+          grep -Fq "requiresPhone" functions/routes/adminSigeCrediarioBotRoutes.js
+          grep -Fq "receiptPhoneOverlay" public/financeiro_recibos.html
+          grep -Fq "Salvar e enviar comprovante" public/financeiro_recibos.html
 
       - name: Validate ERP permission matrix
         run: |
