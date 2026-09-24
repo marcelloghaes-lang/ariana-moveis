@@ -389,8 +389,264 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
 
 
+function financeiroErpReference(row = {}) {
+    if (row.source === 'ariana_sale' && row.orderId) {
+      return `ERP_${String(row.orderId)}_${Math.max(1, Number(row.installmentNumber || 1))}`;
+    }
+    return `LEDGER_${String(row.id || row._id || '')}`;
+  }
+
+  function parseFinanceiroErpReference(value = '') {
+    const raw = String(value || '').trim();
+    let match = raw.match(/^ERP_([a-f0-9]{24})_(\d+)$/i);
+    if (match) return { type: 'order', orderId: match[1], number: Number(match[2]) };
+    match = raw.match(/^LEDGER_([a-f0-9]{24})$/i);
+    if (match) return { type: 'ledger', entryId: match[1] };
+    return null;
+  }
+
+  async function findErpPersonForFinanceQuery(value = '') {
+    const Person = mongoose.models.ErpPerson;
+    if (!Person) return null;
+    const raw = String(value || '').trim();
+    const numeric = onlyDigits(raw);
+
+    if (mongoose.Types.ObjectId.isValid(raw)) {
+      const byId = await Person.findOne({ _id: raw, active: { $ne: false } }).lean();
+      if (byId) return byId;
+    }
+
+    if ([11, 14].includes(numeric.length)) {
+      const byDocument = await Person.findOne({
+        document: numeric,
+        active: { $ne: false }
+      }).lean();
+      if (byDocument) return byDocument;
+    }
+
+    if (numeric.length >= 10) {
+      const rows = await Person.find({
+        active: { $ne: false },
+        phone: { $exists: true, $ne: '' }
+      }).limit(5000).lean();
+      const matches = rows.filter((person) => botPhoneMatches(numeric, person.phone || ''));
+      if (matches.length === 1) return matches[0];
+    }
+
+    if (raw.length >= 2) {
+      const rx = new RegExp(escapeRegex(raw), 'i');
+      const rows = await Person.find({
+        active: { $ne: false },
+        $or: [{ name: rx }, { companyName: rx }, { email: rx }, { phone: rx }, { document: rx }]
+      }).limit(40).lean();
+      const wanted = normalizeSearch(raw);
+      const exact = rows.find((person) =>
+        normalizeSearch(person.name || person.companyName || '') === wanted
+      );
+      if (exact) return exact;
+      if (rows.length === 1) return rows[0];
+    }
+    return null;
+  }
+
+  async function getErpFinanceRowsForQuery(query = '') {
+    const person = await findErpPersonForFinanceQuery(query);
+    const groups = [];
+    const cpf = onlyDigits(person?.document || query);
+    const phone = onlyDigits(person?.phone || '');
+    const sourcePersonId = String(person?.sourceId || '').trim();
+
+    if ([11, 14].includes(cpf.length)) {
+      const byDocument = await erpParityFinance.finance({ direction: 'receivable', q: cpf });
+      groups.push((byDocument.entries || []).filter((row) => onlyDigits(row.personDocument || '') === cpf));
+    }
+
+    if (phone) {
+      const byPhone = await erpParityFinance.finance({ direction: 'receivable', q: phone });
+      groups.push((byPhone.entries || []).filter((row) => botPhoneMatches(phone, row.personPhone || '')));
+    }
+
+    if (sourcePersonId) {
+      const bySource = await erpParityFinance.finance({
+        direction: 'receivable',
+        personSourceId: sourcePersonId
+      });
+      groups.push((bySource.entries || []).filter((row) =>
+        String(row?.migration?.sourcePersonId || '') === sourcePersonId
+      ));
+    }
+
+    if (!groups.some((rows) => rows.length)) {
+      const raw = String(person?.name || person?.companyName || query || '').trim();
+      if (raw) {
+        const byName = await erpParityFinance.finance({ direction: 'receivable', q: raw });
+        const wanted = normalizeSearch(raw);
+        groups.push((byName.entries || []).filter((row) =>
+          normalizeSearch(row.personName || '') === wanted
+        ));
+      }
+    }
+
+    const seen = new Set();
+    const rows = [];
+    for (const group of groups) {
+      for (const row of group) {
+        const key = String(
+          row.id ||
+          row._id ||
+          [row.source, row.orderId, row.installmentNumber, row.dueAt, row.value].join('|')
+        );
+        if (seen.has(key)) continue;
+        seen.add(key);
+        rows.push(row);
+      }
+    }
+
+    return { person, rows };
+  }
+
+  function buildArianaErpCarneFromRows(rows = [], person = null) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const groups = new Map();
+    const customerName = String(person?.name || person?.companyName || rows[0]?.personName || 'Cliente').trim();
+    const customerCpf = onlyDigits(person?.document || rows[0]?.personDocument || '');
+    const customerPhone = String(person?.phone || rows[0]?.personPhone || '').trim();
+
+    for (const row of rows) {
+      const normalized = normalizeErpBotReceivable(row);
+      const paid = normalized.quitado === true;
+      const due = normalized.dataVencimento ? new Date(normalized.dataVencimento) : null;
+      const late = !paid && due && !Number.isNaN(due.getTime()) && due < today;
+      const reference = financeiroErpReference(row);
+      const groupKey = row.source === 'ariana_sale'
+        ? String(row.description || row.orderId || 'Venda Ariana')
+        : String(row?.migration?.sourceSaleId
+          ? `Venda histórica ${row.migration.sourceSaleId}`
+          : (row.documentNumber || row.boletoNumber || row.description || row.id || 'Lançamento'));
+
+      const parcel = {
+        ...normalized,
+        codigo: reference,
+        sourceRef: reference,
+        sourceType: row.source === 'ariana_sale' ? 'ariana_erp_venda' : 'ariana_erp_historico',
+        orderId: row.orderId || '',
+        ledgerEntryId: row.source === 'ariana_sale' ? '' : String(row.id || row._id || ''),
+        cliente: customerName,
+        documento: String(row.documentNumber || row.boletoNumber || groupKey),
+        descricao: String(row.description || row.categoryName || groupKey),
+        formaPagamento: String(row.paymentMethod || ''),
+        dataPagamento: row.paidAt || null,
+        status: paid ? 'paga' : (late ? 'atrasada' : (row.partial ? 'parcial' : 'aberta')),
+        vencida: Boolean(late),
+        emAberto: !paid
+      };
+      parcel.atualizacaoFinanceira = calcularParcelaAtualizadaBackend(parcel, today);
+
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, {
+          documento: groupKey,
+          descricao: String(row.description || groupKey),
+          orderId: row.orderId || '',
+          sourceType: parcel.sourceType,
+          parcelas: [],
+          total: 0,
+          pago: 0,
+          saldo: 0,
+          multa: 0,
+          juros: 0,
+          valorAtualizado: 0,
+          pagas: 0,
+          abertas: 0,
+          atrasadas: 0
+        });
+      }
+
+      const group = groups.get(groupKey);
+      group.parcelas.push(parcel);
+      group.total += Number(parcel.valorParcela || 0);
+      group.pago += Number(parcel.valorPago || 0);
+      group.saldo += Number(parcel.saldoParcela || 0);
+      group.multa += Number(parcel.atualizacaoFinanceira?.multa || 0);
+      group.juros += Number(parcel.atualizacaoFinanceira?.juros || 0);
+      group.valorAtualizado += Number(parcel.atualizacaoFinanceira?.valorAtualizado || 0);
+      if (parcel.status === 'paga') group.pagas += 1;
+      else if (parcel.status === 'atrasada') group.atrasadas += 1;
+      else group.abertas += 1;
+    }
+
+    const grupos = [...groups.values()].map((group) => {
+      group.parcelas.sort((a, b) =>
+        new Date(a.dataVencimento || 0).getTime() - new Date(b.dataVencimento || 0).getTime()
+      );
+      const total = group.parcelas.length || 1;
+      group.parcelas = group.parcelas.map((parcel, index) => ({
+        ...parcel,
+        parcelaNumero: Number(parcel.parcelaNumero || index + 1),
+        parcelaLabel: `${String(parcel.parcelaNumero || index + 1).padStart(2, '0')}/${String(parcel.parcelas || total).padStart(2, '0')}`
+      }));
+      for (const key of ['total', 'pago', 'saldo', 'multa', 'juros', 'valorAtualizado']) {
+        group[key] = Number(Number(group[key] || 0).toFixed(2));
+      }
+      return group;
+    });
+
+    const resumo = grupos.reduce((acc, group) => {
+      acc.total += group.total;
+      acc.pago += group.pago;
+      acc.saldo += group.saldo;
+      acc.multa += group.multa;
+      acc.juros += group.juros;
+      acc.valorAtualizado += group.valorAtualizado;
+      acc.parcelas += group.parcelas.length;
+      acc.pagas += group.pagas;
+      acc.abertas += group.abertas;
+      acc.atrasadas += group.atrasadas;
+      return acc;
+    }, { total: 0, pago: 0, saldo: 0, multa: 0, juros: 0, valorAtualizado: 0, parcelas: 0, pagas: 0, abertas: 0, atrasadas: 0 });
+
+    for (const key of ['total', 'pago', 'saldo', 'multa', 'juros', 'valorAtualizado']) {
+      resumo[key] = Number(Number(resumo[key] || 0).toFixed(2));
+    }
+    resumo.calculoFinanceiro = getFinanceiroCalculationConfig();
+
+    const address = person?.address || {};
+    return {
+      cliente: customerName,
+      telefone: customerPhone,
+      cpf: customerCpf,
+      cidade: String(address.city || address.municipio || '').trim(),
+      uf: String(address.stateCode || address.uf || address.state || '').trim().toUpperCase(),
+      resumo,
+      grupos,
+      parcelas: normalizarIdentificacaoParcelas(
+        grupos.flatMap((group) => Array.isArray(group.parcelas) ? group.parcelas : [])
+      )
+    };
+  }
+
+  async function getArianaErpFinancialData(query = '') {
+    const term = String(query || '').trim();
+    if (term.length < 2) {
+      const error = new Error('Informe pelo menos 2 caracteres para consultar o financeiro.');
+      error.statusCode = 400;
+      throw error;
+    }
+    const { person, rows } = await getErpFinanceRowsForQuery(term);
+    const carne = buildArianaErpCarneFromRows(rows, person);
+    return {
+      ok: true,
+      ...carne,
+      total: rows.length,
+      fonte: 'ariana_erp',
+      fonteFinanceira: 'ariana_erp',
+      estadoFinanceiroSomenteLeitura: false,
+      mongoResponsabilidade: 'ariana_erp_financeiro_operacional'
+    };
+  }
+
   // ============================================================
-  // FASE 1 - GESTÃO ÚNICA DO CARNÊ DIGITAL SIGE
+  // FINANCEIRO ARIANA ERP - carteira local e operacional
   // Um único registro permanente por cliente. O SIGE continua
   // sendo a fonte oficial; o MongoDB guarda o snapshot e auditoria.
   // ============================================================
