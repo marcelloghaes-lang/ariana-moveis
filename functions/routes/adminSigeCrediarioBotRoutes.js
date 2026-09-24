@@ -16101,7 +16101,8 @@ async function executarSincronizacaoCarnesErp({
                 'CARNE_WHATSAPP_FALHOU',
                 'PROMESSA_PAGAMENTO_CRIADA',
                 'TRATATIVA_FINANCEIRA_CRIADA',
-                'PAGAMENTO_CONFIRMADO_SIGE'
+                'PAGAMENTO_CONFIRMADO_SIGE',
+                'PAGAMENTO_CONFIRMADO_ARIANA_ERP'
               ]
             }
           }).sort({ createdAt: -1 }).limit(20).lean()
@@ -16488,12 +16489,12 @@ async function executarSincronizacaoCarnesErp({
           }),
           FinanceiroAuditoria.countDocuments({
             ...auditoriaFilter,
-            acao: 'PAGAMENTO_CONFIRMADO_SIGE',
+            acao: { $in: ['PAGAMENTO_CONFIRMADO_SIGE', 'PAGAMENTO_CONFIRMADO_ARIANA_ERP'] },
             sucesso: true
           }),
           FinanceiroAuditoria.countDocuments({
             ...auditoriaFilter,
-            acao: { $in: ['PROMESSA_PAGAMENTO_CUMPRIDA', 'PAGAMENTO_CONFIRMADO_SIGE'] },
+            acao: { $in: ['PROMESSA_PAGAMENTO_CUMPRIDA', 'PAGAMENTO_CONFIRMADO_SIGE', 'PAGAMENTO_CONFIRMADO_ARIANA_ERP'] },
             sucesso: true
           }),
           FinanceiroPromessaPagamento.aggregate([
@@ -17520,10 +17521,14 @@ async function executarSincronizacaoCarnesErp({
             readyState: Number(mongoose.connection?.readyState || 0),
             database: mongoose.connection?.name || MONGODB_DB || ''
           },
-          sige: {
-            configured: Boolean(isSigeConfigured()),
-            apiUrlConfigured: Boolean(SIGE_API_URL),
-            tokenConfigured: Boolean(SIGE_TOKEN)
+          arianaErp: {
+            operacional: true,
+            bancoLocal: mongoose.connection?.readyState === 1,
+            fonteFinanceira: 'ariana_erp'
+          },
+          sigeLegado: {
+            operacional: false,
+            finalidade: 'Somente rotas legadas/importação histórica; não é fonte do Ariana Financeiro.'
           },
           whatsapp: {
             configured: whatsappConfigured
@@ -17574,8 +17579,8 @@ async function executarSincronizacaoCarnesErp({
       prevencaoRiscoFase10: true,
       avaliacaoNovaVendaFase10: true,
       correcaoFusoDataFila: true,
-      sincronizacaoSigeComFallback: true,
-      preservacaoParcelasEmFalhaSige: true,
+      sincronizacaoArianaErp: true,
+      preservacaoHistoricoLocal: true,
       identificacaoParcelasNormalizada: true,
       diagnosticoOperacional: true,
       dashboardFinanceiroUnificado: true,
@@ -17601,23 +17606,22 @@ async function executarSincronizacaoCarnesErp({
       prevencaoDuplicidadeTratativas: true,
       segundaViaSemDuplicidade: true,
       renegociacaoPreservaOriginal: true,
-      fonteOficial: 'sige',
-      parcelas: 'sige',
-      saldo: 'sige',
-      pagamentos: 'sige',
-      baixaSigeBackend: true,
+      fonteOficial: 'ariana_erp',
+      parcelas: 'ariana_erp',
+      saldo: 'ariana_erp',
+      pagamentos: 'ariana_erp',
+      baixaArianaErpBackend: true,
       reciboAutomatico: true,
       whatsappAutomatico: true,
-      mongoDb: 'historico_recibos_whatsapp_auditoria',
+      mongoDb: 'ariana_erp_financeiro_historico_recibos_whatsapp_auditoria',
       rotasLegadasPreservadas: true
     });
   });
 
   // ============================================================
-  // FASE C.3 - BAIXA NO SIGE + RECIBO + WHATSAPP
-  // O SIGE permanece como fonte financeira oficial.
-  // Somente após a confirmação da baixa, o MongoDB recebe o recibo/auditoria
-  // e o WhatsApp é enviado ao cliente.
+  // LEGADO SIGE - auxiliares preservados apenas para rotas históricas/importação.
+  // O fluxo /api/admin/financeiro não utiliza estes auxiliares para consultar
+  // ou registrar pagamentos. A fonte operacional é o Ariana ERP.
   // ============================================================
   function getSigeRequestHeaders() {
     const headers = typeof sigeAuthHeaders === 'function'
