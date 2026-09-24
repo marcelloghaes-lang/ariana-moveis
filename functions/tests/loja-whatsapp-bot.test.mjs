@@ -7989,7 +7989,7 @@ test('fechamento no carnê entra no fluxo seguro de análise de crédito', async
   assert.ok(backendEvents.some((event) => /Crediário \/ análise/i.test(event.status || '')));
 });
 
-test('lembrete automático de vencimento abre contexto de cobrança sem pausar Gustavo como atendimento manual', async () => {
+test('lembrete automático de vencimento é apenas registro e não abre memória de cobrança no Gustavo', async () => {
   const phone = '5533977777790';
   const reminder = [
     'Bom dia, Cliente! Tudo bem?',
@@ -8017,8 +8017,10 @@ test('lembrete automático de vencimento abre contexto de cobrança sem pausar G
   });
 
   assert.equal(outbound.dailyDueReminder, true);
+  assert.equal(outbound.stateless, true);
+  assert.equal(outbound.contextHours, 0);
   assert.equal(bot.conversation(phone).manualHumanUntil, 0);
-  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), true);
+  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), false);
 
   sentTexts = [];
 
@@ -8035,9 +8037,107 @@ test('lembrete automático de vencimento abre contexto de cobrança sem pausar G
     }
   });
 
+  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), false);
   assert.equal(sentTexts.length, 1);
-  assert.match(sentTexts[0].text, /parcela que vence hoje/i);
-  assert.doesNotMatch(sentTexts[0].text, /Seja bem-vindo|o que você está procurando|produtos, preços/i);
+  assert.match(sentTexts[0].text, /Bom dia/i);
+  assert.doesNotMatch(sentTexts[0].text, /parcela que vence hoje|cobrança|comprovante/i);
+});
+
+
+test('foto de móvel depois de lembrete antigo vai para visão de produto e não para comprovante', async () => {
+  const phone = '5533977777789';
+
+  // Simula estado legado deixado por uma versão antiga/um lembrete anterior.
+  bot.patchTestConversation(phone, {
+    dailyDueContextUntil: Date.now() + (24 * 60 * 60 * 1000),
+    dailyDueReminderAt: Date.now() - (24 * 60 * 60 * 1000),
+    dailyDueLookupActive: true
+  });
+
+  visionClassification = {
+    kind: 'product',
+    confidence: 0.95,
+    product_name: 'Rack buffet para TV',
+    brand: '',
+    model: '',
+    category_hint: 'rack',
+    payment_method: 'unknown',
+    payment_recipient_name: '',
+    summary: 'Móvel para TV com portas'
+  };
+
+  catalogRows = [
+    product('rack-bel-1', 'Rack Buffet para TV 4 Portas Cinza Madeira', {
+      category: 'Rack',
+      stock: 2
+    })
+  ];
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'PRODUCT-AFTER-OLD-DUE-REMINDER-1'
+      },
+      pushName: 'Cliente Produto',
+      message: {
+        imageMessage: {
+          mimetype: 'image/jpeg'
+        }
+      }
+    }
+  });
+
+  assert.equal(result.vision, 'product');
+  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), false);
+  assert.ok(
+    sentTexts.some((item) => /Pela imagem, identifiquei/i.test(item.text)) ||
+    sentMedia.some((item) => /Rack Buffet/i.test(item.caption || ''))
+  );
+  const all = [
+    ...sentTexts.map((item) => item.text),
+    ...sentMedia.map((item) => item.caption || '')
+  ].join('\n');
+  assert.doesNotMatch(all, /parcela que vence hoje|se isso for o comprovante|PIX ou boleto/i);
+});
+
+test('comprovante continua sendo reconhecido pelo conteúdo da imagem sem memória do lembrete', async () => {
+  const phone = '5533977777788';
+
+  visionClassification = {
+    kind: 'payment_receipt_pix',
+    confidence: 0.97,
+    product_name: '',
+    brand: '',
+    model: '',
+    category_hint: '',
+    payment_method: 'pix',
+    payment_recipient_name: 'MARCELO NUNES SILVA',
+    summary: 'Comprovante PIX'
+  };
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'RECEIPT-WITHOUT-DUE-MEMORY-1'
+      },
+      pushName: 'Cliente Financeiro',
+      message: {
+        imageMessage: {
+          mimetype: 'image/jpeg'
+        }
+      }
+    }
+  });
+
+  assert.equal(result.vision, 'payment_receipt_pix');
+  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), false);
+  assert.match(sentTexts.at(-1).text, /pagamento está sendo analisado/i);
 });
 
 test('Gustavo mantém negociação de nova data dentro da cobrança e encaminha ao Marcelo sem prometer acordo', async () => {
@@ -8141,7 +8241,7 @@ test('citar o produto dentro da pergunta da parcela não tira o cliente do conte
 });
 
 
-test('Gustavo recupera do backend o contexto de cobrança do dia mesmo sem evento outbound do WhatsApp', async () => {
+test('Gustavo não recupera nem reativa memória de cobrança do dia pelo backend', async () => {
   const phone = '5533977777794';
   dailyDueContextResponse = {
     ok: true,
@@ -8164,16 +8264,13 @@ test('Gustavo recupera do backend o contexto de cobrança do dia mesmo sem event
     }
   });
 
-  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), true);
-  assert.equal(sentTexts.length, 1);
-  assert.equal(sentTexts[0].text, 'Por nada 😊 Qualquer coisa estou por aqui.');
-  assert.doesNotMatch(sentTexts[0].text, /produto ou da condição que você precisa|Seja bem-vindo/i);
+  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), false);
 
   const lookup = requestLog.find((item) =>
     item.href === 'https://backend.test/api/bot/financeiro/vencimento-hoje/contexto'
   );
-  assert.ok(lookup, 'deve consultar contexto protegido no backend');
-  assert.equal(lookup.options.headers['x-loja-bot-token'], 'test-loja-token');
+  assert.equal(lookup, undefined, 'mensagem atual não deve consultar lembrete antigo para decidir o assunto');
+  assert.doesNotMatch(sentTexts.map((item) => item.text).join('\n'), /parcela que vence hoje/i);
 });
 
 test('consulta de venda clara não é capturada pela sincronização da cobrança do dia', async () => {
@@ -8232,7 +8329,7 @@ test('resolveIncomingPhone prefere o telefone real quando remoteJid usa @lid', (
   );
 });
 
-test('contexto de cobrança funciona em conversa LID usando remoteJidAlt do telefone real', async () => {
+test('conversa LID também não reativa lembrete financeiro antigo pelo telefone real', async () => {
   const phone = '5533988905282';
   dailyDueContextResponse = {
     ok: true,
@@ -8256,18 +8353,13 @@ test('contexto de cobrança funciona em conversa LID usando remoteJidAlt do tele
     }
   });
 
-  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), true);
-  assert.equal(sentTexts.length, 1);
-  assert.equal(sentTexts[0].text, 'Por nada 😊 Qualquer coisa estou por aqui.');
-  assert.doesNotMatch(sentTexts[0].text, /produto ou da condição que você precisa/i);
-
+  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), false);
   const lookup = requestLog.find((item) =>
     item.href === 'https://backend.test/api/bot/financeiro/vencimento-hoje/contexto'
   );
-  assert.ok(lookup, 'deve consultar o contexto pelo telefone real');
-  assert.match(String(lookup.options.body || ''), /5533988905282/);
+  assert.equal(lookup, undefined);
+  assert.doesNotMatch(sentTexts.map((item) => item.text).join('\n'), /parcela que vence hoje/i);
 });
-
 
 test('aliases brasileiros tratam o mesmo celular com e sem nono dígito', () => {
   assert.deepEqual(
@@ -8351,14 +8443,12 @@ test('sequência de emojis positivos na cobrança não gera uma resposta para ca
 });
 
 
-test('cobrança do dia sinaliza skipLegacy para impedir segunda resposta do fluxo antigo', async () => {
+test('estado legado de cobrança é descartado no webhook e não força skipLegacy', async () => {
   const phone = '5533988905282';
   const alias = '553388905282';
   const contextPatch = {
     dailyDueContextUntil: Date.now() + (6 * 60 * 60 * 1000),
-    dailyDueReminderAt: Date.now(),
-    dailyDueCourtesyAt: 0,
-    dailyDueCourtesyCount: 0
+    dailyDueReminderAt: Date.now()
   };
   bot.patchTestConversation(phone, contextPatch);
   bot.patchTestConversation(alias, contextPatch);
@@ -8377,10 +8467,10 @@ test('cobrança do dia sinaliza skipLegacy para impedir segunda resposta do flux
   });
 
   assert.equal(result.ok, true);
-  assert.equal(result.collectionContext, true);
-  assert.equal(result.skipLegacy, true);
-  assert.equal(sentTexts.length, 1);
-  assert.equal(sentTexts[0].text, 'Por nada 😊 Qualquer coisa estou por aqui.');
+  assert.equal(result.collectionContext, false);
+  assert.equal(result.skipLegacy, false);
+  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(alias)), false);
+  assert.doesNotMatch(sentTexts.map((item) => item.text).join('\n'), /parcela que vence hoje/i);
 });
 
 test('controle de emoji positivo é compartilhado entre número com e sem nono dígito', async () => {
@@ -8455,7 +8545,7 @@ test('nova intenção de venda após cobrança continua liberada e não força s
 });
 
 
-test('saudação natural dentro da cobrança responde curto e permanece no contexto financeiro', async () => {
+test('saudação depois de lembrete antigo é saudação normal e não permanece no financeiro', async () => {
   const phone = '5533977777799';
   bot.patchTestConversation(phone, {
     dailyDueContextUntil: Date.now() + (6 * 60 * 60 * 1000),
@@ -8476,14 +8566,12 @@ test('saudação natural dentro da cobrança responde curto e permanece no conte
   });
 
   assert.equal(result.ok, true);
-  assert.equal(result.collectionContext, true);
-  assert.equal(result.skipLegacy, true);
+  assert.equal(result.collectionContext, false);
+  assert.equal(result.skipLegacy, false);
+  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), false);
   assert.equal(sentTexts.length, 1);
-  assert.equal(
-    sentTexts[0].text,
-    'Boa tarde 😊 Estou por aqui. Se precisar de algo sobre a parcela que vence hoje, é só me falar.'
-  );
-  assert.doesNotMatch(sentTexts[0].text, /valor, a chave PIX, o comprovante/i);
+  assert.match(sentTexts[0].text, /Boa tarde/i);
+  assert.doesNotMatch(sentTexts[0].text, /parcela que vence hoje|chave PIX|comprovante/i);
 });
 
 test('saudação com typo comum bopa tarde continua curta dentro da cobrança', async () => {
