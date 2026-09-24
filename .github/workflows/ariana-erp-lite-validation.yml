@@ -119,6 +119,9 @@ jobs:
           grep -Fq "ErpSigeHistoricalSale" functions/services/erp/erpPaymentReceiptService.js
           grep -Fq "historicalInstallmentLabel" functions/services/erp/erpPaymentReceiptService.js
           grep -Fq "historicalInstallmentLabel" functions/services/erp/erpPaymentReceiptUtils.js
+          grep -Fq "historicalInstallmentNumber" functions/services/erp/erpLedgerService.js
+          grep -Fq "historicalInstallments" functions/services/erp/erpLedgerService.js
+          grep -Fq "hasOriginal" public/erp_financeiro_completo.html
           grep -Fq "receiptDelivery" functions/services/erp/erpFinanceService.js
           grep -Fq "receiptDelivery" functions/services/erp/erpLedgerService.js
           grep -Fq "return finance.receive" functions/services/erp/erpSigeSaleParityService.js

@@ -71,8 +71,75 @@ export function createErpLedgerService(context={}){
   const filter={};if(['receivable','payable'].includes(query.direction))filter.direction=query.direction;if(['pending','paid','cancelled'].includes(query.status))filter.status=query.status;
   if(query.from||query.to){filter.dueAt={};if(query.from)filter.dueAt.$gte=new Date(query.from);if(query.to){const d=new Date(query.to);d.setHours(23,59,59,999);filter.dueAt.$lte=d}}
   if(query.categoryId)filter.categoryId=clean(query.categoryId,120);if(query.bankAccountId)filter.bankAccountId=clean(query.bankAccountId,120);if(query.paymentMethod)filter.paymentMethod=clean(query.paymentMethod,80);
-  const q=clean(query.q||query.search,160);if(q){const rx=new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i');filter.$or=[{personName:rx},{description:rx},{categoryName:rx},{personDocument:rx},{documentNumber:rx},{boletoNumber:rx}]}
-  const limit=Math.min(3000,Math.max(1,Number(query.limit||1000)));let rows=(await Entry.find(filter).sort({dueAt:1,createdAt:-1}).limit(limit)).map(decorate);
+  const q=clean(query.q||query.search,160);if(q){const rx=new RegExp(q.replace(/[.*+?^\${}()|[\]\\]/g,'\\$&'),'i');filter.$or=[{personName:rx},{description:rx},{categoryName:rx},{personDocument:rx},{documentNumber:rx},{boletoNumber:rx}]}
+  const limit=Math.min(3000,Math.max(1,Number(query.limit||1000)));
+  const docs=await Entry.find(filter).sort({dueAt:1,createdAt:-1}).limit(limit);
+  let rows=docs.map(decorate);
+
+  // Histórico importado: a posição da parcela pertence à compra original e
+  // não pode ser recalculada com base somente nos títulos ainda visíveis.
+  // Considera também parcelas já pagas da mesma venda, sem alterar o financeiro.
+  const ids=rows.map(r=>r?._id).filter(Boolean);
+  if(ids.length){
+    const rawRows=await Entry.collection.find({_id:{$in:ids}}).project({
+      _id:1,migration:1,sourceSystem:1,sourceId:1,origin:1
+    }).toArray();
+    const rawById=new Map(rawRows.map(r=>[String(r._id),r]));
+    const saleIds=[...new Set(rawRows.map(r=>clean(r?.migration?.sourceSaleId,120)).filter(Boolean))];
+    const installmentByEntry=new Map();
+
+    if(saleIds.length){
+      const siblings=await Entry.collection.find({
+        direction:'receivable',
+        'migration.sourceSaleId':{$in:saleIds},
+        status:{$ne:'cancelled'}
+      }).project({
+        _id:1,dueAt:1,competenceAt:1,createdAt:1,migration:1,sourceId:1
+      }).toArray();
+
+      const groups=new Map();
+      for(const row of siblings){
+        const sid=clean(row?.migration?.sourceSaleId,120);
+        if(!sid)continue;
+        if(!groups.has(sid))groups.set(sid,[]);
+        groups.get(sid).push(row);
+      }
+
+      for(const [sid,list] of groups){
+        list.sort((a,b)=>{
+          const ad=new Date(a?.dueAt||a?.competenceAt||a?.createdAt||0).getTime()||0;
+          const bd=new Date(b?.dueAt||b?.competenceAt||b?.createdAt||0).getTime()||0;
+          if(ad!==bd)return ad-bd;
+          const as=clean(a?.sourceId,120),bs=clean(b?.sourceId,120);
+          if(as!==bs)return as.localeCompare(bs,'pt-BR',{numeric:true});
+          return String(a?._id||'').localeCompare(String(b?._id||''));
+        });
+        const total=list.length;
+        list.forEach((row,index)=>installmentByEntry.set(String(row._id),{
+          number:index+1,
+          installments:total,
+          sourceSaleId:sid
+        }));
+      }
+    }
+
+    rows=rows.map(row=>{
+      const id=String(row?._id||'');
+      const raw=rawById.get(id)||{};
+      const installment=installmentByEntry.get(id)||null;
+      return{
+        ...row,
+        migration:raw.migration||row.migration||null,
+        sourceSystem:raw.sourceSystem||row.sourceSystem||'',
+        sourceId:raw.sourceId||row.sourceId||'',
+        origin:raw.origin||row.origin||'',
+        historicalInstallmentNumber:installment?.number||0,
+        historicalInstallments:installment?.installments||0,
+        historicalSourceSaleId:installment?.sourceSaleId||clean(raw?.migration?.sourceSaleId,120)
+      };
+    });
+  }
+
   if(query.viewStatus==='partial')rows=rows.filter(r=>r.viewStatus==='partial');if(query.viewStatus==='pending')rows=rows.filter(r=>r.viewStatus==='pending');if(query.viewStatus==='paid')rows=rows.filter(r=>r.viewStatus==='paid');
   return rows
  }
