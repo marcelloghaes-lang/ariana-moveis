@@ -109,6 +109,8 @@ export function createErpNfeReturnService(context={},settings){
     const operation=draft.fiscal||draft.fiscalOperation||{};
     const direction=clean(operation.direction||'saida',20).toLowerCase()==='entrada'?'entrada':'saida';
     const referenceKey=digits(operation.referenceKey||operation.originalKey);
+    if(String(operation.additionalInfo||'').length>5000)problems.push(publicProblem('ADDITIONAL_INFO_TOO_LONG','Informações complementares excedem 5.000 caracteres.','fiscal.additionalInfo'));
+    if(String(operation.taxAuthorityInfo||'').length>2000)problems.push(publicProblem('TAX_AUTHORITY_INFO_TOO_LONG','Informações de interesse do Fisco excedem 2.000 caracteres.','fiscal.taxAuthorityInfo'));
     if(referenceKey.length!==44)problems.push(publicProblem('RETURN_REFERENCE_KEY_INVALID','Informe a chave de acesso de 44 dígitos da NF-e original.','fiscal.referenceKey'));
 
     const customer=await resolvedCustomer(draft),doc=digits(customer.document),a=customer.addressData||{},recipientFiscal=customerFiscalProfile(customer);
@@ -161,7 +163,13 @@ export function createErpNfeReturnService(context={},settings){
       ready:problems.length===0,problems,environment:cfg.environment||'homologacao',a1:cfg.a1||{},issuer,
       customer:{...customer,addressData:ca,icmsTaxpayerStatus:recipientFiscal.status,indicatorIE:recipientFiscal.indicatorIE,ie:recipientFiscal.ie||clean(customer.ie,20)},
       products,taxation:tax,serie:Number(cfg.serie||1),nextNumber:Number(cfg.nextNumber||1),
-      operation:{direction,referenceKey,natureOperation:clean(operation.natureOperation||'Devolução de mercadoria',60)}
+      operation:{
+        direction,
+        referenceKey,
+        natureOperation:clean(operation.natureOperation||'Devolução de mercadoria',60),
+        additionalInfo:clean(operation.additionalInfo,5000),
+        taxAuthorityInfo:clean(operation.taxAuthorityInfo,2000)
+      }
     };
   }
 
@@ -192,7 +200,12 @@ export function createErpNfeReturnService(context={},settings){
         endereco:{logradouro:clean(customer.addressData.logradouro,60),numero:clean(customer.addressData.numero,60),complemento:clean(customer.addressData.complemento,60)||undefined,bairro:clean(customer.addressData.bairro,60),codigoMunicipio:digits(customer.addressData.codigoMunicipio),municipio:clean(customer.addressData.municipio,60),uf:custUf,cep:digits(customer.addressData.cep),telefone:digits(customer.phone)||undefined}
       },
       produtos,transporte:{modalidadeFrete:9},pagamento:{pagamentos:[{formaPagamento:'90',valor:0}]},
-      informacoesComplementares:clean(`NF-e de devolução. Documento original: ${pre.operation.referenceKey}. ${draft.notes||''}`,5000)
+      informacoesComplementares:clean([
+        `NF-e de devolução. Documento original: ${pre.operation.referenceKey}.`,
+        draft?.fiscal?.additionalInfo||pre.operation.additionalInfo,
+        draft.notes
+      ].filter(Boolean).join(' '),5000),
+      informacoesFisco:clean(draft?.fiscal?.taxAuthorityInfo||pre.operation.taxAuthorityInfo,2000)||undefined
     };
   }
 
