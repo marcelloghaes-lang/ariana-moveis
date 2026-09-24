@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { createErpPaymentReceiptService } from './erpPaymentReceiptService.js';
 
 const clean=(v='',m=1000)=>String(v??'').trim().slice(0,m);
 const money=(v=0)=>Math.round((Number(v||0)+Number.EPSILON)*100)/100;
@@ -29,6 +30,7 @@ const defaults=[['Vendas','receita'],['Recebimentos diversos','receita'],['Compr
 
 export function createErpLedgerService(context={}){
  const {IntegrationAuditLog,redact}=context;
+ const paymentReceipts=createErpPaymentReceiptService(context);
  async function audit(eventType,metadata={}){if(!IntegrationAuditLog)return;try{await IntegrationAuditLog.create({scope:'erp_ariana',eventType,status:clean(metadata.status||'',80),message:clean(metadata.message||'',1000),metadata:redact?redact(metadata):metadata})}catch(e){console.warn('[erp-ledger/audit]',e.message)}}
  async function ensureDefaults(){for(const [name,type] of defaults){await Category.updateOne({name,type},{$setOnInsert:{name,type,active:true,system:true}},{upsert:true})}}
  const serial=d=>d?.toObject?d.toObject():d;
@@ -84,7 +86,15 @@ export function createErpLedgerService(context={}){
   const payments=[...array(row.payments),payment],newPrincipal=money(principalPaid({...row.toObject(),payments})),newCash=money(cashPaid({...row.toObject(),payments})),newRemaining=Math.max(0,money(row.value-newPrincipal)),paid=newRemaining<=0.009;
   row.payments=payments;row.principalPaid=newPrincipal;row.paidValue=newCash;row.status=paid?'paid':'pending';row.paidAt=paidAt;row.paidBy=actorName(actor);if(bank){row.bankAccountId=String(bank._id);row.bankAccountName=bank.name}if(payment.method)row.paymentMethod=payment.method;
   await row.save();if(bank){const delta=row.direction==='receivable'?totalPaid:-totalPaid;try{await Bank.updateOne({_id:bank._id},{$inc:{currentBalance:delta}})}catch(e){row.payments=array(row.payments).filter(p=>p.id!==payment.id);row.principalPaid=principalPaid(row);row.paidValue=cashPaid(row);row.status=remaining(row)<=0.009?'paid':'pending';await row.save();throw e}}
-  await audit(paid?'erp.ledger.entry.paid':'erp.ledger.entry.partial',{message:paid?'Lançamento quitado':'Pagamento parcial registrado',entryId:String(row._id),direction:row.direction,principal,totalPaid,remaining:newRemaining,bankAccountId:bank?String(bank._id):'',by:actorName(actor)});return decorate(row)
+  await audit(paid?'erp.ledger.entry.paid':'erp.ledger.entry.partial',{message:paid?'Lançamento quitado':'Pagamento parcial registrado',entryId:String(row._id),direction:row.direction,principal,totalPaid,remaining:newRemaining,bankAccountId:bank?String(bank._id):'',by:actorName(actor)});
+  const decorated=decorate(row);
+  if(row.direction!=='receivable')return decorated;
+  const receiptDelivery=await paymentReceipts.afterLedgerReceive({
+    entry:decorated,
+    payment,
+    actor
+  }).catch(error=>({whatsappEnviado:false,requiresPhone:false,whatsapp:{ok:false,error:error?.message||String(error)}}));
+  return{...decorated,receiptDelivery}
  }
  async function unpay(id,actor={}){
   const row=await Entry.findById(id);if(!row)throw fail('Lançamento não encontrado.',404);const ps=array(row.payments);if(!ps.length&&principalPaid(row)<=0)throw fail('Este lançamento não possui pagamento para reabrir.',409);
