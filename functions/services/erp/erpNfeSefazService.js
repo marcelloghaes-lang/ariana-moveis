@@ -223,6 +223,20 @@ export function createErpNfeSefazService(context={},settings){
       if([1,4].includes(crt)&&digits(fiscal.cofinsCst).length!==2)problems.push(publicProblem('COFINS_CST_MISSING',`Informe o CST de COFINS do produto ${name} ou um CST padrão nas configurações.`,`items.${row.index}.cofinsCst`));
     }
 
+    const fiscalInput=draft?.fiscal||{};
+    const buyerPresence=Number(fiscalInput.buyerPresence??1);
+    const natureOperation=clean(fiscalInput.natureOperation||issuer.naturezaOperacao||'Venda de mercadoria',60);
+    if(!natureOperation)problems.push(publicProblem('NATURE_OPERATION_MISSING','Informe a natureza da operação.','fiscal.natureOperation'));
+    if(![0,1,2,3,4,5,9].includes(buyerPresence))problems.push(publicProblem('BUYER_PRESENCE_INVALID','Selecione uma presença do comprador válida para a NF-e.','fiscal.buyerPresence'));
+    if(String(fiscalInput.additionalInfo||'').length>5000)problems.push(publicProblem('ADDITIONAL_INFO_TOO_LONG','Informações complementares excedem 5.000 caracteres.','fiscal.additionalInfo'));
+    if(String(fiscalInput.taxAuthorityInfo||'').length>2000)problems.push(publicProblem('TAX_AUTHORITY_INFO_TOO_LONG','Informações de interesse do Fisco excedem 2.000 caracteres.','fiscal.taxAuthorityInfo'));
+
+    const transportInput=draft?.transport||{};
+    const freightMode=Number(transportInput.freightMode??9);
+    if(![0,1,2,3,4,9].includes(freightMode))problems.push(publicProblem('FREIGHT_MODE_INVALID','Selecione uma modalidade de frete válida.','transport.freightMode'));
+    if(clean(transportInput.carrierCnpj)&&digits(transportInput.carrierCnpj).length!==14)problems.push(publicProblem('CARRIER_CNPJ_INVALID','CNPJ da transportadora deve ter 14 dígitos.','transport.carrierCnpj'));
+    if(clean(transportInput.carrierUf)&&!VALID_UFS.has(clean(transportInput.carrierUf,2).toUpperCase()))problems.push(publicProblem('CARRIER_UF_INVALID','UF da transportadora inválida.','transport.carrierUf'));
+
     const total=money(draft?.totals?.total);
     if(total<=0)problems.push(publicProblem('TOTAL_INVALID','O total da venda precisa ser maior que zero.','totals.total'));
     const method=clean(draft?.payment?.method);
@@ -248,6 +262,33 @@ export function createErpNfeSefazService(context={},settings){
         fiscal:productFiscal(x.product?.specs||{},tax)
       })),
       taxation:tax,
+      fiscal:{
+        natureOperation,
+        consumerFinal:Number(fiscalInput.consumerFinal??1)===0?0:1,
+        buyerPresence,
+        additionalInfo:clean(fiscalInput.additionalInfo,5000),
+        taxAuthorityInfo:clean(fiscalInput.taxAuthorityInfo,2000),
+        publicPurchase:{
+          commitmentNumber:clean(fiscalInput.publicPurchase?.commitmentNumber,120),
+          orderNumber:clean(fiscalInput.publicPurchase?.orderNumber,120),
+          contractNumber:clean(fiscalInput.publicPurchase?.contractNumber,120),
+          processNumber:clean(fiscalInput.publicPurchase?.processNumber,120)
+        }
+      },
+      transport:{
+        freightMode,
+        carrierCnpj:digits(transportInput.carrierCnpj),
+        carrierName:clean(transportInput.carrierName,60),
+        carrierIe:clean(transportInput.carrierIe,20),
+        carrierAddress:clean(transportInput.carrierAddress,60),
+        carrierCity:clean(transportInput.carrierCity,60),
+        carrierUf:clean(transportInput.carrierUf,2).toUpperCase(),
+        volumeQuantity:Number(transportInput.volumeQuantity||0),
+        volumeSpecies:clean(transportInput.volumeSpecies,60),
+        volumeBrand:clean(transportInput.volumeBrand,60),
+        grossWeight:Number(transportInput.grossWeight||0),
+        netWeight:Number(transportInput.netWeight||0)
+      },
       serie:Number(cfg.serie||1),
       nextNumber:Number(cfg.nextNumber||1)
     };
@@ -303,12 +344,12 @@ export function createErpNfeSefazService(context={},settings){
     const cobranca=buildCobranca(draft,number,parts);
     return{
       identificacao:{
-        naturezaOperacao:clean(issuer.naturezaOperacao||'Venda de mercadoria',60),
+        naturezaOperacao:clean(draft?.fiscal?.natureOperation||issuer.naturezaOperacao||'Venda de mercadoria',60),
         tipoOperacao:1,
         destinoOperacao:destinationType(issuerUf,custUf),
         finalidade:1,
         consumidorFinal:Number(draft?.fiscal?.consumerFinal??1)===0?0:1,
-        presencaComprador:1,
+        presencaComprador:[0,1,2,3,4,5,9].includes(Number(draft?.fiscal?.buyerPresence))?Number(draft.fiscal.buyerPresence):1,
         ambiente:pre.environment==='producao'?1:2,
         uf:issuerUf,
         municipio:digits(issuer.codigoMunicipio),
@@ -352,9 +393,36 @@ export function createErpNfeSefazService(context={},settings){
         }
       },
       produtos:products,
-      transporte:{modalidadeFrete:9},
+      transporte:{
+        modalidadeFrete:[0,1,2,3,4,9].includes(Number(draft?.transport?.freightMode))?Number(draft.transport.freightMode):9,
+        ...(digits(draft?.transport?.carrierCnpj).length===14?{
+          cnpjTransportadora:digits(draft.transport.carrierCnpj),
+          nomeTransportadora:clean(draft.transport.carrierName,60)||undefined,
+          inscricaoEstadual:clean(draft.transport.carrierIe,20)||undefined,
+          endereco:clean(draft.transport.carrierAddress,60)||undefined,
+          municipio:clean(draft.transport.carrierCity,60)||undefined,
+          uf:clean(draft.transport.carrierUf,2).toUpperCase()||undefined
+        }:{}),
+        ...((Number(draft?.transport?.volumeQuantity||0)>0||Number(draft?.transport?.grossWeight||0)>0||Number(draft?.transport?.netWeight||0)>0)?{
+          volumes:[{
+            quantidade:Number(draft.transport.volumeQuantity||0)||undefined,
+            especie:clean(draft.transport.volumeSpecies,60)||undefined,
+            marca:clean(draft.transport.volumeBrand,60)||undefined,
+            pesoBruto:Number(draft.transport.grossWeight||0)||undefined,
+            pesoLiquido:Number(draft.transport.netWeight||0)||undefined
+          }]
+        }:{})
+      },
       ...(cobranca?{cobranca}:{}),
-      pagamento:{pagamentos:parts.map(v=>({formaPagamento:code,valor:v}))}
+      pagamento:{pagamentos:parts.map(v=>({formaPagamento:code,valor:v}))},
+      informacoesComplementares:clean([
+        draft?.fiscal?.additionalInfo,
+        draft?.fiscal?.publicPurchase?.commitmentNumber?`Empenho: ${draft.fiscal.publicPurchase.commitmentNumber}`:'',
+        draft?.fiscal?.publicPurchase?.orderNumber?`Pedido de compra: ${draft.fiscal.publicPurchase.orderNumber}`:'',
+        draft?.fiscal?.publicPurchase?.contractNumber?`Contrato: ${draft.fiscal.publicPurchase.contractNumber}`:'',
+        draft?.fiscal?.publicPurchase?.processNumber?`Processo: ${draft.fiscal.publicPurchase.processNumber}`:''
+      ].filter(Boolean).join(' | '),5000)||undefined,
+      informacoesFisco:clean(draft?.fiscal?.taxAuthorityInfo,2000)||undefined
     };
   }
 
@@ -380,7 +448,7 @@ export function createErpNfeSefazService(context={},settings){
           environment:pre.environment,
           issuerName:clean(pre.issuer.razaoSocial,240),
           issuerDocument:digits(pre.issuer.cnpj),
-          natureOperation:clean(pre.issuer.naturezaOperacao,240),
+          natureOperation:clean(draft?.fiscal?.natureOperation||pre.issuer.naturezaOperacao,240),
           operationType:'saida',
           documentModel:'55',
           purpose:'normal',
