@@ -233,7 +233,40 @@ async function saveReceive(){
     await Promise.all([loadCollections(),loadEntries(),loadPayments(),loadMetrics()]);
   }catch(e){toast(e.message)}
 }
-function openPurchaseEditor(key){const rows=collections.filter(r=>r.purchaseKey===key&&r.sourceType==='ledger');if(!rows.length)return;purchaseEditTarget={key,rows};const first=rows[0].raw;$('purchase-info').textContent=`${rows[0].customerName} • ${rows[0].purchaseRef} • ${rows.length} parcela(s)`;$('pg-person').value=first.personName||'';$('pg-document').value=first.personDocument||'';$('pg-method').value=first.paymentMethod||'';$('pg-description').value=first.description||'';$('pg-notes').value=first.notes||'';openModal('purchase-modal')}async function savePurchase(){if(!purchaseEditTarget)return;const body={personName:$('pg-person').value.trim(),personDocument:$('pg-document').value.trim(),description:$('pg-description').value.trim(),notes:$('pg-notes').value.trim()};if($('pg-method').value)body.paymentMethod=$('pg-method').value;if(!body.personName)return toast('Informe o nome do cliente.');try{$('save-purchase').disabled=true;for(const r of purchaseEditTarget.rows)await api(`/erp/financeiro/lancamentos/${encodeURIComponent(r.entryId)}`,{method:'PATCH',body:JSON.stringify(body)});closeModal('purchase-modal');toast('Compra histórica atualizada sem alterar valores nem vencimentos.');purchaseEditTarget=null;await Promise.all([loadCollections(),loadEntries()])}catch(e){toast(e.message)}finally{$('save-purchase').disabled=false}}
+function historicalPurchaseDetailHtml(sale={}){
+ const live=sale?.metadata?.sigeLive||{},items=(live.items?.length?live.items:sale.items)||[],payments=live.payments||[],totals=live.totals||{subtotal:sale.subtotal||0,shipping:sale.shipping||0,total:sale.total||0},customer=live.customer||{name:sale.customerName||'',document:sale.customerDocument||''},invoice=live.invoice||{number:sale.invoiceNumber||'',serie:sale.invoiceSerie||'',status:sale.invoiceStatus||''},saleDate=live.dates?.saleAt||sale.date||'',installments=Number(live.numberOfInstallments||payments[0]?.installments||0),sync=sale?.metadata?.sigeEnrichment||{};
+ let html='<div class="fields">';
+ const field=(label,value,span='')=>'<div class="field '+span+'"><label>'+esc(label)+'</label><div><b>'+value+'</b></div></div>';
+ html+=field('Venda original',esc(live.code||sale.code||sale.sourceId||'—'));
+ html+=field('Data da venda',saleDate?date(saleDate):'—');
+ html+=field('Vendedor',esc(live.sellerName||sale.sellerName||'—'));
+ html+=field('Status original',esc(live.systemStatus||live.status||sale.status||'—'));
+ html+=field('Cliente',esc(customer.name||sale.customerName||'—')+(customer.document?'<br><small class="muted">'+esc(customer.document)+'</small>':''),'span2');
+ html+=field('Total original',money(totals.total||sale.total||0));
+ html+=field('Parcelamento original',installments?String(installments)+' parcela(s)':'—');
+ html+=field('NF-e',esc(invoice.number||'—')+(invoice.serie?' <small>Série '+esc(invoice.serie)+'</small>':''));
+ html+=field('Situação NF-e',esc(invoice.status||'—'));
+ html+=field('Condição / forma',esc(live.paymentCondition||sale.paymentCondition||payments[0]?.method||'—'),'span2');
+ html+='</div><div style="margin-top:14px"><b>Itens da compra</b>';
+ if(items.length){
+  html+='<div style="overflow:auto;margin-top:8px"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:7px">Produto</th><th style="text-align:right;padding:7px">Qtd.</th><th style="text-align:right;padding:7px">Unitário</th><th style="text-align:right;padding:7px">Subtotal</th></tr></thead><tbody>';
+  for(const item of items)html+='<tr><td style="padding:7px;border-top:1px solid #e2e8f0"><b>'+esc(item.code||'')+'</b> '+esc(item.description||'')+'</td><td style="padding:7px;border-top:1px solid #e2e8f0;text-align:right">'+Number(item.quantity||1)+'</td><td style="padding:7px;border-top:1px solid #e2e8f0;text-align:right">'+money(item.unitPrice||0)+'</td><td style="padding:7px;border-top:1px solid #e2e8f0;text-align:right"><b>'+money(item.subtotal||0)+'</b></td></tr>';
+  html+='</tbody></table></div>';
+ }else html+='<div class="notice" style="margin-top:8px">Os itens desta venda ainda não foram retornados pela API do SIGE.</div>';
+ html+='</div>';
+ if(payments.length)html+='<div style="margin-top:12px"><b>Pagamento original</b><div class="sub">'+payments.map(p=>[p.method,p.installments?String(p.installments)+' parcela(s)':'',p.value?money(p.value):''].filter(Boolean).map(esc).join(' • ')).join('<br>')+'</div></div>';
+ html+='<div class="sub" style="margin-top:12px">Fonte: SIGE Cloud • '+(sync.status==='success'?'sincronização concluída':'sincronização pendente')+' • financeiro atual do Ariana ERP preservado.</div>';
+ return html;
+}
+async function loadHistoricalPurchaseDetail(key){
+ const box=$('purchase-history-detail'),sid=String(key||'').startsWith('sige:')?String(key).slice(5):'';
+ if(!sid){box.innerHTML='<div class="notice">Esta compra não possui vínculo histórico do SIGE.</div>';return}
+ box.innerHTML='<div class="empty">Consultando a ficha histórica da compra...</div>';
+ try{const d=await api('/erp/migracao/sige/compras/'+encodeURIComponent(sid));box.innerHTML=historicalPurchaseDetailHtml(d.purchase||{})}
+ catch(e){box.innerHTML='<div class="notice">A ficha detalhada ainda não está disponível. O financeiro permanece preservado. '+esc(e.message||'')+'</div>'}
+}
+async function openPurchaseEditor(key){const rows=collections.filter(r=>r.purchaseKey===key&&r.sourceType==='ledger');if(!rows.length)return;purchaseEditTarget={key,rows};const first=rows[0].raw;$('purchase-info').textContent=rows[0].customerName+' • '+rows[0].purchaseRef+' • '+(rows[0].number&&rows[0].installments?rows[0].number+'/'+rows[0].installments:rows.length+' parcela(s)');$('pg-person').value=first.personName||'';$('pg-document').value=first.personDocument||'';$('pg-method').value=first.paymentMethod||'';$('pg-description').value=first.description||'';$('pg-notes').value=first.notes||'';openModal('purchase-modal');await loadHistoricalPurchaseDetail(key)}
+async function savePurchase(){if(!purchaseEditTarget)return;const body={personName:$('pg-person').value.trim(),personDocument:$('pg-document').value.trim(),description:$('pg-description').value.trim(),notes:$('pg-notes').value.trim()};if($('pg-method').value)body.paymentMethod=$('pg-method').value;if(!body.personName)return toast('Informe o nome do cliente.');try{$('save-purchase').disabled=true;for(const r of purchaseEditTarget.rows)await api(`/erp/financeiro/lancamentos/${encodeURIComponent(r.entryId)}`,{method:'PATCH',body:JSON.stringify(body)});closeModal('purchase-modal');toast('Compra histórica atualizada sem alterar valores nem vencimentos.');purchaseEditTarget=null;await Promise.all([loadCollections(),loadEntries()])}catch(e){toast(e.message)}finally{$('save-purchase').disabled=false}}
 function openBulk(mode){const rows=selectedRows();if(!rows.length)return toast('Selecione parcelas de vendas atuais do Ariana ERP.');bulkMode=mode;const total=rows.reduce((s,r)=>s+Number(r.remaining||0),0);if(mode==='client'){const keys=new Set(rows.map(r=>(r.customerCpf||r.customerName||'').toLowerCase()));if(keys.size!==1)return toast('Para distribuir por cliente, selecione parcelas de um único cliente.');$('bulk-title').textContent='Distribuir valor por cliente';$('bulk-amount-label').textContent='Valor recebido';$('bulk-amount').disabled=false;$('bulk-amount').value=total.toFixed(2)}else{$('bulk-title').textContent='Quitar selecionados';$('bulk-amount-label').textContent='Saldo total';$('bulk-amount').disabled=true;$('bulk-amount').value=total.toFixed(2)}$('bulk-info').textContent=`${rows.length} parcela(s) • saldo ${money(total)}`;$('bulk-date').value=today();$('bulk-method').value='pix';$('bulk-bank').value='';$('bulk-note').value='';openModal('bulk-modal')}
 async function confirmBulk(){
   const rows=selectedRows(),items=rows.map(r=>({orderId:r.orderId,number:r.number})),body={items,amount:Number($('bulk-amount').value),paidAt:$('bulk-date').value,method:$('bulk-method').value,bankAccountName:banks.find(b=>b._id===$('bulk-bank').value)?.name||'',note:$('bulk-note').value.trim()};
