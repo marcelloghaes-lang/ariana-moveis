@@ -11,7 +11,8 @@ header h1,.top h1{color:#fff}header a,.top a{color:#fff!important}header a:hover
 .btn,.blue{border-radius:6px!important}.btn:not(.alt):not(.green),.blue{background:var(--ariana-blue);color:#fff}
 .btn.alt,.outline{color:var(--ariana-blue);border-color:#9db9df}
 input:focus,select:focus,textarea:focus{outline:none;border-color:#6c9ddd!important;box-shadow:0 0 0 3px rgba(0,71,171,.09)}
-</style></head><body>
+</style><link rel="stylesheet" href="erp-theme.css?v=20260924-1">
+</head><body>
 <header class="top"><div><h1>Vendas</h1><small>Ariana ERP • venda, revisão fiscal e financeiro no mesmo fluxo</small></div><div class="top-actions"><a class="btn blue" id="add-sale" href="erp_nova_venda.html">＋ Adicionar</a><a class="btn outline" id="carne-list-link" href="erp_carne.html">Carnês</a><a class="btn outline" href="erp_ariana.html">← Central ERP</a></div></header>
 <div class="auth hidden" id="auth"><h2>Login necessário</h2><p>Entre no Ariana ERP para acessar as vendas.</p><a href="erp_login.html?return=erp_pedidos.html">Abrir login</a></div>
 <main class="wrap" id="app"><div class="tools"><input id="search" placeholder="Busca rápida: cliente, CPF, telefone, código, produto ou SKU"><select id="status"><option value="all">Todos os status</option><option value="orcamento">Orçamento</option><option value="pedido">Pedido</option><option value="venda">Venda</option><option value="faturado">Faturado</option><option value="estornado">Estornado</option><option value="cancelado">Cancelado</option></select><button class="btn blue" id="refresh">Atualizar</button></div>
