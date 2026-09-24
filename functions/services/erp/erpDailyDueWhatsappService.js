@@ -1,4 +1,5 @@
 import { createErpFinanceService } from './erpFinanceService.js';
+import { createErpParityAnalyticsService } from './erpParityAnalyticsService.js';
 
 const text = (value = '', max = 500) => String(value ?? '').trim().slice(0, max);
 
@@ -312,8 +313,6 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
     IntegrationAuditLog,
     mongoose,
     waSendTextMessage,
-    toJSON,
-    redact,
     force = false,
     now = new Date()
   } = context;
@@ -329,54 +328,103 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
     return { ok: false, skipped: true, reason: 'database_not_ready' };
   }
 
-  const timeZone = String(process.env.ERP_DAILY_DUE_WHATSAPP_TIMEZONE || process.env.FINANCEIRO_AUTOMACAO_TIMEZONE || 'America/Sao_Paulo').trim();
+  const timeZone = String(
+    process.env.ERP_DAILY_DUE_WHATSAPP_TIMEZONE ||
+    process.env.FINANCEIRO_AUTOMACAO_TIMEZONE ||
+    'America/Sao_Paulo'
+  ).trim();
   const today = localDateKey(now, timeZone);
-  const finance = createErpFinanceService({ Order, IntegrationAuditLog, toJSON, redact });
-  const data = await finance.list({});
 
-  const nativeDueRows = (data.receivables || []).filter((row) => {
-    if (!isOpenDueRow(row)) return false;
-    return dueDateKey(row.dueAt, timeZone) === today;
+  // Usa exatamente a mesma fonte do modal "Vencimentos de hoje" do Ariana ERP:
+  // /erp/financeiro/completo?direction=receivable&from=HOJE&to=HOJE
+  const parity = createErpParityAnalyticsService({ ...context, Order });
+  const screenData = await parity.finance({
+    direction: 'receivable',
+    from: today,
+    to: today
   });
 
-  // Fonte adicional 100% local da Ariana. Não consulta o SIGE nem qualquer serviço externo:
-  // lê apenas os carnês/parcelas já persistidos no próprio banco financeiro da Ariana.
-  const [ledgerDueRows, storedDueRows] = await Promise.all([
-    listArianaLedgerDueRows({ mongoose, today, timeZone }),
-    listArianaStoredDueRows({ mongoose, today, timeZone })
-  ]);
-  const dueRows = [...ledgerDueRows, ...nativeDueRows, ...storedDueRows];
+  const dueRows = (screenData.entries || [])
+    .filter((row) => {
+      const status = String(row.status || '').trim().toLowerCase();
+      const open = status !== 'paid' && status !== 'cancelled';
+      const remaining = Number(row.outstanding ?? row.value ?? 0);
+      return open && remaining > 0.009 && dueDateKey(row.dueAt, timeZone) === today;
+    })
+    .map((row) => ({
+      ...row,
+      customerName: row.personName || 'Cliente',
+      customerDocument: row.personDocument || '',
+      customerPhone: row.personPhone || '',
+      remaining: Number(row.outstanding ?? row.value ?? 0),
+      installmentKey: String(
+        row.id ||
+        row.documentNumber ||
+        row.boletoNumber ||
+        row.installmentNumber ||
+        ''
+      )
+    }));
+
+  // A identidade do agrupamento é o CLIENTE, não o telefone.
+  // Assim dois clientes que usam o mesmo telefone continuam recebendo seus lembretes separadamente.
+  const customerKey = (row = {}) => {
+    const personId = String(row.personId || '').trim();
+    if (personId) return `person:${personId}`;
+
+    const sourcePersonId = String(row?.migration?.sourcePersonId || '').trim();
+    if (sourcePersonId) return `source:${sourcePersonId}`;
+
+    const document = String(row.customerDocument || row.personDocument || row.document || '').replace(/\D/g, '');
+    if (document) return `doc:${document}`;
+
+    const name = String(row.customerName || row.personName || 'Cliente')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+
+    return `name:${name || 'cliente'}`;
+  };
 
   const groups = new Map();
-  let skippedMissingPhone = 0;
 
   for (const row of dueRows) {
-    const phone = normalizeWhatsappPhone(row.customerPhone);
-    if (!phone) {
-      skippedMissingPhone += 1;
-      continue;
-    }
-
-    if (!groups.has(phone)) {
-      groups.set(phone, {
-        phone,
+    const key = customerKey(row);
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
         customerName: row.customerName || 'Cliente',
-        rows: [],
-        fingerprints: new Set()
+        phone: '',
+        rows: []
       });
     }
 
-    const remaining = Number(row.remaining ?? row.value ?? 0);
-    const fingerprint = [
-      phone,
-      dueDateKey(row.dueAt, timeZone),
-      Number.isFinite(remaining) ? remaining.toFixed(2) : '0.00'
-    ].join('|');
-
-    const group = groups.get(phone);
-    if (group.fingerprints.has(fingerprint)) continue;
-    group.fingerprints.add(fingerprint);
+    const group = groups.get(key);
+    const directPhone = normalizeWhatsappPhone(row.customerPhone);
+    if (!group.phone && directPhone) group.phone = directPhone;
     group.rows.push(row);
+  }
+
+  let skippedMissingPhone = 0;
+  for (const group of groups.values()) {
+    if (group.phone) continue;
+
+    for (const row of group.rows) {
+      const resolved = normalizeWhatsappPhone(await resolveLedgerPhone(mongoose, {
+        ...row,
+        personName: row.customerName || row.personName,
+        personDocument: row.customerDocument || row.personDocument,
+        personPhone: row.customerPhone || row.personPhone
+      }));
+      if (resolved) {
+        group.phone = resolved;
+        break;
+      }
+    }
+
+    if (!group.phone) skippedMissingPhone += 1;
   }
 
   let sent = 0;
@@ -384,8 +432,23 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
   const errors = [];
 
   for (const group of groups.values()) {
-    const claimKey = `erp_daily_due_whatsapp:${today}:${group.phone}`;
+    if (!group.phone) continue;
+
+    const safeIdentity = String(group.key || '')
+      .replace(/[^a-z0-9:_-]+/gi, '_')
+      .slice(0, 180);
+
+    const claimKey = `erp_daily_due_whatsapp:${today}:${safeIdentity}`;
+    const legacyClaimKey = `erp_daily_due_whatsapp:${today}:${group.phone}`;
     const staleBefore = new Date(Date.now() - 30 * 60 * 1000);
+
+    // Compatibilidade com os registros de hoje gerados pela versão antiga,
+    // evitando duplicar lembrete no mesmo dia após o deploy.
+    const previousLegacyClaim = await Setting.findOne({ key: legacyClaimKey }).lean().catch(() => null);
+    if (previousLegacyClaim) {
+      skippedAlreadySent += 1;
+      continue;
+    }
 
     await Setting.deleteMany({
       key: claimKey,
@@ -399,6 +462,7 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
         value: {
           status: 'sending',
           date: today,
+          customerKey: group.key,
           customerName: group.customerName,
           phone: group.phone,
           installmentCount: group.rows.length,
@@ -426,7 +490,9 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
 
       const messageId = evolutionMessageId(result);
       if (!messageId) {
-        const confirmationError = new Error('Evolution aceitou a requisição, mas não retornou identificador da mensagem.');
+        const confirmationError = new Error(
+          'Evolution aceitou a requisição, mas não retornou identificador da mensagem.'
+        );
         confirmationError.code = 'WHATSAPP_SEND_UNCONFIRMED';
         throw confirmationError;
       }
@@ -439,9 +505,11 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
             value: {
               status: 'sent',
               date: today,
+              customerKey: group.key,
               customerName: group.customerName,
               phone: group.phone,
               installmentCount: group.rows.length,
+              entryIds: Array.from(new Set(group.rows.map((row) => String(row.id || '')).filter(Boolean))),
               orderIds: Array.from(new Set(group.rows.map((row) => String(row.orderId || '')).filter(Boolean))),
               sentAt,
               provider: result?.provider || 'evolution',
@@ -460,6 +528,7 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
         message: 'Lembrete de vencimento do dia enviado ao cliente.',
         metadata: {
           date: today,
+          customerKey: group.key,
           customerName: group.customerName,
           phone: maskedPhone(group.phone),
           installmentCount: group.rows.length,
@@ -501,6 +570,7 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
         message: text(error?.message || error, 1000),
         metadata: {
           date: today,
+          customerKey: group.key,
           customerName: group.customerName,
           phone: maskedPhone(group.phone),
           installmentCount: group.rows.length
@@ -509,13 +579,17 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
     }
   }
 
+  const localLedgerRows = dueRows.filter((row) => row.source === 'financeiro' || row.origin !== 'ariana_sale');
+  const currentSaleRows = dueRows.filter((row) => row.source === 'ariana_sale' || row.origin === 'ariana_sale');
+
   return {
     ok: errors.length === 0,
     date: today,
-    source: 'ariana_erp_ledger_and_local_finance',
-    ledgerDueInstallments: ledgerDueRows.length,
-    nativeDueInstallments: nativeDueRows.length,
-    storedDueInstallments: storedDueRows.length,
+    source: 'ariana_erp_vencimentos_hoje',
+    moduleDueInstallments: dueRows.length,
+    ledgerDueInstallments: localLedgerRows.length,
+    nativeDueInstallments: currentSaleRows.length,
+    storedDueInstallments: 0,
     dueInstallments: dueRows.length,
     eligibleCustomers: groups.size,
     sent,
