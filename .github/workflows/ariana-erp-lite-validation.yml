@@ -117,6 +117,8 @@ jobs:
           grep -Fq "ariana-erp-baixa|" functions/services/erp/erpPaymentReceiptService.js
           grep -Fq "receiptDelivery" functions/services/erp/erpFinanceService.js
           grep -Fq "receiptDelivery" functions/services/erp/erpLedgerService.js
+          grep -Fq "return finance.receive" functions/services/erp/erpSigeSaleParityService.js
+          grep -Fq "RECEIVABLE_PAYMENT_IMMUTABLE" functions/services/erp/erpSigeSaleParityService.js
           grep -Fq "cliente_sem_whatsapp" functions/routes/adminSigeCrediarioBotRoutes.js
           grep -Fq "requiresPhone" functions/routes/adminSigeCrediarioBotRoutes.js
           grep -Fq "receiptPhoneOverlay" public/financeiro_recibos.html
