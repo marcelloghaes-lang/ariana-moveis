@@ -4243,6 +4243,29 @@ function parsePendingInstallments(text) {
   return match ? Number(match[1]) : 0;
 }
 
+function parseCreditPlanFollowupInstallments(text = '') {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n) return 0;
+
+  const patterns = [
+    /^(?:e\s+)?(?:de|em)\s*(\d{1,2})\s*(?:x|vezes|parcelas)?$/,
+    /^(?:e\s+)?(\d{1,2})\s*(?:x|vezes|parcelas)$/,
+    /^(?:e\s+)?(?:se\s+eu\s+)?(?:fizer|fazer|parcelar)\s+(?:em\s+)?(\d{1,2})\s*(?:x|vezes|parcelas)?$/,
+    /^(?:e\s+)?quanto\s+(?:fica|da|sai)\s+(?:em\s+)?(\d{1,2})\s*(?:x|vezes|parcelas)?$/
+  ];
+
+  for (const pattern of patterns) {
+    const match = n.match(pattern);
+    if (match) return Number(match[1] || 0);
+  }
+
+  return 0;
+}
+
 function findConversationProduct(conv, id = '') {
   const wanted = String(id || '').trim();
   if (!wanted) return null;
@@ -8362,6 +8385,78 @@ async function consultFinance(phone, cpf = '') {
   });
 }
 
+
+function creditPlanFollowupProduct(conv = {}) {
+  if (!activeCreditPlanContext(conv)) return null;
+
+  const plan = conv.lastCreditPlan || null;
+  if (!plan) return null;
+
+  if (
+    plan.product &&
+    productId(plan.product) &&
+    productId(plan.product) === String(plan.productId || '')
+  ) {
+    return plan.product;
+  }
+
+  const recovered = findConversationProduct(conv, plan.productId);
+  if (recovered) return recovered;
+
+  if (
+    conv.selectedProduct &&
+    productId(conv.selectedProduct) === String(plan.productId || '')
+  ) {
+    return conv.selectedProduct;
+  }
+
+  return null;
+}
+
+async function handleCreditPlanFollowup({ phone, text, pushName = '', conv }) {
+  const count = parseCreditPlanFollowupInstallments(text);
+  if (!count || !activeCreditPlanContext(conv)) return false;
+
+  const product = creditPlanFollowupProduct(conv);
+  if (!product) return false;
+
+  const plan = creditPlan(product, count);
+  if (plan.invalid) {
+    await sendText(
+      phone,
+      `Para *${product.name}*, o máximo no crediário é *${plan.max}x*. Posso calcular em qualquer quantidade de 1 a ${plan.max} parcelas.`
+    );
+    return true;
+  }
+
+  conv.selectedProduct = compactProduct(product);
+  conv.lastIntent = 'produto';
+  rememberCreditPlan(conv, product, count, plan);
+  clearPendingCreditInstallments(conv);
+  saveStateSoon();
+
+  await sendText(
+    phone,
+    `No crediário próprio, para *${product.name}*, em *${count}x* fica aproximadamente *${count}x de ${money(plan.installment)}*, total de *${money(plan.total)}*. A compra no carnê é sujeita à análise de crédito.\n\nSe quiser seguir com o carnê, eu já posso iniciar a solicitação para você.`
+  );
+
+  await markConversationStatus(
+    phone,
+    conv,
+    'Venda em andamento',
+    `Cliente recalculou ${product.name} em ${count}x no crediário.`,
+    pushName,
+    {
+      paymentMode: 'crediario',
+      productId: productId(product),
+      installments: count,
+      creditPlanFollowup: true
+    }
+  );
+
+  return true;
+}
+
 async function startCreditApplication(phone, conv) {
   markCreditContext(conv);
   const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
@@ -9018,6 +9113,10 @@ async function handleMessage({
   }
 
   if (await handlePendingListClarificationChoice({ phone, text, pushName, conv })) {
+    return;
+  }
+
+  if (await handleCreditPlanFollowup({ phone, text, pushName, conv })) {
     return;
   }
 
@@ -11130,6 +11229,10 @@ export const __test = {
   asksCreditQuote,
   asksGenericInstallmentQuote,
   parsePendingInstallments,
+  parseCreditPlanFollowupInstallments,
+  activeCreditPlanContext,
+  creditPlanFollowupProduct,
+  handleCreditPlanFollowup,
   asksAcceptedAlternative,
   asksLastShownProduct,
   asksThisShownProduct,
