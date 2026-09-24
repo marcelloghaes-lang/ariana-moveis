@@ -1,4 +1,5 @@
 import { SigeClient } from '../sige/client.js';
+import './erpSigeHistoryImportService.js';
 
 const VERSION='2026-09-24-v1';
 const clean=(v='',m=2000)=>String(v??'').trim().slice(0,m);
@@ -195,8 +196,21 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
       }});
       return{ok:false,skipped:true,reason:'missing_sale_code',sourceId:current.sourceId};
     }
-    const result=await client.pesquisarPedidos({codigo:code});
-    const raw=chooseOrder(result.data,code);
+    let result=null;
+    for(let attempt=1;attempt<=3;attempt++){
+      try{
+        result=await client.pesquisarPedidos({codigo:code});
+        break;
+      }catch(error){
+        const message=clean(error?.message||error,1000);
+        const limited=Number(error?.statusCode||0)===429||/limite de requisições|rate limit|too many requests/i.test(message);
+        if(!limited||attempt>=3)throw error;
+        const pauseMs=65000*attempt;
+        console.warn(`[erp-sige-enrichment] limite do SIGE ao consultar venda ${code}; nova tentativa em ${Math.round(pauseMs/1000)}s.`);
+        await wait(pauseMs);
+      }
+    }
+    const raw=chooseOrder(result?.data,code);
     if(!raw){
       await sale.updateOne({$set:{
         'metadata.sigeEnrichment':{version:VERSION,status:'not_found',code,at:new Date()}
@@ -227,7 +241,7 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
       installments:purchase.numberOfInstallments
     };
   }
-  async function syncAll({force=false,actor='Sistema',delayMs=250}={}){
+  async function syncAll({force=false,actor='Sistema',delayMs=4000}={}){
     if(state.running)return{started:false,reason:'already_running',status:await status()};
     state.running=true;
     state.last={startedAt:new Date(),status:'running'};
@@ -242,6 +256,7 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
         {'metadata.sigeEnrichment.status':{$ne:'success'}}
       ];
       const total=await Sale.countDocuments(filter);
+      console.log('[erp-sige-enrichment] iniciando', {version:VERSION,total,force,delayMs,financeUntouched:true});
       if(Run)run=await Run.create({
         source:'sige',
         scope:'historical-purchase-enrichment',
@@ -269,6 +284,17 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
               at:new Date()
             }
           }}).catch(()=>null);
+        }
+        if(stats.processed%10===0||stats.processed===stats.total){
+          console.log('[erp-sige-enrichment] progresso', {
+            processed:stats.processed,
+            total:stats.total,
+            updated:stats.updated,
+            skipped:stats.skipped,
+            failed:stats.failed,
+            notFound:stats.notFound,
+            financeUntouched:true
+          });
         }
         if(run&&stats.processed%10===0){
           run.stats={...stats,heartbeatAt:new Date()};
