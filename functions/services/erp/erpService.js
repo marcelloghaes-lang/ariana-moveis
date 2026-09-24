@@ -600,6 +600,8 @@ export function createErpService(context = {}) {
     }
     order.status = 'cancelado';
     order.statusLabel = LABELS.cancelado;
+    order.paymentStatus = 'cancelled';
+    order.payment = { ...(order.payment || {}), status: 'cancelled', received: false };
     order.televendas = {
       ...(order.televendas || {}),
       erp: {
