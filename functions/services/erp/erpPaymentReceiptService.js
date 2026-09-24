@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { createErpFinanceCustomerContactService } from './erpFinanceCustomerContactService.js';
+import { historicalSaleProduct, historicalInstallmentLabel } from './erpPaymentReceiptUtils.js';
 
 const clean=(v='',m=500)=>String(v??'').trim().slice(0,m);
 const digits=(v='')=>String(v??'').replace(/\D/g,'');
@@ -80,6 +81,7 @@ export function createErpPaymentReceiptService(context={}){
   }
 
   const enabled=Boolean(CrediarioRecibo&&typeof sendCrediarioReceiptWhatsapp==='function');
+  const db=context.mongoose||null;
   const phoneOf=value=>{
     if(typeof normalizePhone==='function')return normalizePhone(value,'55');
     let n=digits(value);
@@ -107,6 +109,45 @@ export function createErpPaymentReceiptService(context={}){
       ? `ariana-erp-baixa|${referenceRaw}|${document}`
       : `ariana-erp-pagamento|${referenceRaw}|${paymentId||clean(payment?.at,80)||Date.now()}`;
     return crypto.createHash('sha256').update(key).digest('hex');
+  }
+
+  async function resolveHistoricalLedgerSale(entry={}){
+    if(!db)return null;
+    const Entry=db.models?.ErpFinancialEntry;
+    const HistoricalSale=db.models?.ErpSigeHistoricalSale;
+    if(!Entry||!HistoricalSale)return null;
+
+    const id=String(entry?._id||entry?.id||'');
+    if(!id)return null;
+
+    let objectId=null;
+    try{
+      objectId=db.Types?.ObjectId?.isValid(id)?new db.Types.ObjectId(id):null;
+    }catch{}
+    if(!objectId)return null;
+
+    const raw=await Entry.collection.findOne({_id:objectId});
+    const sourceSaleId=clean(raw?.migration?.sourceSaleId||entry?.migration?.sourceSaleId||'',120);
+    if(!sourceSaleId)return null;
+
+    const [sale,siblings]=await Promise.all([
+      HistoricalSale.findOne({sourceSystem:'sige',sourceId:sourceSaleId}).lean(),
+      Entry.collection.find({
+        direction:'receivable',
+        'migration.sourceSaleId':sourceSaleId,
+        status:{$ne:'cancelled'}
+      }).project({_id:1,direction:1,dueAt:1,competenceAt:1,createdAt:1}).toArray()
+    ]);
+
+    const product=historicalSaleProduct(sale||{});
+    const installment=historicalInstallmentLabel(id,siblings);
+    return{
+      sourceSaleId,
+      saleCode:clean(sale?.code,100),
+      product,
+      installment,
+      installments:siblings.length
+    };
   }
 
   async function resolvePhone({customerName='',customerCpf='',referenceRaw='',fallbackPhone='',receipt=null,actor={}}={}){
@@ -181,6 +222,21 @@ export function createErpPaymentReceiptService(context={}){
         importHash:hash
       });
       created=true;
+    }
+
+    if(!created&&!receipt.enviadoWhatsapp){
+      let changed=false;
+      const betterProduct=clean(product,500);
+      const betterInstallment=clean(installment,80);
+      if(betterProduct&&betterProduct!==receipt.produto){
+        receipt.produto=betterProduct;
+        changed=true;
+      }
+      if(betterInstallment&&betterInstallment!==receipt.parcela){
+        receipt.parcela=betterInstallment;
+        changed=true;
+      }
+      if(changed)await receipt.save();
     }
 
     if(receipt.enviadoWhatsapp){
@@ -291,13 +347,31 @@ export function createErpPaymentReceiptService(context={}){
   async function afterLedgerReceive({entry={},payment={},actor={}}={}){
     const id=String(entry?._id||entry?.id||'');
     if(!id||String(entry?.direction||'')!=='receivable')return{skipped:true,reason:'not_receivable'};
+
+    let purchase=null;
+    try{
+      purchase=await resolveHistoricalLedgerSale(entry);
+    }catch(error){
+      console.warn('[erp-payment-receipt] não foi possível localizar a compra histórica do recebimento:',error?.message||error);
+    }
+
+    const technicalDescription=clean(entry?.description,500);
+    const genericHistorical=/^SIGE\s+/i.test(technicalDescription);
+    const product=purchase?.product||
+      (!genericHistorical?technicalDescription:'')||
+      'Pagamento de parcela';
+    const installment=purchase?.installment||
+      clean(entry?.installmentNumber||entry?.parcelNumber||entry?.parcela,80)||
+      clean(entry?.documentNumber||entry?.boletoNumber,80)||
+      '01/01';
+
     return deliver({
       referenceRaw:`LEDGER_${id}`,
       customerName:entry?.personName||'Cliente',
       customerCpf:entry?.personDocument||'',
       customerPhone:entry?.personPhone||'',
-      product:entry?.description||'Pagamento de parcela',
-      installment:entry?.documentNumber||entry?.boletoNumber||'01/01',
+      product,
+      installment,
       payment,
       actor
     });
@@ -358,7 +432,7 @@ export function createErpPaymentReceiptService(context={}){
     return{receipt:receiptRow(receipt),whatsappEnviado:true,whatsapp};
   }
 
-  return{enabled,deliver,afterSaleReceive,afterLedgerReceive,savePhoneAndSend,methodLabel};
+  return{enabled,deliver,afterSaleReceive,afterLedgerReceive,savePhoneAndSend,methodLabel,resolveHistoricalLedgerSale};
 }
 
 export default createErpPaymentReceiptService;

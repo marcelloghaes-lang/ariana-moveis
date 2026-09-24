@@ -115,6 +115,10 @@ jobs:
           grep -Fq "afterLedgerReceive" functions/services/erp/erpPaymentReceiptService.js
           grep -Fq "sendCrediarioReceiptWhatsapp" functions/services/erp/erpPaymentReceiptService.js
           grep -Fq "ariana-erp-baixa|" functions/services/erp/erpPaymentReceiptService.js
+          grep -Fq "migration.sourceSaleId" functions/services/erp/erpPaymentReceiptService.js
+          grep -Fq "ErpSigeHistoricalSale" functions/services/erp/erpPaymentReceiptService.js
+          grep -Fq "historicalInstallmentLabel" functions/services/erp/erpPaymentReceiptService.js
+          grep -Fq "historicalInstallmentLabel" functions/services/erp/erpPaymentReceiptUtils.js
           grep -Fq "receiptDelivery" functions/services/erp/erpFinanceService.js
           grep -Fq "receiptDelivery" functions/services/erp/erpLedgerService.js
           grep -Fq "return finance.receive" functions/services/erp/erpSigeSaleParityService.js
@@ -129,6 +133,32 @@ jobs:
           grep -Fq "Salvar telefone e enviar comprovante" public/erp_financeiro.html
           grep -Fq "Salvar telefone e enviar comprovante" public/erp_venda_detalhe.html
           grep -Fq "✅ Pagamento registrado com sucesso" functions/server.js
+
+      - name: Validate historical receipt product and installment
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import {
+            historicalSaleProduct,
+            historicalInstallmentLabel
+          } from './functions/services/erp/erpPaymentReceiptUtils.js';
+
+          const sale={
+            items:[
+              {description:'Guarda Roupa Casal 6 Portas'},
+              {description:'Guarda Roupa Casal 6 Portas'}
+            ]
+          };
+          assert.equal(historicalSaleProduct(sale),'Guarda Roupa Casal 6 Portas');
+
+          const rows=Array.from({length:12},(_,i)=>({
+            _id:String(i+1),
+            direction:'receivable',
+            dueAt:new Date(2026,i,10)
+          }));
+          assert.equal(historicalInstallmentLabel('2',rows),'02/12');
+          assert.equal(historicalInstallmentLabel('3',rows),'03/12');
+          NODE
 
       - name: Validate ERP permission matrix
         run: |
