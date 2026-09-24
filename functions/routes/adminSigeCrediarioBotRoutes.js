@@ -6303,8 +6303,8 @@ function financeiroErpReference(row = {}) {
     };
 
     try {
-      const sincronizacao = await executarEtapa('SINCRONIZAR_SIGE', () =>
-        executarSincronizacaoCarnesSige({
+      const sincronizacao = await executarEtapa('SINCRONIZAR_ARIANA_ERP', () =>
+        executarSincronizacaoCarnesErp({
           req,
           somenteDesatualizados: false,
           minutosDesatualizado: 1,
@@ -7265,7 +7265,7 @@ function financeiroErpReference(row = {}) {
   app.get('/api/admin/financeiro/sincronizacao/status', adminRequired, async (_req, res) => {
     try {
       const [ultimo, pendentes, total] = await Promise.all([
-        FinanceiroSincronizacaoLog.findOne({ origem: 'sige' }).sort({ iniciadoEm: -1 }).lean(),
+        FinanceiroSincronizacaoLog.findOne({ origem: 'ariana_erp' }).sort({ iniciadoEm: -1 }).lean(),
         FinanceiroCarneDigital.countDocuments({
           status: 'ATIVO',
           $or: [
@@ -7279,7 +7279,7 @@ function financeiroErpReference(row = {}) {
 
       return res.json({
         ok: true,
-        fonte: 'sige',
+        fonte: 'ariana_erp',
         totalCarnesAtivos: total,
         desatualizadosMaisDe60Min: pendentes,
         ultimaSincronizacao: ultimo || null,
@@ -7295,7 +7295,7 @@ function financeiroErpReference(row = {}) {
   app.post('/api/admin/financeiro/sincronizacao/executar', adminRequired, async (req, res) => {
     try {
       const body = req.body || {};
-      const result = await executarSincronizacaoCarnesSige({
+      const result = await executarSincronizacaoCarnesErp({
         req,
         somenteDesatualizados: body.somenteDesatualizados !== false,
         minutosDesatualizado: body.minutosDesatualizado || 60,
@@ -7304,7 +7304,7 @@ function financeiroErpReference(row = {}) {
       });
       return res.json(result);
     } catch (error) {
-      console.error('[financeiro sincronização SIGE]', error.message || error);
+      console.error('[financeiro sincronização Ariana ERP]', error.message || error);
       return res.status(error.statusCode || 500).json({
         ok: false,
         error: error.message || 'Erro ao executar a sincronização financeira.'
@@ -7315,7 +7315,7 @@ function financeiroErpReference(row = {}) {
   app.get('/api/admin/financeiro/sincronizacao/historico', adminRequired, async (req, res) => {
     try {
       const limit = Math.max(1, Math.min(Number(req.query.limit || 30), 100));
-      const rows = await FinanceiroSincronizacaoLog.find({ origem: 'sige' })
+      const rows = await FinanceiroSincronizacaoLog.find({ origem: 'ariana_erp' })
         .sort({ iniciadoEm: -1 })
         .limit(limit)
         .lean();
