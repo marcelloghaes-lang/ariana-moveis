@@ -2109,30 +2109,51 @@ test('anota pra mim é reconhecido como pedido de anotação', () => {
   }
 });
 
-test('cálculo do crediário segue divisores e limites definidos', () => {
+test('cálculo do crediário segue a regra comercial fixa 0,85 / 0,65 / 0,62 até 15x', () => {
   const p2000 = product('c1', 'Produto 2000', { price: 2000, pixPrice: 2000 });
-  const p3000 = product('c2', 'Produto 3000', { price: 3000, pixPrice: 3000 });
 
   const p4 = bot.creditPlan(p2000, 4);
-  assert.equal(p4.divisor, 0.80);
-  assert.equal(p4.total, 2500);
-  assert.equal(p4.installment, 625);
+  assert.equal(p4.divisor, 0.85);
+  assert.equal(p4.total, 2352.94);
+  assert.equal(p4.installment, 588.24);
+  assert.equal(p4.max, 15);
 
-  const p6 = bot.creditPlan(p2000, 6);
-  assert.equal(p6.divisor, 0.75);
-  assert.equal(p6.total, 2666.67);
-  assert.equal(p6.installment, 444.45);
+  const p5 = bot.creditPlan(p2000, 5);
+  assert.equal(p5.divisor, 0.65);
+  assert.equal(p5.total, 3076.92);
+  assert.equal(p5.installment, 615.38);
 
   const p10 = bot.creditPlan(p2000, 10);
-  assert.equal(p10.divisor, 0.70);
-  assert.equal(p10.total, 2857.14);
-  assert.equal(p10.installment, 285.71);
+  assert.equal(p10.divisor, 0.65);
+  assert.equal(p10.total, 3076.92);
+  assert.equal(p10.installment, 307.69);
 
-  assert.equal(bot.creditPlan(p2000, 13).invalid, true);
-  const p15 = bot.creditPlan(p3000, 15);
+  const p11 = bot.creditPlan(p2000, 11);
+  assert.equal(p11.divisor, 0.62);
+  assert.equal(p11.total, 3225.81);
+  assert.equal(p11.installment, 293.26);
+
+  const p15 = bot.creditPlan(p2000, 15);
   assert.equal(p15.invalid, false);
-  assert.equal(p15.divisor, 0.67);
+  assert.equal(p15.divisor, 0.62);
+  assert.equal(p15.total, 3225.81);
+  assert.equal(p15.installment, 215.05);
   assert.equal(p15.max, 15);
+
+  assert.equal(bot.creditPlan(p2000, 16).invalid, true);
+});
+
+test('Air Fryer de R$ 399 em 12x no crediário usa divisor 0,62 e não a regra antiga', () => {
+  const airFryer = product('cred-air-399', 'Air Fryer Britânia 5,5L Gold BFR51 1500W', {
+    price: 480.72,
+    pixPrice: 399
+  });
+
+  const plan = bot.creditPlan(airFryer, 12);
+  assert.equal(plan.divisor, 0.62);
+  assert.equal(plan.total, 643.55);
+  assert.equal(plan.installment, 53.63);
+  assert.equal(plan.max, 15);
 });
 
 test('consulta sobre pedido/encomenda aguardando vai para Marcelo sem pesquisar catálogo', async () => {
@@ -3088,7 +3109,7 @@ test('"crediário lógico" continua a pergunta "cartão ou crediário" no mesmo 
   assert.equal(bot.conversation(phone).selectedProduct.id, last.id);
   assert.equal(bot.conversation(phone).pendingAction, 'credit_installments');
   assert.match(sentTexts.at(-1).text, /Geladeira HQ Defrost 230 Litros/i);
-  assert.match(sentTexts.at(-1).text, /crediário próprio em até \*?12x\*?/i);
+  assert.match(sentTexts.at(-1).text, /crediário próprio em até \\*?15x\\*?/i);
   assert.match(sentTexts.at(-1).text, /Em quantas vezes/i);
   assert.doesNotMatch(sentTexts.at(-1).text, /Me conta um pouco mais|pegar certinho/i);
 });
