@@ -3206,7 +3206,7 @@ function financeiroErpReference(row = {}) {
   }
 
   async function getUnifiedFinancialData(q = '', options = {}) {
-    const carne = await getSigeCarneData(q, options);
+    const carne = await getArianaErpFinancialData(q, options);
     let auditoriaMongo = null;
     try {
       auditoriaMongo = await getCrediarioAuditForSigeCarne(carne);
@@ -3223,14 +3223,14 @@ function financeiroErpReference(row = {}) {
       ...carne,
       auditoriaMongo,
       arquitetura: {
-        fonteOficialParcelas: 'SIGE',
-        fonteOficialSaldo: 'SIGE',
-        fonteOficialPagamentos: 'SIGE',
-        mongoDb: ['clientes complementares', 'recibos emitidos', 'WhatsApp', 'logs', 'auditoria']
+        fonteOficialParcelas: 'ARIANA_ERP',
+        fonteOficialSaldo: 'ARIANA_ERP',
+        fonteOficialPagamentos: 'ARIANA_ERP',
+        historicoMigrado: 'MongoDB Ariana',
+        mongoDb: ['Ariana ERP', 'histórico migrado', 'recibos', 'WhatsApp', 'logs', 'auditoria']
       }
     };
   }
-
 
 
   async function sincronizarCarneDigitalSige(q = '', req = {}, options = {}) {
