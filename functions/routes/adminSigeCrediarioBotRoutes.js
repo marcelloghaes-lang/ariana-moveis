@@ -10773,38 +10773,35 @@ function financeiroErpReference(row = {}) {
 
   app.post('/api/admin/financeiro/lancamentos/:codigo/pagamentos', adminRequired, async (req, res) => {
     try {
-      if (!isSigeConfigured()) {
-        return res.status(503).json({
-          ok: false,
-          error: 'Integração com o SIGE não está configurada.'
-        });
-      }
-
-      const codigo = Number(String(req.params.codigo || '').trim());
+      const referenceRaw = String(req.params.codigo || '').trim();
+      const reference = parseFinanceiroErpReference(referenceRaw);
       const body = req.body || {};
-      const valor = parseSigeMoney(body.valor ?? body.Valor ?? body.valorPago ?? 0);
+      const valor = Number(body.valor ?? body.Valor ?? body.valorPago ?? 0);
       const formaPagamento = String(body.formaPagamento || body.FormaPagamento || 'PIX').trim();
-      const contaBancaria = String(body.contaBancaria || body.ContaBancaria || 'ariana moveis').trim();
-      const conciliado = body.conciliado !== false && body.Conciliado !== false;
+      const contaBancaria = String(body.contaBancaria || body.ContaBancaria || 'Ariana Móveis').trim();
       const dataInformada = body.data || body.Data || body.dataPagamento || null;
       const dataPagamento = dataInformada ? new Date(dataInformada) : new Date();
       const numeroDocumento = String(
         body.numeroDocumento ||
         body.NumeroDocumento ||
-        `ARIANA-${codigo}-${Date.now()}`
+        `ARIANA-${Date.now()}`
       ).trim();
+      const multa = Math.max(0, Number(body.multa || body.fine || 0));
+      const juros = Math.max(0, Number(body.juros || body.interest || 0));
+      const desconto = Math.max(0, Number(body.desconto || body.discount || 0));
 
-      if (!Number.isInteger(codigo) || codigo <= 0) {
-        return res.status(400).json({ ok: false, error: 'Código do lançamento SIGE inválido.' });
+      if (!reference) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Referência financeira antiga ou inválida. Atualize o carnê pelo Ariana ERP antes de registrar a baixa.',
+          fonteFinanceira: 'ariana_erp'
+        });
       }
       if (!Number.isFinite(valor) || valor <= 0) {
         return res.status(400).json({ ok: false, error: 'Informe um valor de pagamento válido.' });
       }
       if (!formaPagamento) {
         return res.status(400).json({ ok: false, error: 'Informe a forma de pagamento.' });
-      }
-      if (!contaBancaria) {
-        return res.status(400).json({ ok: false, error: 'Informe a conta bancária.' });
       }
       if (!numeroDocumento) {
         return res.status(400).json({ ok: false, error: 'Informe o número do documento do pagamento.' });
@@ -10813,192 +10810,207 @@ function financeiroErpReference(row = {}) {
         return res.status(400).json({ ok: false, error: 'Data do pagamento inválida.' });
       }
 
-      const lancamentoAntes = await getSigeLancamentoByCodigo(codigo);
-      if (!lancamentoAntes || !Number(lancamentoAntes.Codigo ?? lancamentoAntes.codigo)) {
-        return res.status(404).json({ ok: false, error: 'Lançamento não encontrado no SIGE.' });
-      }
-
-      const quitadoAntes = lancamentoAntes.Quitado === true || lancamentoAntes.quitado === true;
-      const saldoAntes = getSigeLancamentoSaldo(lancamentoAntes);
-
-      if (hasSigePagamentoDocumento(lancamentoAntes, numeroDocumento)) {
-        return res.status(409).json({
-          ok: false,
-          error: 'Este pagamento já foi registrado no SIGE.',
-          codigo,
-          numeroDocumento
-        });
-      }
-
-      if (quitadoAntes || saldoAntes <= 0) {
-        return res.status(409).json({
-          ok: false,
-          error: 'Esta parcela já está quitada no SIGE.',
-          codigo,
-          saldo: saldoAntes
-        });
-      }
-
-      if (valor > saldoAntes + 0.009) {
-        return res.status(422).json({
-          ok: false,
-          error: `O pagamento não pode ultrapassar o saldo de ${formatMoneyBRL(saldoAntes)}.`,
-          codigo,
-          valor,
-          saldo: saldoAntes
-        });
-      }
-
-      const payload = {
-        Codigo: codigo,
-        Pagamentos: [
-          {
-            Data: dataPagamento.toISOString(),
-            FormaPagamento: formaPagamento,
-            NumeroDocumento: numeroDocumento,
-            ContaBancaria: contaBancaria,
-            Conciliado: conciliado,
-            Valor: Number(valor.toFixed(2))
-          }
-        ]
+      const actor = {
+        name: req.admin?.name || req.auth?.name || req.user?.name || '',
+        email: req.admin?.email || req.auth?.email || req.user?.email || 'admin'
       };
 
-      const response = await axios.post(
-        getSigeRequestUrl('Lancamentos/AdicionarPagamentos'),
-        payload,
-        {
-          headers: getSigeRequestHeaders(),
-          timeout: Number(SIGE_TIMEOUT_MS || 30000),
-          validateStatus: () => true
+      let sourceResult = null;
+      let clienteNome = String(body.clienteNome || body.nome || '').trim();
+      let clienteCpf = cleanPhone(body.cpf || body.clienteCpf || '');
+      let telefone = normalizePhone(body.telefone || body.whatsapp || '', '55');
+      let produto = String(body.produto || body.descricao || 'Pagamento de parcela').trim();
+      let parcelaLabel = formatCrediarioParcela(String(body.parcela || body.parcelaLabel || '').trim());
+      let saldoDepois = 0;
+      let quitado = false;
+
+      if (reference.type === 'order') {
+        const orderAntes = await Order.findById(reference.orderId).lean();
+        if (!orderAntes || orderAntes.origin !== 'erp_ariana') {
+          return res.status(404).json({ ok: false, error: 'Venda do Ariana ERP não encontrada.' });
         }
-      );
+        const receivableAntes = (orderAntes.televendas?.erp?.receivables || [])
+          .find((row) => Number(row.number) === Number(reference.number));
+        if (!receivableAntes) {
+          return res.status(404).json({ ok: false, error: 'Parcela da venda não encontrada.' });
+        }
+        if ((receivableAntes.payments || []).some((p) => String(p.document || '').trim() === numeroDocumento)) {
+          return res.status(409).json({ ok: false, error: 'Este pagamento já foi registrado no Ariana ERP.', numeroDocumento });
+        }
 
-      if (response.status < 200 || response.status >= 300) {
-        const providerMessage = typeof response.data === 'string'
-          ? response.data
-          : (response.data?.message || response.data?.error || response.data?.Mensagem);
-        const error = new Error(providerMessage || `SIGE retornou HTTP ${response.status} ao registrar o pagamento.`);
-        error.statusCode = response.status >= 400 && response.status < 500 ? response.status : 502;
-        error.responseData = response.data;
-        throw error;
-      }
-
-      const lancamentoDepois = await getSigeLancamentoByCodigo(codigo);
-      if (!lancamentoDepois) {
-        const error = new Error('O SIGE recebeu a solicitação, mas não foi possível confirmar o lançamento atualizado.');
-        error.statusCode = 502;
-        throw error;
-      }
-
-      const pagamentoConfirmado = hasSigePagamentoDocumento(lancamentoDepois, numeroDocumento);
-      const saldoDepois = getSigeLancamentoSaldo(lancamentoDepois);
-      const totalAntes = parseSigeMoney(lancamentoAntes.TotalRecebido ?? lancamentoAntes.totalRecebido ?? 0);
-      const totalDepois = parseSigeMoney(lancamentoDepois.TotalRecebido ?? lancamentoDepois.totalRecebido ?? 0);
-      const aumentoRecebido = Number((totalDepois - totalAntes).toFixed(2));
-
-      if (!pagamentoConfirmado || aumentoRecebido + 0.009 < valor) {
-        const error = new Error('O SIGE não confirmou completamente o pagamento após a gravação.');
-        error.statusCode = 502;
-        error.responseData = {
-          pagamentoConfirmado,
-          totalAntes,
-          totalDepois,
-          aumentoRecebido,
-          valorEsperado: valor
-        };
-        throw error;
-      }
-
-      let posPagamento = null;
-      try {
-        posPagamento = await createReceiptAfterSigePayment({
-          req,
-          codigo,
-          lancamento: lancamentoDepois,
-          valor,
-          formaPagamento,
-          numeroDocumento,
-          dataPagamento,
-          body
-        });
-      } catch (receiptError) {
-        console.error('[financeiro SIGE C.3 pós-pagamento]', receiptError.message || receiptError);
-        return res.json({
-          ok: true,
-          fase: 'C.3',
-          message: 'Pagamento confirmado no SIGE, mas houve falha ao criar o recibo.',
-          warning: true,
-          fonteFinanceira: 'sige',
-          codigo,
-          pagamento: {
-            valor: Number(valor.toFixed(2)),
-            formaPagamento,
-            numeroDocumento,
-            contaBancaria,
-            conciliado,
-            data: dataPagamento.toISOString()
+        sourceResult = await erpFinanceOperations.receive(
+          reference.orderId,
+          reference.number,
+          {
+            amount: valor,
+            method: formaPagamento,
+            paidAt: dataPagamento,
+            document: numeroDocumento,
+            note: String(body.observacao || body.note || '').trim(),
+            bankAccountName: contaBancaria,
+            fine: multa,
+            interest: juros,
+            discount: desconto
           },
-          saldoAntes,
-          saldoDepois,
-          quitado: lancamentoDepois.Quitado === true || lancamentoDepois.quitado === true,
-          lancamento: lancamentoDepois,
-          reciboCriado: false,
-          whatsappEnviado: false,
-          erroPosPagamento: receiptError.message || 'Falha ao criar recibo após confirmação no SIGE.'
-        });
+          actor
+        );
+
+        const order = sourceResult.order || {};
+        const receivable = sourceResult.receivable || {};
+        clienteNome = clienteNome || order.customerName || 'Cliente';
+        clienteCpf = clienteCpf || cleanPhone(order.customerCpf || '');
+        telefone = telefone || normalizePhone(order.customerPhone || '', '55');
+        produto = produto || order.televendas?.erp?.code || 'Venda Ariana';
+        parcelaLabel = parcelaLabel || `${reference.number}/${Number(receivable.installments || order.payment?.installments || 1)}`;
+        saldoDepois = Number(receivable.remaining || 0);
+        quitado = String(receivable.status || '').toLowerCase() === 'recebido' || saldoDepois <= 0.009;
+      } else {
+        const Entry = mongoose.models.ErpFinancialEntry;
+        const entryAntes = Entry ? await Entry.findById(reference.entryId).lean() : null;
+        if (!entryAntes) {
+          return res.status(404).json({ ok: false, error: 'Lançamento financeiro local não encontrado.' });
+        }
+        if ((entryAntes.payments || []).some((p) => String(p.document || '').trim() === numeroDocumento)) {
+          return res.status(409).json({ ok: false, error: 'Este pagamento já foi registrado no Ariana ERP.', numeroDocumento });
+        }
+
+        const entry = await erpLedgerOperations.pay(
+          reference.entryId,
+          {
+            principal: valor,
+            paymentMethod: formaPagamento,
+            paidAt: dataPagamento,
+            document: numeroDocumento,
+            note: String(body.observacao || body.note || '').trim(),
+            fine: multa,
+            interest: juros,
+            discount: desconto
+          },
+          actor
+        );
+        sourceResult = { entry };
+        clienteNome = clienteNome || entry.personName || 'Cliente';
+        clienteCpf = clienteCpf || cleanPhone(entry.personDocument || '');
+        produto = produto || entry.description || 'Conta a receber Ariana';
+        parcelaLabel = parcelaLabel || entry.documentNumber || entry.boletoNumber || 'Parcela';
+        saldoDepois = Number(entry.remaining || 0);
+        quitado = String(entry.status || '').toLowerCase() === 'paid' || saldoDepois <= 0.009;
       }
 
-      const reciboNormalizado = posPagamento?.recibo
-        ? normalizeCrediarioRecibo(posPagamento.recibo)
-        : null;
-      const whatsapp = posPagamento?.whatsapp || { skipped: true };
-      const whatsappEnviado = whatsapp?.ok === true || posPagamento?.recibo?.enviadoWhatsapp === true;
+      const importHash = crypto
+        .createHash('sha256')
+        .update(`ariana-erp-baixa|${referenceRaw}|${numeroDocumento}`)
+        .digest('hex');
+
+      let recibo = await CrediarioRecibo.findOne({ importHash });
+      let criadoAgora = false;
+      if (!recibo) {
+        let reciboNumber = makeReciboNumber();
+        while (await CrediarioRecibo.exists({ recibo: reciboNumber })) {
+          reciboNumber = makeReciboNumber();
+        }
+
+        recibo = await CrediarioRecibo.create({
+          recibo: reciboNumber,
+          clienteNome,
+          clienteCpf,
+          telefone,
+          contrato: reference.type === 'order' ? reference.orderId : '',
+          produto,
+          parcela: parcelaLabel,
+          valorPago: Number(valor.toFixed(2)),
+          formaPagamento,
+          dataPagamento,
+          observacao: [
+            `Pagamento registrado no Ariana ERP (${referenceRaw}).`,
+            `Documento do pagamento: ${numeroDocumento}.`,
+            String(body.observacao || '').trim()
+          ].filter(Boolean).join(' '),
+          criadoPor: actor.email,
+          status: 'confirmado_ariana_erp',
+          origem: 'ariana_erp_baixa',
+          documento: numeroDocumento,
+          importHash
+        });
+        criadoAgora = true;
+      }
+
+      const enviarWhatsapp = body.enviarWhatsapp !== false;
+      let whatsapp = { skipped: true, reason: 'envio_desativado' };
+      if (enviarWhatsapp && recibo.telefone && !recibo.enviadoWhatsapp) {
+        try {
+          whatsapp = await sendCrediarioReceiptWhatsapp(recibo);
+          recibo.enviadoWhatsapp = true;
+          recibo.enviadoWhatsappEm = now();
+          recibo.whatsappResultado = redact(whatsapp || null);
+          await recibo.save();
+        } catch (error) {
+          whatsapp = { ok: false, error: error.message || String(error) };
+          recibo.whatsappResultado = whatsapp;
+          await recibo.save();
+        }
+      } else if (recibo.enviadoWhatsapp) {
+        whatsapp = { ok: true, alreadySent: true };
+      }
+
+      const termoSync = clienteCpf || telefone || clienteNome;
+      let carneAtualizado = null;
+      if (termoSync) {
+        try {
+          const sync = await sincronizarCarneDigitalErp(termoSync, req, {
+            termos: [clienteCpf, telefone, clienteNome]
+          });
+          carneAtualizado = sync.carne || null;
+        } catch (syncError) {
+          console.warn('[financeiro baixa ERP] pagamento salvo; falha ao atualizar snapshot:', syncError.message || syncError);
+        }
+      }
 
       await registrarAuditoriaFinanceira({
         req,
-        acao: 'PAGAMENTO_CONFIRMADO_SIGE',
-        entidade: 'LancamentoSige',
-        entidadeId: String(codigo),
-        codigo: String(numeroDocumento),
-        antes: { saldo: saldoAntes },
-        depois: { saldo: saldoDepois, valorPago: Number(valor.toFixed(2)), quitado: lancamentoDepois.Quitado === true || lancamentoDepois.quitado === true },
-        metadata: { formaPagamento, contaBancaria, recibo: reciboNormalizado?.recibo || '', whatsappEnviado }
+        acao: 'PAGAMENTO_CONFIRMADO_ARIANA_ERP',
+        entidade: reference.type === 'order' ? 'ErpOrderReceivable' : 'ErpFinancialEntry',
+        entidadeId: reference.type === 'order' ? reference.orderId : reference.entryId,
+        codigo: numeroDocumento,
+        depois: { valorPago: Number(valor.toFixed(2)), saldo: saldoDepois, quitado },
+        metadata: { referencia: referenceRaw, formaPagamento, contaBancaria, recibo: recibo.recibo || '' }
       });
 
       return res.json({
         ok: true,
-        fase: 'C.3',
-        message: whatsappEnviado
-          ? 'Pagamento confirmado no SIGE, recibo criado e enviado pelo WhatsApp.'
-          : 'Pagamento confirmado no SIGE e recibo criado. O WhatsApp não foi enviado.',
-        warning: !whatsappEnviado,
-        fonteFinanceira: 'sige',
-        codigo,
+        fase: 'ARIANA_ERP',
+        message: recibo.enviadoWhatsapp
+          ? 'Pagamento registrado no Ariana ERP, recibo criado e enviado pelo WhatsApp.'
+          : 'Pagamento registrado no Ariana ERP e recibo criado.',
+        fonteFinanceira: 'ariana_erp',
+        codigo: referenceRaw,
         pagamento: {
           valor: Number(valor.toFixed(2)),
           formaPagamento,
           numeroDocumento,
           contaBancaria,
-          conciliado,
-          data: dataPagamento.toISOString()
+          data: dataPagamento.toISOString(),
+          multa,
+          juros,
+          desconto
         },
-        saldoAntes,
         saldoDepois,
-        quitado: lancamentoDepois.Quitado === true || lancamentoDepois.quitado === true,
-        lancamento: lancamentoDepois,
-        reciboCriado: Boolean(reciboNormalizado),
-        reciboNovo: posPagamento?.criadoAgora === true,
-        recibo: reciboNormalizado,
-        whatsappEnviado,
+        quitado,
+        lancamento: sourceResult,
+        carne: carneAtualizado,
+        reciboCriado: Boolean(recibo),
+        reciboNovo: criadoAgora,
+        recibo: normalizeCrediarioRecibo(recibo),
+        whatsappEnviado: recibo.enviadoWhatsapp === true,
         whatsapp
       });
     } catch (error) {
-      console.error('[financeiro SIGE pagamento C.3]', error.responseData || error.message || error);
+      console.error('[financeiro Ariana ERP pagamento]', error.message || error);
       return res.status(error.statusCode || 500).json({
         ok: false,
-        fase: 'C.3',
-        error: error.message || 'Erro ao registrar pagamento no SIGE',
-        detalhes: error.responseData || undefined
+        fase: 'ARIANA_ERP',
+        error: error.message || 'Erro ao registrar pagamento no Ariana ERP',
+        fonteFinanceira: 'ariana_erp'
       });
     }
   });
