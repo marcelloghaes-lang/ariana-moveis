@@ -1728,19 +1728,71 @@ function productFlagsMarkup(p={}){ return `
   <label class="inline-flex items-center gap-2"><input type="checkbox" id="product-isBestSeller" ${p.isBestSeller?'checked':''}><span>Mais vendido</span></label>
   <label class="inline-flex items-center gap-2"><input type="checkbox" id="product-isNewArrival" ${p.isNewArrival?'checked':''}><span>Lançamento</span></label>
   <label class="inline-flex items-center gap-2"><input type="checkbox" id="product-isRecommended" ${p.isRecommended?'checked':''}><span>Recomendado</span></label>`; }
+function storefrontProductMeta(p={}){
+  const status=String(p.storefrontStatus||'').trim().toLowerCase();
+  if(status==='pending_review'){
+    return {pending:true,label:'Aguardando aprovação',badge:'bg-yellow-100 text-yellow-800'};
+  }
+  if(status==='approved'||status==='published'){
+    return {pending:false,label:'Publicado',badge:'bg-green-100 text-green-800'};
+  }
+  return {pending:false,label:'Publicado',badge:'bg-blue-50 text-primary-blue'};
+}
+function renderPendingStorefrontQueue(){
+  const pending=allProductsCache.filter(p=>String(p.storefrontStatus||'').trim().toLowerCase()==='pending_review');
+  if(!pending.length) return '';
+  return `
+    <div class="mb-6 bg-yellow-50 border border-yellow-200 rounded-2xl p-5 shadow-sm">
+      <div class="flex items-start justify-between gap-3 flex-wrap mb-4">
+        <div><h2 class="text-xl font-black text-yellow-900">Produtos aguardando aprovação para o site</h2><p class="text-sm text-yellow-800 mt-1">Vieram do Ariana ERP e continuam fora da vitrine até você revisar, completar e publicar.</p></div>
+        <span class="px-3 py-1 rounded-full bg-yellow-200 text-yellow-900 text-sm font-black">${pending.length} pendente${pending.length===1?'':'s'}</span>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        ${pending.map(p=>`
+          <div class="bg-white border border-yellow-200 rounded-xl p-4 flex items-center justify-between gap-4">
+            <div class="min-w-0">
+              <div class="font-black text-gray-900 break-words">${escHtml(p.name||'Produto sem nome')}</div>
+              <div class="text-xs text-gray-500 mt-1">SKU: ${escHtml(p.sku||'—')} · Preço ERP: ${formatCurrency(p.price||0)} · Estoque: ${Number(p.stock||0)}</div>
+            </div>
+            <div class="flex gap-2 flex-shrink-0">
+              <button class="px-3 py-2 rounded-lg bg-primary-blue text-white text-xs font-bold" onclick="window.editProduct('${escHtml(p.id||p._id)}')">Editar antes de publicar</button>
+              ${hasAdminPerm('products:update')?`<button class="px-3 py-2 rounded-lg bg-success-green text-white text-xs font-bold" onclick="window.publishProductToStorefront('${escHtml(p.id||p._id)}')">Publicar no site</button>`:''}
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+window.publishProductToStorefront=async function(id){
+  if(!hasAdminPerm('products:update')){ displayMessage('Você não tem permissão para publicar produtos.','error'); return; }
+  if(!confirm('Publicar este produto na vitrine do site agora?')) return;
+  try{
+    await apiRequest(`/admin/products/${encodeURIComponent(id)}/storefront`,{
+      method:'PATCH',
+      headers:buildHeadersAuth(),
+      body:JSON.stringify({status:'approved'})
+    });
+    await loadProducts();
+    await renderProductsView();
+    displayMessage('Produto aprovado e publicado na vitrine do site.','success');
+  }catch(e){
+    displayMessage(e.message||'Não foi possível publicar o produto.','error');
+  }
+};
 function renderProductsTable(){
   return allProductsCache.map(p=>{
     const category=String(p.categoryName||p.category||p.categoria||'Sem categoria');
     const stockClass=Number(p.stock||0)>0?'bg-success-green/20 text-success-green':'bg-error-red/20 text-error-red';
     const thumbnail=adminProductThumbnail(p);
+    const storefront=storefrontProductMeta(p);
     return `<tr class="align-middle hover:bg-gray-50 transition-colors border-t">
       <td class="px-4 py-4 min-w-[320px]"><div class="flex items-center gap-3"><div class="flex-shrink-0 h-14 w-14 rounded-lg overflow-hidden border border-gray-200 bg-gray-50"><img class="h-full w-full object-cover" src="${escHtml(thumbnail.src)}" data-original-src="${escHtml(thumbnail.original)}" alt="Imagem do Produto" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="window.handleAdminProductThumbnailError(this)"></div><div class="min-w-0 flex-1"><div class="text-sm font-semibold text-gray-900 leading-5 break-words">${escHtml(p.name||'Produto sem nome')}</div><div class="text-xs text-gray-500 mt-1 break-words">${escHtml(category)}</div></div></div></td>
       <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${formatCurrency(p.price||0)}</td>
       <td class="px-4 py-4 whitespace-nowrap"><span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${stockClass}">${Number(p.stock||0)} em estoque</span></td>
+      <td class="px-4 py-4 whitespace-nowrap"><span class="px-2 py-1 inline-flex text-xs leading-5 font-bold rounded-full ${storefront.badge}">${storefront.label}</span></td>
       <td class="px-4 py-4 text-sm text-gray-500">${p.isHighlight?'<span class="px-2 py-1 rounded-full bg-primary-blue/10 text-primary-blue text-xs font-semibold">Destaque</span>':''}</td>
-      <td class="px-4 py-4 whitespace-nowrap text-sm font-medium"><div class="flex items-center gap-2"><button class="px-3 py-1.5 rounded-md bg-primary-blue text-white text-xs font-semibold" onclick="window.editProduct('${escHtml(p.id)}')">Editar</button>${hasAdminPerm('posters:generate') ? `<button class="px-3 py-1.5 rounded-md bg-success-green text-white text-xs font-semibold" onclick="window.generateProductPoster('${escHtml(p.id)}','square')">Poster</button><button class="px-3 py-1.5 rounded-md bg-secondary-light-blue text-white text-xs font-semibold" onclick="window.generateProductPoster('${escHtml(p.id)}','story')">Story</button>` : ''}${hasAdminPerm('products:delete') ? `<button class="px-3 py-1.5 rounded-md bg-error-red text-white text-xs font-semibold" onclick="window.deleteProduct('${escHtml(p.id)}')">Excluir</button>` : ''}</div></td>
+      <td class="px-4 py-4 whitespace-nowrap text-sm font-medium"><div class="flex items-center gap-2"><button class="px-3 py-1.5 rounded-md bg-primary-blue text-white text-xs font-semibold" onclick="window.editProduct('${escHtml(p.id)}')">Editar</button>${storefront.pending&&hasAdminPerm('products:update')?`<button class="px-3 py-1.5 rounded-md bg-success-green text-white text-xs font-semibold" onclick="window.publishProductToStorefront('${escHtml(p.id)}')">Publicar</button>`:''}${hasAdminPerm('posters:generate') ? `<button class="px-3 py-1.5 rounded-md bg-success-green text-white text-xs font-semibold" onclick="window.generateProductPoster('${escHtml(p.id)}','square')">Poster</button><button class="px-3 py-1.5 rounded-md bg-secondary-light-blue text-white text-xs font-semibold" onclick="window.generateProductPoster('${escHtml(p.id)}','story')">Story</button>` : ''}${hasAdminPerm('products:delete') ? `<button class="px-3 py-1.5 rounded-md bg-error-red text-white text-xs font-semibold" onclick="window.deleteProduct('${escHtml(p.id)}')">Excluir</button>` : ''}</div></td>
     </tr>`;
-  }).join('') || '<tr><td colspan="5" class="text-gray-500 py-8 text-center">Nenhum produto cadastrado.</td></tr>';
+  }).join('') || '<tr><td colspan="6" class="text-gray-500 py-8 text-center">Nenhum produto cadastrado.</td></tr>';
 }
 function renderProductImages(){
   const box=document.getElementById('product-images-grid'); if(!box) return;
@@ -2227,9 +2279,12 @@ async function saveProductFromForm(e){
       await renderProductsView();
       window.editProduct(resolvedId);
 
-      const successMessage=pendingFiles.length
-        ? (wasEditing ? 'Produto e imagens atualizados com sucesso!' : 'Produto e imagens salvos com sucesso!')
-        : (wasEditing ? 'Produto atualizado com sucesso!' : 'Produto salvo com sucesso!');
+      const stillPending=String(synced?.storefrontStatus||'').trim().toLowerCase()==='pending_review';
+      const successMessage=stillPending
+        ? 'Produto salvo. Ele continua fora da vitrine até você clicar em Publicar no site.'
+        : (pendingFiles.length
+          ? (wasEditing ? 'Produto e imagens atualizados com sucesso!' : 'Produto e imagens salvos com sucesso!')
+          : (wasEditing ? 'Produto atualizado com sucesso!' : 'Produto salvo com sucesso!'));
       displayMessage(successMessage,'success');
     } finally {
       saveBtn.innerHTML=originalSave;
@@ -2308,6 +2363,7 @@ async function renderProductsView(){
   await Promise.allSettled([loadProducts(), loadCategories()]);
   box.innerHTML=`
     ${getAdminRole() !== 'admin' ? '<div class="mb-4 p-4 rounded-xl bg-blue-50 border border-blue-100 text-sm text-blue-900"><b>Acesso limitado:</b> você tem permissão somente nas funções liberadas para produtos/posters.</div>' : ''}
+    ${renderPendingStorefrontQueue()}
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
       <div class="xl:col-span-2 bg-white p-5 rounded-lg shadow-md">
         <div class="flex items-center justify-between mb-4"><h2 id="product-form-title" class="text-2xl font-bold text-text-dark">Cadastrar / Editar Produto</h2><button type="button" id="product-reset-btn" class="px-3 py-2 rounded-md bg-gray-100 text-gray-700 text-sm font-semibold">Limpar</button></div>
@@ -2351,7 +2407,7 @@ async function renderProductsView(){
           </div>
         <div class="flex flex-wrap gap-2"><button type="button" onclick="window.generateAllProductPosters('square')" class="px-3 py-2 rounded-md bg-success-green text-white text-xs font-bold">Gerar posters de todos</button><button type="button" onclick="window.generateAllProductPosters('story')" class="px-3 py-2 rounded-md bg-secondary-light-blue text-white text-xs font-bold">Gerar stories de todos</button><button type="button" onclick="window.changeView('marketing')" class="px-3 py-2 rounded-md bg-primary-blue text-white text-xs font-bold">Banners em rascunho</button></div>
       </div>
-      <div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Produto</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Preço</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Estoque</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Marcadores</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Ações</th></tr></thead><tbody>${renderProductsTable()}</tbody></table></div>
+      <div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Produto</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Preço</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Estoque</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Vitrine</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Marcadores</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Ações</th></tr></thead><tbody>${renderProductsTable()}</tbody></table></div>
     </div>`;
   const productForm=document.getElementById('product-form');
   const productSaveBtn=document.getElementById('product-submit-btn');

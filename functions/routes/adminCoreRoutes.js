@@ -1227,6 +1227,7 @@ const ADMIN_PRODUCT_LIST_FIELD_NAMES = [
   'sellerId', 'sellerName',
   'price', 'oldPrice', 'pixPrice', 'installmentCount',
   'stock', 'active',
+  'storefrontStatus', 'storefrontSource', 'storefrontSubmittedAt', 'storefrontReviewedAt', 'storefrontReviewedBy', 'storefrontReviewNote',
   'specs', 'dimensions', 'logistics',
   'weight', 'length', 'height', 'width',
   'isOffer', 'isFavorite', 'isHighlight', 'isBestSeller',
@@ -1276,6 +1277,70 @@ app.get('/api/admin/products', adminRequired, async (req, res) => {
     return res.json(rows.map(normalizeProductForResponse));
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'admin_products_list_failed' });
+  }
+});
+
+app.patch('/api/admin/products/:id/storefront', adminRequired, async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.id);
+    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+
+    const product = await Product.findById(oid);
+    if (!product) return res.status(404).json({ ok: false, error: 'Produto não encontrado' });
+
+    const requestedStatus = String(req.body?.status || 'approved').trim().toLowerCase();
+    if (!['approved', 'pending_review'].includes(requestedStatus)) {
+      return res.status(400).json({ ok: false, error: 'Status da vitrine inválido' });
+    }
+
+    if (requestedStatus === 'approved') {
+      const current = normalizeProductForResponse(product);
+      const imageUrl = String(current.mainImageUrl || current.imageUrl || current.image || '').trim();
+      const missing = [];
+      if (!String(product.name || '').trim()) missing.push('nome');
+      if (!String(product.categoryName || product.category || '').trim()) missing.push('categoria');
+      if (!(Number(product.price || 0) > 0)) missing.push('preço');
+      if (!String(product.description || '').trim()) missing.push('descrição');
+      if (!imageUrl || !/^https?:\/\//i.test(imageUrl)) missing.push('imagem');
+
+      if (missing.length) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Complete o cadastro antes de publicar.',
+          code: 'STOREFRONT_PRODUCT_INCOMPLETE',
+          missing
+        });
+      }
+    }
+
+    const updated = await Product.findByIdAndUpdate(
+      oid,
+      {
+        $set: {
+          storefrontStatus: requestedStatus,
+          storefrontSource: String(product.storefrontSource || 'erp'),
+          storefrontReviewedAt: now(),
+          storefrontReviewedBy: String(req.admin?.email || req.admin?.id || 'admin'),
+          storefrontReviewNote: String(req.body?.note || '').trim()
+        }
+      },
+      { new: true, runValidators: true }
+    );
+
+    await writeAuditLog?.({
+      scope: 'products',
+      eventType: requestedStatus === 'approved' ? 'storefront_product_published' : 'storefront_product_review',
+      status: 'success',
+      metadata: {
+        productId: String(updated._id),
+        storefrontStatus: requestedStatus,
+        actor: req.admin?.email || req.admin?.id || 'admin'
+      }
+    }).catch(() => null);
+
+    return res.json({ ok: true, product: normalizeProductForResponse(updated) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'storefront_product_status_failed' });
   }
 });
 

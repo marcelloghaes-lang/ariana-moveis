@@ -22,8 +22,17 @@ export default function registerStorefrontProductVisibilityRoutes(app, context =
   }
 
   const storefrontBaseFilter = () => ({
-    active: true,
-    'specs.sigeSourceId': { $exists: false }
+    $and: [
+      { active: true },
+      { 'specs.sigeSourceId': { $exists: false } },
+      {
+        $or: [
+          { storefrontStatus: { $exists: false } },
+          { storefrontStatus: '' },
+          { storefrontStatus: { $in: ['approved', 'published'] } }
+        ]
+      }
+    ]
   });
 
   // Storefront lists render compact cards. Avoid loading complete product
