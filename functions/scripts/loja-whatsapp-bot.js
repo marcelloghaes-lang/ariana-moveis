@@ -4498,9 +4498,41 @@ function asksProductColor(text = '') {
 }
 
 
+
+function explicitListOptionNumber(text = '', maxOptions = 0) {
+  const n = normalize(text)
+    .replace(/[!?.,;:()[\]{}]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n) return 0;
+
+  const patterns = [
+    /^(?:o|a)\s+(\d{1,2})\b/,
+    /^(?:quero|gostei|prefiro|escolho|escolhi|fico com|pode ser|manda|mostra|mostrar|me mostra|me manda)\s+(?:o|a)?\s*(\d{1,2})\b/,
+    /\b(?:opcao|numero|n)\s*(\d{1,2})\b/,
+    /^(\d{1,2})\s+(?:voce|tem|manda|mostra|quero|gostei|pode|qual|quanto)\b/,
+    /^(\d{1,2})$/
+  ];
+
+  let value = 0;
+  for (const pattern of patterns) {
+    const match = n.match(pattern);
+    if (match) {
+      value = Number(match[1] || 0);
+      break;
+    }
+  }
+
+  if (!Number.isFinite(value) || value < 1) return 0;
+  if (Number(maxOptions || 0) > 0 && value > Number(maxOptions)) return 0;
+  return value;
+}
+
 function currentListReferenceCue(text = '') {
   const n = normalize(text);
   return (
+    explicitListOptionNumber(text) > 0 ||
     ordinalIndex(text) >= 0 ||
     asksLastShownProduct(text) ||
     asksThisShownProduct(text) ||
@@ -4521,6 +4553,16 @@ function currentListProductReference(conv = {}, text = '') {
   const products = Array.isArray(conv?.lastProducts) ? conv.lastProducts.filter(Boolean) : [];
   if (!products.length || !currentListReferenceCue(text)) {
     return { status: 'none', product: null, candidates: [] };
+  }
+
+  const explicitOption = explicitListOptionNumber(text, products.length);
+  if (explicitOption > 0 && products[explicitOption - 1]) {
+    return {
+      status: 'single',
+      product: products[explicitOption - 1],
+      candidates: [products[explicitOption - 1]],
+      reason: 'numeric_option'
+    };
   }
 
   const ord = ordinalIndex(text);
@@ -9045,9 +9087,14 @@ async function handleMessage({
       Array.isArray(conv.lastProducts) &&
       conv.lastProducts.length > 1
     ) {
+      rememberPendingListClarification(
+        conv,
+        { candidates: conv.lastProducts },
+        text
+      );
       await sendText(
         phone,
-        'Tenho sim 😊 Só me diga qual das opções que eu acabei de mostrar você quer ver melhor — pode falar *“a primeira”*, *“a segunda”*, a cor, o modelo ou uma característica como *“o com espelho”*.'
+        'Tenho sim 😊 Só me diga qual das opções que eu acabei de mostrar você quer ver melhor — pode responder *“1”*, *“2”*, *“3”*, *“a terceira”*, a cor, o modelo ou uma característica como *“o com espelho”*.'
       );
       return;
     }
@@ -10976,6 +11023,7 @@ export const __test = {
   asksReadyStock,
   asksDeliverySpeed,
   asksProductColor,
+  explicitListOptionNumber,
   currentListReferenceCue,
   currentListProductReference,
   currentListClarificationText,
