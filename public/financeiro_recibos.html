@@ -322,7 +322,7 @@
       </div>
     </aside>
     <main class="main">
-      <div class="top"><div><h1>Financeiro de Parcelas</h1><p class="help">Consulte parcelas e saldos oficiais do SIGE, registre comprovantes e envie pelo Ariana Notificações.</p></div><button class="light" onclick="loadAll()">🔄 Atualizar</button><button id="installAppBtn" class="primary" style="display:none;margin-left:10px" type="button">⬇️ Instalar aplicativo</button></div>
+      <div class="top"><div><h1>Financeiro de Parcelas</h1><p class="help">Consulte parcelas e saldos do Ariana ERP, registre pagamentos e envie comprovantes automaticamente pelo WhatsApp.</p></div><button class="light" onclick="loadAll()">🔄 Atualizar</button><button id="installAppBtn" class="primary" style="display:none;margin-left:10px" type="button">⬇️ Instalar aplicativo</button></div>
       <div id="promiseDueAlert" class="promise-due-alert hidden" role="alert" aria-live="polite">
         <div>
           <strong id="promiseDueAlertTitle">🔔 Promessas de pagamento para hoje</strong>
@@ -344,7 +344,7 @@
 
       <section id="tab-novo">
         <div class="grid">
-          <div class="card"><h2>Novo comprovante</h2><p class="help">Digite o nome do cliente e consulte o cadastro financeiro oficial do SIGE para preencher CPF, WhatsApp e referência automaticamente.</p>
+          <div class="card"><h2>Novo comprovante</h2><p class="help">Digite o nome do cliente e consulte o cadastro do Ariana ERP para preencher CPF, WhatsApp e referência automaticamente.</p>
             <input type="hidden" id="clienteId">
             <div class="formgrid">
               <div class="autocomplete-wrap"><label>Cliente</label><input id="nome" placeholder="Digite parte do nome, CPF ou telefone" autocomplete="off"><div id="clienteSugestoes" class="suggestions hidden"></div><div id="clienteSelecionado" class="selected-client hidden"></div><button type="button" class="light small" style="margin-top:8px" onclick="buscarEPreencherCliente()">🔎 Buscar e preencher cliente</button></div>
@@ -2474,7 +2474,7 @@ function renderSigeLancamentos(rows){
     const status=l.quitado?'✅ Quitado':(l.atrasado?'⚠️ Atrasado':'🟡 Em aberto');
     const doc=l.documento||l.codigoVenda||l.codigo||'—';
     const valor=l.saldo&&l.saldo>0?l.saldo:l.valor;
-    return `<tr><td><b>${esc(l.cliente||l.nome)}</b><br><small>${esc(l.telefone?shortPhone(l.telefone):'')}</small></td><td>${esc(doc)}<br><small>${esc(l.descricao||'')}</small></td><td>${formatDateBR(l.dataVencimento)}</td><td><b>${money(valor)}</b><br><small>Recebido: ${money(l.totalRecebido||0)}</small></td><td>${status}</td><td>${(!l.quitado&&Number(l.codigo||0)>0)?`<button type="button" class="green small pay-btn" onclick="abrirPagamentoLancamentoSige(${i})">💰 Pagar</button> `:''}<button type="button" class="blue small" onclick="verCarneLancamentoSige(${i})">📋 Carnê</button> <button type="button" class="yellow small" onclick="cobrarLancamentoSige(${i})">🔔 Cobrar</button></td></tr>`
+    return `<tr><td><b>${esc(l.cliente||l.nome)}</b><br><small>${esc(l.telefone?shortPhone(l.telefone):'')}</small></td><td>${esc(doc)}<br><small>${esc(l.descricao||'')}</small></td><td>${formatDateBR(l.dataVencimento)}</td><td><b>${money(valor)}</b><br><small>Recebido: ${money(l.totalRecebido||0)}</small></td><td>${status}</td><td>${(!l.quitado&&isArianaFinanceRef(l.codigo))?`<button type="button" class="green small pay-btn" onclick="abrirPagamentoLancamentoSige(${i})">💰 Pagar</button> `:''}<button type="button" class="blue small" onclick="verCarneLancamentoSige(${i})">📋 Carnê</button> <button type="button" class="yellow small" onclick="cobrarLancamentoSige(${i})">🔔 Cobrar</button></td></tr>`
   }).join('')||(resumo||'<tr><td colspan="6">Nenhum lançamento encontrado.</td></tr>');
 }
 function cobrarLancamentoSige(i){
@@ -2676,7 +2676,7 @@ function renderSigeCarne(carne){
       const st=p.status==='paga'?'✅ Paga':(p.status==='atrasada'?'⚠️ Atrasada':'⏳ Aberta');
       const canCobrar=p.status!=='paga';
       const idx=window.sigeCarneParcelasCache.push({...p,telefone:carne.telefone,cpf:carne.cpf})-1;
-      const canPagar=canCobrar&&Number(p.codigo||0)>0&&Number(p.saldoParcela||p.saldo||0)>0;
+      const canPagar=canCobrar&&isArianaFinanceRef(p.codigo)&&Number(p.saldoParcela||p.saldo||0)>0;
       const calc=calcularAtualizacaoParcela(Number(p.saldoParcela??p.valorParcela??0),p.dataVencimento,p.status);
       window.sigeCarneParcelasCache[idx]={...window.sigeCarneParcelasCache[idx],calculoAtualizacao:calc};
       const atraso=calc.diasAtraso>0?`<br><small style="color:#b91c1c">${calc.diasAtraso} dia(s) em atraso</small>`:'';
@@ -2784,6 +2784,9 @@ function parseMoneyInput(v){
 function moneyInput(v){
   return Number(v||0).toFixed(2).replace('.',',');
 }
+function isArianaFinanceRef(value){
+  return /^(ERP_[a-f0-9]{24}_\d+|LEDGER_[a-f0-9]{24})$/i.test(String(value||'').trim());
+}
 function gerarDocumentoPagamentoSige(codigo){
   const d=new Date();
   const stamp=[
@@ -2815,7 +2818,7 @@ function normalizarAlvoPagamentoSige(item={}){
 }
 function abrirPagamentoSige(item){
   const alvo=normalizarAlvoPagamentoSige(item);
-  if(!/^(ERP_[a-f0-9]{24}_\d+|LEDGER_[a-f0-9]{24})$/i.test(alvo.codigo)){toast('Atualize o carnê para obter a referência financeira do Ariana ERP.');return}
+  if(!isArianaFinanceRef(alvo.codigo)){toast('Atualize o carnê para obter a referência financeira do Ariana ERP.');return}
   if(alvo.quitado||alvo.saldo<=0){toast('Esta parcela já está quitada no Ariana ERP.');return}
   sigePagamentoAlvo=alvo;
   sigePayCodigo.value=String(alvo.codigo);
