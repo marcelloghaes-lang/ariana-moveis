@@ -10,6 +10,7 @@ on:
       - 'functions/routes/televendas/index.js'
       - 'functions/server.js'
       - 'public/erp_*.html'
+      - 'public/financeiro_recibos.html'
       - '.github/workflows/ariana-erp-lite-validation.yml'
   push:
     branches:
@@ -30,6 +31,7 @@ on:
       - 'functions/routes/televendas/index.js'
       - 'functions/server.js'
       - 'public/erp_*.html'
+      - 'public/financeiro_recibos.html'
       - '.github/workflows/ariana-erp-lite-validation.yml'
 
 jobs:
@@ -104,6 +106,29 @@ jobs:
           assert.equal(legitimate.suppressed,0);
           NODE
 
+      - name: Validate automatic receipt contact references
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { createErpFinanceCustomerContactService } from './functions/services/erp/erpFinanceCustomerContactService.js';
+
+          const service=createErpFinanceCustomerContactService({
+            Order:{},
+            normalizePhone:(value,country='55')=>{
+              let n=String(value||'').replace(/\D/g,'');
+              if((n.length===10||n.length===11)&&country)n=country+n;
+              return n;
+            }
+          });
+          assert.deepEqual(service.parseReference('ERP_0123456789abcdef01234567_3'),{
+            type:'order',orderId:'0123456789abcdef01234567',number:3
+          });
+          assert.deepEqual(service.parseReference('LEDGER_0123456789abcdef01234567'),{
+            type:'ledger',entryId:'0123456789abcdef01234567'
+          });
+          assert.equal(service.parseReference('12345'),null);
+          NODE
+
       - name: Validate ERP permission matrix
         run: |
           node --input-type=module <<'NODE'
@@ -143,8 +168,11 @@ jobs:
           out = Path('/tmp/erp-inline')
           out.mkdir(parents=True, exist_ok=True)
           files = sorted(Path('public').glob('erp_*.html'))
+          finance = Path('public/financeiro_recibos.html')
+          if finance.exists():
+              files.append(finance)
           if not files:
-              raise SystemExit('Nenhuma tela ERP encontrada.')
+              raise SystemExit('Nenhuma tela ERP/Financeiro encontrada.')
           generated = []
           for html in files:
               text = html.read_text(encoding='utf-8')
