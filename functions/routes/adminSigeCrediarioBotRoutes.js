@@ -11191,6 +11191,28 @@ async function executarSincronizacaoCarnesErp({
   async function buscarTelefoneLocalFinanceiro({ cpf = '', nome = '' } = {}) {
     const candidates = [];
 
+    const Person = mongoose.models.ErpPerson;
+    if (Person) {
+      const filter = { active: { $ne: false }, $or: [] };
+      if (cpf) filter.$or.push({ document: cleanPhone(cpf) });
+      if (nome) {
+        filter.$or.push(
+          { name: new RegExp(`^${escapeRegex(nome)}  async function buscarTelefoneLocalFinanceiro({ cpf = '', nome = '' } = {}) {
+, 'i') },
+          { companyName: new RegExp(`^${escapeRegex(nome)}  async function buscarTelefoneLocalFinanceiro({ cpf = '', nome = '' } = {}) {
+, 'i') }
+        );
+      }
+      if (filter.$or.length) {
+        try {
+          const row = await Person.findOne(filter).lean();
+          if (row) candidates.push({ fonte: 'erp_people', row });
+        } catch (error) {
+          console.warn('[financeiro telefone ERP cliente]', error.message || error);
+        }
+      }
+    }
+
     if (CrediarioCliente) {
       const filter = { $or: [] };
       if (cpf) {
@@ -11345,25 +11367,13 @@ async function executarSincronizacaoCarnesErp({
       });
       return { ok: true, encontrado: true, ...propagated };
     }
-
-    const sige = await buscarTelefoneNoSigeFinanceiro(dados);
-    if (sige.telefone) {
-      const propagated = await propagarTelefoneFinanceiro({
-        carne,
-        telefone: sige.telefone,
-        fonte: sige.fonte,
-        req
-      });
-      return { ok: true, encontrado: true, ...propagated };
-    }
-
     return {
       ok: true,
       encontrado: false,
       atualizado: false,
       telefone: '',
       reason: 'telefone_nao_encontrado',
-      fontesConsultadas: ['carne_digital', 'crediario_clientes', 'pedidos', 'sige_pessoas']
+      fontesConsultadas: ['carne_digital', 'erp_people', 'crediario_clientes', 'pedidos']
     };
   }
 
