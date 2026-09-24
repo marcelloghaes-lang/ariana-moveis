@@ -111,10 +111,22 @@ jobs:
         run: |
           grep -Fq "ERP_([a-f0-9]{24})" functions/services/erp/erpFinanceCustomerContactService.js
           grep -Fq "LEDGER_([a-f0-9]{24})" functions/services/erp/erpFinanceCustomerContactService.js
+          grep -Fq "afterSaleReceive" functions/services/erp/erpPaymentReceiptService.js
+          grep -Fq "afterLedgerReceive" functions/services/erp/erpPaymentReceiptService.js
+          grep -Fq "sendCrediarioReceiptWhatsapp" functions/services/erp/erpPaymentReceiptService.js
+          grep -Fq "ariana-erp-baixa|" functions/services/erp/erpPaymentReceiptService.js
+          grep -Fq "receiptDelivery" functions/services/erp/erpFinanceService.js
+          grep -Fq "receiptDelivery" functions/services/erp/erpLedgerService.js
           grep -Fq "cliente_sem_whatsapp" functions/routes/adminSigeCrediarioBotRoutes.js
           grep -Fq "requiresPhone" functions/routes/adminSigeCrediarioBotRoutes.js
           grep -Fq "receiptPhoneOverlay" public/financeiro_recibos.html
-          grep -Fq "Salvar e enviar comprovante" public/financeiro_recibos.html
+          grep -Fq "receipt-phone-modal" public/erp_financeiro_completo.html
+          grep -Fq "receipt-phone-modal" public/erp_financeiro.html
+          grep -Fq "receipt-phone-modal" public/erp_venda_detalhe.html
+          grep -Fq "Salvar telefone e enviar comprovante" public/erp_financeiro_completo.html
+          grep -Fq "Salvar telefone e enviar comprovante" public/erp_financeiro.html
+          grep -Fq "Salvar telefone e enviar comprovante" public/erp_venda_detalhe.html
+          grep -Fq "✅ Pagamento registrado com sucesso" functions/server.js
 
       - name: Validate ERP permission matrix
         run: |
@@ -127,6 +139,7 @@ jobs:
           assert.deepEqual(rule('POST', '/erp/orders').any, ['orders:update']);
           assert.deepEqual(rule('POST', '/erp/orders/abc/cancelar').any, ['orders:cancel']);
           assert.deepEqual(rule('POST', '/erp/financeiro/lancamentos/abc/quitar').any, ['payments:receive']);
+          assert.deepEqual(rule('POST', '/erp/financeiro/comprovantes/abc/telefone-enviar').any, ['payments:receive']);
           assert.deepEqual(rule('GET', '/erp/finance-panel/clientes').any, ['customers:read','finance:read','payments:read']);
           assert.deepEqual(rule('GET', '/erp/finance-panel/lancamentos').any, ['finance:read','payments:read']);
           assert.deepEqual(rule('GET', '/erp/finance-panel/inadimplentes').any, ['finance:read','payments:read']);
