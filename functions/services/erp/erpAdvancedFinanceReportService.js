@@ -26,7 +26,7 @@ export function createErpAdvancedFinanceReportService(context={}){
   if(!Order)throw new Error('[erp-advanced-finance] Order não informado');
 
   async function currentSaleReceivables(){
-    const orders=await Order.find({origin:'erp_ariana',status:'faturado','televendas.erp.receivables.0':{$exists:true}}).select('_id customerName customerCpf payment televendas updatedAt').lean();
+    const orders=await Order.find({origin:'erp_ariana',status:{$in:['pedido','venda','faturado']},'televendas.erp.receivables.0':{$exists:true}}).select('_id customerName customerCpf payment televendas updatedAt').lean();
     const out=[];
     for(const o of orders){
       for(const r of arr(o.televendas?.erp?.receivables)){
@@ -41,7 +41,7 @@ export function createErpAdvancedFinanceReportService(context={}){
   async function rows(){
     const Entry=mongoose.models.ErpFinancialEntry;
     const manual=Entry?await Entry.collection.find({status:{$ne:'cancelled'}}).sort({dueAt:1}).limit(50000).toArray():[];
-    const normalized=manual.map(safeRow).filter(r=>!(r.origin==='sige_import'&&Math.abs(Number(r.value||0))>=anomalyLimit));
+    const normalized=manual.map(safeRow);
     return[...normalized,...await currentSaleReceivables()];
   }
 
