@@ -69,11 +69,12 @@ input:focus,select:focus,textarea:focus{border-color:#78a4df;box-shadow:0 0 0 3p
         <div class="fields three">
           <div class="field"><label>Natureza da operação *</label><input id="nature-operation" maxlength="60" placeholder="Venda de mercadoria"></div>
           <div class="field"><label>Finalidade</label><input class="readonly" value="NF-e normal" readonly></div>
-          <div class="field"><label>Tipo da operação</label><input class="readonly" value="Saída" readonly></div>
+          <div class="field"><label>Tipo da operação</label><input class="readonly" value="1 - Saída (venda)" readonly><small>Esta tela foi aberta a partir de uma venda. Para devolução/retorno use o fluxo fiscal próprio.</small></div>
           <div class="field"><label>Consumidor final</label><select id="consumer-final"><option value="1">Sim</option><option value="0">Não</option></select></div>
           <div class="field"><label>Presença do comprador</label><select id="buyer-presence"><option value="1">1 - Operação presencial</option><option value="2">2 - Internet</option><option value="3">3 - Teleatendimento</option><option value="5">5 - Presencial fora do estabelecimento</option><option value="0">0 - Não se aplica</option><option value="9">9 - Outros</option></select></div>
           <div class="field"><label>Documento</label><input class="readonly" value="NF-e modelo 55" readonly></div>
         </div>
+        <div class="notice" style="margin-top:12px"><b>Outras operações fiscais:</b> esta tela é exclusiva para NF-e normal de venda (saída). <a href="erp_devolucao_nfe.html" style="font-weight:900;color:inherit">Abrir NF-e de devolução / retorno</a>. Uma NF-e de entrada normal deve usar fluxo próprio e não deve ser transformada em venda apenas alterando este campo.</div>
       </div>
 
       <div id="government-card" class="card government">
@@ -190,7 +191,7 @@ const $=id=>document.getElementById(id),storageKey='ariana_erp_nfe_review';
 const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 const digits=v=>String(v??'').replace(/\D/g,'');
-let data=null,lastReview=null,preflightReady=false,lastFiscalDocumentId='',preflightTimer=null,sending=false;
+let data=null,lastReview=null,preflightReady=false,lastFiscalDocumentId='',preflightTimer=null,sending=false,customerHydrated=false;
 
 function token(){const t=localStorage.getItem('admin_token')||localStorage.getItem('adminToken')||localStorage.getItem('auth_token')||localStorage.getItem('token')||'';if(t)return t;try{return JSON.parse(localStorage.getItem('banner_admin_session')||'null')?.token||''}catch{return''}}
 function clearSession(){['admin_token','adminToken','auth_token','token','banner_admin_session','admin_name','admin_email','admin_id'].forEach(k=>localStorage.removeItem(k))}
@@ -249,6 +250,46 @@ function readInputs(){
   saveDraft();
 }
 function changed(){readInputs();preflightReady=false;$('preview').disabled=true;clearTimeout(preflightTimer);preflightTimer=setTimeout(preflight,450)}
+async function hydrateCustomerFromErp(){
+  if(customerHydrated||!data?.customer)return;
+  customerHydrated=true;
+  const current=data.customer||{},doc=digits(current.document);
+  try{
+    let person=null;
+    if(current.id){
+      const d=await fetch(API+'/erp/people/'+encodeURIComponent(current.id),{headers:headers(),cache:'no-store'}).then(r=>r.ok?r.json():null);
+      person=d?.person||null;
+    }
+    if(!person&&[11,14].includes(doc.length)){
+      const d=await fetch(API+'/erp/people?q='+encodeURIComponent(doc)+'&limit=20',{headers:headers(),cache:'no-store'}).then(r=>r.ok?r.json():null);
+      person=(d?.people||[]).find(p=>digits(p.document)===doc)||null;
+    }
+    if(!person)return;
+    data.customer={
+      ...current,
+      id:person.id||current.id||'',
+      name:person.name||current.name||'',
+      document:person.document||current.document||'',
+      phone:person.phone||current.phone||'',
+      email:person.email||current.email||'',
+      address:person.addressText||current.address||'',
+      addressData:person.address||current.addressData||{},
+      ie:person.ie||'',
+      ieExempt:Boolean(person.ieExempt),
+      icmsTaxpayerStatus:person.icmsTaxpayerStatus||'auto',
+      publicAgency:Boolean(person.publicAgency),
+      publicEntityType:person.publicEntityType||'',
+      personType:person.personType||''
+    };
+    saveDraft();
+    const a=data.customer.addressData||{};
+    $('c-name').textContent=data.customer.name||'Consumidor';
+    $('c-doc').textContent=data.customer.document||'—';
+    $('c-contact').textContent=[data.customer.phone,data.customer.email].filter(Boolean).join(' • ')||'—';
+    $('c-address').textContent=data.customer.address||[a.street,a.number,a.neighborhood,a.city,a.stateCode].filter(Boolean).join(', ')||'—';
+    $('edit-customer').href='erp_clientes.html?'+new URLSearchParams({edit:String(data.customer.id||''),return:'erp_revisao_nfe.html'}).toString();
+  }catch{}
+}
 function renderProductRows(review){
   const draftRows=Array.isArray(data?.items)?data.items:[],preRows=Array.isArray(review?.products)?review.products:[];
   $('items').innerHTML=draftRows.map((i,index)=>{const p=preRows[index]||{},s=p.specs||{},f=p.fiscal||{};return'<tr><td><b>'+esc(i.name||p.name||'Produto')+'</b></td><td>'+esc(i.sku||p.sku||'—')+'</td><td>'+esc(s.ncm||'—')+'</td><td>'+esc(f.cfop||'—')+'</td><td>'+esc(f.csosn||'—')+'</td><td>'+esc(f.unit||'—')+'</td><td>'+Number(i.qty||0)+'</td><td class="money">'+money(i.unitPrice)+'</td><td class="money"><b>'+money(Number(i.qty||0)*Number(i.unitPrice||0))+'</b></td></tr>'}).join('');
@@ -263,6 +304,7 @@ function applyReview(review={}){
 }
 async function preflight(){
   if(!data||!token())return token()?null:goLogin();
+  await hydrateCustomerFromErp();
   readInputs();preflightReady=false;$('preview').disabled=true;$('issues').innerHTML='';status('Conferindo A1, emitente, destinatário, produtos, tributação, transporte e dados adicionais…');
   try{
     const r=await fetch(API+'/erp/fiscal/nfe/preflight',{method:'POST',headers:headers(),body:JSON.stringify({draft:data}),cache:'no-store'});
