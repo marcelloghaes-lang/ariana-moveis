@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { buildReceivables } from './erpService.js';
 
 const clean=(v='',m=500)=>String(v??'').trim().slice(0,m);
 const money=v=>Math.round((Number(v||0)+Number.EPSILON)*100)/100;
@@ -26,10 +27,11 @@ export function createErpAdvancedFinanceReportService(context={}){
   if(!Order)throw new Error('[erp-advanced-finance] Order não informado');
 
   async function currentSaleReceivables(){
-    const orders=await Order.find({origin:'erp_ariana',status:'faturado','televendas.erp.receivables.0':{$exists:true}}).select('_id customerName customerCpf payment televendas updatedAt').lean();
+    const orders=await Order.find({origin:'erp_ariana',status:{$in:['pedido','venda','faturado']}}).select('_id customerName customerCpf payment total televendas updatedAt').lean();
     const out=[];
     for(const o of orders){
-      for(const r of arr(o.televendas?.erp?.receivables)){
+      const stored=arr(o.televendas?.erp?.receivables),receivables=stored.length?stored:buildReceivables(o.total,o.payment||{});
+      for(const r of receivables){
         if(['cancelado','estornado'].includes(String(r.status||'').toLowerCase()))continue;
         const payments=arr(r.payments),paid=String(r.status||'').toLowerCase()==='recebido'||Number(r.receivedAmount||0)>=Number(r.value||0)-0.009;
         out.push(safeRow({id:`order:${o._id}:${r.number||out.length}`,origin:'ariana_sale',direction:'receivable',personName:o.customerName||'Consumidor',personDocument:o.customerCpf||'',description:o.televendas?.erp?.code||'Venda Ariana',categoryName:r.categoryName||'Vendas',centerCostName:r.centerCostName||'Vendas',bankAccountName:r.bankAccountName||'',paymentMethod:r.receivedMethod||r.method||o.payment?.method||'',value:Number(r.value||0),status:paid?'paid':'pending',dueAt:r.dueAt,competenceAt:r.competenceAt||o.updatedAt,paidAt:r.receivedAt||payments.at(-1)?.at||null,payments,orderId:String(o._id),installmentNumber:Number(r.number||1),installments:Number(r.installments||1)}));
@@ -41,7 +43,7 @@ export function createErpAdvancedFinanceReportService(context={}){
   async function rows(){
     const Entry=mongoose.models.ErpFinancialEntry;
     const manual=Entry?await Entry.collection.find({status:{$ne:'cancelled'}}).sort({dueAt:1}).limit(50000).toArray():[];
-    const normalized=manual.map(safeRow).filter(r=>!(r.origin==='sige_import'&&Math.abs(Number(r.value||0))>=anomalyLimit));
+    const normalized=manual.map(safeRow);
     return[...normalized,...await currentSaleReceivables()];
   }
 

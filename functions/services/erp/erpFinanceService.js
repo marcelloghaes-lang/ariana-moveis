@@ -1,3 +1,5 @@
+import { buildReceivables } from './erpService.js';
+
 const clean=(v='',m=1000)=>String(v??'').trim().slice(0,m);
 const array=v=>Array.isArray(v)?v:[];
 const money=v=>Math.round((Number(v||0)+Number.EPSILON)*100)/100;
@@ -16,12 +18,27 @@ export function createErpFinanceService(context={}){
  function remaining(r={}){return Math.max(0,money(Number(r.value||0)-receivedTotal(r)))}
  function state(r={}){const got=receivedTotal(r);if(r.status==='recebido'||remaining(r)<=0.009)return'recebido';if(got>0)return'parcial';return r.status||'pendente'}
  function customerKey(order={}){const doc=digits(order.customerCpf);return doc?`doc:${doc}`:`name:${clean(order.customerName||'Consumidor',180).toLowerCase()}`}
+ function financeStage(status=''){return ['pedido','venda','faturado'].includes(String(status||'').toLowerCase())}
+ function financeState(rows=[]){const active=array(rows).filter(r=>!['cancelado','estornado'].includes(String(r.status||'').toLowerCase()));if(!active.length)return'not_generated';const all=active.every(r=>state(r)==='recebido'),some=active.some(r=>receivedTotal(r)>0);return all?'settled':some?'partial':'generated'}
  function rowFrom(order,r){const got=receivedTotal(r),left=remaining(r),st=state(r),erp=order.televendas?.erp||{};return{orderId:String(order._id),code:erp.code||String(order._id).slice(-8).toUpperCase(),customerName:order.customerName||'Consumidor',customerCpf:order.customerCpf||'',customerPhone:order.customerPhone||'',customerEmail:order.customerEmail||'',number:Number(r.number||1),installments:Number(r.installments||1),value:money(r.value),dueAt:r.dueAt,status:st,rawStatus:r.status||'pendente',method:r.method||order.payment?.method||'',receivedAt:r.receivedAt||null,receivedAmount:got,remaining:left,payments:array(r.payments),orderTotal:money(order.total)}}
  async function list(query={}){
-  const filter={origin:'erp_ariana','televendas.erp.financialStatus':{$in:['generated','partial','settled','reversed']}};
-  const orders=await Order.find(filter).sort({updatedAt:-1}).limit(2000);
+  const filter={origin:'erp_ariana',status:{$in:['pedido','venda','faturado']}};
+  const orders=await Order.find(filter).sort({updatedAt:-1}).limit(5000);
   let rows=[];
-  for(const order of orders){for(const r of array(order.televendas?.erp?.receivables))rows.push(rowFrom(order,r))}
+  for(const order of orders){
+   const erp=order.televendas?.erp||{};
+   let receivables=array(erp.receivables);
+   if(!receivables.length&&financeStage(order.status)){
+    receivables=buildReceivables(order.total,order.payment||{});
+    const fs=financeState(receivables);
+    const ps=fs==='settled'?'approved':(fs==='partial'?'partial':'pending');
+    order.paymentStatus=ps;
+    order.payment={...(order.payment||{}),status:ps,received:fs==='settled',receivedAt:fs==='settled'?(order.payment?.receivedAt||new Date()):null};
+    order.televendas={...(order.televendas||{}),erp:{...erp,receivables,financialStatus:fs,financialGeneratedAt:erp.financialGeneratedAt||new Date(),timeline:[...array(erp.timeline),{status:'financeiro',label:'Financeiro gerado automaticamente para venda já existente',at:new Date(),by:'Ariana ERP'}]}};
+    await order.save();
+   }
+   for(const r of receivables)rows.push(rowFrom(order,r));
+  }
   const q=clean(query.q||query.search||'',180).toLowerCase();
   if(q)rows=rows.filter(r=>[r.code,r.customerName,r.customerCpf,r.customerPhone,r.customerEmail,r.method].join(' ').toLowerCase().includes(q));
   const customer=clean(query.customer||query.cliente||'',180).toLowerCase();if(customer)rows=rows.filter(r=>[r.customerName,r.customerCpf,r.customerPhone,r.customerEmail].join(' ').toLowerCase().includes(customer));
@@ -40,7 +57,7 @@ export function createErpFinanceService(context={}){
  }
  async function receive(orderId,number,payload={},actor={}){
   const order=await findOrder(orderId);
-  if(order.status!=='faturado')throw fail('Somente venda faturada pode receber parcela.',409,'ORDER_NOT_BILLED');
+  if(!financeStage(order.status))throw fail('Somente pedido ou venda ativa pode receber parcela.',409,'ORDER_NOT_FINANCIAL');
   const erp=order.televendas?.erp||{},receivables=array(erp.receivables).map(r=>({...r,payments:array(r.payments).map(p=>({...p}))})),n=Math.max(1,Number(number||0)),idx=receivables.findIndex(r=>Number(r.number)===n);
   if(idx<0)throw fail('Parcela não encontrada.',404,'RECEIVABLE_NOT_FOUND');
   const current=receivables[idx];
@@ -67,7 +84,7 @@ export function createErpFinanceService(context={}){
  async function resolveSelection(items=[]){
   const selected=array(items);if(!selected.length)throw fail('Selecione pelo menos um lançamento.',400,'NO_SELECTION');if(selected.length>300)throw fail('Selecione no máximo 300 lançamentos por operação.',400,'TOO_MANY_SELECTED');
   const rows=[];
-  for(const item of selected){const order=await findOrder(item.orderId);if(order.status!=='faturado')throw fail(`A venda ${order.televendas?.erp?.code||order._id} não está faturada.`,409,'ORDER_NOT_BILLED');const n=Math.max(1,Number(item.number||0)),r=array(order.televendas?.erp?.receivables).find(x=>Number(x.number)===n);if(!r)throw fail(`Parcela ${n} não encontrada.`,404,'RECEIVABLE_NOT_FOUND');const left=remaining(r);if(['cancelado','estornado'].includes(r.status)||state(r)==='recebido'||left<=0.009)throw fail(`Parcela ${n} de ${order.customerName||'cliente'} não está disponível para recebimento.`,409,'RECEIVABLE_CLOSED');rows.push({order,number:n,receivable:r,remaining:left,key:customerKey(order),dueAt:r.dueAt})}
+  for(const item of selected){const order=await findOrder(item.orderId);if(!financeStage(order.status))throw fail(`A venda ${order.televendas?.erp?.code||order._id} não está ativa no financeiro.`,409,'ORDER_NOT_FINANCIAL');const n=Math.max(1,Number(item.number||0)),r=array(order.televendas?.erp?.receivables).find(x=>Number(x.number)===n);if(!r)throw fail(`Parcela ${n} não encontrada.`,404,'RECEIVABLE_NOT_FOUND');const left=remaining(r);if(['cancelado','estornado'].includes(r.status)||state(r)==='recebido'||left<=0.009)throw fail(`Parcela ${n} de ${order.customerName||'cliente'} não está disponível para recebimento.`,409,'RECEIVABLE_CLOSED');rows.push({order,number:n,receivable:r,remaining:left,key:customerKey(order),dueAt:r.dueAt})}
   return rows
  }
  async function settleSelected(items=[],payload={},actor={}){

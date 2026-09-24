@@ -3740,8 +3740,7 @@ function financeiroErpReference(row = {}) {
       if (candidates.size < max) {
         const orders = await Order.find({
           origin: 'erp_ariana',
-          status: 'faturado',
-          'televendas.erp.receivables.0': { $exists: true }
+          status: { $in: ['pedido', 'venda', 'faturado'] }
         })
           .select('_id customerName customerCpf customerPhone updatedAt')
           .sort({ updatedAt: -1 })

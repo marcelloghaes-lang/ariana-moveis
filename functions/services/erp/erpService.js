@@ -1,4 +1,5 @@
 const STAGES = new Set(['orcamento', 'pedido', 'venda']);
+const FINANCIAL_STAGES = new Set(['pedido', 'venda', 'faturado']);
 const CLOSED = new Set(['faturado', 'estornado', 'cancelado']);
 
 const LABELS = {
@@ -62,12 +63,15 @@ function addMonthsSafe(date, months) {
   return d;
 }
 
-function buildReceivables(total, payment = {}) {
+export function buildReceivables(total, payment = {}) {
   const installments = Math.max(1, Math.min(60, Number(payment.installments || 1)));
   const method = normalizePaymentMethod(payment.method || payment.paymentMethod || '');
   const explicitStatus = clean(payment.status || payment.paymentStatus || '', 40).toLowerCase();
   const financed = method === 'crediario' || method === 'boleto';
-  const defaultStatus = financed ? 'pendente' : 'recebido';
+  // A forma de pagamento não significa que o valor já foi recebido.
+  // PIX, cartão, dinheiro, boleto e crediário entram no financeiro como pendentes
+  // até existir confirmação explícita de recebimento.
+  const defaultStatus = 'pendente';
   const status = explicitStatus === 'pending' || explicitStatus === 'pendente'
     ? 'pendente'
     : explicitStatus === 'paid' || explicitStatus === 'recebido' || explicitStatus === 'approved'
@@ -100,6 +104,31 @@ function buildReceivables(total, payment = {}) {
       receivedAt: status === 'recebido' ? new Date() : null
     };
   });
+}
+
+function receivedPrincipal(row = {}) {
+  const payments = array(row.payments);
+  if (payments.length) {
+    return money(payments.reduce((sum, payment) => sum + Number(payment?.principalApplied ?? payment?.amount ?? 0), 0));
+  }
+  return money(row.receivedAmount ?? (row.status === 'recebido' ? row.value : 0));
+}
+
+function hasFinancialActivity(rows = []) {
+  return array(rows).some(row => receivedPrincipal(row) > 0.009 || row.status === 'recebido' || array(row.payments).length > 0);
+}
+
+function financialState(rows = []) {
+  const active = array(rows).filter(row => !['cancelado', 'estornado'].includes(String(row.status || '').toLowerCase()));
+  if (!active.length) return { financialStatus: 'not_generated', paymentStatus: 'not_started', allReceived: false, someReceived: false };
+  const allReceived = active.every(row => receivedPrincipal(row) >= Number(row.value || 0) - 0.009 || row.status === 'recebido');
+  const someReceived = active.some(row => receivedPrincipal(row) > 0.009 || row.status === 'recebido');
+  return {
+    financialStatus: allReceived ? 'settled' : (someReceived ? 'partial' : 'generated'),
+    paymentStatus: allReceived ? 'approved' : (someReceived ? 'partial' : 'pending'),
+    allReceived,
+    someReceived
+  };
 }
 
 export function createErpService(context = {}) {
@@ -202,6 +231,15 @@ export function createErpService(context = {}) {
     const op = actorInfo(actor);
     const paymentMethod = normalizePaymentMethod(payload.paymentMethod || payload.payment?.method || '');
     const installments = Math.max(1, Math.min(60, Number(payload.installments || payload.payment?.installments || 1)));
+    const paymentDraft = {
+      ...(payload.payment || {}),
+      method: paymentMethod,
+      installments,
+      firstDueDate: payload.payment?.firstDueDate || payload.firstDueDate || null,
+      status: payload.paymentStatus || payload.payment?.status || ''
+    };
+    const receivables = FINANCIAL_STAGES.has(stage) ? buildReceivables(computed.total, paymentDraft) : [];
+    const initialFinance = financialState(receivables);
 
     const order = await Order.create({
       userId: payload.userId || null,
@@ -222,9 +260,10 @@ export function createErpService(context = {}) {
         method: paymentMethod,
         installments,
         installmentValue: money(computed.total / installments),
-        firstDueDate: payload.payment?.firstDueDate || payload.firstDueDate || null,
-        status: 'not_started',
-        received: false
+        firstDueDate: paymentDraft.firstDueDate,
+        status: initialFinance.paymentStatus,
+        received: initialFinance.allReceived,
+        receivedAt: initialFinance.allReceived ? new Date() : null
       },
       shippingAddress: payload.shippingAddress || payload.customer?.address || null,
       shipping: payload.shipping || null,
@@ -234,7 +273,7 @@ export function createErpService(context = {}) {
       operatorId: op.id,
       operatorName: op.name,
       operatorEmail: op.email,
-      paymentStatus: 'not_started',
+      paymentStatus: initialFinance.paymentStatus,
       analysisStatus: 'not_required',
       televendas: {
         erp: {
@@ -242,9 +281,10 @@ export function createErpService(context = {}) {
           stage,
           discount: computed.discount,
           stockStatus: 'not_moved',
-          financialStatus: 'not_generated',
+          financialStatus: initialFinance.financialStatus,
+          financialGeneratedAt: receivables.length ? new Date() : null,
           fiscalStatus: 'not_generated',
-          receivables: [],
+          receivables,
           stockMovements: [],
           timeline: [timelineEntry(stage, `${LABELS[stage]} criado`, actor)]
         }
@@ -289,7 +329,32 @@ export function createErpService(context = {}) {
   }
 
   async function getOrder(id) {
-    return serial(await findOrder(id), toJSON);
+    const order = await findOrder(id);
+    const currentErp = order.televendas?.erp || {};
+    if (FINANCIAL_STAGES.has(order.status) && !array(currentErp.receivables).length) {
+      const receivables = buildReceivables(order.total, order.payment || {});
+      const state = financialState(receivables);
+      order.paymentStatus = state.paymentStatus;
+      order.payment = {
+        ...(order.payment || {}),
+        status: state.paymentStatus,
+        received: state.allReceived,
+        receivedAt: state.allReceived ? (order.payment?.receivedAt || new Date()) : null
+      };
+      order.televendas = {
+        ...(order.televendas || {}),
+        erp: {
+          ...currentErp,
+          financialStatus: state.financialStatus,
+          financialGeneratedAt: currentErp.financialGeneratedAt || new Date(),
+          receivables,
+          timeline: [...array(currentErp.timeline), timelineEntry('financeiro', 'Financeiro gerado automaticamente para venda já existente', {})]
+        }
+      };
+      await order.save();
+      await audit('erp.order.finance.backfilled', order, { message: 'Financeiro gerado para venda/pedido existente sem depender do faturamento fiscal' });
+    }
+    return serial(order, toJSON);
   }
 
   async function updateOrder(id, payload = {}, actor = {}) {
@@ -307,6 +372,14 @@ export function createErpService(context = {}) {
 
     const stage = normalizeStage(payload.stage || payload.status || order.status);
     const currentErp = order.televendas?.erp || {};
+    const previousTotal = Number(order.total || 0);
+    const previousPayment = {
+      method: normalizePaymentMethod(order.payment?.method || ''),
+      installments: Math.max(1, Number(order.payment?.installments || 1)),
+      firstDueDate: order.payment?.firstDueDate ? String(order.payment.firstDueDate).slice(0, 10) : ''
+    };
+    const existingReceivables = array(currentErp.receivables);
+    const financialActive = hasFinancialActivity(existingReceivables);
     const computed = totals(array(order.items), payload, {
       shippingCost: order.shippingCost,
       montagemCost: order.montagemCost,
@@ -327,12 +400,48 @@ export function createErpService(context = {}) {
       installments,
       installmentValue: money(order.total / installments)
     };
+
+    const nextPayment = {
+      method: normalizePaymentMethod(order.payment?.method || ''),
+      installments: Math.max(1, Number(order.payment?.installments || 1)),
+      firstDueDate: order.payment?.firstDueDate ? String(order.payment.firstDueDate).slice(0, 10) : ''
+    };
+    const financialTermsChanged =
+      Math.abs(previousTotal - Number(order.total || 0)) > 0.009 ||
+      previousPayment.method !== nextPayment.method ||
+      previousPayment.installments !== nextPayment.installments ||
+      previousPayment.firstDueDate !== nextPayment.firstDueDate;
+
+    let receivables = existingReceivables.map(row => ({ ...row }));
+    if (stage === 'orcamento') {
+      if (financialActive) throw fail('Esta venda já possui recebimentos. Não é possível voltar para orçamento sem regularizar o financeiro.', 409, 'FINANCE_ALREADY_ACTIVE');
+      receivables = [];
+    } else if (FINANCIAL_STAGES.has(stage)) {
+      if (financialActive && financialTermsChanged) {
+        throw fail('Esta venda já possui recebimentos. Regularize ou estorne os recebimentos antes de alterar valor ou condição de pagamento.', 409, 'FINANCE_ALREADY_ACTIVE');
+      }
+      if (!receivables.length || (!financialActive && financialTermsChanged)) {
+        receivables = buildReceivables(order.total, order.payment || {});
+      }
+    }
+
+    const state = financialState(receivables);
+    order.paymentStatus = state.paymentStatus;
+    order.payment = {
+      ...(order.payment || {}),
+      status: state.paymentStatus,
+      received: state.allReceived,
+      receivedAt: state.allReceived ? (order.payment?.receivedAt || new Date()) : null
+    };
     order.televendas = {
       ...(order.televendas || {}),
       erp: {
         ...currentErp,
         stage,
         discount: computed.discount,
+        financialStatus: state.financialStatus,
+        financialGeneratedAt: receivables.length ? (currentErp.financialGeneratedAt || new Date()) : null,
+        receivables,
         timeline: [...array(currentErp.timeline), timelineEntry(stage, `${LABELS[stage]} atualizado`, actor)]
       }
     };
@@ -390,24 +499,26 @@ export function createErpService(context = {}) {
       ...(payload.payment || {}),
       method: normalizePaymentMethod(payload.paymentMethod || payload.payment?.method || order.payment?.method),
       installments: Math.max(1, Math.min(60, Number(payload.installments || payload.payment?.installments || order.payment?.installments || 1))),
-      firstDueDate: payload.firstDueDate || payload.payment?.firstDueDate || null,
-      status: payload.paymentStatus || payload.payment?.status || ''
+      firstDueDate: payload.firstDueDate || payload.payment?.firstDueDate || order.payment?.firstDueDate || null,
+      status: payload.paymentStatus || payload.payment?.status || order.payment?.status || ''
     };
-    const receivables = buildReceivables(order.total, payment);
+    const existingReceivables = array(currentErp.receivables).map(row => ({ ...row }));
+    const receivables = existingReceivables.length ? existingReceivables : buildReceivables(order.total, payment);
+    const financeState = financialState(receivables);
     const movements = await decrementStock(order);
 
     try {
-      const allReceived = receivables.every(row => row.status === 'recebido');
+      const allReceived = financeState.allReceived;
       order.status = 'faturado';
       order.statusLabel = LABELS.faturado;
-      order.paymentStatus = allReceived ? 'approved' : 'pending';
+      order.paymentStatus = financeState.paymentStatus;
       order.payment = {
         ...(order.payment || {}),
         method: payment.method,
         installments: payment.installments,
         installmentValue: money(order.total / payment.installments),
         firstDueDate: payment.firstDueDate || null,
-        status: allReceived ? 'approved' : 'pending',
+        status: financeState.paymentStatus,
         received: allReceived,
         receivedAt: allReceived ? new Date() : null
       };
@@ -420,12 +531,12 @@ export function createErpService(context = {}) {
           stockStatus: 'moved',
           stockMovedAt: new Date(),
           stockMovements: movements,
-          financialStatus: 'generated',
-          financialGeneratedAt: new Date(),
+          financialStatus: financeState.financialStatus,
+          financialGeneratedAt: currentErp.financialGeneratedAt || new Date(),
           receivables,
           paymentMethod: payment.method,
           fiscalStatus: currentErp.fiscalStatus || 'not_generated',
-          timeline: [...array(currentErp.timeline), timelineEntry('faturado', 'Venda faturada: financeiro gerado e estoque baixado', actor)]
+          timeline: [...array(currentErp.timeline), timelineEntry('faturado', 'Venda faturada: financeiro preservado e estoque baixado', actor)]
         }
       };
       await order.save();
@@ -437,7 +548,7 @@ export function createErpService(context = {}) {
     }
 
     await audit('erp.order.billed', order, {
-      message: 'Venda faturada; estoque baixado e financeiro gerado',
+      message: 'Venda faturada; estoque baixado e financeiro existente preservado',
       request: payload,
       metadata: { movements, receivables }
     });
@@ -483,13 +594,21 @@ export function createErpService(context = {}) {
     if (order.status === 'estornado') throw fail('Venda já estornada.', 409, 'ALREADY_REVERSED');
     if (order.status === 'cancelado') return serial(order, toJSON);
     const currentErp = order.televendas?.erp || {};
+    const currentReceivables = array(currentErp.receivables);
+    if (hasFinancialActivity(currentReceivables)) {
+      throw fail('Esta venda possui recebimento registrado. Regularize ou estorne o financeiro antes de cancelar.', 409, 'FINANCE_ALREADY_ACTIVE');
+    }
     order.status = 'cancelado';
     order.statusLabel = LABELS.cancelado;
+    order.paymentStatus = 'cancelled';
+    order.payment = { ...(order.payment || {}), status: 'cancelled', received: false };
     order.televendas = {
       ...(order.televendas || {}),
       erp: {
         ...currentErp,
         stage: 'cancelado',
+        financialStatus: currentReceivables.length ? 'cancelled' : (currentErp.financialStatus || 'not_generated'),
+        receivables: currentReceivables.map(row => ({ ...row, status: 'cancelado', cancelledAt: new Date() })),
         cancelReason: clean(payload.reason || payload.motivo || '', 1000),
         cancelledAt: new Date(),
         timeline: [...array(currentErp.timeline), timelineEntry('cancelado', 'Registro cancelado', actor)]

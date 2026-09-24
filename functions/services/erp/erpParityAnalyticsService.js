@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { buildReceivables } from './erpService.js';
 
 const clean=(v='',m=500)=>String(v??'').trim().slice(0,m);
 const money=v=>Math.round((Number(v||0)+Number.EPSILON)*100)/100;
@@ -22,9 +23,21 @@ export function createErpParityAnalyticsService(context={}){
  if(!Order)throw new Error('[erp-parity] Order não informado');
 
  async function currentReceivables(){
-  const orders=await Order.find({origin:'erp_ariana',status:'faturado','televendas.erp.receivables.0':{$exists:true}}).select('_id customerName customerCpf customerPhone customerEmail payment televendas updatedAt').lean(),out=[];
+  const orders=await Order.find({origin:'erp_ariana',status:{$in:['pedido','venda','faturado']}}).select('_id customerName customerCpf customerPhone customerEmail payment paymentStatus total televendas updatedAt'),out=[];
   for(const o of orders){
-   for(const r of o.televendas?.erp?.receivables||[]){
+   const erp=o.televendas?.erp||{};
+   let receivables=array(erp.receivables);
+   if(!receivables.length){
+    receivables=buildReceivables(o.total,o.payment||{});
+    const all=receivables.length>0&&receivables.every(r=>String(r.status||'').toLowerCase()==='recebido');
+    const some=receivables.some(r=>String(r.status||'').toLowerCase()==='recebido'||Number(r.receivedAmount||0)>0);
+    const financialStatus=all?'settled':(some?'partial':'generated');
+    o.paymentStatus=all?'approved':(some?'partial':'pending');
+    o.payment={...(o.payment||{}),status:o.paymentStatus,received:all,receivedAt:all?(o.payment?.receivedAt||new Date()):null};
+    o.televendas={...(o.televendas||{}),erp:{...erp,receivables,financialStatus,financialGeneratedAt:erp.financialGeneratedAt||new Date(),timeline:[...array(erp.timeline),{status:'financeiro',label:'Financeiro gerado automaticamente para venda já existente',at:new Date(),by:'Ariana ERP'}]}};
+    await o.save();
+   }
+   for(const r of receivables){
     if(['cancelado','estornado'].includes(r.status))continue;
     const payments=array(r.payments),principalPaid=money(payments.length?payments.reduce((s,p)=>s+Number(p.principalApplied??p.amount??0),0):Number(r.receivedAmount??(r.status==='recebido'?r.value:0))),cashPaid=money(payments.length?payments.reduce((s,p)=>s+Number(p.totalPaid??p.principalApplied??p.amount??0),0):principalPaid),open=Math.max(0,money(Number(r.value||0)-principalPaid)),paid=r.status==='recebido'||open<=0.009;
     out.push({id:`order:${o._id}:${r.number||out.length}`,source:'ariana_sale',origin:'ariana_sale',direction:'receivable',personName:o.customerName||'Consumidor',personDocument:o.customerCpf||'',personPhone:o.customerPhone||'',personEmail:o.customerEmail||'',description:o.televendas?.erp?.code||'Venda Ariana',categoryName:r.categoryName||'Vendas',bankAccountName:r.bankAccountName||'',paymentMethod:r.receivedMethod||r.method||o.payment?.method||'',value:Number(r.value||0),principalPaid,paidValue:cashPaid,outstanding:open,status:paid?'paid':'pending',partial:!paid&&principalPaid>0,dueAt:r.dueAt,competenceAt:r.competenceAt||o.updatedAt,paidAt:r.receivedAt||payments.at(-1)?.at||null,orderId:String(o._id),installmentNumber:Number(r.number||1),installments:Number(r.installments||1),payments})
@@ -56,7 +69,7 @@ export function createErpParityAnalyticsService(context={}){
 
   const anomalyFilter={origin:'sige_import',$or:[{value:{$gte:HISTORICAL_ANOMALY_MIN_VALUE}},{value:{$lte:-HISTORICAL_ANOMALY_MIN_VALUE}}]};
   const qualityAnomalies=(await Entry.collection.find(anomalyFilter).toArray()).map(normalizeLedgerRow);
-  const operational=base.filter(r=>!isHistoricalAnomaly(r)),active=operational.filter(r=>r.status!=='cancelled'),rec=active.filter(r=>r.direction==='receivable'),pay=active.filter(r=>r.direction==='payable'),recPending=rec.filter(r=>r.status==='pending'),payPending=pay.filter(r=>r.status==='pending'),recOver=recPending.filter(r=>dueView(r)==='overdue'),payOver=payPending.filter(r=>dueView(r)==='overdue'),recUpcoming=recPending.filter(r=>dueView(r)==='upcoming'),payUpcoming=payPending.filter(r=>dueView(r)==='upcoming'),recPaid=rec.filter(r=>r.status==='paid'),payPaid=pay.filter(r=>r.status==='paid');
+  const operational=base,active=operational.filter(r=>r.status!=='cancelled'),rec=active.filter(r=>r.direction==='receivable'),pay=active.filter(r=>r.direction==='payable'),recPending=rec.filter(r=>r.status==='pending'),payPending=pay.filter(r=>r.status==='pending'),recOver=recPending.filter(r=>dueView(r)==='overdue'),payOver=payPending.filter(r=>dueView(r)==='overdue'),recUpcoming=recPending.filter(r=>dueView(r)==='upcoming'),payUpcoming=payPending.filter(r=>dueView(r)==='upcoming'),recPaid=rec.filter(r=>r.status==='paid'),payPaid=pay.filter(r=>r.status==='paid');
   const bucketOpen=a=>({count:a.length,value:money(a.reduce((s,r)=>s+outstanding(r),0))});
   const bucketTotal=a=>({count:a.length,value:sum(a)});
 
@@ -81,12 +94,12 @@ export function createErpParityAnalyticsService(context={}){
   if(view==='overdue')entries=entries.filter(r=>r.status==='pending'&&dueView(r)==='overdue');else if(view==='upcoming')entries=entries.filter(r=>r.status==='pending'&&dueView(r)==='upcoming');else if(view==='paid')entries=entries.filter(r=>r.status==='paid');else if(view==='pending')entries=entries.filter(r=>r.status==='pending');else if(view==='partial')entries=entries.filter(r=>r.status==='pending'&&r.partial===true);else if(view==='cancelled')entries=entries.filter(r=>r.status==='cancelled');
   entries=entries.sort((a,b)=>new Date(a.dueAt)-new Date(b.dueAt));
   const anomalyOpen=money(qualityAnomalies.reduce((s,r)=>s+outstanding(r),0)),anomalyRealized=money(qualityAnomalies.reduce((s,r)=>s+realized(r),0));
-  return{summary:{receivables:{total:bucketTotal(rec),pending:bucketOpen(recPending),upcoming:bucketOpen(recUpcoming),overdue:bucketOpen(recOver),paid:{count:recPaid.length,value:money(recPaid.reduce((s,r)=>s+realized(r),0))},realized:money(rec.reduce((s,r)=>s+realized(r),0))},payables:{total:bucketTotal(pay),pending:bucketOpen(payPending),upcoming:bucketOpen(payUpcoming),overdue:bucketOpen(payOver),paid:{count:payPaid.length,value:money(payPaid.reduce((s,r)=>s+realized(r),0))},realized:money(pay.reduce((s,r)=>s+realized(r),0))},delinquentCustomers:delinquents.length},dataQuality:{excludedHistoricalAnomalies:{count:qualityAnomalies.length,threshold:HISTORICAL_ANOMALY_MIN_VALUE,totalValue:sum(qualityAnomalies),openValue:anomalyOpen,realizedValue:anomalyRealized,preserved:true}},delinquents:delinquents.slice(0,500),agingReceivables,receivableForecast,cashFlow,categories,entries:entries.slice(0,2000).map(r=>({...r,outstanding:outstanding(r),view:dueView(r)}))}
+  return{summary:{receivables:{total:bucketTotal(rec),pending:bucketOpen(recPending),upcoming:bucketOpen(recUpcoming),overdue:bucketOpen(recOver),paid:{count:recPaid.length,value:money(recPaid.reduce((s,r)=>s+realized(r),0))},realized:money(rec.reduce((s,r)=>s+realized(r),0))},payables:{total:bucketTotal(pay),pending:bucketOpen(payPending),upcoming:bucketOpen(payUpcoming),overdue:bucketOpen(payOver),paid:{count:payPaid.length,value:money(payPaid.reduce((s,r)=>s+realized(r),0))},realized:money(pay.reduce((s,r)=>s+realized(r),0))},delinquentCustomers:delinquents.length},dataQuality:{excludedHistoricalAnomalies:{count:qualityAnomalies.length,threshold:HISTORICAL_ANOMALY_MIN_VALUE,totalValue:sum(qualityAnomalies),openValue:anomalyOpen,realizedValue:anomalyRealized,preserved:true,excluded:false,includedInOperationalTotals:true}},delinquents:delinquents.slice(0,500),agingReceivables,receivableForecast,cashFlow,categories,entries:entries.slice(0,2000).map(r=>({...r,outstanding:outstanding(r),view:dueView(r)}))}
  }
 
  async function sales(q={}){
   const{from,to}=reportPeriod(q),Historical=mongoose.models.ErpSigeHistoricalSale;
-  const hist=Historical?await Historical.find({date:{$gte:from,$lte:to}}).sort({date:-1}).limit(20000).lean():[],current=await Order.find({origin:'erp_ariana',status:'faturado',updatedAt:{$gte:from,$lte:to}}).sort({updatedAt:-1}).limit(10000).lean();let rows=[];
+  const hist=Historical?await Historical.find({date:{$gte:from,$lte:to}}).sort({date:-1}).limit(20000).lean():[],current=await Order.find({origin:'erp_ariana',status:{$in:['pedido','venda','faturado']},updatedAt:{$gte:from,$lte:to}}).sort({updatedAt:-1}).limit(10000).lean();let rows=[];
   for(const s of hist){if(String(s.status||'').toLowerCase()==='canceled')continue;rows.push({id:String(s._id),source:'historico',code:s.code||'',date:s.date,customerName:s.customerName||'Consumidor',sellerName:s.sellerName||'',total:Number(s.total||0),paymentMethod:s.paymentCondition||'',items:(s.items||[]).map(i=>({name:i.description||'',productId:i.productId||'',qty:Number(i.quantity||0),value:Number(i.subtotal||0)}))})}
   for(const o of current)rows.push({id:String(o._id),source:'ariana',code:o.televendas?.erp?.code||'',date:o.updatedAt,customerName:o.customerName||'Consumidor',sellerName:o.televendas?.erp?.sellerName||o.sellerName||'',total:Number(o.total||0),paymentMethod:o.payment?.method||'',items:(o.items||[]).map(i=>({name:i.name||'',productId:String(i.productId||''),qty:Number(i.qty||0),value:Number(i.totalPrice||0)}))});
 
