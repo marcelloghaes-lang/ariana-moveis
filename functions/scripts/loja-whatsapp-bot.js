@@ -7202,17 +7202,24 @@ async function showCheaperAlternatives(phone, conv, product, pushName = '') {
   );
 }
 
+// REGRA COMERCIAL FIXA DO CREDIÁRIO/CARNÊ ARIANA MÓVEIS.
+// Não alterar estes divisores sem autorização comercial explícita:
+// 1–4x: preço à vista ÷ 0,85
+// 5–10x: preço à vista ÷ 0,65
+// 11–15x: preço à vista ÷ 0,62
+const CREDIT_MAX_INSTALLMENTS = 15;
+
 function creditDivisor(count) {
-  if (count >= 1 && count <= 4) return 0.80;
-  if (count <= 6) return 0.75;
-  if (count <= 12) return 0.70;
-  if (count <= 15) return 0.67;
+  const installments = Number(count || 0);
+  if (installments >= 1 && installments <= 4) return 0.85;
+  if (installments >= 5 && installments <= 10) return 0.65;
+  if (installments >= 11 && installments <= 15) return 0.62;
   return 0;
 }
 
 function creditPlan(product, count) {
   const base = productCashPrice(product);
-  const max = base > 2500 ? 15 : 12;
+  const max = CREDIT_MAX_INSTALLMENTS;
   if (!count) return { base, max, divisor: 0, total: 0, installment: 0 };
   if (count < 1 || count > max) return { base, max, invalid: true, divisor: 0, total: 0, installment: 0 };
   const divisor = creditDivisor(count);
