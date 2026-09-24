@@ -5,8 +5,8 @@
   "start_url": "/erp_ariana.html",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f4f7fb",
-  "theme_color": "#2E6DA4",
+  "background_color": "#003B8F",
+  "theme_color": "#003B8F",
   "icons": [
     {
       "src": "/erp-icon.svg",

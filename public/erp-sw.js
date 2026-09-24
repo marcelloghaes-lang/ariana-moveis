@@ -1,5 +1,5 @@
-const CACHE='ariana-erp-v8';
-const SHELL=['/erp_ariana.html','/erp-app.webmanifest','/erp-icon.svg'];
+const CACHE='ariana-erp-v9-blue-theme';
+const SHELL=['/erp_ariana.html','/erp-theme.css','/erp-app.webmanifest','/erp-icon.svg'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
 function isHtml(response){return response&&response.ok&&String(response.headers.get('content-type')||'').includes('text/html')}
@@ -29,16 +29,16 @@ async function decorate(response,url){
     }
   }
   if(shouldDecoratePurchases(url,response)&&!text.includes('erp-purchase-tools')){
-    const links='<div id="erp-purchase-tools" style="position:fixed;right:16px;bottom:16px;z-index:99998;display:flex;flex-direction:column;gap:8px;align-items:flex-end"><a href="erp_compras_contas_pagar.html" style="background:#2E6DA4;color:#fff;text-decoration:none;font:800 13px Inter,Segoe UI,Arial,sans-serif;padding:11px 15px;border-radius:999px;box-shadow:0 8px 24px rgba(16,45,74,.24)">$ Gerar contas a pagar</a><a href="erp_conferencia_custos_compras.html" style="background:#0b8f4d;color:#fff;text-decoration:none;font:800 13px Inter,Segoe UI,Arial,sans-serif;padding:11px 15px;border-radius:999px;box-shadow:0 8px 24px rgba(16,45,74,.24)">✓ Conferência contábil de custos</a></div>';
+    const links='<div id="erp-purchase-tools" style="position:fixed;right:16px;bottom:16px;z-index:99998;display:flex;flex-direction:column;gap:8px;align-items:flex-end"><a href="erp_compras_contas_pagar.html" style="background:#0047AB;color:#fff;text-decoration:none;font:800 13px Inter,Segoe UI,Arial,sans-serif;padding:11px 15px;border-radius:999px;box-shadow:0 8px 24px rgba(16,45,74,.24)">$ Gerar contas a pagar</a><a href="erp_conferencia_custos_compras.html" style="background:#0b8f4d;color:#fff;text-decoration:none;font:800 13px Inter,Segoe UI,Arial,sans-serif;padding:11px 15px;border-radius:999px;box-shadow:0 8px 24px rgba(16,45,74,.24)">✓ Conferência contábil de custos</a></div>';
     text=text.includes('</body>')?text.replace('</body>',links+'</body>'):text+links;
   }
   if(shouldDecorateFinance(url,response)&&!text.includes('erp-finance-recurring-link')){
-    const link='<a id="erp-finance-recurring-link" href="erp_financeiro_recorrencias.html" style="position:fixed;right:16px;bottom:16px;z-index:99998;background:#2E6DA4;color:#fff;text-decoration:none;font:800 13px Inter,Segoe UI,Arial,sans-serif;padding:11px 15px;border-radius:999px;box-shadow:0 8px 24px rgba(16,45,74,.24)">↻ Recorrências financeiras</a>';
+    const link='<a id="erp-finance-recurring-link" href="erp_financeiro_recorrencias.html" style="position:fixed;right:16px;bottom:16px;z-index:99998;background:#0047AB;color:#fff;text-decoration:none;font:800 13px Inter,Segoe UI,Arial,sans-serif;padding:11px 15px;border-radius:999px;box-shadow:0 8px 24px rgba(16,45,74,.24)">↻ Recorrências financeiras</a>';
     text=text.includes('</body>')?text.replace('</body>',link+'</body>'):text+link;
   }
   if(shouldAddBack(url,response)&&!text.includes('erp-global-back')){
     const button='<button class="erp-global-back" type="button" aria-label="Voltar para a tela anterior" onclick="if(history.length>1){history.back()}else{location.href=\'erp_ariana.html\'}">← Voltar</button>';
-    const css='<style>.erp-global-back{position:fixed;left:14px;bottom:14px;z-index:99999;border:0;border-radius:999px;padding:10px 15px;background:#2E6DA4;color:#fff;font:800 13px Inter,Segoe UI,Arial,sans-serif;box-shadow:0 8px 24px rgba(16,45,74,.24);cursor:pointer}.erp-global-back:hover{background:#245987}@media(max-width:650px){.erp-global-back{left:10px;bottom:10px;padding:9px 13px}#erp-purchase-tools{right:10px!important;bottom:10px!important}#erp-purchase-tools a,#erp-finance-recurring-link{padding:9px 12px!important;font-size:12px!important}#erp-finance-recurring-link{right:10px!important;bottom:10px!important}}</style>';
+    const css='<style>.erp-global-back{position:fixed;left:14px;bottom:14px;z-index:99999;border:0;border-radius:999px;padding:10px 15px;background:#0047AB;color:#fff;font:800 13px Inter,Segoe UI,Arial,sans-serif;box-shadow:0 8px 24px rgba(16,45,74,.24);cursor:pointer}.erp-global-back:hover{background:#003B8F}@media(max-width:650px){.erp-global-back{left:10px;bottom:10px;padding:9px 13px}#erp-purchase-tools{right:10px!important;bottom:10px!important}#erp-purchase-tools a,#erp-finance-recurring-link{padding:9px 12px!important;font-size:12px!important}#erp-finance-recurring-link{right:10px!important;bottom:10px!important}}</style>';
     text=text.includes('</body>')?text.replace('</body>',button+css+'</body>'):text+button+css;
   }
   return new Response(text,{status:response.status,statusText:response.statusText,headers:cleanHeaders(response)})
