@@ -6,6 +6,7 @@ on:
       - 'functions/services/erp/**'
       - 'functions/routes/erp/**'
       - 'functions/routes/televendas/televendasRoutes.js'
+      - 'functions/routes/adminSigeCrediarioBotRoutes.js'
       - 'functions/routes/televendas/index.js'
       - 'functions/server.js'
       - 'public/erp_*.html'
@@ -45,6 +46,7 @@ jobs:
         shell: bash
         run: |
           node --check functions/server.js
+          node --check functions/routes/adminSigeCrediarioBotRoutes.js
           find functions/services/erp functions/routes/erp functions/routes/televendas \
             -type f -name '*.js' -print0 \
             | sort -z \
