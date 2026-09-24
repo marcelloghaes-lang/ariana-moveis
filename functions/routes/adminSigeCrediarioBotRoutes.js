@@ -11728,7 +11728,20 @@ function financeiroErpReference(row = {}) {
 
       const telefoneEnvio = normalizePhone(req.body?.telefone || recibo.telefone || '', '55');
       if (!telefoneEnvio) return res.status(400).json({ ok: false, error: 'Cliente sem WhatsApp cadastrado' });
-      if (telefoneEnvio !== recibo.telefone) recibo.telefone = telefoneEnvio;
+
+      const actor = {
+        name: req.admin?.name || req.auth?.name || req.user?.name || '',
+        email: req.admin?.email || req.auth?.email || req.user?.email || 'admin'
+      };
+
+      await erpFinanceCustomerContact.savePhone({
+        phone: telefoneEnvio,
+        cpf: recibo.clienteCpf || '',
+        name: recibo.clienteNome || '',
+        referenceRaw: String(req.body?.reference || req.body?.referencia || ''),
+        receipt: recibo,
+        actor
+      });
 
       const whatsapp = await sendCrediarioReceiptWhatsapp(recibo);
       if (!whatsapp || whatsapp.ok === false) {
