@@ -1,0 +1,176 @@
+/*
+ * Ariana ERP — tema visual unificado
+ * Referência: tela Nova Venda/PDV
+ * Azul principal #0047AB | azul escuro #003B8F | amarelo #F4C400
+ */
+:root{
+  --ariana-blue:#0047ab!important;
+  --ariana-blue-dark:#003b8f!important;
+  --ariana-blue-mid:#0052bd!important;
+  --ariana-yellow:#f4c400!important;
+  --ariana-surface:#ffffff!important;
+  --ariana-bg-soft:#eef5ff!important;
+  --ariana-line:#d9e3f0!important;
+  --ariana-text:#172033!important;
+  --ariana-muted:#66758b!important;
+
+  --blue:#0047ab!important;
+  --blue2:#003b8f!important;
+  --primary:#0047ab!important;
+  --primary-dark:#003b8f!important;
+  --navy:#003b8f!important;
+  --brand:#0047ab!important;
+  --brand-dark:#003b8f!important;
+  --bg:#eef5ff!important;
+  --line:#d9e3f0!important;
+  --text:#172033!important;
+  --muted:#66758b!important;
+}
+
+html{background:#003b8f}
+body{
+  color:var(--ariana-text);
+  background:linear-gradient(135deg,#003b91 0%,#0052bd 58%,#003a86 100%) fixed!important;
+  min-height:100vh;
+}
+
+/* Cabeçalho: mesmo azul da tela Nova Venda */
+body>header,
+.top,
+.topbar,
+.app-header,
+.page-header,
+.erp-header{
+  background:#003b8f!important;
+  background-image:none!important;
+  color:#fff!important;
+  border-bottom-color:transparent!important;
+  box-shadow:0 4px 18px rgba(0,0,0,.16)!important;
+}
+body>header h1,body>header h2,body>header h3,
+.top h1,.top h2,.top h3,
+.topbar h1,.topbar h2,.topbar h3,
+.app-header h1,.app-header h2,.app-header h3,
+.page-header h1,.page-header h2,.page-header h3,
+.erp-header h1,.erp-header h2,.erp-header h3{color:#fff!important}
+body>header small,body>header .sub,body>header .muted,
+.top small,.top .sub,.top .muted,
+.topbar small,.topbar .sub,.topbar .muted,
+.app-header small,.app-header .sub,.app-header .muted,
+.page-header small,.page-header .sub,.page-header .muted,
+.erp-header small,.erp-header .sub,.erp-header .muted{color:#dceaff!important}
+body>header a,.top a,.topbar a,.app-header a,.page-header a,.erp-header a{color:#fff!important}
+body>header a:hover,.top a:hover,.topbar a:hover,.app-header a:hover,.page-header a:hover,.erp-header a:hover{color:#f4c400!important}
+
+/* Navegação lateral, quando existir */
+.sidebar,.sidenav,.side-nav,.erp-sidebar{
+  background:#003b8f!important;
+  color:#fff!important;
+}
+.sidebar a,.sidenav a,.side-nav a,.erp-sidebar a{color:#eaf3ff!important}
+.sidebar a:hover,.sidebar a.active,
+.sidenav a:hover,.sidenav a.active,
+.side-nav a:hover,.side-nav a.active,
+.erp-sidebar a:hover,.erp-sidebar a.active{
+  background:#0047ab!important;
+  color:#fff!important;
+  box-shadow:inset 4px 0 0 #f4c400!important;
+}
+
+/* Superfícies brancas sobre o fundo azul */
+.card,.panel,.box,.hero,.tablebox,.table-box,.filters,.filter-box,.summary,
+.form-card,.content-card,.section-card,.login-card,.modal-card{
+  background:#fff!important;
+  border-color:#d9e3f0!important;
+  box-shadow:0 10px 28px rgba(0,28,78,.12)!important;
+}
+.card,.panel,.box,.hero,.tablebox,.table-box,.filters,.filter-box,.summary,
+.form-card,.content-card,.section-card{border-radius:8px!important}
+
+/* Campos */
+input,select,textarea{
+  border-color:#c8d6e7!important;
+}
+input:focus,select:focus,textarea:focus{
+  outline:none!important;
+  border-color:#6c9ddd!important;
+  box-shadow:0 0 0 3px rgba(0,71,171,.10)!important;
+}
+
+/* Ações principais */
+.btn.primary,.btn.btn-primary,.btn-blue,
+button.primary,button.btn-primary,
+a.primary,a.btn-primary,
+.action.primary,.primary-action{
+  background:#0047ab!important;
+  border-color:#0047ab!important;
+  color:#fff!important;
+}
+.btn.primary:hover,.btn.btn-primary:hover,.btn-blue:hover,
+button.primary:hover,button.btn-primary:hover,
+a.primary:hover,a.btn-primary:hover,
+.action.primary:hover,.primary-action:hover{
+  background:#003b8f!important;
+  border-color:#003b8f!important;
+  color:#fff!important;
+}
+.btn-outline,.btn.outline,.btn.secondary,
+button.secondary,a.secondary{
+  background:#fff!important;
+  border-color:#a9bfdb!important;
+  color:#0047ab!important;
+}
+.btn-outline:hover,.btn.outline:hover,.btn.secondary:hover,
+button.secondary:hover,a.secondary:hover{
+  background:#eef5ff!important;
+  border-color:#0047ab!important;
+  color:#003b8f!important;
+}
+
+/* Links e destaques */
+main a:not(.btn):not(.primary):not(.secondary){color:#0047ab}
+.code,.linkcard b{color:#0047ab!important}
+
+/* Abas e seleções */
+.tabs .tab.active,.tabs button.active,.tab.active,[role="tab"].active{
+  color:#003b8f!important;
+  border-bottom-color:#f4c400!important;
+}
+.tabs .tab:hover,.tabs button:hover,.tab:hover,[role="tab"]:hover{color:#0047ab!important}
+.pay-tile.active,.option.active,.choice.active,.selected-option{
+  border-color:#0047ab!important;
+  box-shadow:inset 0 -3px 0 #f4c400!important;
+}
+
+/* Tabelas */
+table{background:#fff}
+table thead th{color:#315273}
+table tbody tr:hover{background:#f6f9fd}
+
+/* Avisos informativos continuam azuis; estados de sucesso/erro não são alterados */
+.notice:not(.warn):not(.warning):not(.bad):not(.danger):not(.error):not(.success):not(.ok),
+.info,.info-box{
+  background:#eef5ff!important;
+  color:#214b82!important;
+  border-color:#cfe0f7!important;
+}
+
+/* Marca A do ERP */
+.brand-mark,.mark{
+  background:#f4c400!important;
+  color:#003b8f!important;
+}
+
+/* Barra de atalhos do PDV */
+.pdv-shortcuts{color:#d9e8ff!important}
+.pdv-shortcuts b{color:#fff!important}
+
+/* Impressão: documentos continuam limpos em papel/PDF */
+@media print{
+  html,body{background:#fff!important;color:#000!important}
+  body>header,.top,.topbar,.app-header,.page-header,.erp-header,
+  .sidebar,.sidenav,.side-nav,.erp-sidebar{background:#fff!important;color:#000!important;box-shadow:none!important}
+  body>header a,.top a,.topbar a,.app-header a,.page-header a,.erp-header a{color:#000!important}
+  .card,.panel,.box,.hero,.tablebox,.table-box,.filters,.filter-box,.summary,
+  .form-card,.content-card,.section-card,.login-card,.modal-card{box-shadow:none!important}
+}
