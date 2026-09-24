@@ -115,6 +115,10 @@ const ACTIVE_COMMERCIAL_CONTEXT_TTL_MS = Math.max(
   15,
   Number(process.env.LOJA_ACTIVE_COMMERCIAL_CONTEXT_MINUTES || 45)
 ) * 60 * 1000;
+const CREDIT_PLAN_FOLLOWUP_TTL_MS = Math.max(
+  30,
+  Number(process.env.LOJA_CREDIT_PLAN_FOLLOWUP_MINUTES || 120)
+) * 60 * 1000;
 const SHORT_CONTEXT_MAX_TURNS = Math.max(3, Math.min(8, Number(process.env.LOJA_SHORT_CONTEXT_TURNS || 6)));
 const LIST_CLARIFICATION_TTL_MS = Math.max(
   3,
@@ -808,7 +812,29 @@ function isTransientCommercialPendingAction(action = '') {
   ]).has(String(action || '').trim());
 }
 
-function clearActiveCommercialContext(conv = {}) {
+function activeCreditPlanContext(conv = {}, now = Date.now()) {
+  return Boolean(
+    conv?.lastCreditPlan &&
+    Number(conv?.creditContextUntil || 0) > now
+  );
+}
+
+function clearActiveCommercialContext(conv = {}, { preserveCreditPlan = false } = {}) {
+  let preservedCreditPlan = preserveCreditPlan ? conv.lastCreditPlan : null;
+  const preservedCreditUntil = preserveCreditPlan ? Number(conv.creditContextUntil || 0) : 0;
+
+  if (
+    preservedCreditPlan &&
+    !preservedCreditPlan.product &&
+    conv.selectedProduct &&
+    String(preservedCreditPlan.productId || '') === productId(conv.selectedProduct)
+  ) {
+    preservedCreditPlan = {
+      ...preservedCreditPlan,
+      product: compactProduct(conv.selectedProduct)
+    };
+  }
+
   conv.lastProducts = [];
   conv.allProductResults = [];
   conv.productResultOffset = 0;
@@ -838,6 +864,11 @@ function clearActiveCommercialContext(conv = {}) {
   if (conv.lastIntent === 'produto') {
     conv.lastIntent = '';
   }
+
+  if (preserveCreditPlan && preservedCreditPlan && preservedCreditUntil > Date.now()) {
+    conv.lastCreditPlan = preservedCreditPlan;
+    conv.creditContextUntil = preservedCreditUntil;
+  }
 }
 
 function expireInactiveCommercialContext(conv = {}, now = Date.now()) {
@@ -845,7 +876,8 @@ function expireInactiveCommercialContext(conv = {}, now = Date.now()) {
   if (!previousAt) return false;
   if (now - previousAt <= ACTIVE_COMMERCIAL_CONTEXT_TTL_MS) return false;
 
-  clearActiveCommercialContext(conv);
+  const preserveCreditPlan = activeCreditPlanContext(conv, now);
+  clearActiveCommercialContext(conv, { preserveCreditPlan });
   conv.recentTurns = [];
   return true;
 }
@@ -864,6 +896,7 @@ function conversation(phone) {
       humanUntil: 0,
       manualHumanUntil: 0,
       customerName: '',
+      lastCreditPlan: null,
       creditContextUntil: 0,
       pixContextUntil: 0,
       pendingImageIntent: '',
@@ -2222,15 +2255,8 @@ async function handleGeneralIntent({
       return true;
     }
 
-    conv.lastCreditPlan = {
-      productId: productId(product),
-      count,
-      divisor: plan.divisor,
-      total: plan.total,
-      installment: plan.installment
-    };
+    rememberCreditPlan(conv, product, count, plan);
     clearPendingCreditInstallments(conv);
-    saveStateSoon();
 
     await sendText(
       phone,
@@ -4134,7 +4160,7 @@ function asksHowToBuyCredit(text) {
 }
 
 function markCreditContext(conv) {
-  conv.creditContextUntil = Date.now() + 30 * 60 * 1000;
+  conv.creditContextUntil = Date.now() + CREDIT_PLAN_FOLLOWUP_TTL_MS;
   saveStateSoon();
 }
 
@@ -4142,8 +4168,7 @@ function isCreditContext(conv, text = '') {
   const n = normalize(text);
   if (/(carne|crediario|boleto)/.test(n)) return true;
   if (String(conv?.pendingAction || '').startsWith('crediario_')) return true;
-  if (conv?.lastCreditPlan) return true;
-  return Number(conv?.creditContextUntil || 0) > Date.now();
+  return activeCreditPlanContext(conv);
 }
 
 function asksToWriteOnCredit(text) {
@@ -4216,6 +4241,29 @@ function parsePendingInstallments(text) {
 
   const match = n.match(/^(?:em\s+)?(\d{1,2})\s*(?:x|vezes|parcelas)?$/);
   return match ? Number(match[1]) : 0;
+}
+
+function parseCreditPlanFollowupInstallments(text = '') {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n) return 0;
+
+  const patterns = [
+    /^(?:e\s+)?(?:de|em)\s*(\d{1,2})\s*(?:x|vezes|parcelas)?$/,
+    /^(?:e\s+)?(\d{1,2})\s*(?:x|vezes|parcelas)$/,
+    /^(?:e\s+)?(?:se\s+eu\s+)?(?:fizer|fazer|parcelar)\s+(?:em\s+)?(\d{1,2})\s*(?:x|vezes|parcelas)?$/,
+    /^(?:e\s+)?quanto\s+(?:fica|da|sai)\s+(?:em\s+)?(\d{1,2})\s*(?:x|vezes|parcelas)?$/
+  ];
+
+  for (const pattern of patterns) {
+    const match = n.match(pattern);
+    if (match) return Number(match[1] || 0);
+  }
+
+  return 0;
 }
 
 function findConversationProduct(conv, id = '') {
@@ -7229,6 +7277,20 @@ function creditPlan(product, count) {
   return { base, max, divisor, total, installment, invalid: false };
 }
 
+function rememberCreditPlan(conv, product, count, plan) {
+  conv.lastCreditPlan = {
+    productId: productId(product),
+    product: compactProduct(product),
+    count,
+    divisor: plan.divisor,
+    total: plan.total,
+    installment: plan.installment
+  };
+  markCreditContext(conv);
+  saveStateSoon();
+  return conv.lastCreditPlan;
+}
+
 function ordinalIndex(text) {
   const n = normalize(text);
   const entries = [
@@ -8323,6 +8385,78 @@ async function consultFinance(phone, cpf = '') {
   });
 }
 
+
+function creditPlanFollowupProduct(conv = {}) {
+  if (!activeCreditPlanContext(conv)) return null;
+
+  const plan = conv.lastCreditPlan || null;
+  if (!plan) return null;
+
+  if (
+    plan.product &&
+    productId(plan.product) &&
+    productId(plan.product) === String(plan.productId || '')
+  ) {
+    return plan.product;
+  }
+
+  const recovered = findConversationProduct(conv, plan.productId);
+  if (recovered) return recovered;
+
+  if (
+    conv.selectedProduct &&
+    productId(conv.selectedProduct) === String(plan.productId || '')
+  ) {
+    return conv.selectedProduct;
+  }
+
+  return null;
+}
+
+async function handleCreditPlanFollowup({ phone, text, pushName = '', conv }) {
+  const count = parseCreditPlanFollowupInstallments(text);
+  if (!count || !activeCreditPlanContext(conv)) return false;
+
+  const product = creditPlanFollowupProduct(conv);
+  if (!product) return false;
+
+  const plan = creditPlan(product, count);
+  if (plan.invalid) {
+    await sendText(
+      phone,
+      `Para *${product.name}*, o máximo no crediário é *${plan.max}x*. Posso calcular em qualquer quantidade de 1 a ${plan.max} parcelas.`
+    );
+    return true;
+  }
+
+  conv.selectedProduct = compactProduct(product);
+  conv.lastIntent = 'produto';
+  rememberCreditPlan(conv, product, count, plan);
+  clearPendingCreditInstallments(conv);
+  saveStateSoon();
+
+  await sendText(
+    phone,
+    `No crediário próprio, para *${product.name}*, em *${count}x* fica aproximadamente *${count}x de ${money(plan.installment)}*, total de *${money(plan.total)}*. A compra no carnê é sujeita à análise de crédito.\n\nSe quiser seguir com o carnê, eu já posso iniciar a solicitação para você.`
+  );
+
+  await markConversationStatus(
+    phone,
+    conv,
+    'Venda em andamento',
+    `Cliente recalculou ${product.name} em ${count}x no crediário.`,
+    pushName,
+    {
+      paymentMode: 'crediario',
+      productId: productId(product),
+      installments: count,
+      creditPlanFollowup: true
+    }
+  );
+
+  return true;
+}
+
 async function startCreditApplication(phone, conv) {
   markCreditContext(conv);
   const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
@@ -8723,16 +8857,8 @@ Se quiser, também posso conferir a entrega com você.`
     }
 
     conv.selectedProduct = product;
-    conv.lastCreditPlan = {
-      productId: productId(product),
-      count,
-      divisor: plan.divisor,
-      total: plan.total,
-      installment: plan.installment
-    };
+    rememberCreditPlan(conv, product, count, plan);
     clearPendingCreditInstallments(conv);
-    markCreditContext(conv);
-    saveStateSoon();
 
     await sendText(
       phone,
@@ -8990,6 +9116,10 @@ async function handleMessage({
     return;
   }
 
+  if (await handleCreditPlanFollowup({ phone, text, pushName, conv })) {
+    return;
+  }
+
   {
     const alternativeProduct = immediateAlternativeProduct(conv, text);
     if (alternativeProduct) {
@@ -9203,15 +9333,8 @@ async function handleMessage({
         return;
       }
 
-      conv.lastCreditPlan = {
-        productId: productId(rememberedReferenceProduct),
-        count,
-        divisor: plan.divisor,
-        total: plan.total,
-        installment: plan.installment
-      };
+      rememberCreditPlan(conv, rememberedReferenceProduct, count, plan);
       clearPendingCreditInstallments(conv);
-      saveStateSoon();
 
       await sendText(
         phone,
@@ -10142,15 +10265,8 @@ ${productCaption(product)}`
       return;
     }
 
-    conv.lastCreditPlan = {
-      productId: productId(product),
-      count,
-      divisor: plan.divisor,
-      total: plan.total,
-      installment: plan.installment
-    };
+    rememberCreditPlan(conv, product, count, plan);
     clearPendingCreditInstallments(conv);
-    saveStateSoon();
     await sendText(
       phone,
       `No crediário próprio, para *${product.name}*, em *${count}x* fica aproximadamente *${count}x de ${money(plan.installment)}*, total de *${money(plan.total)}*. A compra no carnê é sujeita à análise de crédito.\n\nSe quiser seguir com o carnê, eu já posso iniciar a solicitação para você.`
@@ -11113,6 +11229,10 @@ export const __test = {
   asksCreditQuote,
   asksGenericInstallmentQuote,
   parsePendingInstallments,
+  parseCreditPlanFollowupInstallments,
+  activeCreditPlanContext,
+  creditPlanFollowupProduct,
+  handleCreditPlanFollowup,
   asksAcceptedAlternative,
   asksLastShownProduct,
   asksThisShownProduct,

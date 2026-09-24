@@ -3254,6 +3254,103 @@ test('após perguntar quantas parcelas, resposta "12x" também calcula sem cair 
   assert.equal(bot.conversation(phone).lastCreditPlan.count, 12);
 });
 
+
+test('"E de 15" após 48 minutos recalcula o mesmo crediário sem ressuscitar contexto comum', async () => {
+  const phone = '5533977777743';
+  const airFryer = bot.compactProduct(product('credit-followup-air-399', 'Fritadeira Elétrica Air Fryer Britânia 5,5L Gold BFR51 1500W', {
+    category: 'Air Fryers',
+    pixPrice: 399,
+    price: 480.72,
+    stock: 5
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastAt: Date.now() - 48 * 60 * 1000,
+    selectedProduct: airFryer,
+    lastProducts: [airFryer],
+    allProductResults: [airFryer],
+    lastProductQuery: 'air fryer',
+    lastIntent: 'produto',
+    lastCreditPlan: {
+      productId: airFryer.id,
+      product: airFryer,
+      count: 12,
+      divisor: 0.62,
+      total: 643.55,
+      installment: 53.63
+    },
+    creditContextUntil: Date.now() + 72 * 60 * 1000
+  });
+
+  assert.equal(bot.parseCreditPlanFollowupInstallments('E de 15'), 15);
+
+  await bot.handleMessage({
+    phone,
+    text: 'E de 15',
+    pushName: 'Cliente Follow-up'
+  });
+
+  const conv = bot.conversation(phone);
+  assert.equal(conv.lastProducts.length, 0);
+  assert.equal(conv.lastProductQuery, '');
+  assert.equal(conv.selectedProduct.id, 'credit-followup-air-399');
+  assert.equal(conv.lastCreditPlan.count, 15);
+  assert.equal(conv.lastCreditPlan.divisor, 0.62);
+  assert.equal(conv.lastCreditPlan.total, 643.55);
+  assert.equal(conv.lastCreditPlan.installment, 42.9);
+  assert.match(sentTexts.at(-1).text, /Fritadeira Elétrica Air Fryer Britânia 5,5L Gold BFR51 1500W/i);
+  assert.match(sentTexts.at(-1).text, /15x de R\$\s*42,90/i);
+  assert.match(sentTexts.at(-1).text, /total de \*?R\$\s*643,55/i);
+  assert.doesNotMatch(sentTexts.at(-1).text, /Não consigo te ajudar com esse assunto|Marcelo chegar/i);
+});
+
+test('retomada curta do crediário entende variações naturais de quantidade', () => {
+  assert.equal(bot.parseCreditPlanFollowupInstallments('e em 15?'), 15);
+  assert.equal(bot.parseCreditPlanFollowupInstallments('15x'), 15);
+  assert.equal(bot.parseCreditPlanFollowupInstallments('15 parcelas'), 15);
+  assert.equal(bot.parseCreditPlanFollowupInstallments('e se eu fizer em 6?'), 6);
+  assert.equal(bot.parseCreditPlanFollowupInstallments('quanto fica em 10?'), 10);
+  assert.equal(bot.parseCreditPlanFollowupInstallments('air fryer de 15 litros'), 0);
+  assert.equal(bot.parseCreditPlanFollowupInstallments('quero ver tv 15 polegadas'), 0);
+});
+
+test('plano de crediário expirado há mais de 2 horas não é retomado por "E de 15"', async () => {
+  const phone = '5533977777744';
+  const oldProduct = bot.compactProduct(product('credit-expired-product', 'Produto Antigo do Crediário', {
+    category: 'Eletroportáteis',
+    pixPrice: 399,
+    price: 480.72,
+    stock: 1
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastAt: Date.now() - 3 * 60 * 60 * 1000,
+    selectedProduct: oldProduct,
+    lastProducts: [oldProduct],
+    lastIntent: 'produto',
+    lastCreditPlan: {
+      productId: oldProduct.id,
+      product: oldProduct,
+      count: 12,
+      divisor: 0.62,
+      total: 643.55,
+      installment: 53.63
+    },
+    creditContextUntil: Date.now() - 1
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'E de 15',
+    pushName: 'Cliente Expirado'
+  });
+
+  const conv = bot.conversation(phone);
+  assert.equal(conv.lastCreditPlan, null);
+  assert.equal(conv.selectedProduct, null);
+  assert.doesNotMatch(sentTexts.map((item) => item.text).join('\n'), /Produto Antigo do Crediário|15x de R\$\s*42,90/i);
+});
+
 test('"qual o valor desse último aí no boleto" usa o último produto e não pede foto', async () => {
   const phone = '5533977777734';
 
