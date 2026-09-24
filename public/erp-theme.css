@@ -63,15 +63,16 @@ body>header a,.top a,.topbar a,.app-header a,.page-header a,.erp-header a{color:
 body>header a:hover,.top a:hover,.topbar a:hover,.app-header a:hover,.page-header a:hover,.erp-header a:hover{color:#f4c400!important}
 
 /* Navegação lateral, quando existir */
-.sidebar,.sidenav,.side-nav,.erp-sidebar{
+.sidebar,.sidenav,.side-nav,.erp-sidebar,.side{
   background:#003b8f!important;
   color:#fff!important;
 }
-.sidebar a,.sidenav a,.side-nav a,.erp-sidebar a{color:#eaf3ff!important}
+.sidebar a,.sidenav a,.side-nav a,.erp-sidebar a,.side a{color:#eaf3ff!important}
 .sidebar a:hover,.sidebar a.active,
 .sidenav a:hover,.sidenav a.active,
 .side-nav a:hover,.side-nav a.active,
-.erp-sidebar a:hover,.erp-sidebar a.active{
+.erp-sidebar a:hover,.erp-sidebar a.active,
+.side a:hover,.side a.active{
   background:#0047ab!important;
   color:#fff!important;
   box-shadow:inset 4px 0 0 #f4c400!important;
@@ -156,7 +157,7 @@ table tbody tr:hover{background:#f6f9fd}
 }
 
 /* Marca A do ERP */
-.brand-mark,.mark{
+.brand-mark,.brandmark,.mark{
   background:#f4c400!important;
   color:#003b8f!important;
 }
@@ -169,8 +170,9 @@ table tbody tr:hover{background:#f6f9fd}
 @media print{
   html,body{background:#fff!important;color:#000!important}
   body>header,.top,.topbar,.app-header,.page-header,.erp-header,
-  .sidebar,.sidenav,.side-nav,.erp-sidebar{background:#fff!important;color:#000!important;box-shadow:none!important}
+  .sidebar,.sidenav,.side-nav,.erp-sidebar,.side{background:#fff!important;color:#000!important;box-shadow:none!important}
   body>header a,.top a,.topbar a,.app-header a,.page-header a,.erp-header a{color:#000!important}
+  body>header h1,body>header h2,body>header h3,.top h1,.top h2,.top h3,.topbar h1,.topbar h2,.topbar h3,.app-header h1,.app-header h2,.app-header h3,.page-header h1,.page-header h2,.page-header h3,.erp-header h1,.erp-header h2,.erp-header h3{color:#000!important}
   .card,.panel,.box,.hero,.tablebox,.table-box,.filters,.filter-box,.summary,
   .form-card,.content-card,.section-card,.login-card,.modal-card{box-shadow:none!important}
 }
