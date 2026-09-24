@@ -1,4 +1,5 @@
 import { buildReceivables } from './erpService.js';
+import { createErpPaymentReceiptService } from './erpPaymentReceiptService.js';
 
 const clean=(v='',m=1000)=>String(v??'').trim().slice(0,m);
 const array=v=>Array.isArray(v)?v:[];
@@ -11,6 +12,7 @@ function validDate(v,label='Data'){const d=new Date(v);if(Number.isNaN(d.getTime
 export function createErpFinanceService(context={}){
  const {Order,IntegrationAuditLog,toJSON,redact}=context;
  if(!Order)throw new Error('[erp-finance] Order não informado');
+ const paymentReceipts=createErpPaymentReceiptService(context);
  const serial=d=>typeof toJSON==='function'?toJSON(d):(d?.toObject?d.toObject():d);
  async function findOrder(id){let o=null;try{o=await Order.findById(id)}catch{}if(!o||o.origin!=='erp_ariana')throw fail('Venda do Ariana ERP não encontrada.',404,'ERP_ORDER_NOT_FOUND');return o}
  async function audit(type,o,metadata={}){if(!IntegrationAuditLog)return;try{await IntegrationAuditLog.create({scope:'erp_ariana',eventType:type,orderId:String(o?._id||''),status:o?.status||'',message:clean(metadata.message||'',1000),metadata:redact?redact(metadata):metadata})}catch(e){console.warn('[erp-finance/audit]',e.message)}}
@@ -69,7 +71,7 @@ export function createErpFinanceService(context={}){
   if(principal-left>0.009)throw fail(`O valor aplicado à parcela não pode ultrapassar ${left.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}.`,400,'AMOUNT_EXCEEDS_BALANCE');
   const fine=Math.max(0,money(payload.fine??payload.multa??0)),interest=Math.max(0,money(payload.interest??payload.juros??0)),discount=Math.max(0,money(payload.discount??payload.desconto??0));
   const cashTotal=Math.max(0,money(principal+fine+interest-discount));
-  const payment={at:payload.paidAt?validDate(payload.paidAt,'Data do pagamento'):new Date(),principalApplied:principal,fine,interest,discount,totalPaid:cashTotal,method:clean(payload.method||payload.paymentMethod||current.method||order.payment?.method||'',80),bankAccountName:clean(payload.bankAccountName||payload.bank||'',180),document:clean(payload.document||payload.documento||'',180),note:clean(payload.note||payload.notes||'',1000),by:actorName(actor)};
+  const payment={id:`ERP-PAY-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,at:payload.paidAt?validDate(payload.paidAt,'Data do pagamento'):new Date(),principalApplied:principal,fine,interest,discount,totalPaid:cashTotal,method:clean(payload.method||payload.paymentMethod||current.method||order.payment?.method||'',80),bankAccountName:clean(payload.bankAccountName||payload.bank||'',180),document:clean(payload.document||payload.documento||'',180),note:clean(payload.note||payload.notes||'',1000),by:actorName(actor)};
   current.payments=[...array(current.payments),payment];
   const got=receivedTotal(current),newRemaining=remaining(current),paid=newRemaining<=0.009;
   receivables[idx]={...current,status:paid?'recebido':'pendente',receivedAt:paid?payment.at:null,receivedAmount:got,receivedMethod:payment.method,receiptNote:payment.note,receivedBy:actorName(actor)};
@@ -79,7 +81,14 @@ export function createErpFinanceService(context={}){
   order.televendas={...(order.televendas||{}),erp:{...erp,receivables,financialStatus:all?'settled':some?'partial':'generated',financialSettledAt:all?new Date():null,timeline:[...array(erp.timeline),{status:'recebimento',label:`Parcela ${n}/${receivables[idx].installments}: ${paid?'quitada':'pagamento parcial'} de ${cashTotal.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`,at:new Date(),by:actorName(actor)}]}};
   await order.save();
   await audit(paid?'erp.receivable.received':'erp.receivable.partial',order,{message:paid?`Parcela ${n} quitada`:`Pagamento parcial na parcela ${n}`,number:n,principal,cashTotal,remaining:newRemaining});
-  return{order:serial(order),receivable:{...receivables[idx],status:state(receivables[idx]),remaining:newRemaining,receivedAmount:got},payment}
+  const receiptDelivery=await paymentReceipts.afterSaleReceive({
+    order,
+    number:n,
+    receivable:receivables[idx],
+    payment,
+    actor
+  }).catch(error=>({whatsappEnviado:false,requiresPhone:false,whatsapp:{ok:false,error:error?.message||String(error)}}));
+  return{order:serial(order),receivable:{...receivables[idx],status:state(receivables[idx]),remaining:newRemaining,receivedAmount:got},payment,receiptDelivery}
  }
  async function resolveSelection(items=[]){
   const selected=array(items);if(!selected.length)throw fail('Selecione pelo menos um lançamento.',400,'NO_SELECTION');if(selected.length>300)throw fail('Selecione no máximo 300 lançamentos por operação.',400,'TOO_MANY_SELECTED');
@@ -91,7 +100,7 @@ export function createErpFinanceService(context={}){
   const rows=await resolveSelection(items),results=[];
   for(const row of rows){results.push(await receive(String(row.order._id),row.number,{...payload,settle:true},actor))}
   const totalPrincipal=money(results.reduce((s,x)=>s+Number(x.payment?.principalApplied||0),0)),totalPaid=money(results.reduce((s,x)=>s+Number(x.payment?.totalPaid||0),0));
-  return{processed:results.length,totalPrincipal,totalPaid,results:results.map(x=>({orderId:String(x.order?._id||x.order?.id||''),receivable:x.receivable,payment:x.payment}))}
+  return{processed:results.length,totalPrincipal,totalPaid,results:results.map(x=>({orderId:String(x.order?._id||x.order?.id||''),receivable:x.receivable,payment:x.payment,receiptDelivery:x.receiptDelivery||null}))}
  }
  async function allocateByCustomer(items=[],payload={},actor={}){
   const rows=await resolveSelection(items);const keys=[...new Set(rows.map(r=>r.key))];if(keys.length!==1)throw fail('A distribuição por cliente aceita lançamentos de um único cliente por vez.',400,'MULTIPLE_CUSTOMERS');
@@ -99,7 +108,7 @@ export function createErpFinanceService(context={}){
   const totalOpen=money(rows.reduce((s,r)=>s+r.remaining,0));if(available-totalOpen>0.009)throw fail(`O valor recebido é maior que o saldo selecionado (${totalOpen.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}).`,400,'AMOUNT_EXCEEDS_SELECTION');
   rows.sort((a,b)=>new Date(a.dueAt||0)-new Date(b.dueAt||0));const results=[];
   for(const row of rows){if(available<=0.009)break;const principal=Math.min(available,row.remaining);results.push(await receive(String(row.order._id),row.number,{...payload,amount:principal,settle:false,fine:0,interest:0,discount:0},actor));available=money(available-principal)}
-  const applied=money(results.reduce((s,x)=>s+Number(x.payment?.principalApplied||0),0));return{processed:results.length,applied,unapplied:available,customerName:rows[0]?.order?.customerName||'',results:results.map(x=>({orderId:String(x.order?._id||x.order?.id||''),receivable:x.receivable,payment:x.payment}))}
+  const applied=money(results.reduce((s,x)=>s+Number(x.payment?.principalApplied||0),0));return{processed:results.length,applied,unapplied:available,customerName:rows[0]?.order?.customerName||'',results:results.map(x=>({orderId:String(x.order?._id||x.order?.id||''),receivable:x.receivable,payment:x.payment,receiptDelivery:x.receiptDelivery||null}))}
  }
  return{list,receive,settleSelected,allocateByCustomer}
 }

@@ -3011,6 +3011,13 @@ async function televendasSigeRequest(
 app.use('/api', createTelevendasRoutes({
   Order,
   Product,
+  CrediarioCliente,
+  CrediarioRecibo,
+  mongoose,
+  normalizePhone,
+  makeReciboNumber,
+  sendCrediarioReceiptWhatsapp,
+  now,
   sigeRequest: televendasSigeRequest,
   User,
   PaymentEvent,

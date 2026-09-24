@@ -91,6 +91,7 @@ export function resolveErpRequirement(req={}){
   if(path==='/erp/financeiro/pagamentos'&&read)return requirement(['payments:read','finance:read'],'consultar pagamentos');
   if(/^\/erp\/financeiro\/(contas-receber|contas-pagar)$/.test(path)&&method==='POST')return requirement(['payments:receive'],'criar lançamentos financeiros');
   if(/^\/erp\/financeiro\/lancamentos\/[^/]+\/quitar$/.test(path)&&method==='POST')return requirement(['payments:receive'],'quitar lançamentos');
+  if(/^\/erp\/financeiro\/comprovantes\/[^/]+\/telefone-enviar$/.test(path)&&method==='POST')return requirement(['payments:receive'],'salvar WhatsApp e enviar comprovante');
   if(/^\/erp\/financeiro\/lancamentos\/[^/]+\/pagamentos\/[^/]+\/conciliacao$/.test(path)&&(method==='PUT'||method==='PATCH'))return requirement(['payments:receive'],'conciliar pagamentos');
   if(/^\/erp\/financeiro\/lancamentos\/[^/]+\/(reabrir|cancelar)$/.test(path)&&method==='POST')return requirement(['payments:cancel'],'reabrir ou cancelar lançamentos');
   if(/^\/erp\/financeiro\/lancamentos\/[^/]+$/.test(path)&&(method==='PUT'||method==='PATCH'))return requirement(['payments:receive'],'alterar lançamentos financeiros');
