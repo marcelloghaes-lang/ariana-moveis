@@ -3233,7 +3233,7 @@ function financeiroErpReference(row = {}) {
   }
 
 
-  async function sincronizarCarneDigitalSige(q = '', req = {}, options = {}) {
+  async function sincronizarCarneDigitalErp(q = '', req = {}, options = {}) {
     const existenteInformado = options.existingCarne || null;
     const termos = [
       q,
@@ -3241,234 +3241,165 @@ function financeiroErpReference(row = {}) {
       existenteInformado?.cliente?.cpf,
       existenteInformado?.cliente?.nome,
       existenteInformado?.cliente?.telefone
-    ];
+    ].map((value) => String(value || '').trim()).filter(Boolean);
 
-    const carneSige = await getSigeCarneDataComFallback(termos, options);
-    let auditoriaMongo = null;
-    try {
-      auditoriaMongo = await getCrediarioAuditForSigeCarne(carneSige);
-    } catch (auditError) {
-      auditoriaMongo = {
-        clienteLocal: null,
-        recibos: { quantidade: 0, valorRegistrado: 0, ultimo: null },
-        erro: auditError.message || String(auditError)
-      };
+    let data = null;
+    let lastError = null;
+    for (const termo of [...new Set(termos)]) {
+      try {
+        const candidate = await getArianaErpFinancialData(termo);
+        if (!data) data = candidate;
+        if (Array.isArray(candidate?.grupos) && candidate.grupos.length) {
+          data = candidate;
+          break;
+        }
+      } catch (error) {
+        lastError = error;
+      }
     }
 
-    const data = {
-      ...carneSige,
-      auditoriaMongo,
-      arquitetura: {
-        fonteOficialParcelas: 'SIGE',
-        fonteOficialSaldo: 'SIGE',
-        fonteOficialPagamentos: 'SIGE',
-        mongoDb: ['clientes complementares', 'recibos emitidos', 'WhatsApp', 'logs', 'auditoria']
-      }
-    };
+    if (!data) {
+      if (lastError) throw lastError;
+      data = await getArianaErpFinancialData(String(q || '').trim());
+    }
 
     if (!Array.isArray(data.grupos) || !data.grupos.length) {
-      const existente = existenteInformado ||
-        await FinanceiroCarneDigital.findOne({
-          $or: [
-            ...(cleanPhone(q) ? [{ 'cliente.cpf': cleanPhone(q) }] : []),
-            ...(String(q || '').trim() ? [{ 'cliente.nome': new RegExp(`^${escapeRegex(String(q).trim())}$`, 'i') }] : [])
-          ]
-        });
+      const cpfBusca = cleanPhone(data.cpf || q || existenteInformado?.cliente?.cpf || '');
+      const nomeBusca = String(data.cliente || q || existenteInformado?.cliente?.nome || '').trim();
+      const or = [];
+      if (cpfBusca) or.push({ 'cliente.cpf': cpfBusca });
+      if (nomeBusca) or.push({ 'cliente.nome': new RegExp('^' + escapeRegex(nomeBusca) + '$', 'i') });
+      const existente = existenteInformado || (or.length ? await FinanceiroCarneDigital.findOne({ $or: or }) : null);
 
       if (existente && Array.isArray(existente.parcelas) && existente.parcelas.length) {
-        existente.parcelas = normalizarIdentificacaoParcelas(existente.parcelas);
-        existente.grupos = Array.isArray(existente.grupos) ? existente.grupos.map((grupo) => ({
-          ...grupo,
-          parcelas: normalizarIdentificacaoParcelas(grupo.parcelas || [])
-        })) : [];
+        existente.fonte = existente.fonte === 'sige' ? 'legado_local' : (existente.fonte || 'legado_local');
         existente.snapshot = {
           ...(existente.snapshot || {}),
+          fonteFinanceira: 'ariana_erp',
           ultimaTentativaSincronizacaoEm: new Date(),
           ultimaTentativaSincronizacaoOk: false,
-          ultimaTentativaSincronizacaoErro: 'SIGE não retornou parcelas; dados existentes foram preservados.',
-          diagnosticoConsulta: data.diagnosticoConsulta || null
+          ultimaTentativaSincronizacaoErro: 'Ariana ERP sem parcelas vinculadas; snapshot local preservado.'
         };
         existente.historico = Array.isArray(existente.historico) ? existente.historico : [];
         existente.historico.push({
-          tipo: 'SINCRONIZACAO_PRESERVADA',
+          tipo: 'SINCRONIZACAO_ERP_PRESERVADA',
           em: new Date(),
           por: getFinanceiroActor(req),
-          motivo: 'SIGE não retornou parcelas; snapshot anterior preservado.',
-          diagnosticoConsulta: data.diagnosticoConsulta || null
+          motivo: 'Ariana ERP sem parcelas vinculadas; histórico local preservado.'
         });
         if (existente.historico.length > 100) existente.historico = existente.historico.slice(-100);
         await existente.save();
-
-        await registrarAuditoriaFinanceira({
-          req,
-          acao: 'CARNE_SINCRONIZACAO_PRESERVADA',
-          entidade: 'FinanceiroCarneDigital',
-          entidadeId: String(existente._id),
-          codigo: existente.codigo,
-          depois: existente.resumo || {},
-          metadata: {
-            motivo: 'SIGE_SEM_PARCELAS',
-            diagnosticoConsulta: data.diagnosticoConsulta || null
-          },
-          sucesso: true
-        });
-
         return {
           ok: true,
           preservado: true,
           atualizado: false,
-          warning: 'O SIGE não retornou parcelas nesta tentativa. As parcelas já salvas foram preservadas.',
-          diagnosticoConsulta: data.diagnosticoConsulta || null,
+          warning: 'O Ariana ERP não encontrou parcelas vinculadas. O histórico local foi preservado sem consultar o SIGE.',
           carne: normalizeCarneDigital(existente)
         };
       }
 
-      const error = new Error('Nenhuma parcela foi encontrada no SIGE para este cliente.');
+      const error = new Error('Nenhuma parcela foi encontrada no Ariana ERP para este cliente.');
       error.statusCode = 404;
-      error.diagnosticoConsulta = data.diagnosticoConsulta || null;
       throw error;
     }
 
     data.parcelas = normalizarIdentificacaoParcelas(data.parcelas || []);
-    data.grupos = (Array.isArray(data.grupos) ? data.grupos : []).map((grupo) => ({
+    data.grupos = data.grupos.map((grupo) => ({
       ...grupo,
       parcelas: normalizarIdentificacaoParcelas(grupo.parcelas || [])
     }));
 
     const uniqueKey = buildCarneUniqueKey(data);
     if (!uniqueKey || uniqueKey.endsWith(':')) {
-      const error = new Error('Não foi possível identificar o cliente para salvar o carnê.');
+      const error = new Error('Não foi possível identificar o cliente do Ariana ERP.');
       error.statusCode = 422;
       throw error;
     }
 
     const agora = new Date();
-    const usuario = String(req.admin?.email || req.auth?.email || req.user?.email || 'admin');
-    let existente = await FinanceiroCarneDigital.findOne({ uniqueKey });
-    let criadoAgora = !existente;
+    const usuario = getFinanceiroActor(req);
+    const cpf = cleanPhone(data.cpf || '');
+    const telefone = normalizePhone(data.telefone || '', '55');
+    const nome = String(data.cliente || '').trim();
 
+    let existente = existenteInformado || await FinanceiroCarneDigital.findOne({ uniqueKey });
+    if (!existente && cpf) existente = await FinanceiroCarneDigital.findOne({ 'cliente.cpf': cpf }).sort({ updatedAt: -1 });
+    if (!existente && telefone) existente = await FinanceiroCarneDigital.findOne({ 'cliente.telefone': telefone }).sort({ updatedAt: -1 });
+    if (!existente && nome) existente = await FinanceiroCarneDigital.findOne({ 'cliente.nome': new RegExp('^' + escapeRegex(nome) + '$', 'i') }).sort({ updatedAt: -1 });
+
+    let criadoAgora = !existente;
     if (!existente) {
       let codigo = createCarneCode();
       while (await FinanceiroCarneDigital.exists({ codigo })) codigo = createCarneCode();
-
       existente = new FinanceiroCarneDigital({
         codigo,
         uniqueKey,
-        fonte: 'sige',
+        fonte: 'ariana_erp',
         status: 'ATIVO',
         criadoPor: usuario,
         historico: []
       });
     }
 
-    let resumoAnterior = existente.resumo || {};
+    const conflito = await FinanceiroCarneDigital.findOne({ uniqueKey, _id: { $ne: existente._id } });
+    if (conflito) {
+      existente = conflito;
+      criadoAgora = false;
+    }
+
+    const resumoAnterior = existente.resumo || {};
+    existente.uniqueKey = uniqueKey;
+    existente.fonte = 'ariana_erp';
+    existente.status = 'ATIVO';
     existente.cliente = {
-      nome: String(data.cliente || ''),
-      nomeNormalizado: normalizeCarneIdentity(data.cliente || ''),
-      cpf: cleanPhone(data.cpf || ''),
-      telefone: normalizePhone(data.telefone || '', '55'),
+      nome,
+      nomeNormalizado: normalizeCarneIdentity(nome),
+      cpf,
+      telefone,
       cidade: String(data.cidade || ''),
       uf: String(data.uf || '')
     };
     existente.resumo = data.resumo || {};
-    existente.grupos = Array.isArray(data.grupos) ? data.grupos : [];
-    existente.parcelas = Array.isArray(data.parcelas) ? data.parcelas : [];
+    existente.grupos = data.grupos || [];
+    existente.parcelas = data.parcelas || [];
     existente.snapshot = {
-      fonteFinanceira: data.fonteFinanceira || 'sige',
-      fonte: data.fonte || 'lancamentos_sige',
-      total: Number(data.total || 0),
-      arquitetura: data.arquitetura || {},
-      auditoriaMongo: data.auditoriaMongo || null
+      ...(existente.snapshot || {}),
+      fonteFinanceira: 'ariana_erp',
+      fonte: 'ariana_erp',
+      total: Number(data.total || data.parcelas?.length || 0),
+      ultimaTentativaSincronizacaoEm: agora,
+      ultimaTentativaSincronizacaoOk: true,
+      ultimaTentativaSincronizacaoErro: ''
     };
     existente.ultimaSincronizacaoEm = agora;
     existente.ultimaSincronizacaoPor = usuario;
     existente.historico = Array.isArray(existente.historico) ? existente.historico : [];
     existente.historico.push({
-      tipo: criadoAgora ? 'CRIADO' : 'SINCRONIZADO',
+      tipo: criadoAgora ? 'CRIADO_ERP' : 'SINCRONIZADO_ERP',
       em: agora,
       por: usuario,
       resumoAnterior,
       resumoAtual: data.resumo || {}
     });
-    if (existente.historico.length > 100) {
-      existente.historico = existente.historico.slice(-100);
-    }
-
-    try {
-      await existente.save();
-    } catch (saveError) {
-      const duplicateUniqueKey =
-        Number(saveError?.code || 0) === 11000 &&
-        (
-          String(saveError?.message || '').includes('uniqueKey_1') ||
-          saveError?.keyPattern?.uniqueKey ||
-          saveError?.keyValue?.uniqueKey
-        );
-
-      if (!duplicateUniqueKey) throw saveError;
-
-      // Duas sincronizações podem chegar quase ao mesmo tempo.
-      // O índice uniqueKey protege contra duplicidade; neste caso,
-      // recuperamos o registro que venceu a corrida e o atualizamos.
-      existente = await FinanceiroCarneDigital.findOne({ uniqueKey });
-      if (!existente) throw saveError;
-
-      criadoAgora = false;
-      resumoAnterior = existente.resumo || {};
-
-      existente.cliente = {
-        nome: String(data.cliente || ''),
-        nomeNormalizado: normalizeCarneIdentity(data.cliente || ''),
-        cpf: cleanPhone(data.cpf || ''),
-        telefone: normalizePhone(data.telefone || '', '55'),
-        cidade: String(data.cidade || ''),
-        uf: String(data.uf || '')
-      };
-      existente.resumo = data.resumo || {};
-      existente.grupos = Array.isArray(data.grupos) ? data.grupos : [];
-      existente.parcelas = Array.isArray(data.parcelas) ? data.parcelas : [];
-      existente.snapshot = {
-        fonteFinanceira: data.fonteFinanceira || 'sige',
-        fonte: data.fonte || 'lancamentos_sige',
-        total: Number(data.total || 0),
-        arquitetura: data.arquitetura || {},
-        auditoriaMongo: data.auditoriaMongo || null
-      };
-      existente.ultimaSincronizacaoEm = agora;
-      existente.ultimaSincronizacaoPor = usuario;
-      existente.historico = Array.isArray(existente.historico) ? existente.historico : [];
-      existente.historico.push({
-        tipo: 'SINCRONIZADO',
-        em: agora,
-        por: usuario,
-        resumoAnterior,
-        resumoAtual: data.resumo || {},
-        recuperadoDeConcorrencia: true
-      });
-      if (existente.historico.length > 100) {
-        existente.historico = existente.historico.slice(-100);
-      }
-
-      await existente.save();
-    }
+    if (existente.historico.length > 100) existente.historico = existente.historico.slice(-100);
+    await existente.save();
 
     await registrarAuditoriaFinanceira({
       req,
-      acao: criadoAgora ? 'CARNE_CRIADO' : 'CARNE_SINCRONIZADO',
+      acao: criadoAgora ? 'CARNE_ERP_CRIADO' : 'CARNE_ERP_SINCRONIZADO',
       entidade: 'FinanceiroCarneDigital',
       entidadeId: String(existente._id),
       codigo: existente.codigo,
       antes: resumoAnterior,
       depois: existente.resumo,
-      metadata: { fonte: 'sige', uniqueKey }
+      metadata: { fonte: 'ariana_erp', uniqueKey }
     });
+
     return {
       ok: true,
       criadoAgora,
       atualizado: !criadoAgora,
-      message: criadoAgora
-        ? 'Carnê digital criado e salvo com sucesso.'
-        : 'O mesmo carnê foi atualizado com os valores atuais do SIGE.',
+      message: criadoAgora ? 'Carnê criado a partir do Ariana ERP.' : 'Carnê atualizado a partir do Ariana ERP.',
       carne: normalizeCarneDigital(existente)
     };
   }
