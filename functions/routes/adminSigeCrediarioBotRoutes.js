@@ -12319,7 +12319,7 @@ function financeiroErpReference(row = {}) {
         });
       }
 
-      const data = await getUnifiedFinancialData(identifier, {
+      const data = await getArianaErpFinancialData(identifier, {
         limit: Math.max(100, Math.min(Number(req.query.limit || req.body?.limit || 5000), 10000)),
         maxRecords: Math.max(1000, Math.min(Number(req.query.maxRecords || req.body?.maxRecords || 20000), 30000))
       });
@@ -12375,7 +12375,7 @@ function financeiroErpReference(row = {}) {
       return res.json({
         ok: true,
         channel: 'loja',
-        fonteFinanceira: 'sige',
+        fonteFinanceira: 'ariana_erp',
         cliente: {
           nome: String(data?.cliente || ''),
           telefoneConfirmado: Boolean(phone)
@@ -12387,8 +12387,8 @@ function financeiroErpReference(row = {}) {
       console.error('[bot:loja] erro ao consultar carnê:', error);
       return res.status(error.statusCode || 500).json({
         ok: false,
-        error: error.message || 'Erro ao consultar o carnê no SIGE.',
-        fonteFinanceira: 'sige'
+        error: error.message || 'Erro ao consultar o carnê no Ariana ERP.',
+        fonteFinanceira: 'ariana_erp'
       });
     }
   }
