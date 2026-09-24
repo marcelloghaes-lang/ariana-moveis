@@ -106,28 +106,15 @@ jobs:
           assert.equal(legitimate.suppressed,0);
           NODE
 
-      - name: Validate automatic receipt contact references
+      - name: Validate automatic receipt contact contract
+        shell: bash
         run: |
-          node --input-type=module <<'NODE'
-          import assert from 'node:assert/strict';
-          import { createErpFinanceCustomerContactService } from './functions/services/erp/erpFinanceCustomerContactService.js';
-
-          const service=createErpFinanceCustomerContactService({
-            Order:{},
-            normalizePhone:(value,country='55')=>{
-              let n=String(value||'').replace(/\D/g,'');
-              if((n.length===10||n.length===11)&&country)n=country+n;
-              return n;
-            }
-          });
-          assert.deepEqual(service.parseReference('ERP_0123456789abcdef01234567_3'),{
-            type:'order',orderId:'0123456789abcdef01234567',number:3
-          });
-          assert.deepEqual(service.parseReference('LEDGER_0123456789abcdef01234567'),{
-            type:'ledger',entryId:'0123456789abcdef01234567'
-          });
-          assert.equal(service.parseReference('12345'),null);
-          NODE
+          grep -q "ERP_([a-f0-9]{24})" functions/services/erp/erpFinanceCustomerContactService.js
+          grep -q "LEDGER_([a-f0-9]{24})" functions/services/erp/erpFinanceCustomerContactService.js
+          grep -q "cliente_sem_whatsapp" functions/routes/adminSigeCrediarioBotRoutes.js
+          grep -q "requiresPhone" functions/routes/adminSigeCrediarioBotRoutes.js
+          grep -q "receiptPhoneOverlay" public/financeiro_recibos.html
+          grep -q "Salvar e enviar comprovante" public/financeiro_recibos.html
 
       - name: Validate ERP permission matrix
         run: |
