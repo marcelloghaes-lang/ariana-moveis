@@ -4,6 +4,7 @@ import { createErpSigeFiscalHistoryService } from '../../services/erp/erpSigeFis
 import { createErpDanfeBrandedService } from '../../services/erp/erpDanfeBrandedService.js';
 import { createErpFiscalSettingsService } from '../../services/erp/erpFiscalSettingsService.js';
 import { createErpNfeSefazService } from '../../services/erp/erpNfeSefazService.js';
+import { createErpNfeReturnService } from '../../services/erp/erpNfeReturnService.js';
 import { createErpService } from '../../services/erp/erpService.js';
 import { createErpCashService } from '../../services/erp/erpCashService.js';
 import { createErpSettingsService } from '../../services/erp/erpSettingsService.js';
@@ -27,6 +28,7 @@ export default function createErpSigeFiscalHistoryRoutes(context={}){
   const erp=createErpService(context);
   const cash=createErpCashService(context);
   const nfe=createErpNfeSefazService({...context,erp},settings);
+  const nfeReturn=createErpNfeReturnService({...context,erp},settings);
   const sendError=(res,e,fallback='Erro fiscal.')=>res.status(Number(e?.statusCode||500)).json({
     ok:false,
     error:e?.message||fallback,
@@ -189,6 +191,23 @@ export default function createErpSigeFiscalHistoryRoutes(context={}){
     }catch(e){
       return sendError(res,e,'Erro ao emitir NF-e e faturar a venda.');
     }
+  });
+
+  router.post('/erp/fiscal/nfe/devolucao/preflight',operationalRequired,async(req,res)=>{
+    try{
+      const draft=req.body?.draft||req.body||{};
+      const review=await nfeReturn.preflight(draft);
+      return res.status(review.ready?200:409).json({ok:review.ready,review});
+    }catch(e){return sendError(res,e,'Erro ao validar a NF-e de devolução.')}
+  });
+
+  router.post('/erp/fiscal/nfe/devolucao/emitir',operationalRequired,async(req,res)=>{
+    try{
+      const draft=req.body?.draft||{};
+      const result=await nfeReturn.transmit(draft,actor(req),String(req.body?.operationId||'').trim());
+      const pending=Boolean(result.recoveryPending||result.stockPending);
+      return res.status(pending?409:200).json({ok:!pending,...result});
+    }catch(e){return sendError(res,e,'Erro ao emitir NF-e de devolução.')}
   });
 
   // Mantido exatamente o fluxo aprovado de identidade visual/DANFE histórico.
