@@ -89,6 +89,8 @@ header h1,.top h1{color:#fff!important}header small,.top small{color:#dceaff!imp
           <div class="row"><small>CPF / CNPJ</small><b id="c-doc"></b></div>
           <div class="row"><small>Telefone</small><span id="c-phone"></span></div>
           <div class="row"><small>E-mail</small><span id="c-email"></span></div>
+          <div class="row"><small>Situação ICMS</small><span id="c-icms">Aguardando validação</span></div>
+          <div class="row"><small>Consumidor final</small><select id="consumer-final" style="width:100%;border:1px solid #cfd8e5;border-radius:8px;padding:8px;background:#fff"><option value="1">Sim</option><option value="0">Não</option></select></div>
           <div class="row full"><small>Endereço / entrega</small><span id="c-address"></span></div>
         </div>
       </div>
@@ -192,12 +194,12 @@ try{data=JSON.parse(sessionStorage.getItem(storageKey)||'null')}catch{}
 function render(){
   if(!data){$('missing').style.display='block';return}
   $('review').style.display='grid';
-  const c=data.customer||{},t=data.totals||{},p=data.payment||{},cm=data.commercial||{},rows=Array.isArray(data.items)?data.items:[];
+  const c=data.customer||{},t=data.totals||{},p=data.payment||{},cm=data.commercial||{},rows=Array.isArray(data.items)?data.items:[];data.fiscal=data.fiscal||{};
   $('c-name').textContent=c.name||'Consumidor';
   $('c-doc').textContent=c.document||'—';
   $('c-phone').textContent=c.phone||'—';
   $('c-email').textContent=c.email||'—';
-  $('c-address').textContent=c.address||'—';
+  $('c-address').textContent=c.address||'—';$('consumer-final').value=String(Number(data.fiscal.consumerFinal??1)?1:0);
   $('items').innerHTML=rows.map(i=>`<tr><td><b>${esc(i.name||'Produto')}</b></td><td>${esc(i.sku||'—')}</td><td>${Number(i.qty||0)}</td><td class="money">${money(i.unitPrice)}</td><td class="money"><b>${money(Number(i.qty||0)*Number(i.unitPrice||0))}</b></td></tr>`).join('');
   $('sale-date').textContent=formatDate(cm.saleDate);
   $('seller-name').textContent=cm.sellerName||'—';
@@ -279,7 +281,7 @@ async function preflight(){
     const r=await fetch(API+'/erp/fiscal/nfe/preflight',{method:'POST',headers:headers(),body:JSON.stringify({draft:data})});
     const d=await r.json();
     if(r.status===401)return goLogin();
-    const review=d.review||{},problems=review.problems||[];
+    const review=d.review||{},problems=review.problems||[];const rc=review.customer||{};const st=String(rc.icmsTaxpayerStatus||'auto');$('c-icms').textContent=st==='contribuinte'?`Contribuinte${rc.ie?' • IE '+rc.ie:''}`:st==='isento'?'Contribuinte isento':st==='nao_contribuinte'?'Não contribuinte':'Cadastro legado / automático';
     const isProd=review.environment==='producao';
     $('env').textContent=isProd?'PRODUÇÃO':'HOMOLOGAÇÃO';
     $('env').className='pill'+(review.ready?' ok':'');
@@ -365,6 +367,7 @@ $('emit').onclick=async()=>{
     b.textContent='Tentar emissão novamente';
   }
 };
+$('consumer-final').onchange=()=>{if(!data)return;data.fiscal={...(data.fiscal||{}),consumerFinal:Number($('consumer-final').value)};saveDraft();preflight()};
 $('viewDanfe').onclick=async()=>{
   if(!lastFiscalDocumentId)return;
   try{

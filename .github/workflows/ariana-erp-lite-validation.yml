@@ -71,6 +71,8 @@ jobs:
           assert.deepEqual(rule('POST', '/erp/relatorios/inadimplentes/cobranca/entry123/enviar').any, ['payments:receive','finance:read']);
           assert.equal(rule('POST', '/erp/migracao/sige/importar').mapped, false);
           assert.deepEqual(rule('POST', '/erp/fiscal/nfe/preflight').any, ['fiscal:nfe:emit']);
+          assert.deepEqual(rule('POST', '/erp/fiscal/nfe/devolucao/preflight').any, ['fiscal:nfe:emit']);
+          assert.deepEqual(rule('POST', '/erp/fiscal/nfe/devolucao/emitir').any, ['fiscal:nfe:emit']);
           assert.equal(canAccess({admin:{role:'staff',permissions:['orders:read']}},['orders:read']), true);
           assert.equal(canAccess({admin:{role:'staff',permissions:['orders:read']}},['orders:update']), false);
           assert.equal(canAccess({admin:{role:'staff',permissions:['fiscal:nfe:emit']}},['fiscal:nfe:emit']), true);

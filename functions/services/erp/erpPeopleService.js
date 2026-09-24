@@ -27,10 +27,42 @@ export function normalizeCustomerPhone(value=''){
 }
 function normalizeAddress(a={}){const rawUf=a.stateCode??a.uf??a.codigoUf??a.codigoUF??a.state??a.estado;return{street:clean(a.street??a.logradouro,220),number:clean(a.number??a.numero,80),complement:clean(a.complement??a.complemento,220),neighborhood:clean(a.neighborhood??a.bairro,160),city:clean(a.city??a.municipio,160),cityCode:digits(a.cityCode??a.codigoMunicipio).slice(0,7),state:clean(a.state??a.estado,80),stateCode:normalizeUf(rawUf),zipCode:digits(a.zipCode??a.cep).slice(0,8),country:clean(a.country??a.pais??'Brasil',100),countryCode:clean(a.countryCode??a.codigoPais??'1058',30)}}
 function addressText(a={}){return[a.street,a.number,a.neighborhood,a.city,a.stateCode||a.state].map(x=>clean(x,180)).filter(Boolean).join(', ')}
-function personRow(p={}){const address=normalizeAddress(p.address||{});return{id:String(p._id||''),source:p.source||'',sourceId:p.sourceId||'',name:p.name||p.companyName||'',companyName:p.companyName||'',document:p.document||'',ie:p.ie||'',ieExempt:Boolean(p.ieExempt),email:p.email||'',phone:p.phone||'',personType:p.personType||'',roles:Array.isArray(p.roles)?p.roles:[],address,addressText:addressText(address),linkedUserId:p.linkedUserId?String(p.linkedUserId):'',active:p.active!==false}}
-function userRow(u={}){return{id:`user:${String(u._id||'')}`,source:'site',sourceId:String(u._id||''),name:u.name||u.email||'Cliente',companyName:'',document:digits(u.cpf),ie:'',ieExempt:false,email:u.email||'',phone:digits(u.phone),personType:'Cliente do site',roles:['Cliente'],address:{city:u.city||'',stateCode:normalizeUf(u.uf||'')},addressText:[u.city,normalizeUf(u.uf||'')].filter(Boolean).join('/'),linkedUserId:String(u._id||''),active:u.isActive!==false}}
+function personRow(p={}){const address=normalizeAddress(p.address||{});return{id:String(p._id||''),source:p.source||'',sourceId:p.sourceId||'',name:p.name||p.companyName||'',companyName:p.companyName||'',document:p.document||'',ie:p.ie||'',ieExempt:Boolean(p.ieExempt),icmsTaxpayerStatus:p.icmsTaxpayerStatus||'auto',publicAgency:Boolean(p.publicAgency),publicEntityType:p.publicEntityType||'',email:p.email||'',phone:p.phone||'',personType:p.personType||'',roles:Array.isArray(p.roles)?p.roles:[],address,addressText:addressText(address),linkedUserId:p.linkedUserId?String(p.linkedUserId):'',active:p.active!==false}}
+function userRow(u={}){return{id:`user:${String(u._id||'')}`,source:'site',sourceId:String(u._id||''),name:u.name||u.email||'Cliente',companyName:'',document:digits(u.cpf),ie:'',ieExempt:false,icmsTaxpayerStatus:'nao_contribuinte',publicAgency:false,publicEntityType:'',email:u.email||'',phone:digits(u.phone),personType:'Cliente do site',roles:['Cliente'],address:{city:u.city||'',stateCode:normalizeUf(u.uf||'')},addressText:[u.city,normalizeUf(u.uf||'')].filter(Boolean).join('/'),linkedUserId:String(u._id||''),active:u.isActive!==false}}
 function keyOf(row={}){return row.document?`doc:${digits(row.document)}`:(row.email?`mail:${String(row.email).toLowerCase()}`:(row.phone?`tel:${digits(row.phone)}`:`id:${row.id}`))}
-function validatePayload(payload={}){const name=clean(payload.name||payload.companyName,220);if(!name)throw fail('Informe o nome ou razão social do cliente.');const document=digits(payload.document);if(document&&![11,14].includes(document.length))throw fail('CPF/CNPJ deve ter 11 ou 14 dígitos.');const rawUf=clean(payload.address?.stateCode??payload.address?.uf??payload.address?.codigoUf??payload.address?.codigoUF,80);if(rawUf&&!normalizeUf(rawUf))throw fail('Informe uma UF brasileira válida (ex.: MG).');const a=normalizeAddress(payload.address||{});if(a.zipCode&&a.zipCode.length!==8)throw fail('CEP deve ter 8 dígitos.');if(a.cityCode&&a.cityCode.length!==7)throw fail('Código IBGE do município deve ter 7 dígitos.');return{name,companyName:clean(payload.companyName,220),document,ie:clean(payload.ie,80),ieExempt:Boolean(payload.ieExempt),email:clean(payload.email,320).toLowerCase(),phone:normalizeCustomerPhone(payload.phone),personType:clean(payload.personType|| (document.length===14?'Pessoa Jurídica':'Pessoa Física'),80),roles:Array.isArray(payload.roles)&&payload.roles.length?payload.roles.map(x=>clean(x,80)).filter(Boolean):['Cliente'],address:a,active:payload.active!==false}}
+function validatePayload(payload={}){
+  const name=clean(payload.name||payload.companyName,220);
+  if(!name)throw fail('Informe o nome ou razão social do cliente.');
+  const document=digits(payload.document);
+  if(document&&![11,14].includes(document.length))throw fail('CPF/CNPJ deve ter 11 ou 14 dígitos.');
+  const rawUf=clean(payload.address?.stateCode??payload.address?.uf??payload.address?.codigoUf??payload.address?.codigoUF,80);
+  if(rawUf&&!normalizeUf(rawUf))throw fail('Informe uma UF brasileira válida (ex.: MG).');
+  const a=normalizeAddress(payload.address||{});
+  if(a.zipCode&&a.zipCode.length!==8)throw fail('CEP deve ter 8 dígitos.');
+  if(a.cityCode&&a.cityCode.length!==7)throw fail('Código IBGE do município deve ter 7 dígitos.');
+  const ie=clean(payload.ie,80);
+  const requested=clean(payload.icmsTaxpayerStatus||'auto',40).toLowerCase();
+  const allowed=new Set(['auto','contribuinte','isento','nao_contribuinte']);
+  if(!allowed.has(requested))throw fail('Situação ICMS inválida.');
+  let icmsTaxpayerStatus=document.length===11?'nao_contribuinte':requested;
+  let ieExempt=Boolean(payload.ieExempt);
+  if(document.length===14&&icmsTaxpayerStatus==='contribuinte'&&!ie)throw fail('Informe a Inscrição Estadual para cliente contribuinte do ICMS.');
+  if(icmsTaxpayerStatus==='isento')ieExempt=true;
+  if(icmsTaxpayerStatus==='nao_contribuinte')ieExempt=false;
+  const publicAgency=Boolean(payload.publicAgency);
+  let publicEntityType=clean(payload.publicEntityType,40).toLowerCase();
+  if(publicAgency&&document.length!==14)throw fail('Órgão público deve possuir CNPJ.');
+  if(publicAgency&&!['uniao','estado','distrito_federal','municipio','outro'].includes(publicEntityType))throw fail('Selecione o tipo de ente público.');
+  if(!publicAgency)publicEntityType='';
+  return{
+    name,companyName:clean(payload.companyName,220),document,ie,ieExempt,icmsTaxpayerStatus,
+    publicAgency,publicEntityType,email:clean(payload.email,320).toLowerCase(),
+    phone:normalizeCustomerPhone(payload.phone),
+    personType:clean(payload.personType||(document.length===14?'Pessoa Jurídica':'Pessoa Física'),80),
+    roles:Array.isArray(payload.roles)&&payload.roles.length?payload.roles.map(x=>clean(x,80)).filter(Boolean):['Cliente'],
+    address:a,active:payload.active!==false
+  };
+}
 async function applyGeneralRules(data){const cfg=(await getErpSettingsSnapshot()).general||{};if(cfg.requireCustomerPhone&&!data.phone)throw fail('A configuração do ERP exige telefone no cadastro do cliente.',409,'CUSTOMER_PHONE_REQUIRED');if(cfg.documentOptional===false&&!data.document)throw fail('A configuração do ERP exige CPF/CNPJ no cadastro do cliente.',409,'CUSTOMER_DOCUMENT_REQUIRED');return data}
 
 export function createErpPeopleService(context={}){

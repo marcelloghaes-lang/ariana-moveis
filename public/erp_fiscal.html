@@ -28,9 +28,9 @@ header h1,.top h1{color:#fff!important}header small,.top small{color:#dceaff!imp
 </style>
 </head>
 <body>
-<header><div><h1>Fiscal / NF-e</h1><small>Histórico fiscal próprio da Ariana</small></div><div><a href="erp_configuracao_fiscal.html">Configuração Fiscal</a><a href="erp_migracao_sige_fiscal.html">Migração fiscal</a><a href="erp_ariana.html">← Central ERP</a></div></header>
+<header><div><h1>Fiscal / NF-e</h1><small>Histórico fiscal próprio da Ariana</small></div><div><a href="erp_devolucao_nfe.html">+ NF-e de devolução</a><a href="erp_configuracao_fiscal.html">Configuração Fiscal</a><a href="erp_migracao_sige_fiscal.html">Migração fiscal</a><a href="erp_ariana.html">← Central ERP</a></div></header>
 <main class="wrap">
-  <section class="card warn"><b>DANFE profissional já disponível.</b><p>A segunda via agora é gerada em PDF A4 diretamente do XML fiscal preservado. Cancelamento, Carta de Correção e emissão nova continuam bloqueados até a integração real com certificado A1 e SEFAZ.</p></section>
+  <section class="card warn"><b>Emissão fiscal integrada à SEFAZ/MG.</b><p>Venda normal é emitida pela revisão da venda. NF-e de devolução possui fluxo próprio, com referência ao documento original e movimentação de estoque somente após autorização em produção. Cancelamento e Carta de Correção continuam indisponíveis nesta tela.</p></section>
   <section class="card">
     <h2>NF-e</h2>
     <div class="metrics"><div class="m"><small>NF-e históricas</small><b id="c-all">0</b></div><div class="m"><small>Autorizadas</small><b id="c-ok">0</b></div><div class="m"><small>Canceladas</small><b id="c-cancel">0</b></div><div class="m"><small>XML preservados</small><b id="c-xml">0</b></div></div>
@@ -38,7 +38,7 @@ header h1,.top h1{color:#fff!important}header small,.top small{color:#dceaff!imp
     <div class="table"><table><thead><tr><th>Data</th><th>Número</th><th>Cliente</th><th>Chave</th><th>Total</th><th>Status</th><th>Ações</th></tr></thead><tbody id="rows"><tr><td colspan="7" class="muted">Carregando...</td></tr></tbody></table></div>
   </section>
   <section id="detail-card" class="card" style="display:none"><h2>Documento fiscal</h2><div id="detail"></div></section>
-  <section class="card"><h2>Status operacional</h2><div class="row"><b>DANFE / 2ª via</b><span class="tag approved">PDF disponível</span></div><div class="row"><b>XML</b><span class="tag approved">Download disponível</span></div><div class="row"><b>Cancelar / CC-e</b><span class="tag pending">Aguardando homologação SEFAZ/A1</span></div><div class="row"><b>Emitir NF-e</b><span class="tag pending">Aguardando homologação fiscal</span></div></section>
+  <section class="card"><h2>Status operacional</h2><div class="row"><b>DANFE / 2ª via</b><span class="tag approved">PDF disponível</span></div><div class="row"><b>XML</b><span class="tag approved">Download disponível</span></div><div class="row"><b>Cancelar / CC-e</b><span class="tag pending">Ainda não liberado</span></div><div class="row"><b>NF-e de venda</b><span class="tag approved">Via revisão da venda</span></div><div class="row"><b>NF-e de devolução</b><span class="tag approved">Fluxo próprio disponível</span></div></section>
 </main>
 <script>
 const API=location.hostname==='localhost'?'http://localhost:3000/api':'https://ariana-backend.onrender.com/api';

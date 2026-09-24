@@ -68,6 +68,8 @@ export function resolveErpRequirement(req={}){
 
   if(path==='/erp/fiscal/nfe/preflight'&&method==='POST')return requirement(['fiscal:nfe:emit'],'validar a NF-e');
   if(path==='/erp/fiscal/nfe/emitir-e-faturar'&&method==='POST')return requirement(['fiscal:nfe:emit'],'emitir nota fiscal');
+  if(path==='/erp/fiscal/nfe/devolucao/preflight'&&method==='POST')return requirement(['fiscal:nfe:emit'],'validar NF-e de devolução');
+  if(path==='/erp/fiscal/nfe/devolucao/emitir'&&method==='POST')return requirement(['fiscal:nfe:emit'],'emitir NF-e de devolução');
 
   if(path==='/erp/caixa'&&read)return requirement(['finance:read','payments:read'],'consultar o caixa');
   if(path==='/erp/caixa/historico'&&read)return requirement(['finance:read','payments:read'],'consultar o histórico do caixa');
