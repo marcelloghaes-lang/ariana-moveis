@@ -188,8 +188,18 @@ export function createErpLedgerService(context={}){
   await audit(paid?'erp.ledger.entry.paid':'erp.ledger.entry.partial',{message:paid?'Lançamento quitado':'Pagamento parcial registrado',entryId:String(row._id),direction:row.direction,principal,totalPaid,remaining:newRemaining,bankAccountId:bank?String(bank._id):'',by:actorName(actor)});
   const decorated=decorate(row);
   if(row.direction!=='receivable')return decorated;
+  // O comprovante deve usar exatamente a mesma numeração histórica calculada
+  // para a tela/extrato (ex.: 10/12), sem recalcular uma série isolada como 01/01.
+  let receiptEntry=decorated;
+  try{
+    const receiptRows=await listEntries({direction:'receivable',limit:3000});
+    const matched=receiptRows.find(item=>String(item?._id||item?.id||'')===String(row._id));
+    if(matched)receiptEntry=matched;
+  }catch(error){
+    console.warn('[erp-ledger] falha ao enriquecer parcela para comprovante:',error?.message||error);
+  }
   const receiptDelivery=await paymentReceipts.afterLedgerReceive({
-    entry:decorated,
+    entry:receiptEntry,
     payment,
     actor
   }).catch(error=>({whatsappEnviado:false,requiresPhone:false,whatsapp:{ok:false,error:error?.message||String(error)}}));
