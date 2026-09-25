@@ -234,10 +234,12 @@ async function saveReceive(){
   }catch(e){toast(e.message)}
 }
 function historicalPurchaseDetailHtml(sale={}){
- const live=sale?.metadata?.sigeLive||{},items=(live.items?.length?live.items:sale.items)||[],payments=live.payments||[],totals=live.totals||{subtotal:sale.subtotal||0,shipping:sale.shipping||0,total:sale.total||0},customer=live.customer||{name:sale.customerName||'',document:sale.customerDocument||''},invoice=live.invoice||{number:sale.invoiceNumber||'',serie:sale.invoiceSerie||'',status:sale.invoiceStatus||''},saleDate=live.dates?.saleAt||sale.date||'',installments=Number(live.numberOfInstallments||payments[0]?.installments||0),sync=sale?.metadata?.sigeEnrichment||{};
- let html='<div class="fields">';
+ const live=sale?.metadata?.sigeLive||{},snapshot=sale?.metadata?.financialSnapshot||{},partial=sale?.metadata?.recovery?.partial===true,items=(live.items?.length?live.items:sale.items)||[],payments=live.payments||[],totals=live.totals||{subtotal:sale.subtotal||0,shipping:sale.shipping||0,total:sale.total||0},customer=live.customer||{name:sale.customerName||'',document:sale.customerDocument||''},invoice=live.invoice||{number:sale.invoiceNumber||'',serie:sale.invoiceSerie||'',status:sale.invoiceStatus||''},saleDate=live.dates?.saleAt||sale.date||'',installments=Number(live.numberOfInstallments||payments[0]?.installments||snapshot.installments||0),sync=sale?.metadata?.sigeEnrichment||{};
+ let html='';
+ if(partial)html+='<div class="notice" style="margin-bottom:12px"><b>Ficha comercial ainda não recuperada do SIGE.</b> Os dados abaixo vêm do histórico financeiro já salvo no Ariana ERP. Nenhum saldo ou pagamento foi alterado.</div>';
+ html+='<div class="fields">';
  const field=(label,value,span='')=>'<div class="field '+span+'"><label>'+esc(label)+'</label><div><b>'+value+'</b></div></div>';
- html+=field('Venda original',esc(live.code||sale.code||sale.sourceId||'—'));
+ html+=field(partial?'Vínculo histórico':'Venda original',esc(live.code||sale.code||sale.sourceId||'—'));
  html+=field('Data da venda',saleDate?date(saleDate):'—');
  html+=field('Vendedor',esc(live.sellerName||sale.sellerName||'—'));
  html+=field('Status original',esc(live.systemStatus||live.status||sale.status||'—'));
@@ -252,10 +254,18 @@ function historicalPurchaseDetailHtml(sale={}){
   html+='<div style="overflow:auto;margin-top:8px"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:7px">Produto</th><th style="text-align:right;padding:7px">Qtd.</th><th style="text-align:right;padding:7px">Unitário</th><th style="text-align:right;padding:7px">Subtotal</th></tr></thead><tbody>';
   for(const item of items)html+='<tr><td style="padding:7px;border-top:1px solid #e2e8f0"><b>'+esc(item.code||'')+'</b> '+esc(item.description||'')+'</td><td style="padding:7px;border-top:1px solid #e2e8f0;text-align:right">'+Number(item.quantity||1)+'</td><td style="padding:7px;border-top:1px solid #e2e8f0;text-align:right">'+money(item.unitPrice||0)+'</td><td style="padding:7px;border-top:1px solid #e2e8f0;text-align:right"><b>'+money(item.subtotal||0)+'</b></td></tr>';
   html+='</tbody></table></div>';
- }else html+='<div class="notice" style="margin-top:8px">Os itens desta venda ainda não foram retornados pela API do SIGE.</div>';
+ }else html+='<div class="notice" style="margin-top:8px">'+(partial?'Produto(s) da compra ainda não foram recuperados. O Ariana ERP não vai inventar essa informação.':'Os itens desta venda ainda não foram retornados pela API do SIGE.')+'</div>';
  html+='</div>';
  if(payments.length)html+='<div style="margin-top:12px"><b>Pagamento original</b><div class="sub">'+payments.map(p=>[p.method,p.installments?String(p.installments)+' parcela(s)':'',p.value?money(p.value):''].filter(Boolean).map(esc).join(' • ')).join('<br>')+'</div></div>';
- html+='<div class="sub" style="margin-top:12px">Fonte: SIGE Cloud • '+(sync.status==='success'?'sincronização concluída':'sincronização pendente')+' • financeiro atual do Ariana ERP preservado.</div>';
+ if(snapshot.codes?.length){
+  html+='<div style="margin-top:12px"><b>Códigos históricos das parcelas</b><div class="sub" style="margin-top:4px">'+snapshot.codes.map(esc).join(' • ')+'</div></div>';
+ }
+ if(snapshot.rows?.length){
+  html+='<div style="overflow:auto;margin-top:10px"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:7px">Parcela</th><th style="text-align:left;padding:7px">Código</th><th style="text-align:left;padding:7px">Vencimento</th><th style="text-align:right;padding:7px">Valor</th></tr></thead><tbody>';
+  for(const row of snapshot.rows)html+='<tr><td style="padding:7px;border-top:1px solid #e2e8f0">'+String(row.number||'')+'/'+String(snapshot.installments||'')+'</td><td style="padding:7px;border-top:1px solid #e2e8f0">'+esc(row.code||'—')+'</td><td style="padding:7px;border-top:1px solid #e2e8f0">'+(row.dueAt?date(row.dueAt):'—')+'</td><td style="padding:7px;border-top:1px solid #e2e8f0;text-align:right"><b>'+money(row.value||0)+'</b></td></tr>';
+  html+='</tbody></table></div>';
+ }
+ html+='<div class="sub" style="margin-top:12px">Fonte: '+(partial?'histórico financeiro do Ariana ERP':'SIGE Cloud')+' • '+(sync.status==='success'?'sincronização concluída':partial?'ficha comercial aguardando recuperação':'sincronização pendente')+' • financeiro atual do Ariana ERP preservado.</div>';
  return html;
 }
 async function loadHistoricalPurchaseDetail(key){
