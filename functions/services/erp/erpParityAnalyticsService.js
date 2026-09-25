@@ -52,8 +52,9 @@ export function createErpParityAnalyticsService(context={}){
   if(!Entry)throw Object.assign(new Error('Financeiro ainda não inicializado.'),{statusCode:503});
   // Dívidas que viraram acordo permanecem preservadas para auditoria, mas
   // nunca podem compor novamente saldo, cobrança, inadimplência ou KPIs.
-  const filter={renegotiatedAt:{$exists:false}};
+  const filter={renegotiatedAt:{$exists:false},$nor:[{origin:'sige_import',value:{$gte:HISTORICAL_ANOMALY_MIN_VALUE}},{origin:'sige_import',value:{$lte:-HISTORICAL_ANOMALY_MIN_VALUE}}]};
   if(q.includeRenegotiated==='true')delete filter.renegotiatedAt;
+  if(q.includeAnomalies==='true')delete filter.$nor;
   if(['receivable','payable'].includes(q.direction))filter.direction=q.direction;
   if(q.origin)filter.origin=clean(q.origin,80);
   if(q.categoryId)filter.categoryId=clean(q.categoryId,120);
@@ -98,7 +99,7 @@ export function createErpParityAnalyticsService(context={}){
   if(view==='overdue')entries=entries.filter(r=>r.status==='pending'&&dueView(r)==='overdue');else if(view==='upcoming')entries=entries.filter(r=>r.status==='pending'&&dueView(r)==='upcoming');else if(view==='paid')entries=entries.filter(r=>r.status==='paid');else if(view==='pending')entries=entries.filter(r=>r.status==='pending');else if(view==='partial')entries=entries.filter(r=>r.status==='pending'&&r.partial===true);else if(view==='cancelled')entries=entries.filter(r=>r.status==='cancelled');
   entries=entries.sort((a,b)=>new Date(a.dueAt)-new Date(b.dueAt));
   const anomalyOpen=money(qualityAnomalies.reduce((s,r)=>s+outstanding(r),0)),anomalyRealized=money(qualityAnomalies.reduce((s,r)=>s+realized(r),0));
-  return{summary:{receivables:{total:bucketTotal(rec),pending:bucketOpen(recPending),upcoming:bucketOpen(recUpcoming),overdue:bucketOpen(recOver),paid:{count:recPaid.length,value:money(recPaid.reduce((s,r)=>s+realized(r),0))},realized:money(rec.reduce((s,r)=>s+realized(r),0))},payables:{total:bucketTotal(pay),pending:bucketOpen(payPending),upcoming:bucketOpen(payUpcoming),overdue:bucketOpen(payOver),paid:{count:payPaid.length,value:money(payPaid.reduce((s,r)=>s+realized(r),0))},realized:money(pay.reduce((s,r)=>s+realized(r),0))},delinquentCustomers:delinquents.length},dataQuality:{excludedHistoricalAnomalies:{count:qualityAnomalies.length,threshold:HISTORICAL_ANOMALY_MIN_VALUE,totalValue:sum(qualityAnomalies),openValue:anomalyOpen,realizedValue:anomalyRealized,preserved:true,excluded:false,includedInOperationalTotals:true}},delinquents:delinquents.slice(0,500),agingReceivables,receivableForecast,cashFlow,categories,entries:entries.slice(0,2000).map(r=>({...r,outstanding:outstanding(r),view:dueView(r)}))}
+  return{summary:{receivables:{total:bucketTotal(rec),pending:bucketOpen(recPending),upcoming:bucketOpen(recUpcoming),overdue:bucketOpen(recOver),paid:{count:recPaid.length,value:money(recPaid.reduce((s,r)=>s+realized(r),0))},realized:money(rec.reduce((s,r)=>s+realized(r),0))},payables:{total:bucketTotal(pay),pending:bucketOpen(payPending),upcoming:bucketOpen(payUpcoming),overdue:bucketOpen(payOver),paid:{count:payPaid.length,value:money(payPaid.reduce((s,r)=>s+realized(r),0))},realized:money(pay.reduce((s,r)=>s+realized(r),0))},delinquentCustomers:delinquents.length},dataQuality:{excludedHistoricalAnomalies:{count:qualityAnomalies.length,threshold:HISTORICAL_ANOMALY_MIN_VALUE,totalValue:sum(qualityAnomalies),openValue:anomalyOpen,realizedValue:anomalyRealized,preserved:true,excluded:true,includedInOperationalTotals:false}},delinquents:delinquents.slice(0,500),agingReceivables,receivableForecast,cashFlow,categories,entries:entries.slice(0,2000).map(r=>({...r,outstanding:outstanding(r),view:dueView(r)}))}
  }
 
  async function sales(q={}){
