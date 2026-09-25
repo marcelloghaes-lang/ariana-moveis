@@ -11238,13 +11238,6 @@ ${productCaption(product)}`
       phone,
       `${gustavoLead(`${phone}|${text}|revisar`, 'clarify')} 😊 Me conta um pouco mais do produto ou da condição que você precisa, para eu continuar seu atendimento sem te passar informação errada.`
     );
-    await markReviewNeeded(
-      phone,
-      conv,
-      text,
-      pushName,
-      'Mensagem relacionada a venda/mercadoria precisa de revisão, mas o atendimento automático continua.'
-    );
     await recordDetectedLearningSignal(
       phone,
       text,
@@ -11256,6 +11249,13 @@ ${productCaption(product)}`
         consultSupport: false,
         reason: 'Fluxo comercial chegou ao pedido genérico de esclarecimento sem resolver a intenção do cliente.'
       }
+    );
+    await markReviewNeeded(
+      phone,
+      conv,
+      text,
+      pushName,
+      'Mensagem relacionada a venda/mercadoria precisa de revisão, mas o atendimento automático continua.'
     );
     return;
   }
@@ -11270,16 +11270,6 @@ ${productCaption(product)}`
     `${fallbackGreeting}! 😊 Não consigo te ajudar com esse assunto por aqui, mas assim que o Marcelo chegar eu peço para ele te dar um retorno.\n\nEnquanto isso, posso te auxiliar com fotos de produtos, preços, condições de pagamento, carnê e outras informações de venda da Ariana Móveis.`
   );
 
-  await syncTicket(phone, {
-    status: 'Aguardando retorno do Marcelo',
-    message: text,
-    name: pushName,
-    metadata: {
-      assunto: 'fora_escopo_vendas',
-      atendimentoAutomaticoContinua: true
-    }
-  });
-
   await recordDetectedLearningSignal(
     phone,
     text,
@@ -11292,6 +11282,16 @@ ${productCaption(product)}`
       reason: 'O atendimento automático terminou em encaminhamento genérico para o Marcelo sem identificar uma resposta própria.'
     }
   );
+
+  await syncTicket(phone, {
+    status: 'Aguardando retorno do Marcelo',
+    message: text,
+    name: pushName,
+    metadata: {
+      assunto: 'fora_escopo_vendas',
+      atendimentoAutomaticoContinua: true
+    }
+  });
 }
 
 function phoneFromWhatsappAddress(value = '') {
