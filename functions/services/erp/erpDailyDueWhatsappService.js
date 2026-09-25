@@ -677,3 +677,99 @@ export function startErpDailyDueWhatsappWorker(context = {}) {
 
   return { enabled: true, initialTimer, interval, schedule, timeZone, sweepMinutes };
 }
+
+
+export function buildFifteenDayOverdueMessage(customerName='Cliente'){
+  const name=titleFirstName(customerName);
+  return [
+    `Olá, ${name}!`,
+    '',
+    'Consta em aberto aqui na loja uma notinha com quinze dias de atraso.',
+    '',
+    'Teria como você me retornar aqui o mais rápido possível, por favor?',
+    '',
+    'Obrigado.'
+  ].join('\n');
+}
+
+function shiftLocalDateKey(dateKey='',days=0){
+  const m=String(dateKey).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(!m)return'';
+  const d=new Date(Date.UTC(Number(m[1]),Number(m[2])-1,Number(m[3])+Number(days||0),12,0,0));
+  return d.toISOString().slice(0,10);
+}
+
+export async function runErpFifteenDayOverdueWhatsappSweep(context={}){
+  const {Order,Setting,IntegrationAuditLog,mongoose,waSendTextMessage,force=false,now=new Date()}=context;
+  if(!Order||!Setting||typeof waSendTextMessage!=='function')return{ok:false,skipped:true,reason:'dependencies_missing'};
+  const enabled=String(process.env.ERP_15_DAY_COLLECTION_WHATSAPP_ENABLED||'false').toLowerCase()==='true';
+  if(!enabled&&!force)return{ok:true,skipped:true,reason:'disabled'};
+  if(mongoose&&mongoose.connection?.readyState!==1)return{ok:false,skipped:true,reason:'database_not_ready'};
+
+  const timeZone=String(process.env.ERP_15_DAY_COLLECTION_WHATSAPP_TIMEZONE||process.env.FINANCEIRO_AUTOMACAO_TIMEZONE||'America/Sao_Paulo').trim();
+  const today=localDateKey(now,timeZone);
+  const dueDate=shiftLocalDateKey(today,-15);
+  const parity=createErpParityAnalyticsService({...context,Order});
+  const screenData=await parity.finance({direction:'receivable',from:dueDate,to:dueDate});
+  const rows=(screenData.entries||[]).filter(row=>{
+    const status=String(row.status||'').trim().toLowerCase();
+    const remaining=Number(row.outstanding??row.value??0);
+    return status!=='paid'&&status!=='cancelled'&&remaining>0.009&&dueDateKey(row.dueAt,timeZone)===dueDate;
+  });
+
+  const keyOf=row=>{
+    const pid=String(row.personId||'').trim();if(pid)return'person:'+pid;
+    const sid=String(row?.migration?.sourcePersonId||'').trim();if(sid)return'source:'+sid;
+    const doc=String(row.personDocument||'').replace(/\D/g,'');if(doc)return'doc:'+doc;
+    const name=String(row.personName||'Cliente').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+    return'name:'+(name||'cliente');
+  };
+  const groups=new Map();
+  for(const row of rows){
+    const key=keyOf(row);
+    if(!groups.has(key))groups.set(key,{key,customerName:row.personName||'Cliente',phone:normalizeWhatsappPhone(row.personPhone||''),rows:[]});
+    const g=groups.get(key);if(!g.phone)g.phone=normalizeWhatsappPhone(row.personPhone||'');g.rows.push(row);
+  }
+  for(const g of groups.values()){
+    if(g.phone)continue;
+    for(const row of g.rows){
+      const phone=normalizeWhatsappPhone(await resolveLedgerPhone(mongoose,row));
+      if(phone){g.phone=phone;break}
+    }
+  }
+
+  let sent=0,skippedAlreadySent=0,skippedMissingPhone=0;const errors=[];
+  for(const g of groups.values()){
+    if(!g.phone){skippedMissingPhone++;continue}
+    const safe=String(g.key).replace(/[^a-z0-9:_-]+/gi,'_').slice(0,180);
+    const claimKey=`erp_15_day_collection_whatsapp:${today}:${safe}`;
+    try{
+      await Setting.create({key:claimKey,value:{status:'sending',date:today,dueDate,customerKey:g.key,customerName:g.customerName,phone:g.phone,entryIds:[...new Set(g.rows.map(r=>String(r.id||'')).filter(Boolean))],attemptedAt:new Date()},updatedBy:'erp-15-day-collection-worker'});
+    }catch(error){if(Number(error?.code)===11000){skippedAlreadySent++;continue}throw error}
+    try{
+      const result=await waSendTextMessage({number:g.phone,text:buildFifteenDayOverdueMessage(g.customerName),delay:Math.max(0,Number(process.env.ERP_15_DAY_COLLECTION_WHATSAPP_DELAY_MS||900)||900),instanceName:String(process.env.ERP_15_DAY_COLLECTION_WHATSAPP_INSTANCE||'ariana loja').trim()});
+      const messageId=evolutionMessageId(result);if(!messageId)throw Object.assign(new Error('Envio sem confirmação do provedor.'),{code:'WHATSAPP_SEND_UNCONFIRMED'});
+      await Setting.updateOne({key:claimKey},{$set:{value:{status:'sent',date:today,dueDate,customerKey:g.key,customerName:g.customerName,phone:g.phone,entryIds:[...new Set(g.rows.map(r=>String(r.id||'')).filter(Boolean))],sentAt:new Date(),instanceName:result?.instanceName||'',messageId},updatedBy:'erp-15-day-collection-worker'}});
+      await audit(IntegrationAuditLog,{eventType:'erp_15_day_collection_whatsapp_sent',orderId:String(g.rows[0]?.orderId||''),status:'success',message:'Cobrança automática de exatamente 15 dias enviada.',metadata:{date:today,dueDate,customerKey:g.key,customerName:g.customerName,phone:maskedPhone(g.phone),entryCount:g.rows.length,instanceName:result?.instanceName||'',messageId}});
+      sent++;
+    }catch(error){
+      await Setting.deleteOne({key:claimKey,'value.status':'sending'}).catch(()=>null);
+      errors.push({customerName:g.customerName,phone:maskedPhone(g.phone),error:text(error?.message||error,500)});
+    }
+  }
+  return{ok:errors.length===0,date:today,dueDate,eligibleInstallments:rows.length,eligibleCustomers:groups.size,sent,skippedAlreadySent,skippedMissingPhone,errors};
+}
+
+export function startErpFifteenDayOverdueWhatsappWorker(context={}){
+  const enabled=String(process.env.ERP_15_DAY_COLLECTION_WHATSAPP_ENABLED||'false').toLowerCase()==='true';
+  const timeZone=String(process.env.ERP_15_DAY_COLLECTION_WHATSAPP_TIMEZONE||process.env.FINANCEIRO_AUTOMACAO_TIMEZONE||'America/Sao_Paulo').trim();
+  const schedule=String(process.env.ERP_15_DAY_COLLECTION_WHATSAPP_HORA||'10:00').trim();
+  const sweepMinutes=Math.max(10,Number(process.env.ERP_15_DAY_COLLECTION_WHATSAPP_SWEEP_MINUTES||30)||30);
+  if(!enabled){console.log('📵 Cobrança ERP de 15 dias: desativada.');return{enabled:false}}
+  let running=false;
+  const run=async()=>{if(running)return;const current=new Date();if(localMinutes(current,timeZone)<scheduleMinutes(schedule))return;running=true;try{const result=await runErpFifteenDayOverdueWhatsappSweep({...context,force:true,now:current});console.log('[erp-15-day-collection-whatsapp]',{date:result.date,dueDate:result.dueDate,eligibleCustomers:result.eligibleCustomers,sent:result.sent,skippedAlreadySent:result.skippedAlreadySent,skippedMissingPhone:result.skippedMissingPhone,errors:result.errors?.length||0})}catch(error){console.error('[erp-15-day-collection-whatsapp]',error?.message||error)}finally{running=false}};
+  const initialTimer=setTimeout(run,60*1000);initialTimer.unref?.();
+  const interval=setInterval(run,sweepMinutes*60*1000);interval.unref?.();
+  console.log(`📲 Cobrança ERP de exatamente 15 dias: ativa a partir de ${schedule} (${timeZone}); varredura a cada ${sweepMinutes} min.`);
+  return{enabled:true,initialTimer,interval,schedule,timeZone,sweepMinutes};
+}
