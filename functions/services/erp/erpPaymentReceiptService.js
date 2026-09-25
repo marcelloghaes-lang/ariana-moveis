@@ -361,10 +361,14 @@ export function createErpPaymentReceiptService(context={}){
     const product=purchase?.product||
       (!genericHistorical?technicalDescription:'')||
       'Pagamento de parcela';
-    const installment=purchase?.installment||
+    const ledgerNumber=Math.max(0,Number(entry?.historicalInstallmentNumber||0));
+    const ledgerTotal=Math.max(0,Number(entry?.historicalInstallments||0));
+    const ledgerInstallment=ledgerNumber&&ledgerTotal?`${String(ledgerNumber).padStart(2,'0')}/${String(ledgerTotal).padStart(2,'0')}`:'';
+    const installment=ledgerInstallment||
+      purchase?.installment||
       clean(entry?.installmentNumber||entry?.parcelNumber||entry?.parcela,80)||
       clean(entry?.documentNumber||entry?.boletoNumber,80)||
-      '01/01';
+      '';
 
     return deliver({
       referenceRaw:`LEDGER_${id}`,
