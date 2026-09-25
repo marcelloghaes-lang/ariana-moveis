@@ -20,7 +20,7 @@ export function createErpDebtAgreementService(context={}){
  }
  async function create(payload={},actor={}){
   const base=await preview(payload),installments=Math.max(1,Math.min(120,Math.trunc(Number(payload.installments||0))));if(!installments)throw fail('Informe a quantidade de parcelas.',400,'AGREEMENT_INSTALLMENTS_REQUIRED');
-  const firstDueAt=validDate(payload.firstDueAt||payload.firstDueDate,'Primeiro vencimento'),negotiatedTotal=payload.negotiatedTotal===undefined?base.sourceBalance:money(payload.negotiatedTotal),downPayment=Math.max(0,money(payload.downPayment||0));if(negotiatedTotal<=0||downPayment-negotiatedTotal>.009)throw fail('Confira o valor negociado e a entrada.',400,'AGREEMENT_VALUE_INVALID');
+  const firstDueAt=validDate(payload.firstDueAt||payload.firstDueDate,'Primeiro vencimento'),today=new Date();today.setHours(0,0,0,0);const firstDay=new Date(firstDueAt);firstDay.setHours(0,0,0,0);if(firstDay<today)throw fail('O primeiro vencimento do acordo não pode estar no passado.',400,'AGREEMENT_FIRST_DUE_PAST');const negotiatedTotal=payload.negotiatedTotal===undefined?base.sourceBalance:money(payload.negotiatedTotal),downPayment=Math.max(0,money(payload.downPayment||0));if(negotiatedTotal<=0||downPayment-negotiatedTotal>.009)throw fail('Confira o valor negociado e a entrada.',400,'AGREEMENT_VALUE_INVALID');
   const fingerprint=crypto.createHash('sha256').update(base.ids.join('|')).digest('hex'),session=await mongoose.startSession();let result;
   try{await session.withTransaction(async()=>{
    const existing=await Agreement.findOne({fingerprint,status:{$ne:'cancelled'}}).session(session);if(existing)throw fail('Estas dívidas já possuem um acordo ativo.',409,'AGREEMENT_DUPLICATE');
