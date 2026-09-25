@@ -223,6 +223,53 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
     );
   }
 
+  async function buildOrderIndex(targetIds=[]){
+    const wanted=new Set((Array.isArray(targetIds)?targetIds:[]).map(v=>clean(v,120)).filter(Boolean));
+    const found=new Map();
+    if(!wanted.size)return found;
+
+    let previousSignature='';
+    for(let page=1;page<=500&&found.size<wanted.size;page++){
+      let result=null;
+      try{
+        result=await sigeCall(()=>client.getTodosPedidos(page),`índice de pedidos página ${page}`);
+      }catch(error){
+        console.warn('[erp-sige-enrichment] falha ao listar pedidos para índice',{
+          page,
+          statusCode:Number(error?.statusCode||0),
+          response:error?.responseData||null
+        });
+        break;
+      }
+      const rows=unwrapOrders(result?.data);
+      if(!rows.length)break;
+
+      const signature=rows.slice(0,5).map(row=>idOf(row)||codeOf(row)).join('|');
+      if(page>1&&signature&&signature===previousSignature){
+        console.warn('[erp-sige-enrichment] paginação de pedidos repetiu a mesma página; índice interrompido',{page});
+        break;
+      }
+      previousSignature=signature;
+
+      for(const row of rows){
+        const id=idOf(row);
+        if(id&&wanted.has(id)&&!found.has(id))found.set(id,row);
+      }
+
+      console.log('[erp-sige-enrichment] índice de pedidos',{
+        page,
+        rows:rows.length,
+        matched:found.size,
+        target:wanted.size
+      });
+
+      if(rows.length<2)break;
+      if(found.size>=wanted.size)break;
+      await wait(4000);
+    }
+    return found;
+  }
+
   function orphanFallback(entries=[]){
     const rows=Array.isArray(entries)?entries:[];
     const firstRow=rows[0]||{};
@@ -238,7 +285,7 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
     };
   }
 
-  async function recoverMissingSale(sourceSaleId,{force=false}={}){
+  async function recoverMissingSale(sourceSaleId,{force=false,orderIndex=null}={}){
     const sid=clean(sourceSaleId,120);
     if(!sid)return null;
     const {Sale,Entry}=await waitForModels(1500);
@@ -258,14 +305,18 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
     const personDocument=digits(fallback.customerDocument);
 
     // Caminho determinístico preferencial:
-    // código do lançamento financeiro -> CodigoVenda -> pedido -> ID interno da venda.
-    let raw=null,result=null,matchedBy='';
+    // índice completo de pedidos do SIGE -> ID interno exatamente igual ao sourceSaleId.
+    let raw=orderIndex instanceof Map?(orderIndex.get(sid)||null):null,result=null,matchedBy=raw?'get_all_orders_exact_sale_id':'';
     const financialCodes=[...new Set(entries.map(financialCodeOf).filter(Boolean))].slice(0,4);
+
+    // Fallback adicional: código do lançamento -> CodigoVenda -> pedido.
+    // Só é usado quando CodigoVenda é válido (> 0) e o ID interno também confere.
+    if(!raw)
     for(const financialCode of financialCodes){
       try{
         const launch=await sigeFinancialEntry(financialCode);
         const saleCode=saleCodeOfFinancialEntry(launch?.data||{});
-        if(!saleCode)continue;
+        if(!saleCode||Number(saleCode)<=0)continue;
         await wait(4000);
         result=await sigeRequest({codigo:Number(saleCode)},`venda ${saleCode} vinculada ao lançamento ${financialCode}`);
         const rows=unwrapOrders(result?.data);
@@ -472,9 +523,19 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
       });
       const stats={version:VERSION,total,processed:0,updated:0,skipped:0,failed:0,notFound:0,items:0,payments:0,orphanTotal:orphanIds.length,orphanRecovered:0,orphanNotFound:0,financeUntouched:true};
 
+      let orphanOrderIndex=new Map();
+      if(orphanIds.length){
+        orphanOrderIndex=await buildOrderIndex(orphanIds);
+        console.log('[erp-sige-enrichment] índice concluído',{
+          orphanTargets:orphanIds.length,
+          exactMatches:orphanOrderIndex.size,
+          financeUntouched:true
+        });
+      }
+
       for(const sid of orphanIds){
         try{
-          const recovered=await recoverMissingSale(sid,{force});
+          const recovered=await recoverMissingSale(sid,{force,orderIndex:orphanOrderIndex});
           if(recovered)stats.orphanRecovered++;
           else stats.orphanNotFound++;
         }catch(error){
@@ -565,6 +626,6 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
     }
     return sale;
   }
-  return{VERSION,status,one,syncAll,startInBackground,purchase,recoverMissingSale};
+  return{VERSION,status,one,syncAll,startInBackground,purchase,recoverMissingSale,buildOrderIndex};
 }
 export default createErpSigeHistoricalPurchaseEnrichmentService;
