@@ -89,6 +89,14 @@ export function createErpLedgerService(context={}){
     const installmentByEntry=new Map();
 
     if(saleIds.length){
+      const HistoricalSale=db?.models?.ErpSigeHistoricalSale||context.mongoose?.models?.ErpSigeHistoricalSale;
+      const historicalSales=HistoricalSale?await HistoricalSale.find({sourceSystem:'sige',sourceId:{$in:saleIds}}).lean():[];
+      const originalTotalBySale=new Map(historicalSales.map(s=>{
+        const live=s?.metadata?.sigeLive||{};
+        const payments=Array.isArray(live?.payments)?live.payments:[];
+        const total=Math.max(0,Number(live?.numberOfInstallments||0),Number(payments[0]?.installments||0),Number(s?.numberOfInstallments||0));
+        return[clean(s?.sourceId,120),total];
+      }));
       const siblings=await Entry.collection.find({
         direction:'receivable',
         'migration.sourceSaleId':{$in:saleIds},
@@ -128,7 +136,8 @@ export function createErpLedgerService(context={}){
           installmentGroups.get(key).push(row);
         }
         const orderedGroups=[...installmentGroups.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
-        const total=orderedGroups.length;
+        const declaredTotal=Math.max(0,Number(originalTotalBySale.get(sid)||0));
+        const total=declaredTotal||orderedGroups.length;
         orderedGroups.forEach(([,sameInstallment],index)=>{
           for(const row of sameInstallment){
             installmentByEntry.set(String(row._id),{
