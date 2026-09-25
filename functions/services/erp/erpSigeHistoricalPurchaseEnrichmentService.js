@@ -367,24 +367,34 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
       raw=firstRows.find(row=>idOf(row)===sid)||null;
       if(raw){matchedBy=query.label;break}
 
-      if(firstRows.length>=50){
-        for(let page=1;page<10&&!raw;page++){
-          const params={...query.params,pageSize:50,skip:page*50};
+      // O SIGE retorna 5 pedidos por padrão nessa busca. Mesmo quando vierem
+      // apenas 5 linhas, isso pode ser só a primeira página e não o fim.
+      const defaultPageSize=Math.max(1,firstRows.length||5);
+      if(firstRows.length){
+        let previousSignature=firstRows.map(row=>idOf(row)||codeOf(row)).join('|');
+        for(let page=1;page<100&&!raw;page++){
+          const params={...query.params,skip:page*defaultPageSize};
           try{
             result=await sigeRequest(params,`paginação da venda ${sid}`);
           }catch(error){
             console.warn('[erp-sige-enrichment] paginação rejeitada pelo SIGE',{
               sourceSaleId:sid,
               page,
+              skip:page*defaultPageSize,
               statusCode:Number(error?.statusCode||0),
               response:error?.responseData||null
             });
             break;
           }
           const rows=unwrapOrders(result?.data);
+          if(!rows.length)break;
+          const signature=rows.map(row=>idOf(row)||codeOf(row)).join('|');
+          if(signature&&signature===previousSignature)break;
+          previousSignature=signature;
+
           raw=rows.find(row=>idOf(row)===sid)||null;
-          if(raw){matchedBy=query.label;break}
-          if(rows.length<50)break;
+          if(raw){matchedBy=query.label+'_paginated';break}
+          if(rows.length<defaultPageSize)break;
           await wait(4000);
         }
       }
