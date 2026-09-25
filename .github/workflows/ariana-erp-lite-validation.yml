@@ -149,8 +149,11 @@ jobs:
           grep -Fq "/api/erp/migracao/sige/compras/status" functions/routes/legacyRuntimeRoutes.js
           grep -Fq "delayMs:4000" functions/routes/legacyRuntimeRoutes.js
           grep -Fq "limite do SIGE" functions/services/erp/erpSigeHistoricalPurchaseEnrichmentService.js
-          if grep -Eq "ErpFinancialEntry|ledger\.pay|Entry\.update|Entry\.bulkWrite" functions/services/erp/erpSigeHistoricalPurchaseEnrichmentService.js; then
-            echo "A rotina de enriquecimento não pode escrever no financeiro do Ariana ERP."
+          grep -Fq "migration.sourceSaleId" functions/services/erp/erpSigeHistoricalPurchaseEnrichmentService.js
+          grep -Fq "idOf(row)===sid" functions/services/erp/erpSigeHistoricalPurchaseEnrichmentService.js
+          grep -Fq "recoverMissingSale" functions/services/erp/erpSigeHistoricalPurchaseEnrichmentService.js
+          if grep -Eq "ledger\.pay|Entry\.(update|updateOne|updateMany|findOneAndUpdate|delete|deleteOne|deleteMany|bulkWrite|create)|Entry\.collection\.(update|updateOne|updateMany|findOneAndUpdate|delete|deleteOne|deleteMany|insert|insertOne|insertMany|bulkWrite)" functions/services/erp/erpSigeHistoricalPurchaseEnrichmentService.js; then
+            echo "A rotina de enriquecimento pode ler vínculos financeiros, mas não pode escrever no financeiro do Ariana ERP."
             exit 1
           fi
 

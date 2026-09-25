@@ -37,6 +37,9 @@ function unwrapOrders(raw){
 function codeOf(order={}){
   return clean(first(order.Codigo,order.codigo,order.CodigoPedido,order.codigoPedido,order.NumeroPedido,order.numeroPedido,order.Numero,order.numero),120);
 }
+function idOf(order={}){
+  return clean(first(order.ID,order.Id,order.id,order.PedidoID,order.PedidoId),120);
+}
 function itemRows(order={}){
   return arr(first(order.Items,order.items,order.Itens,order.itens,order.Produtos,order.produtos));
 }
@@ -157,7 +160,8 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
   function models(){
     return{
       Sale:mongoose.models.ErpSigeHistoricalSale||null,
-      Run:mongoose.models.ErpMigrationRun||null
+      Run:mongoose.models.ErpMigrationRun||null,
+      Entry:mongoose.models.ErpFinancialEntry||null
     };
   }
   async function waitForModels(timeoutMs=45000){
@@ -183,6 +187,120 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
     ]);
     return{available:true,running:state.running,last:state.last,total,enriched,pending,latestRun};
   }
+  async function sigeRequest(params={},label='consulta'){
+    let result=null;
+    for(let attempt=1;attempt<=3;attempt++){
+      try{
+        result=await client.pesquisarPedidos(params);
+        return result;
+      }catch(error){
+        const message=clean(error?.message||error,1000);
+        const limited=Number(error?.statusCode||0)===429||/limite de requisições|rate limit|too many requests/i.test(message);
+        if(!limited||attempt>=3)throw error;
+        const pauseMs=65000*attempt;
+        console.warn(`[erp-sige-enrichment] limite do SIGE em ${label}; nova tentativa em ${Math.round(pauseMs/1000)}s.`);
+        await wait(pauseMs);
+      }
+    }
+    return result;
+  }
+
+  function orphanFallback(entries=[]){
+    const rows=Array.isArray(entries)?entries:[];
+    const firstRow=rows[0]||{};
+    const dates=rows.map(r=>dateOrNull(r.competenceAt||r.createdAt||r.dueAt)).filter(Boolean).sort((a,b)=>a-b);
+    return{
+      customerName:clean(firstRow.personName,220),
+      customerDocument:digits(firstRow.personDocument),
+      customerSourceId:clean(firstRow?.migration?.sourcePersonId,120),
+      date:dates[0]||null,
+      total:money(rows.reduce((sum,row)=>sum+Number(row.value||0),0)),
+      paymentCondition:clean(firstRow.paymentMethod,160),
+      status:'Histórico recuperado do SIGE'
+    };
+  }
+
+  async function recoverMissingSale(sourceSaleId,{force=false}={}){
+    const sid=clean(sourceSaleId,120);
+    if(!sid)return null;
+    const {Sale,Entry}=await waitForModels(1500);
+    if(!Sale||!Entry)return null;
+
+    const existing=await Sale.findOne({sourceSystem:'sige',sourceId:sid});
+    if(existing)return existing;
+
+    const entries=await Entry.collection.find({
+      direction:'receivable',
+      'migration.sourceSaleId':sid
+    }).sort({dueAt:1,createdAt:1}).toArray();
+    if(!entries.length)return null;
+
+    const fallback=orphanFallback(entries);
+    const personName=clean(fallback.customerName,220);
+    const personDocument=digits(fallback.customerDocument);
+    const queries=[];
+    if(personDocument)queries.push({cpf_cnpj:personDocument,pageSize:200,skip:0});
+    if(personName)queries.push({cliente:personName,pageSize:200,skip:0});
+
+    let raw=null,result=null,matchedBy='';
+    for(const baseQuery of queries){
+      for(let page=0;page<5&&!raw;page++){
+        const params={...baseQuery,skip:page*200};
+        result=await sigeRequest(params,`recuperação da venda ${sid}`);
+        const rows=unwrapOrders(result?.data);
+        raw=rows.find(row=>idOf(row)===sid)||null;
+        if(raw){matchedBy=personDocument?'customer_document_and_sale_id':'customer_name_and_sale_id';break}
+        if(rows.length<200)break;
+        await wait(4000);
+      }
+      if(raw)break;
+    }
+
+    if(!raw){
+      console.warn('[erp-sige-enrichment] compra histórica órfã não localizada no SIGE',{
+        sourceSaleId:sid,
+        customerName:personName||'',
+        customerDocument:personDocument?'informado':'ausente'
+      });
+      return null;
+    }
+
+    const purchase=normalizeSigeHistoricalPurchase(raw,fallback);
+    const known=updateKnownFields(purchase,fallback);
+    const metadata={
+      recovery:{
+        source:'financial_entry_sourceSaleId',
+        matchedBy,
+        sourceSaleId:sid,
+        recoveredAt:new Date(),
+        entryCount:entries.length,
+        financeUntouched:true
+      },
+      sigeLive:purchase,
+      sigeEnrichment:{
+        version:VERSION,
+        status:'success',
+        at:new Date(),
+        code:purchase.code||'',
+        endpoint:'/request/Pedidos/Pesquisar',
+        elapsedMs:result?.elapsedMs||0,
+        financeUntouched:true,
+        recoveredOrphan:true
+      }
+    };
+    try{
+      return await Sale.create({
+        sourceSystem:'sige',
+        sourceId:sid,
+        ...known,
+        metadata
+      });
+    }catch(error){
+      if(Number(error?.code)===11000)return Sale.findOne({sourceSystem:'sige',sourceId:sid});
+      throw error;
+    }
+  }
+
   async function one(sale,{force=false}={}){
     if(!sale)return{ok:false,reason:'sale_missing'};
     const current=sale.toObject?sale.toObject():sale;
@@ -196,20 +314,7 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
       }});
       return{ok:false,skipped:true,reason:'missing_sale_code',sourceId:current.sourceId};
     }
-    let result=null;
-    for(let attempt=1;attempt<=3;attempt++){
-      try{
-        result=await client.pesquisarPedidos({codigo:code});
-        break;
-      }catch(error){
-        const message=clean(error?.message||error,1000);
-        const limited=Number(error?.statusCode||0)===429||/limite de requisições|rate limit|too many requests/i.test(message);
-        if(!limited||attempt>=3)throw error;
-        const pauseMs=65000*attempt;
-        console.warn(`[erp-sige-enrichment] limite do SIGE ao consultar venda ${code}; nova tentativa em ${Math.round(pauseMs/1000)}s.`);
-        await wait(pauseMs);
-      }
-    }
+    const result=await sigeRequest({codigo:code},`consulta da venda ${code}`);
     const raw=chooseOrder(result?.data,code);
     if(!raw){
       await sale.updateOne({$set:{
@@ -255,8 +360,23 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
         {'metadata.sigeEnrichment.version':{$ne:VERSION}},
         {'metadata.sigeEnrichment.status':{$ne:'success'}}
       ];
+
+      const Entry=mongoose.models.ErpFinancialEntry||null;
+      let orphanIds=[];
+      if(Entry){
+        const linkedIds=(await Entry.collection.distinct('migration.sourceSaleId',{
+          direction:'receivable',
+          'migration.sourceSaleId':{$nin:['',null]}
+        })).map(v=>clean(v,120)).filter(Boolean);
+        if(linkedIds.length){
+          const existingIds=await Sale.distinct('sourceId',{sourceSystem:'sige',sourceId:{$in:linkedIds}});
+          const existingSet=new Set(existingIds.map(v=>String(v)));
+          orphanIds=linkedIds.filter(id=>!existingSet.has(String(id)));
+        }
+      }
+
       const total=await Sale.countDocuments(filter);
-      console.log('[erp-sige-enrichment] iniciando', {version:VERSION,total,force,delayMs,financeUntouched:true});
+      console.log('[erp-sige-enrichment] iniciando', {version:VERSION,total,orphanPurchases:orphanIds.length,force,delayMs,financeUntouched:true});
       if(Run)run=await Run.create({
         source:'sige',
         scope:'historical-purchase-enrichment',
@@ -265,7 +385,20 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
         startedAt:new Date(),
         stats:{version:VERSION,total,processed:0,updated:0,skipped:0,failed:0,financeUntouched:true}
       });
-      const stats={version:VERSION,total,processed:0,updated:0,skipped:0,failed:0,notFound:0,items:0,payments:0,financeUntouched:true};
+      const stats={version:VERSION,total,processed:0,updated:0,skipped:0,failed:0,notFound:0,items:0,payments:0,orphanTotal:orphanIds.length,orphanRecovered:0,orphanNotFound:0,financeUntouched:true};
+
+      for(const sid of orphanIds){
+        try{
+          const recovered=await recoverMissingSale(sid,{force});
+          if(recovered)stats.orphanRecovered++;
+          else stats.orphanNotFound++;
+        }catch(error){
+          stats.failed++;
+          console.error('[erp-sige-enrichment] falha ao recuperar compra órfã',sid,error?.message||error);
+        }
+        if(delayMs>0)await wait(delayMs);
+      }
+
       const cursor=Sale.find(filter).sort({date:1,_id:1}).cursor();
       for await(const sale of cursor){
         try{
@@ -336,12 +469,17 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
   async function purchase(sourceSaleId){
     const {Sale}=await waitForModels(1000);
     if(!Sale)throw new Error('Histórico de vendas do Ariana ERP indisponível.');
-    const sale=await Sale.findOne({sourceSystem:'sige',sourceId:clean(sourceSaleId,120)}).lean();
+    const sid=clean(sourceSaleId,120);
+    let sale=await Sale.findOne({sourceSystem:'sige',sourceId:sid}).lean();
     if(!sale){
-      const e=new Error('Compra histórica não encontrada.');e.statusCode=404;throw e;
+      const recovered=await recoverMissingSale(sid);
+      sale=recovered?(recovered.toObject?recovered.toObject():recovered):null;
+    }
+    if(!sale){
+      const e=new Error('A venda original desta compra ainda não foi localizada no SIGE. O financeiro permanece preservado.');e.statusCode=404;throw e;
     }
     return sale;
   }
-  return{VERSION,status,one,syncAll,startInBackground,purchase};
+  return{VERSION,status,one,syncAll,startInBackground,purchase,recoverMissingSale};
 }
 export default createErpSigeHistoricalPurchaseEnrichmentService;
