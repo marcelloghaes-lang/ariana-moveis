@@ -3169,7 +3169,7 @@ function isPositiveWellbeingReply(text = '') {
 
   return (
     /^(?:eu\s+)?(?:to|tou|estou|ta|esta)?\s*(?:bem|otimo|otima)(?:\s+(?:tambem|tbm))?(?:\s+gracas a deus)?(?:\s+(?:obrigado|obrigada))?(?:\s+e (?:voce|vc))?$/.test(n) ||
-    /^(?:tudo\s+)?(?:bem|otimo|otima|certo|tranquilo|joia|beleza)(?:\s+(?:tambem|tbm))?(?:\s+gracas a deus)?(?:\s+(?:obrigado|obrigada))?(?:\s+e (?:voce|vc))?$/.test(n) ||
+    /^(?:tudo\s+)?(?:bem|otimo|otima|certo|tranquilo|joia|beleza)(?:\s+(?:sim|tambem|tbm))?(?:\s+gracas a deus)?(?:\s+(?:obrigado|obrigada))?(?:\s+e (?:voce|vc))?$/.test(n) ||
     /^gracas a deus(?:\s+(?:estou|to))?\s+(?:bem|otimo|otima)$/.test(n)
   );
 }
