@@ -3143,6 +3143,75 @@ test('resposta "no cartão mesmo" após pergunta de parcelamento calcula o mesmo
   assert.match(sentTexts.at(-1).text, /total de \*?R\$\s*2\.647,40\*?/i);
 });
 
+test('aprendizado: "e se for de menos vezes?" mantém o cartão e pergunta quantas parcelas', async () => {
+  const phone = '5533977777922';
+  const last = bot.compactProduct(product('cartao-menos-1', 'Geladeira Teste 400L', {
+    category: 'Geladeiras',
+    pixPrice: 1999,
+    cardPrice: 2400,
+    installmentCount: 12
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastProducts: [last],
+    selectedProduct: last,
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'essa no cartão',
+    pushName: 'Cliente Menos Parcelas'
+  });
+
+  assert.match(sentTexts.at(-1).text, /12x de R\$\s*200,00/i);
+
+  await bot.handleMessage({
+    phone,
+    text: 'E se for de Menas vezes',
+    pushName: 'Cliente Menos Parcelas'
+  });
+
+  assert.equal(bot.conversation(phone).pendingAction, 'card_installments');
+  assert.match(sentTexts.at(-1).text, /Em quantas vezes você quer simular no cartão/i);
+
+  await bot.handleMessage({
+    phone,
+    text: '10x no cartão',
+    pushName: 'Cliente Menos Parcelas'
+  });
+
+  assert.equal(bot.conversation(phone).pendingAction, '');
+  assert.match(sentTexts.at(-1).text, /10x de R\$\s*240,00/i);
+  assert.match(sentTexts.at(-1).text, /total de \*?R\$\s*2\.400,00\*?/i);
+});
+
+test('aprendizado: pedido equivalente para reduzir parcelas no cartão usa o mesmo padrão geral', async () => {
+  const phone = '5533977777923';
+  const last = bot.compactProduct(product('cartao-menos-2', 'Smartphone Teste 256GB', {
+    category: 'Celulares',
+    pixPrice: 999,
+    cardPrice: 1200,
+    installmentCount: 12
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastProducts: [last],
+    selectedProduct: last,
+    cardContextUntil: Date.now() + 60_000,
+    cardContextProductId: last.id
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'dá para reduzir as parcelas?',
+    pushName: 'Cliente Menos Parcelas'
+  });
+
+  assert.equal(bot.conversation(phone).pendingAction, 'card_installments');
+  assert.match(sentTexts.at(-1).text, /1x até \*12x\*/i);
+});
+
 test('"esse último aí qual o valor dele parcelado" pergunta cartão ou crediário sem perder o produto', async () => {
   const phone = '5533977777740';
 
