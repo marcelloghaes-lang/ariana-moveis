@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { createErpFinanceCustomerContactService } from './erpFinanceCustomerContactService.js';
-import { historicalSaleProduct, historicalInstallmentLabel } from './erpPaymentReceiptUtils.js';
+import { historicalSaleProduct, historicalInstallmentTotal, historicalInstallmentLabel } from './erpPaymentReceiptUtils.js';
 
 const clean=(v='',m=500)=>String(v??'').trim().slice(0,m);
 const digits=(v='')=>String(v??'').replace(/\D/g,'');
@@ -140,13 +140,14 @@ export function createErpPaymentReceiptService(context={}){
     ]);
 
     const product=historicalSaleProduct(sale||{});
-    const installment=historicalInstallmentLabel(id,siblings);
+    const originalInstallments=historicalInstallmentTotal(sale||{});
+    const installment=historicalInstallmentLabel(id,siblings,originalInstallments);
     return{
       sourceSaleId,
       saleCode:clean(sale?.code,100),
       product,
       installment,
-      installments:siblings.length
+      installments:originalInstallments||siblings.length
     };
   }
 
