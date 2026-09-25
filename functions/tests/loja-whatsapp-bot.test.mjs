@@ -9135,9 +9135,9 @@ test('concorrente: link do Mercado Livre nunca oferece finalizar compra fora da 
   });
 
   assert.equal(sentTexts.length, 1);
-  assert.match(sentTexts[0].text, /usar apenas como referência/i);
+  assert.match(sentTexts[0].text, /Recebi o link/i);
   assert.match(sentTexts[0].text, /Ariana Móveis/i);
-  assert.doesNotMatch(sentTexts[0].text, /finalizar a compra|Mercado Livre|mercadolivre\.com/i);
+  assert.doesNotMatch(sentTexts[0].text, /outra loja|não vou|nao vou|finalizar a compra|Mercado Livre|mercadolivre\.com/i);
 
   assert.equal(backendEvents.length, 1);
   assert.equal(backendEvents[0].metadata.linkExternoSomenteReferencia, true);
@@ -9163,7 +9163,9 @@ test('concorrente: link externo com categoria redireciona a busca para o catálo
   });
 
   assert.ok(sentTexts.length >= 1);
-  assert.match(sentTexts[0].text, /Não vou te direcionar para outra loja|procurar \*tanquinho\* aqui na Ariana Móveis/i);
+  assert.match(sentTexts[0].text, /Com base no link que você me enviou/i);
+  assert.match(sentTexts[0].text, /\*tanquinho\* aqui na Ariana Móveis/i);
+  assert.doesNotMatch(sentTexts[0].text, /outra loja|não vou|nao vou|Amazon/i);
   assert.ok(sentMedia.some((item) => /Tanquinho Colormaq 15 KG/i.test(item.caption || '')));
   assert.ok(sentTexts.every((item) => !/amazon\.com\.br/i.test(item.text)));
   assert.ok(sentMedia.every((item) => !/amazon\.com\.br/i.test(item.caption || '')));
@@ -9179,9 +9181,9 @@ test('concorrente: pedido explícito para finalizar no marketplace é recusado s
   });
 
   assert.equal(sentTexts.length, 1);
-  assert.match(sentTexts[0].text, /não finalizo nem encaminho compras para outra loja/i);
   assert.match(sentTexts[0].text, /Ariana Móveis/i);
-  assert.doesNotMatch(sentTexts[0].text, /te ajude a finalizar|carrinho do Mercado Livre/i);
+  assert.match(sentTexts[0].text, /nome ou um print do produto/i);
+  assert.doesNotMatch(sentTexts[0].text, /outra loja|não finalizo|nao finalizo|não vou|nao vou|Mercado Livre/i);
 });
 
 test('concorrente: link oficial da Ariana não é classificado como marketplace externo', () => {
@@ -9203,4 +9205,54 @@ test('concorrente: detector reconhece grandes marketplaces por nome mesmo sem li
   assert.equal(bot.mentionsExternalCommerceBrand('vi um produto no Mercado Livre'), true);
   assert.equal(bot.mentionsExternalCommerceBrand('quero comprar na Shopee'), true);
   assert.equal(bot.mentionsExternalCommerceBrand('quero comprar na Ariana Móveis'), false);
+});
+
+
+test('concorrente silencioso: proteção final nunca deixa nome ou link de marketplace sair para o cliente', () => {
+  const protectedText = bot.protectArianaOutboundText(
+    'Posso te ajudar a comprar no Mercado Livre: https://www.mercadolivre.com.br/produto'
+  );
+
+  assert.match(protectedText, /Ariana Móveis/i);
+  assert.doesNotMatch(protectedText, /Mercado Livre|mercadolivre\.com|outra loja|não vou|nao vou/i);
+});
+
+test('concorrente silencioso: print de produto mostra somente opções da Ariana', async () => {
+  const phone = '5533977000304';
+
+  catalogRows = [
+    product('gr-ariana-print-1', 'Guarda-Roupa Casal Branco com Espelho', {
+      category: 'Guarda-Roupa',
+      stock: 2,
+      pixPrice: 1299,
+      price: 1550
+    })
+  ];
+
+  visionClassification = {
+    kind: 'product',
+    confidence: 0.97,
+    product_name: 'Guarda-Roupa Casal Branco com Espelho',
+    brand: '',
+    model: '',
+    category_hint: 'guarda-roupa',
+    payment_method: 'unknown',
+    payment_recipient_name: '',
+    summary: 'Print de anúncio de marketplace'
+  };
+
+  await bot.showProductsFromVision(
+    phone,
+    bot.conversation(phone),
+    visionClassification
+  );
+
+  const allOutgoing = [
+    ...sentTexts.map((item) => item.text || ''),
+    ...sentMedia.map((item) => item.caption || '')
+  ].join('\n');
+
+  assert.match(allOutgoing, /Ariana Móveis/i);
+  assert.match(allOutgoing, /Guarda-Roupa Casal Branco com Espelho/i);
+  assert.doesNotMatch(allOutgoing, /marketplace|Mercado Livre|Amazon|Shopee|outra loja|não vou|nao vou/i);
 });
