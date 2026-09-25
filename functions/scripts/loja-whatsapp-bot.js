@@ -4933,9 +4933,17 @@ function asksCreditQuote(text) {
     /\b(parcela|parcelado|parcelar|prestacao|vezes)\b.{0,30}\b(beto|bolto|boleo)\b/.test(n);
   const shortCreditContinuation =
     /^(?:e\s+)?(?:no\s+)?(?:boleto|carne|crediario)$/.test(n);
+  const creditFeasibility =
+    new RegExp(
+      `(?:^|\\b)(?:no\\s+|na\\s+|pelo\\s+|pela\\s+)?${creditWord}\\b.{0,45}\\b(?:da pra|da para|tem como|pode|consegue|faz|fazer)\\b`
+    ).test(n) ||
+    new RegExp(
+      `\\b(?:da pra|da para|tem como|pode|consegue|faz|fazer)\\b.{0,45}(?:no\\s+|na\\s+|pelo\\s+|pela\\s+)?${creditWord}\\b`
+    ).test(n);
 
   return (
     shortCreditContinuation ||
+    creditFeasibility ||
     new RegExp(`quanto fica.{0,30}${creditWord}`).test(n) ||
     /quanto (da|fica) em \d{1,2}\s*(x|vezes|parcelas)?/.test(n) ||
     new RegExp(`\\d{1,2}\\s*(?:x|vezes|parcelas).{0,25}${creditWord}`).test(n) ||
