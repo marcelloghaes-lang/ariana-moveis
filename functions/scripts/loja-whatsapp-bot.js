@@ -9556,19 +9556,21 @@ async function handleMessage({
   );
 
   rememberShortConversationTurn(conv, text, { source });
+
+  const learningHandled = learningSignal
+    ? await handleDetectedLearningSignal({
+        phone,
+        text,
+        pushName,
+        conv,
+        source,
+        signal: learningSignal
+      })
+    : false;
+
   rememberIncomingLearningContext(conv, text, learningSignal, learningNow);
 
-  if (
-    learningSignal &&
-    await handleDetectedLearningSignal({
-      phone,
-      text,
-      pushName,
-      conv,
-      source,
-      signal: learningSignal
-    })
-  ) {
+  if (learningHandled) {
     return;
   }
 
