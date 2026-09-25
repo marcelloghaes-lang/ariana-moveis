@@ -8646,7 +8646,11 @@ async function markReviewNeeded(phone, conv, text, pushName = '', reason = 'Mens
     name: pushName,
     metadata: {
       atendimentoAutomaticoContinua: true,
-      reviewSource: 'fallback'
+      reviewSource: 'fallback',
+      aprendizadoGustavo: true,
+      learningTrigger: 'commercial_fallback',
+      learningSeverity: 'medium',
+      revisarParaRegraFutura: true
     }
   });
 }
@@ -11240,18 +11244,6 @@ ${productCaption(product)}`
       phone,
       `${gustavoLead(`${phone}|${text}|revisar`, 'clarify')} 😊 Me conta um pouco mais do produto ou da condição que você precisa, para eu continuar seu atendimento sem te passar informação errada.`
     );
-    await recordDetectedLearningSignal(
-      phone,
-      text,
-      pushName,
-      conv,
-      {
-        type: 'commercial_fallback',
-        severity: 'medium',
-        consultSupport: false,
-        reason: 'Fluxo comercial chegou ao pedido genérico de esclarecimento sem resolver a intenção do cliente.'
-      }
-    );
     await markReviewNeeded(
       phone,
       conv,
@@ -11272,26 +11264,17 @@ ${productCaption(product)}`
     `${fallbackGreeting}! 😊 Não consigo te ajudar com esse assunto por aqui, mas assim que o Marcelo chegar eu peço para ele te dar um retorno.\n\nEnquanto isso, posso te auxiliar com fotos de produtos, preços, condições de pagamento, carnê e outras informações de venda da Ariana Móveis.`
   );
 
-  await recordDetectedLearningSignal(
-    phone,
-    text,
-    pushName,
-    conv,
-    {
-      type: 'unresolved_out_of_scope',
-      severity: 'low',
-      consultSupport: false,
-      reason: 'O atendimento automático terminou em encaminhamento genérico para o Marcelo sem identificar uma resposta própria.'
-    }
-  );
-
   await syncTicket(phone, {
     status: 'Aguardando retorno do Marcelo',
     message: text,
     name: pushName,
     metadata: {
       assunto: 'fora_escopo_vendas',
-      atendimentoAutomaticoContinua: true
+      atendimentoAutomaticoContinua: true,
+      aprendizadoGustavo: true,
+      learningTrigger: 'unresolved_out_of_scope',
+      learningSeverity: 'low',
+      revisarParaRegraFutura: true
     }
   });
 }
