@@ -68,7 +68,7 @@ export function createErpLedgerService(context={}){
   row.status=remaining(row)<=0.009?'paid':'pending';row.updatedBy=actorName(actor);await row.save();await audit('erp.ledger.entry.updated',{message:'Lançamento financeiro atualizado',entryId:String(row._id),by:actorName(actor)});return decorate(row)
  }
  async function listEntries(query={}){
-  const filter={};if(['receivable','payable'].includes(query.direction))filter.direction=query.direction;if(['pending','paid','cancelled'].includes(query.status))filter.status=query.status;
+  const filter={renegotiatedAt:{$exists:false}};if(query.includeRenegotiated==='true')delete filter.renegotiatedAt;if(['receivable','payable'].includes(query.direction))filter.direction=query.direction;if(['pending','paid','cancelled'].includes(query.status))filter.status=query.status;
   if(query.from||query.to){filter.dueAt={};if(query.from)filter.dueAt.$gte=new Date(query.from);if(query.to){const d=new Date(query.to);d.setHours(23,59,59,999);filter.dueAt.$lte=d}}
   if(query.categoryId)filter.categoryId=clean(query.categoryId,120);if(query.bankAccountId)filter.bankAccountId=clean(query.bankAccountId,120);if(query.paymentMethod)filter.paymentMethod=clean(query.paymentMethod,80);
   const q=clean(query.q||query.search,160);if(q){const rx=new RegExp(q.replace(/[.*+?^\${}()|[\]\\]/g,'\\$&'),'i');filter.$or=[{personName:rx},{description:rx},{categoryName:rx},{personDocument:rx},{documentNumber:rx},{boletoNumber:rx}]}
