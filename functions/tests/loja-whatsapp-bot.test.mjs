@@ -9256,3 +9256,83 @@ test('concorrente silencioso: print de produto mostra somente opções da Ariana
   assert.match(allOutgoing, /Guarda-Roupa Casal Branco com Espelho/i);
   assert.doesNotMatch(allOutgoing, /marketplace|Mercado Livre|Amazon|Shopee|outra loja|não vou|nao vou/i);
 });
+
+
+test('print 08:20: boleto dá pra fazer continua no produto selecionado e pergunta parcelas', async () => {
+  const phone = '5533977000401';
+  const chosen = bot.compactProduct(product('gr-canada-1', 'Guarda Roupa Canadá Cinamomo 6 Portas 4 Gavetas', {
+    category: 'Guarda Roupa',
+    pixPrice: 1596.66,
+    price: 1923.69,
+    installmentCount: 12
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: chosen,
+    lastProducts: [chosen],
+    allProductResults: [chosen],
+    lastIntent: 'produto'
+  });
+
+  assert.equal(bot.asksCreditQuote('E no boleto da pra fazer ?'), true);
+
+  await bot.handleMessage({
+    phone,
+    text: 'E no boleto da pra fazer ?',
+    pushName: 'Marcelo Nunes'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Guarda Roupa Canadá Cinamomo 6 Portas 4 Gavetas/i);
+  assert.match(sentTexts[0].text, /crediário próprio/i);
+  assert.match(sentTexts[0].text, /Em quantas vezes/i);
+  assert.doesNotMatch(sentTexts[0].text, /Trabalhamos com PIX|formas de pagamento|cartão, PIX, carnê, entrega/i);
+  assert.equal(bot.conversation(phone).pendingAction, 'credit_installments');
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'gr-canada-1');
+});
+
+test('print 08:20: quarto guarda roupa no boleto seleciona o quarto e já entra no cálculo', async () => {
+  const phone = '5533977000402';
+  const products = [
+    bot.compactProduct(product('gr-1', 'Guarda Roupa Opção 1', { category: 'Guarda Roupa', pixPrice: 1200, price: 1450 })),
+    bot.compactProduct(product('gr-2', 'Guarda Roupa Opção 2', { category: 'Guarda Roupa', pixPrice: 1300, price: 1560 })),
+    bot.compactProduct(product('gr-3', 'Guarda Roupa Opção 3', { category: 'Guarda Roupa', pixPrice: 1400, price: 1680 })),
+    bot.compactProduct(product('gr-4', 'Guarda Roupa Canadá Cinamomo 6 Portas 4 Gavetas', { category: 'Guarda Roupa', pixPrice: 1596.66, price: 1923.69 }))
+  ];
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: null,
+    lastProducts: products,
+    allProductResults: products,
+    lastIntent: 'produto'
+  });
+
+  assert.equal(bot.asksCreditQuote('O quarto guarda roupa no boleto da pra fazer'), true);
+  assert.equal(bot.ordinalIndex('O quarto guarda roupa no boleto da pra fazer'), 3);
+
+  await bot.handleMessage({
+    phone,
+    text: 'O quarto guarda roupa no boleto da pra fazer',
+    pushName: 'Marcelo Nunes'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Guarda Roupa Canadá Cinamomo 6 Portas 4 Gavetas/i);
+  assert.match(sentTexts[0].text, /crediário próprio/i);
+  assert.match(sentTexts[0].text, /Em quantas vezes/i);
+  assert.doesNotMatch(sentTexts[0].text, /O que você gostaria de saber dele/i);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'gr-4');
+  assert.equal(bot.conversation(phone).pendingAction, 'credit_installments');
+});
+
+test('boleto contextual reconhece variações naturais sem iniciar cadastro antes da hora', () => {
+  for (const text of [
+    'no boleto da pra fazer?',
+    'e no carnê tem como fazer?',
+    'no crediário consegue fazer?',
+    'dá pra fazer no boleto?',
+    'tem como fazer no carnê?'
+  ]) {
+    assert.equal(bot.asksCreditQuote(text), true, text);
+  }
+});
