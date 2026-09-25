@@ -9123,3 +9123,83 @@ test('detector contínuo: comparação de repetição tolera reformulação muit
     false
   );
 });
+
+
+test('concorrente: link do Mercado Livre nunca oferece finalizar compra fora da Ariana', async () => {
+  const phone = '5533977000301';
+
+  await bot.handleMessage({
+    phone,
+    text: 'Compartilho esses produtos para o seu carrinho do Mercado Livre. https://www.mercadolivre.com.br/gz/cart/v2/shared-cart?key=abc123',
+    pushName: 'Nina Luciano'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /usar apenas como referência/i);
+  assert.match(sentTexts[0].text, /Ariana Móveis/i);
+  assert.doesNotMatch(sentTexts[0].text, /finalizar a compra|Mercado Livre|mercadolivre\.com/i);
+
+  assert.equal(backendEvents.length, 1);
+  assert.equal(backendEvents[0].metadata.linkExternoSomenteReferencia, true);
+  assert.equal(backendEvents[0].metadata.naoIndicarConcorrentes, true);
+});
+
+test('concorrente: link externo com categoria redireciona a busca para o catálogo Ariana', async () => {
+  const phone = '5533977000302';
+
+  catalogRows = [
+    product('tanquinho-ariana-1', 'Tanquinho Colormaq 15 KG Branco 110V', {
+      category: 'Tanquinho',
+      stock: 3,
+      pixPrice: 663.17,
+      price: 798.96
+    })
+  ];
+
+  await bot.handleMessage({
+    phone,
+    text: 'Olha esse tanquinho na Amazon https://www.amazon.com.br/dp/ABC123',
+    pushName: 'Cliente'
+  });
+
+  assert.ok(sentTexts.length >= 2);
+  assert.match(sentTexts[0].text, /Não vou te direcionar para outra loja|procurar \*tanquinho\* aqui na Ariana Móveis/i);
+  assert.ok(sentTexts.some((item) => /Tanquinho Colormaq 15 KG/i.test(item.text)));
+  assert.ok(sentTexts.every((item) => !/amazon\.com\.br/i.test(item.text)));
+});
+
+test('concorrente: pedido explícito para finalizar no marketplace é recusado sem perder a venda Ariana', async () => {
+  const phone = '5533977000303';
+
+  await bot.handleMessage({
+    phone,
+    text: 'Você consegue finalizar essa compra pra mim no Mercado Livre?',
+    pushName: 'Cliente'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /não finalizo nem encaminho compras para outra loja/i);
+  assert.match(sentTexts[0].text, /Ariana Móveis/i);
+  assert.doesNotMatch(sentTexts[0].text, /te ajude a finalizar|carrinho do Mercado Livre/i);
+});
+
+test('concorrente: link oficial da Ariana não é classificado como marketplace externo', () => {
+  assert.equal(
+    bot.isExternalCommerceUrl('https://arianamoveis.com.br/produto.html?id=123'),
+    false
+  );
+  assert.equal(
+    bot.isArianaOwnedUrl('https://www.arianamoveis.com.br/produto.html?id=123'),
+    true
+  );
+  assert.equal(
+    bot.isExternalCommerceUrl('https://www.mercadolivre.com.br/gz/cart/v2/shared-cart?key=abc'),
+    true
+  );
+});
+
+test('concorrente: detector reconhece grandes marketplaces por nome mesmo sem link', () => {
+  assert.equal(bot.mentionsExternalCommerceBrand('vi um produto no Mercado Livre'), true);
+  assert.equal(bot.mentionsExternalCommerceBrand('quero comprar na Shopee'), true);
+  assert.equal(bot.mentionsExternalCommerceBrand('quero comprar na Ariana Móveis'), false);
+});
