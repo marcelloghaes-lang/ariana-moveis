@@ -2155,7 +2155,9 @@ async function consultGustavoSupportAdvisor(
     'Use apenas fatos presentes no contexto estruturado. Se a resposta depender de um fato ausente, escolha HUMAN.',
     'Nunca confirme baixa de pagamento, acordo financeiro, desconto especial ou aprovação de crediário.',
     'Nunca recomende, divulgue, facilite checkout ou incentive compra em Mercado Livre, Amazon, Magalu, Shopee, Casas Bahia ou qualquer outra loja/marketplace concorrente.',
-    'Links externos enviados pelo cliente servem somente como referência para entender o produto; a resposta deve manter a compra dentro da Ariana Móveis e nunca repetir o link concorrente como destino de compra.',
+    'Links externos, fotos e prints enviados pelo cliente servem somente como referência para identificar o produto; mostre ou procure somente opções da Ariana Móveis.',
+    'Não explique ao cliente que existe uma regra contra concorrentes e não diga frases como “não vou te direcionar para outra loja”. Apenas responda naturalmente com o que encontrou ou pode procurar na Ariana Móveis.',
+    'Nunca repita link, nome de marketplace ou instrução de compra externa como sugestão ao cliente.',
     'REPLY: só quando a resposta é segura com os dados fornecidos.',
     'CLARIFY: quando uma pergunta curta e específica ao cliente resolve a ambiguidade.',
     'HUMAN: quando faltar dado real da loja ou houver risco de afirmar algo não confirmado.',
@@ -3025,8 +3027,19 @@ function isKnownBotOutbound(incoming = {}) {
   return Boolean(at && Date.now() - at < 2 * 60 * 1000);
 }
 
+function protectArianaOutboundText(text = '') {
+  const raw = String(text || '').trim();
+  if (!raw) return raw;
+
+  if (externalCommerceUrls(raw).length || mentionsExternalCommerceBrand(raw)) {
+    return 'Posso te ajudar com opções disponíveis aqui na Ariana Móveis 😊 Me diga qual produto você procura ou me envie uma foto/print que eu confiro no nosso catálogo.';
+  }
+
+  return raw;
+}
+
 async function sendText(phone, text, { linkPreview = true } = {}) {
-  const bodyText = String(text || '').trim();
+  const bodyText = protectArianaOutboundText(text);
   rememberBotOutbound(phone, bodyText);
   const result = await evolution(`/message/sendText/${encodeURIComponent(EVOLUTION_INSTANCE)}`, {
     number: digits(phone),
@@ -3064,7 +3077,7 @@ function whatsappProductImageUrl(imageUrl = '') {
 
 async function sendImage(phone, imageUrl, caption) {
   const url = whatsappProductImageUrl(imageUrl);
-  const captionText = String(caption || '').trim();
+  const captionText = protectArianaOutboundText(caption);
 
   if (!/^https?:\/\//i.test(url) || isPlaceholderProductImage(url)) {
     return sendText(
@@ -4168,7 +4181,6 @@ async function handleExternalCommerceReference({
   if (!urls.length && !brandOnly) return false;
 
   const category = detectCategory(text);
-  const explicitExternalPurchase = asksToBuyOnExternalCommerce(text);
 
   conv.pendingAction = '';
   conv.lastIntent = 'produto';
@@ -4177,17 +4189,13 @@ async function handleExternalCommerceReference({
   if (category) {
     await sendText(
       phone,
-      explicitExternalPurchase
-        ? `Eu não finalizo nem encaminho compras para outra loja. Posso usar isso só como referência e procurar *${category}* aqui na Ariana Móveis 😊 Vou te mostrar as opções do nosso catálogo.`
-        : `Recebi a referência 😊 Não vou te direcionar para outra loja. Vou procurar *${category}* aqui na Ariana Móveis para te mostrar opções do nosso catálogo.`
+      `Com base no link que você me enviou, encontrei estas opções de *${category}* aqui na Ariana Móveis 😊`
     );
     await showProducts(phone, conv, category, text);
   } else {
     await sendText(
       phone,
-      explicitExternalPurchase
-        ? 'Eu não finalizo nem encaminho compras para outra loja 😊 Posso usar o link apenas como referência. Me envie o nome ou um print dos produtos que você viu e eu procuro opções iguais ou parecidas aqui na Ariana Móveis.'
-        : 'Recebi o link 😊 Vou usar apenas como referência e não vou te direcionar para outra loja. Se você me mandar o nome ou um print dos produtos, eu procuro opções iguais ou parecidas aqui na Ariana Móveis.'
+      'Recebi o link 😊 Se você me mandar o nome ou um print do produto, eu procuro opções iguais ou parecidas aqui na Ariana Móveis.'
     );
   }
 
@@ -8573,8 +8581,8 @@ async function showProductsFromVision(phone, conv, classification = {}) {
     await sendText(
       phone,
       label
-        ? `Pela imagem, parece ser *${label}* 😊 Não encontrei esse modelo com segurança no catálogo agora.${visualCategory ? ` Se quiser, posso te mostrar os *${visualCategory}* que temos disponíveis e que podem ser parecidos com ele.` : ' Se você me mandar o nome/modelo ou o link, eu confiro novamente.'}`
-        : 'Recebi a foto 😊 Não consegui identificar o modelo com segurança. Se você me mandar o nome/modelo ou o link do produto, eu confiro no catálogo para você.'
+        ? `Pela imagem, parece ser *${label}* 😊 Não encontrei esse modelo com segurança no catálogo da Ariana agora.${visualCategory ? ` Se quiser, posso te mostrar os *${visualCategory}* que temos disponíveis e que podem ser parecidos com ele.` : ' Se você me mandar o nome ou modelo, eu confiro novamente no nosso catálogo.'}`
+        : 'Recebi a foto 😊 Não consegui identificar o modelo com segurança. Se você me mandar o nome ou modelo do produto, eu confiro no catálogo da Ariana Móveis para você.'
     );
     return false;
   }
@@ -12026,6 +12034,7 @@ export const __test = {
   asksCashDiscount,
   asksPaymentConditionAdjustment,
   asksProductLink,
+  protectArianaOutboundText,
   extractHttpUrls,
   urlHostname,
   isArianaOwnedUrl,
