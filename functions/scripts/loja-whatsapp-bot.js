@@ -61,6 +61,22 @@ const SUPPORT_MIN_CONFIDENCE = Math.min(
   Math.max(0.60, Number(process.env.LOJA_SUPPORT_MIN_CONFIDENCE || 0.80))
 );
 const SUPPORT_TIMEOUT_MS = Math.max(3000, Number(process.env.LOJA_SUPPORT_TIMEOUT_MS || 12000));
+const LEARNING_SIGNAL_BOT_REPLY_WINDOW_MS = Math.max(
+  30 * 1000,
+  Number(process.env.LOJA_LEARNING_SIGNAL_REPLY_MINUTES || 5) * 60 * 1000
+);
+const LEARNING_SIGNAL_REPEAT_WINDOW_MS = Math.max(
+  60 * 1000,
+  Number(process.env.LOJA_LEARNING_SIGNAL_REPEAT_MINUTES || 15) * 60 * 1000
+);
+const LEARNING_SIGNAL_DEDUP_MS = Math.max(
+  60 * 1000,
+  Number(process.env.LOJA_LEARNING_SIGNAL_DEDUP_MINUTES || 10) * 60 * 1000
+);
+const LEARNING_SIGNAL_CLARIFICATION_WINDOW_MS = Math.max(
+  60 * 1000,
+  Number(process.env.LOJA_LEARNING_SIGNAL_CLARIFICATION_MINUTES || 10) * 60 * 1000
+);
 
 const GUSTAVO_PERSONA = Object.freeze({
   name: 'Gustavo',
@@ -934,6 +950,14 @@ function conversation(phone) {
       creditOrderWaitingMarcelo: false,
       lastPaymentProofAt: 0,
       lastPaymentProofMethod: '',
+      lastBotReplyText: '',
+      lastBotReplyAt: 0,
+      lastCustomerText: '',
+      lastCustomerAt: 0,
+      lastLearningSignalAt: 0,
+      lastLearningSignalKey: '',
+      learningClarificationCount: 0,
+      learningClarificationWindowAt: 0,
       dailyDueContextUntil: 0,
       dailyDueReminderAt: 0,
       dailyDueReplyCount: 0,
@@ -974,6 +998,14 @@ function conversation(phone) {
   if (!Number.isFinite(Number(conv.supplierAcknowledgedAt))) conv.supplierAcknowledgedAt = 0;
   if (!Number.isFinite(Number(conv.lastPaymentProofAt))) conv.lastPaymentProofAt = 0;
   if (typeof conv.lastPaymentProofMethod !== 'string') conv.lastPaymentProofMethod = '';
+  if (typeof conv.lastBotReplyText !== 'string') conv.lastBotReplyText = '';
+  if (!Number.isFinite(Number(conv.lastBotReplyAt))) conv.lastBotReplyAt = 0;
+  if (typeof conv.lastCustomerText !== 'string') conv.lastCustomerText = '';
+  if (!Number.isFinite(Number(conv.lastCustomerAt))) conv.lastCustomerAt = 0;
+  if (!Number.isFinite(Number(conv.lastLearningSignalAt))) conv.lastLearningSignalAt = 0;
+  if (typeof conv.lastLearningSignalKey !== 'string') conv.lastLearningSignalKey = '';
+  if (!Number.isFinite(Number(conv.learningClarificationCount))) conv.learningClarificationCount = 0;
+  if (!Number.isFinite(Number(conv.learningClarificationWindowAt))) conv.learningClarificationWindowAt = 0;
   if (!Number.isFinite(Number(conv.dailyDueContextUntil))) conv.dailyDueContextUntil = 0;
   if (!Number.isFinite(Number(conv.dailyDueReminderAt))) conv.dailyDueReminderAt = 0;
   if (!Number.isFinite(Number(conv.dailyDueReplyCount))) conv.dailyDueReplyCount = 0;
@@ -2038,6 +2070,9 @@ function supportConversationContext(conv = {}) {
     pendingAction: String(conv?.pendingAction || ''),
     marceloCallbackRequested: conv?.marceloCallbackRequested === true,
     recentPaymentProof: Number(conv?.lastPaymentProofAt || 0) > Date.now() - 60 * 60 * 1000,
+    lastBotReply: String(conv?.lastBotReplyText || '').slice(0, 900),
+    lastBotReplyAt: Number(conv?.lastBotReplyAt || 0),
+    previousCustomerMessage: String(conv?.lastCustomerText || '').slice(0, 700),
     recentTurns: recentShortConversationTurns(conv, { excludeLatest: true }).map((turn) => ({
       source: turn.source,
       kind: turn.kind,
@@ -2049,7 +2084,11 @@ function supportConversationContext(conv = {}) {
   };
 }
 
-async function consultGustavoSupportAdvisor(text, conv = {}, { source = 'text' } = {}) {
+async function consultGustavoSupportAdvisor(
+  text,
+  conv = {},
+  { source = 'text', learningSignal = null } = {}
+) {
   if (process.env.LOJA_BOT_TEST_MODE === '1') {
     if (!testSupportAdvisories.length) return null;
     return normalizeSupportAdvisory(testSupportAdvisories.shift());
@@ -2088,6 +2127,9 @@ async function consultGustavoSupportAdvisor(text, conv = {}, { source = 'text' }
     source === 'audio'
       ? 'A mensagem atual veio de áudio transcrito; considere linguagem falada e informal.'
       : 'A mensagem atual foi digitada.',
+    learningSignal
+      ? `O detector de dificuldade sinalizou: ${JSON.stringify(learningSignal)}. Leve isso em conta e priorize corrigir o entendimento anterior, sem inventar fatos.`
+      : '',
     '',
     `Contexto estruturado: ${JSON.stringify(context)}`,
     `Mensagem atual: ${String(text || '').slice(0, 900)}`
@@ -2137,20 +2179,328 @@ async function consultGustavoSupportAdvisor(text, conv = {}, { source = 'text' }
   }
 }
 
-async function recordGustavoLearningCase(phone, text, pushName, advisory = {}) {
+async function recordGustavoLearningCase(
+  phone,
+  text,
+  pushName,
+  advisory = {},
+  extra = {}
+) {
   await syncTicket(phone, {
     status: 'Aprendizado do Gustavo',
     message: String(text || '').trim(),
     name: pushName,
     metadata: {
       assunto: 'aprendizado_gustavo',
-      apoioSegundoNivel: true,
+      apoioSegundoNivel: extra.apoioSegundoNivel !== false,
       supportAction: String(advisory?.action || ''),
       supportConfidence: Number(advisory?.confidence || 0),
-      supportReason: String(advisory?.reason || '').slice(0, 240),
+      supportReason: String(advisory?.reason || extra.reason || '').slice(0, 240),
+      learningTrigger: String(extra.trigger || '').slice(0, 80),
+      learningSeverity: String(extra.severity || '').slice(0, 24),
+      previousBotReply: String(extra.previousBotReply || '').slice(0, 700),
+      previousCustomerMessage: String(extra.previousCustomerMessage || '').slice(0, 500),
       revisarParaRegraFutura: true
     }
   });
+}
+
+function normalizedLearningText(text = '') {
+  return normalize(text)
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isExplicitCorrectionSignal(text = '') {
+  const n = normalizedLearningText(text);
+  if (!n) return false;
+
+  return (
+    /\bnao (?:foi|e|era) (?:isso|esse|essa)\b/.test(n) ||
+    /\bnao foi isso que (?:eu )?(?:perguntei|falei|quis dizer|pedi)\b/.test(n) ||
+    /\bvoce nao (?:entendeu|pegou|compreendeu)\b/.test(n) ||
+    /\b(?:entendeu|respondeu|falou) errado\b/.test(n) ||
+    /\bnao foi isso que eu quis dizer\b/.test(n) ||
+    /\besta respondendo outra coisa\b/.test(n) ||
+    /\bnao tem nada a ver\b/.test(n)
+  );
+}
+
+function isConfusionLearningSignal(text = '') {
+  const n = normalizedLearningText(text);
+  if (!n) return false;
+
+  return (
+    /^(?:como assim|nao entendi|nao compreendi|o que voce quer dizer|oque voce quer dizer|hein|han|hã)$/.test(n) ||
+    /^(?:como assim )?nao entendi isso$/.test(n) ||
+    /^(?:\?\s*){2,}$/.test(String(text || '').trim())
+  );
+}
+
+function isGenericOrUncertainBotReply(text = '') {
+  const n = normalize(text);
+  return (
+    /nao consigo te ajudar com esse assunto/.test(n) ||
+    /me conta um pouco mais do produto ou da condicao/.test(n) ||
+    /quero confirmar isso certinho/.test(n) ||
+    /nao consegui (?:entender|identificar|abrir|processar)/.test(n) ||
+    /prefiro nao te passar uma informacao errada/.test(n)
+  );
+}
+
+function comparableRepeatedCustomerMessage(current = '', previous = '') {
+  const a = normalizedLearningText(current);
+  const b = normalizedLearningText(previous);
+  if (!a || !b || a.length < 8 || b.length < 8) return false;
+  if (simpleAcknowledgementKind(current) || isCourtesyGreeting(current)) return false;
+
+  if (a === b) return true;
+  if (Math.min(a.length, b.length) < 16) return false;
+
+  const aTokens = new Set(a.split(' ').filter((token) => token.length >= 2));
+  const bTokens = new Set(b.split(' ').filter((token) => token.length >= 2));
+  if (!aTokens.size || !bTokens.size) return false;
+
+  let intersection = 0;
+  for (const token of aTokens) {
+    if (bTokens.has(token)) intersection += 1;
+  }
+  const union = new Set([...aTokens, ...bTokens]).size;
+  const similarity = union ? intersection / union : 0;
+  return similarity >= 0.82;
+}
+
+function isHumanEscalationLearningSignal(text = '') {
+  return Boolean(
+    wantsHuman(text) ||
+    asksMarceloOrCallback(text) ||
+    /\bquero falar com (?:o )?marcelo\b/.test(normalizedLearningText(text))
+  );
+}
+
+function learningSignalForIncomingMessage(
+  conv = {},
+  text = '',
+  {
+    previousCustomerText = '',
+    previousCustomerAt = 0,
+    now = Date.now()
+  } = {}
+) {
+  const lastBotReplyAt = Number(conv?.lastBotReplyAt || 0);
+  const lastBotReplyText = String(conv?.lastBotReplyText || '');
+  const recentBotReply = Boolean(
+    lastBotReplyAt &&
+    now - lastBotReplyAt >= 0 &&
+    now - lastBotReplyAt <= LEARNING_SIGNAL_BOT_REPLY_WINDOW_MS
+  );
+
+  if (!recentBotReply) {
+    return null;
+  }
+
+  if (isExplicitCorrectionSignal(text)) {
+    return {
+      type: 'explicit_correction',
+      severity: 'high',
+      consultSupport: true,
+      reason: 'Cliente corrigiu explicitamente o entendimento/resposta anterior do Gustavo.'
+    };
+  }
+
+  if (
+    previousCustomerText &&
+    Number(previousCustomerAt || 0) > 0 &&
+    now - Number(previousCustomerAt || 0) <= LEARNING_SIGNAL_REPEAT_WINDOW_MS &&
+    comparableRepeatedCustomerMessage(text, previousCustomerText)
+  ) {
+    return {
+      type: 'repeated_question',
+      severity: 'high',
+      consultSupport: true,
+      reason: 'Cliente repetiu a mesma pergunta pouco depois da resposta do Gustavo.'
+    };
+  }
+
+  if (isConfusionLearningSignal(text)) {
+    const withinClarificationWindow =
+      Number(conv?.learningClarificationWindowAt || 0) > 0 &&
+      now - Number(conv.learningClarificationWindowAt || 0) <= LEARNING_SIGNAL_CLARIFICATION_WINDOW_MS;
+
+    const count = withinClarificationWindow
+      ? Math.max(0, Number(conv?.learningClarificationCount || 0)) + 1
+      : 1;
+
+    return {
+      type: count >= 2 ? 'repeated_confusion' : 'confusion_followup',
+      severity: count >= 2 ? 'high' : 'medium',
+      consultSupport:
+        count >= 2 ||
+        (!conv?.pendingAction && isGenericOrUncertainBotReply(lastBotReplyText)),
+      clarificationCount: count,
+      reason:
+        count >= 2
+          ? 'Cliente precisou pedir esclarecimento mais de uma vez em poucos minutos.'
+          : 'Cliente demonstrou que não entendeu a resposta anterior do Gustavo.'
+    };
+  }
+
+  if (
+    isHumanEscalationLearningSignal(text) &&
+    !isHumanEscalationLearningSignal(previousCustomerText) &&
+    !/marcelo|atendimento humano|atendente/i.test(lastBotReplyText)
+  ) {
+    return {
+      type: 'human_after_bot',
+      severity: 'medium',
+      consultSupport: false,
+      reason: 'Cliente pediu atendimento humano logo depois de uma resposta automática que não sugeria encaminhamento.'
+    };
+  }
+
+  return null;
+}
+
+function rememberIncomingLearningContext(conv = {}, text = '', signal = null, now = Date.now()) {
+  conv.lastCustomerText = String(text || '').trim().slice(0, 1000);
+  conv.lastCustomerAt = now;
+
+  if (signal && /^confusion_followup|repeated_confusion$/.test(String(signal.type || ''))) {
+    const withinWindow =
+      Number(conv.learningClarificationWindowAt || 0) > 0 &&
+      now - Number(conv.learningClarificationWindowAt || 0) <= LEARNING_SIGNAL_CLARIFICATION_WINDOW_MS;
+
+    conv.learningClarificationCount = withinWindow
+      ? Math.max(Number(conv.learningClarificationCount || 0), Number(signal.clarificationCount || 1))
+      : Number(signal.clarificationCount || 1);
+    conv.learningClarificationWindowAt = withinWindow
+      ? Number(conv.learningClarificationWindowAt || now)
+      : now;
+  } else if (
+    Number(conv.learningClarificationWindowAt || 0) > 0 &&
+    now - Number(conv.learningClarificationWindowAt || 0) > LEARNING_SIGNAL_CLARIFICATION_WINDOW_MS
+  ) {
+    conv.learningClarificationCount = 0;
+    conv.learningClarificationWindowAt = 0;
+  }
+
+  saveStateSoon();
+}
+
+async function recordDetectedLearningSignal(phone, text, pushName, conv, signal = {}) {
+  if (!signal?.type) return false;
+
+  const key = `${signal.type}|${normalizedLearningText(text).slice(0, 180)}`;
+  const now = Date.now();
+
+  if (
+    String(conv?.lastLearningSignalKey || '') === key &&
+    Number(conv?.lastLearningSignalAt || 0) > 0 &&
+    now - Number(conv.lastLearningSignalAt || 0) < LEARNING_SIGNAL_DEDUP_MS
+  ) {
+    return false;
+  }
+
+  conv.lastLearningSignalKey = key;
+  conv.lastLearningSignalAt = now;
+  saveStateSoon();
+
+  await recordGustavoLearningCase(
+    phone,
+    text,
+    pushName,
+    {
+      action: 'OBSERVE',
+      confidence: signal.severity === 'high' ? 0.98 : 0.90,
+      reason: signal.reason || ''
+    },
+    {
+      apoioSegundoNivel: false,
+      trigger: signal.type,
+      severity: signal.severity,
+      previousBotReply: conv?.lastBotReplyText || '',
+      previousCustomerMessage: conv?.lastCustomerText || ''
+    }
+  );
+
+  return true;
+}
+
+async function handleDetectedLearningSignal({
+  phone,
+  text,
+  pushName = '',
+  conv,
+  source = 'text',
+  signal = null
+}) {
+  if (!signal?.type) return false;
+
+  await recordDetectedLearningSignal(phone, text, pushName, conv, signal);
+
+  if (!signal.consultSupport) return false;
+
+  const advisory = await consultGustavoSupportAdvisor(
+    text,
+    conv,
+    { source, learningSignal: signal }
+  );
+
+  if (
+    !advisory ||
+    Number(advisory.confidence || 0) < SUPPORT_MIN_CONFIDENCE
+  ) {
+    return false;
+  }
+
+  if (
+    ['REPLY', 'CLARIFY'].includes(advisory.action) &&
+    advisory.reply
+  ) {
+    await sendText(phone, advisory.reply);
+    await recordGustavoLearningCase(
+      phone,
+      text,
+      pushName,
+      advisory,
+      {
+        trigger: signal.type,
+        severity: signal.severity,
+        previousBotReply: conv?.lastBotReplyText || '',
+        previousCustomerMessage: conv?.lastCustomerText || ''
+      }
+    );
+    return true;
+  }
+
+  if (advisory.action === 'HUMAN') {
+    conv.marceloCallbackRequested = true;
+    conv.marceloCallbackRequestedAt = Date.now();
+    saveStateSoon();
+
+    await sendText(
+      phone,
+      advisory.reply ||
+        'Quero conferir isso certinho para não repetir uma resposta errada 😊 Vou deixar sua mensagem para o Marcelo verificar e te responder por aqui.'
+    );
+
+    await recordGustavoLearningCase(
+      phone,
+      text,
+      pushName,
+      advisory,
+      {
+        trigger: signal.type,
+        severity: signal.severity,
+        previousBotReply: conv?.lastBotReplyText || '',
+        previousCustomerMessage: conv?.lastCustomerText || ''
+      }
+    );
+    return true;
+  }
+
+  return false;
 }
 
 function intentProduct(conv, classification = {}) {
@@ -2611,6 +2961,12 @@ function outboundFingerprint(phone, text) {
 function rememberBotOutbound(phone, text, result = null) {
   state.botOutbound = state.botOutbound || {};
   state.botOutboundFingerprints = state.botOutboundFingerprints || {};
+
+  const conv = state.conversations?.[digits(phone)];
+  if (conv && String(text || '').trim()) {
+    conv.lastBotReplyText = String(text || '').trim().slice(0, 1200);
+    conv.lastBotReplyAt = Date.now();
+  }
 
   const id = outboundMessageId(result || {});
   if (id) state.botOutbound[id] = Date.now();
@@ -9190,7 +9546,31 @@ async function handleMessage({
     saveStateSoon();
   }
 
+  const learningNow = Date.now();
+  const previousCustomerText = String(conv.lastCustomerText || '');
+  const previousCustomerAt = Number(conv.lastCustomerAt || 0);
+  const learningSignal = learningSignalForIncomingMessage(
+    conv,
+    text,
+    { previousCustomerText, previousCustomerAt, now: learningNow }
+  );
+
   rememberShortConversationTurn(conv, text, { source });
+  rememberIncomingLearningContext(conv, text, learningSignal, learningNow);
+
+  if (
+    learningSignal &&
+    await handleDetectedLearningSignal({
+      phone,
+      text,
+      pushName,
+      conv,
+      source,
+      signal: learningSignal
+    })
+  ) {
+    return;
+  }
 
   if (isRapidGreetingFollowup(conv, text)) {
     return;
@@ -10749,6 +11129,26 @@ ${productCaption(product)}`
 
   if (
     fallbackSemanticIntent &&
+    String(fallbackSemanticIntent.intent || 'INCERTO') !== 'INCERTO' &&
+    Number(fallbackSemanticIntent.confidence || 0) <
+      intentConfidenceRequired(String(fallbackSemanticIntent.intent || ''), source)
+  ) {
+    await recordDetectedLearningSignal(
+      phone,
+      text,
+      pushName,
+      conv,
+      {
+        type: 'low_confidence_intent',
+        severity: 'medium',
+        consultSupport: false,
+        reason: `Classificador semântico identificou ${String(fallbackSemanticIntent.intent || '')}, mas abaixo da confiança mínima segura.`
+      }
+    );
+  }
+
+  if (
+    fallbackSemanticIntent &&
     await handleGeneralIntent({
       phone,
       text,
@@ -10762,12 +11162,38 @@ ${productCaption(product)}`
   }
 
   const supportAdvisory = await consultGustavoSupportAdvisor(text, conv, { source });
+
+  if (
+    supportAdvisory &&
+    Number(supportAdvisory.confidence || 0) > 0 &&
+    Number(supportAdvisory.confidence || 0) < SUPPORT_MIN_CONFIDENCE
+  ) {
+    await recordDetectedLearningSignal(
+      phone,
+      text,
+      pushName,
+      conv,
+      {
+        type: 'low_confidence_support',
+        severity: 'medium',
+        consultSupport: false,
+        reason: 'O segundo nível avaliou a mensagem, mas não atingiu confiança suficiente para responder automaticamente.'
+      }
+    );
+  }
+
   if (
     supportAdvisory &&
     Number(supportAdvisory.confidence || 0) >= SUPPORT_MIN_CONFIDENCE
   ) {
     if (supportAdvisory.action === 'IGNORE') {
-      await recordGustavoLearningCase(phone, text, pushName, supportAdvisory);
+      await recordGustavoLearningCase(
+        phone,
+        text,
+        pushName,
+        supportAdvisory,
+        { trigger: 'support_fallback', severity: 'medium' }
+      );
       return;
     }
 
@@ -10776,7 +11202,13 @@ ${productCaption(product)}`
       supportAdvisory.reply
     ) {
       await sendText(phone, supportAdvisory.reply);
-      await recordGustavoLearningCase(phone, text, pushName, supportAdvisory);
+      await recordGustavoLearningCase(
+        phone,
+        text,
+        pushName,
+        supportAdvisory,
+        { trigger: 'support_fallback', severity: 'medium' }
+      );
       return;
     }
 
@@ -10790,7 +11222,13 @@ ${productCaption(product)}`
         supportAdvisory.reply ||
           'Quero confirmar isso certinho para não te passar uma informação errada 😊 Vou deixar sua pergunta para o Marcelo verificar e te responder por aqui.'
       );
-      await recordGustavoLearningCase(phone, text, pushName, supportAdvisory);
+      await recordGustavoLearningCase(
+        phone,
+        text,
+        pushName,
+        supportAdvisory,
+        { trigger: 'support_fallback', severity: 'high' }
+      );
       return;
     }
   }
@@ -10806,6 +11244,18 @@ ${productCaption(product)}`
       text,
       pushName,
       'Mensagem relacionada a venda/mercadoria precisa de revisão, mas o atendimento automático continua.'
+    );
+    await recordDetectedLearningSignal(
+      phone,
+      text,
+      pushName,
+      conv,
+      {
+        type: 'commercial_fallback',
+        severity: 'medium',
+        consultSupport: false,
+        reason: 'Fluxo comercial chegou ao pedido genérico de esclarecimento sem resolver a intenção do cliente.'
+      }
     );
     return;
   }
@@ -10829,6 +11279,19 @@ ${productCaption(product)}`
       atendimentoAutomaticoContinua: true
     }
   });
+
+  await recordDetectedLearningSignal(
+    phone,
+    text,
+    pushName,
+    conv,
+    {
+      type: 'unresolved_out_of_scope',
+      severity: 'low',
+      consultSupport: false,
+      reason: 'O atendimento automático terminou em encaminhamento genérico para o Marcelo sem identificar uma resposta própria.'
+    }
+  );
 }
 
 function phoneFromWhatsappAddress(value = '') {
@@ -11342,6 +11805,16 @@ export const __test = {
   normalizeSupportAdvisory,
   supportConversationContext,
   consultGustavoSupportAdvisor,
+  normalizedLearningText,
+  isExplicitCorrectionSignal,
+  isConfusionLearningSignal,
+  isGenericOrUncertainBotReply,
+  comparableRepeatedCustomerMessage,
+  isHumanEscalationLearningSignal,
+  learningSignalForIncomingMessage,
+  rememberIncomingLearningContext,
+  recordDetectedLearningSignal,
+  handleDetectedLearningSignal,
   simpleAcknowledgementKind,
   isCreditProductIndecision,
   asksCreditProductExplanation,
