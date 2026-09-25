@@ -4935,10 +4935,10 @@ function asksCreditQuote(text) {
     /^(?:e\s+)?(?:no\s+)?(?:boleto|carne|crediario)$/.test(n);
   const creditFeasibility =
     new RegExp(
-      `(?:^|\\b)(?:no\\s+|na\\s+|pelo\\s+|pela\\s+)?${creditWord}\\b.{0,45}\\b(?:da pra|da para|tem como|pode|consegue|faz|fazer)\\b`
+      `(?:^|\\b)(?:no\\s+|na\\s+|pelo\\s+|pela\\s+)?${creditWord}\\b.{0,45}\\b(?:da pra|da para|tem como|consegue)\\b`
     ).test(n) ||
     new RegExp(
-      `\\b(?:da pra|da para|tem como|pode|consegue|faz|fazer)\\b.{0,45}(?:no\\s+|na\\s+|pelo\\s+|pela\\s+)?${creditWord}\\b`
+      `\\b(?:da pra|da para|tem como|consegue)\\b.{0,45}(?:fazer\\s+)?(?:no\\s+|na\\s+|pelo\\s+|pela\\s+)?${creditWord}\\b`
     ).test(n);
 
   return (
