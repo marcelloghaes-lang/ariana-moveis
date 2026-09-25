@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dropshipping | Ariana ERP</title>
+<style>
+:root{--blue:#0047ab;--blue2:#00377f;--bg:#f2f6fb;--line:#d8e2ef;--text:#172033;--muted:#6b7890;--green:#087a52;--amber:#9a6200;--red:#b42335}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font:14px Inter,Segoe UI,Arial,sans-serif;color:var(--text)}
+a{color:inherit}.top{background:linear-gradient(90deg,var(--blue2),var(--blue));color:#fff;padding:16px 22px;display:flex;justify-content:space-between;align-items:center;gap:16px;position:sticky;top:0;z-index:20;box-shadow:0 4px 18px rgba(0,40,100,.18)}
+.top h1{margin:0;font-size:20px}.top small{color:#dceaff}.topnav{display:flex;gap:14px;flex-wrap:wrap}.topnav a{font-weight:800;text-decoration:none}
+.wrap{max-width:1500px;margin:auto;padding:20px}.hero{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px;display:flex;justify-content:space-between;gap:16px;align-items:center}.hero h2{margin:0 0 6px}.muted{color:var(--muted)}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px}.kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}.kpi small{display:block;color:var(--muted);font-weight:800}.kpi b{display:block;font-size:22px;margin-top:7px;color:var(--blue)}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.tab{border:1px solid var(--line);background:#fff;padding:10px 14px;border-radius:9px;font-weight:900;cursor:pointer}.tab.active{background:var(--blue);border-color:var(--blue);color:#fff}
+.view{display:none}.view.active{display:block}.panel{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:15px;box-shadow:0 7px 20px rgba(0,49,118,.06)}
+.panel h3{margin-top:0}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.field label{display:block;font-size:10px;text-transform:uppercase;font-weight:900;color:var(--muted);margin-bottom:5px}.field input,.field select,.field textarea{width:100%;padding:10px;border:1px solid #cbd7e6;border-radius:8px;background:#fff}.field textarea{min-height:84px;resize:vertical}
+.btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 13px;font-weight:900;cursor:pointer}.btn.primary{background:var(--blue);color:#fff;border-color:var(--blue)}.btn.green{background:var(--green);color:#fff;border-color:var(--green)}.btn.red{background:#fff0f2;color:var(--red);border-color:#f0c6cd}.btn:disabled{opacity:.55;cursor:not-allowed}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}.notice{background:#eef5ff;border:1px solid #cddff8;border-radius:10px;padding:12px;color:#234a7e}.warn{background:#fff8e8;border-color:#efd69a;color:#6f4a00}.okbox{background:#ecf8f3;border:1px solid #bfe6d5;color:#166045;border-radius:10px;padding:12px}
+.table{overflow:auto}table{width:100%;border-collapse:collapse;min-width:960px}th{background:#f8fafc;font-size:10px;text-transform:uppercase;color:#66758d;text-align:left;padding:10px;border-bottom:1px solid var(--line)}td{padding:10px;border-bottom:1px solid #edf1f6;vertical-align:top}.pill{display:inline-block;padding:4px 8px;border-radius:999px;font-size:10px;font-weight:900;background:#eef4ff;color:var(--blue)}.pill.pending{background:#fff3d6;color:#8b5b00}.pill.good{background:#e9f7f1;color:#087a52}.pill.shipped{background:#eaf2ff;color:#145aaa}
+.row-actions{display:flex;gap:6px;flex-wrap:wrap}.empty{text-align:center;color:var(--muted);padding:24px}.hidden{display:none!important}
+.order-card{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px}.order-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.order-items{margin:10px 0;padding:10px;background:#f8fafc;border-radius:8px}.order-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.checklist{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.check{padding:10px;border:1px solid var(--line);border-radius:9px;background:#fafbfd}.check b{display:block;margin-bottom:3px}
+@media(max-width:1000px){.kpis,.grid4,.order-grid{grid-template-columns:repeat(2,1fr)}.grid3{grid-template-columns:1fr 1fr}}@media(max-width:700px){.wrap{padding:10px}.top{align-items:flex-start;flex-direction:column}.kpis,.grid2,.grid3,.grid4,.order-grid,.checklist{grid-template-columns:1fr}}
+</style>
+<link rel="stylesheet" href="erp-theme.css?v=20260924-1">
+</head>
+<body>
+<header class="top">
+  <div><h1>Fornecedores Dropshipping • Ariana ERP</h1><small>Catálogo, custo, estoque externo e pedidos enviados pelo fornecedor</small></div>
+  <div class="topnav"><a href="erp_compras_fornecedores.html">Compras / Fornecedores</a><a href="erp_produtos.html">Produtos</a><a href="admin_painel.html">Painel Admin</a><a href="erp_ariana.html">← Central ERP</a></div>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <div><h2>Operação Dropshipping</h2><div class="muted">O cliente compra na Ariana Móveis. Depois do pagamento aprovado, o pedido aparece aqui para compra e despacho no fornecedor. Produto novo fica fora da vitrine até revisão no Painel Admin.</div></div>
+    <button class="btn green" id="setup-atacadum">Configurar Atacadum</button>
+  </section>
+
+  <section class="kpis">
+    <div class="kpi"><small>Fornecedores dropshipping</small><b id="k-suppliers">—</b></div>
+    <div class="kpi"><small>Produtos vinculados</small><b id="k-products">—</b></div>
+    <div class="kpi"><small>A comprar no fornecedor</small><b id="k-pending">—</b></div>
+    <div class="kpi"><small>Em processamento</small><b id="k-ordered">—</b></div>
+    <div class="kpi"><small>Pedidos abertos</small><b id="k-open">—</b></div>
+  </section>
+
+  <nav class="tabs">
+    <button class="tab active" data-view="supplier">Fornecedor</button>
+    <button class="tab" data-view="products">Produtos</button>
+    <button class="tab" data-view="orders">Pedidos Dropshipping</button>
+  </nav>
+
+  <section class="view active" id="supplier">
+    <div class="panel">
+      <h3>Fornecedor dropshipping</h3>
+      <div class="notice warn" id="supplier-warning">Configure a Atacadum e depois confirme com o comercial as regras fiscais, embalagem, prazo, garantia e integração. O sistema não presume essas condições.</div>
+      <input type="hidden" id="supplier-id">
+      <div class="grid3" style="margin-top:12px">
+        <div class="field"><label>Fornecedor</label><select id="supplier-select"></select></div>
+        <div class="field"><label>Nome / Razão social</label><input id="supplier-name"></div>
+        <div class="field"><label>Nome fantasia</label><input id="supplier-trade"></div>
+        <div class="field"><label>CPF/CNPJ</label><input id="supplier-document"></div>
+        <div class="field"><label>Website</label><input id="supplier-website" placeholder="https://..."></div>
+        <div class="field"><label>Status integração</label><select id="supplier-integration-status"><option value="pending_commercial">Aguardando comercial</option><option value="manual_ready">Manual pronto</option><option value="api_pending">API aguardando dados</option><option value="api_ready">API pronta</option></select></div>
+        <div class="field"><label>Catálogo</label><select id="supplier-catalog-mode"><option value="manual">Manual</option><option value="csv">CSV/Planilha</option><option value="api">API</option><option value="xml">XML/Feed</option></select></div>
+        <div class="field"><label>Envio de pedidos</label><select id="supplier-integration-mode"><option value="manual">Manual</option><option value="api">API</option><option value="email">E-mail</option></select></div>
+        <div class="field"><label>Variável da credencial (Render)</label><input id="supplier-credential-env" placeholder="Ex.: ATACADUM_API_TOKEN"></div>
+        <div class="field"><label>Prazo de postagem (dias)</label><input id="supplier-sla" type="number" min="0"></div>
+        <div class="field"><label>Garantia informada (dias)</label><input id="supplier-warranty" type="number" min="0"></div>
+        <div class="field"><label>Modelo fiscal</label><input id="supplier-invoice-model" placeholder="A confirmar com fornecedor/contabilidade"></div>
+      </div>
+      <div class="grid2" style="margin-top:12px">
+        <div class="field"><label>Embalagem neutra</label><select id="supplier-neutral"><option value="">A confirmar</option><option value="true">Sim</option><option value="false">Não</option></select></div>
+        <div class="field"><label>Aceita etiqueta/documentação da Ariana</label><select id="supplier-label"><option value="">A confirmar</option><option value="true">Sim</option><option value="false">Não</option></select></div>
+      </div>
+      <div class="field" style="margin-top:12px"><label>Política de troca / devolução</label><textarea id="supplier-return"></textarea></div>
+      <div class="field" style="margin-top:12px"><label>Observações internas</label><textarea id="supplier-notes"></textarea></div>
+      <div class="toolbar"><button class="btn primary" id="supplier-save">Salvar configuração</button><a class="btn" href="erp_compras_fornecedores.html">Abrir cadastro completo do fornecedor</a></div>
+    </div>
+    <div class="panel">
+      <h3>Checklist antes de automatizar</h3>
+      <div class="checklist">
+        <div class="check"><b>Fiscal / NF-e</b><span class="muted">Confirmar com a contabilidade como serão emitidas a compra da Ariana e a venda ao consumidor.</span></div>
+        <div class="check"><b>Embalagem</b><span class="muted">Confirmar se o envio é neutro e se pode seguir com identificação da Ariana.</span></div>
+        <div class="check"><b>Estoque e preço</b><span class="muted">Definir se haverá API, CSV ou conferência manual e qual frequência de atualização.</span></div>
+        <div class="check"><b>Troca e garantia</b><span class="muted">Registrar prazo, logística reversa e responsabilidade pelo frete.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="products">
+    <div class="panel">
+      <h3>Novo produto do fornecedor</h3>
+      <div class="notice">Este cadastro cria um produto em <b>Aguardando aprovação</b>. Ele não aparece no site até você completar foto, descrição, categoria e preço e clicar em <b>Publicar no site</b> no Painel Admin.</div>
+      <div class="grid4" style="margin-top:12px">
+        <div class="field"><label>Fornecedor</label><select id="product-supplier"></select></div>
+        <div class="field"><label>SKU do fornecedor</label><input id="product-supplier-sku"></div>
+        <div class="field"><label>SKU Ariana (opcional)</label><input id="product-sku"></div>
+        <div class="field"><label>Estoque no fornecedor</label><input id="product-stock" type="number" min="0"></div>
+        <div class="field" style="grid-column:span 2"><label>Nome do produto</label><input id="product-name"></div>
+        <div class="field"><label>Marca</label><input id="product-brand"></div>
+        <div class="field"><label>Categoria</label><input id="product-category"></div>
+        <div class="field"><label>Custo do fornecedor</label><input id="product-cost" type="number" min="0" step="0.01"></div>
+        <div class="field"><label>Preço-base Ariana / PIX</label><input id="product-price" type="number" min="0" step="0.01"></div>
+        <div class="field" style="grid-column:span 2"><label>Link do produto no fornecedor</label><input id="product-url"></div>
+      </div>
+      <div class="field" style="margin-top:12px"><label>Descrição inicial</label><textarea id="product-description"></textarea></div>
+      <div class="toolbar"><button class="btn primary" id="product-create">Criar como rascunho para aprovação</button><a class="btn green" href="admin_painel.html">Revisar / publicar no Painel Admin</a></div>
+    </div>
+
+    <div class="panel">
+      <div class="toolbar"><h3 style="margin:0;margin-right:auto">Produtos Dropshipping</h3><input id="product-search" placeholder="Nome, SKU ou fornecedor" style="min-width:280px;padding:9px;border:1px solid var(--line);border-radius:8px"><button class="btn" id="product-search-btn">Buscar</button></div>
+      <div class="table"><table><thead><tr><th>Produto</th><th>Fornecedor / SKU</th><th>Custo</th><th>Preço base</th><th>Estoque externo</th><th>Vitrine</th><th>Ação</th></tr></thead><tbody id="products-body"></tbody></table></div>
+    </div>
+  </section>
+
+  <section class="view" id="orders">
+    <div class="panel">
+      <div class="toolbar"><h3 style="margin:0;margin-right:auto">Pedidos pagos com itens dropshipping</h3><select id="order-status"><option value="all">Todos</option><option value="pending_purchase">A comprar no fornecedor</option><option value="ordered_with_supplier">Pedido feito no fornecedor</option><option value="supplier_processing">Fornecedor processando</option><option value="shipped">Enviado</option><option value="delivered">Entregue</option><option value="cancelled">Cancelado</option></select><input id="order-search" placeholder="Pedido, cliente, SKU" style="min-width:240px;padding:9px;border:1px solid var(--line);border-radius:8px"><button class="btn" id="order-search-btn">Filtrar</button><button class="btn" id="order-refresh">↻ Atualizar</button></div>
+      <div id="orders-list"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const API=location.hostname==='localhost'?'http://localhost:3000/api':'https://ariana-backend.onrender.com/api';
+const $=id=>document.getElementById(id);
+let suppliers=[],products=[],orders=[];
+
+function token(){
+  const t=localStorage.getItem('admin_token')||localStorage.getItem('auth_token')||localStorage.getItem('token')||'';
+  if(t)return t;
+  try{return JSON.parse(localStorage.getItem('banner_admin_session')||'null')?.token||''}catch{return''}
+}
+function money(v){return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+function esc(v=''){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+function boolValue(id){const v=$(id).value;return v===''?null:v==='true'}
+function date(v){return v?new Date(v).toLocaleString('pt-BR'):'—'}
+async function api(path,opt={}){
+  const r=await fetch(API+path,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token(),...(opt.headers||{})},cache:'no-store'});
+  const d=await r.json().catch(()=>({}));
+  if(r.status===401){location.replace('erp_login.html?return='+encodeURIComponent(location.pathname));throw new Error('Sessão expirada.')}
+  if(!r.ok){const extra=Array.isArray(d.missing)&&d.missing.length?' Faltando: '+d.missing.join(', '):'';throw new Error((d.error||'Erro no Ariana ERP.')+extra)}
+  return d;
+}
+function switchView(id){document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.view===id));document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===id))}
+document.querySelector('.tabs').onclick=e=>{const b=e.target.closest('.tab');if(b)switchView(b.dataset.view)};
+
+async function loadDashboard(){
+  const d=await api('/erp/dropshipping/dashboard'),k=d.dashboard||{};
+  $('k-suppliers').textContent=k.suppliers??0;$('k-products').textContent=k.products??0;$('k-pending').textContent=k.pendingPurchase??0;$('k-ordered').textContent=k.ordered??0;$('k-open').textContent=k.openOrders??0;
+}
+async function loadSuppliers(){
+  const d=await api('/erp/dropshipping/fornecedores');suppliers=d.suppliers||[];
+  const opts='<option value="">Selecione...</option>'+suppliers.map(s=>`<option value="${s._id}">${esc(s.name)}</option>`).join('');
+  $('supplier-select').innerHTML=opts;$('product-supplier').innerHTML=opts;
+  if(suppliers.length&&!$('supplier-select').value){$('supplier-select').value=suppliers[0]._id;fillSupplier(suppliers[0])}
+}
+function fillSupplier(s={}){
+  $('supplier-id').value=s._id||'';$('supplier-name').value=s.name||'';$('supplier-trade').value=s.tradeName||'';$('supplier-document').value=s.document||'';$('supplier-website').value=s.website||'';
+  const ds=s.dropshipping||{};$('supplier-integration-status').value=ds.integrationStatus||'pending_commercial';$('supplier-catalog-mode').value=ds.catalogMode||'manual';$('supplier-integration-mode').value=ds.integrationMode||'manual';$('supplier-credential-env').value=ds.credentialEnvName||'';$('supplier-sla').value=Number(ds.shippingSlaDays||0);$('supplier-warranty').value=Number(ds.warrantyDays||0);$('supplier-invoice-model').value=ds.invoiceModel||'';$('supplier-neutral').value=ds.neutralPackaging===true?'true':ds.neutralPackaging===false?'false':'';$('supplier-label').value=ds.allowsOwnLabel===true?'true':ds.allowsOwnLabel===false?'false':'';$('supplier-return').value=ds.returnPolicyNotes||'';$('supplier-notes').value=s.notes||'';
+}
+async function setupAtacadum(){
+  if(!confirm('Preparar a Atacadum como fornecedor dropshipping no Ariana ERP?'))return;
+  const d=await api('/erp/dropshipping/atacadum/configurar',{method:'POST',body:'{}'});await loadSuppliers();const id=d.supplier?._id;if(id){$('supplier-select').value=id;fillSupplier(d.supplier)}await loadDashboard();alert('Atacadum preparada. Agora confirme e complete as condições comerciais antes de automatizar.');
+}
+async function saveSupplier(){
+  const id=$('supplier-id').value;if(!id)throw new Error('Selecione ou configure um fornecedor.');
+  const body={name:$('supplier-name').value,tradeName:$('supplier-trade').value,document:$('supplier-document').value,website:$('supplier-website').value,supplierType:'dropshipping',notes:$('supplier-notes').value,dropshipping:{enabled:true,integrationStatus:$('supplier-integration-status').value,catalogMode:$('supplier-catalog-mode').value,integrationMode:$('supplier-integration-mode').value,credentialEnvName:$('supplier-credential-env').value,shippingSlaDays:Number($('supplier-sla').value||0),warrantyDays:Number($('supplier-warranty').value||0),invoiceModel:$('supplier-invoice-model').value,neutralPackaging:boolValue('supplier-neutral'),allowsOwnLabel:boolValue('supplier-label'),returnPolicyNotes:$('supplier-return').value}};
+  await api('/erp/fornecedores/'+id,{method:'PATCH',body:JSON.stringify(body)});await loadSuppliers();await loadDashboard();alert('Configuração salva.');
+}
+async function loadProducts(){
+  const q=$('product-search').value.trim(),d=await api('/erp/dropshipping/produtos'+(q?'?q='+encodeURIComponent(q):''));products=d.products||[];
+  $('products-body').innerHTML=products.map(p=>{const ds=p.dropshipping||{},st=String(p.storefrontStatus||'');const badge=st==='pending_review'?'<span class="pill pending">Aguardando aprovação</span>':'<span class="pill good">Publicado</span>';return `<tr><td><b>${esc(p.name)}</b><br><small>${esc(p.sku||'')}</small></td><td>${esc(ds.supplierName||'—')}<br><small>${esc(ds.supplierSku||'—')}</small></td><td>${money(ds.costPrice||0)}</td><td>${money(p.price||0)}</td><td>${Number(ds.externalStock??p.stock??0)}</td><td>${badge}</td><td><div class="row-actions">${ds.supplierProductUrl?`<a class="btn" href="${esc(ds.supplierProductUrl)}" target="_blank">Fornecedor</a>`:''}<a class="btn primary" href="admin_painel.html">Editar / Publicar</a></div></td></tr>`}).join('')||'<tr><td colspan="7" class="empty">Nenhum produto dropshipping cadastrado.</td></tr>';
+}
+async function createProduct(){
+  const body={supplierId:$('product-supplier').value,supplierSku:$('product-supplier-sku').value,sku:$('product-sku').value,name:$('product-name').value,brand:$('product-brand').value,category:$('product-category').value,costPrice:Number($('product-cost').value||0),price:Number($('product-price').value||0),externalStock:Number($('product-stock').value||0),supplierProductUrl:$('product-url').value,description:$('product-description').value};
+  await api('/erp/dropshipping/produtos',{method:'POST',body:JSON.stringify(body)});
+  ['product-supplier-sku','product-sku','product-name','product-brand','product-category','product-cost','product-price','product-stock','product-url','product-description'].forEach(id=>$(id).value='');
+  await Promise.all([loadProducts(),loadDashboard()]);alert('Produto criado como Aguardando aprovação. Ele ainda não está na vitrine.');
+}
+function queueLabel(s){return({pending_purchase:'A comprar no fornecedor',ordered_with_supplier:'Pedido feito no fornecedor',supplier_processing:'Fornecedor processando',shipped:'Enviado',delivered:'Entregue',cancelled:'Cancelado'})[s]||s}
+function queueClass(s){return s==='pending_purchase'?'pending':s==='shipped'||s==='delivered'?'shipped':'good'}
+async function loadOrders(){
+  const p=new URLSearchParams(),st=$('order-status').value,q=$('order-search').value.trim();if(st&&st!=='all')p.set('status',st);if(q)p.set('q',q);
+  const d=await api('/erp/dropshipping/pedidos'+(p.toString()?'?'+p.toString():''));orders=d.orders||[];
+  $('orders-list').innerHTML=orders.map(o=>`<div class="order-card">
+    <div class="order-head"><div><b>Pedido #${esc(String(o.orderId).slice(-8).toUpperCase())}</b><div class="muted">${esc(o.customerName)} • ${date(o.createdAt)} • ${money(o.total)}</div></div><span class="pill ${queueClass(o.status)}">${queueLabel(o.status)}</span></div>
+    <div class="order-items">${(o.items||[]).map(i=>`<div><b>${Number(i.qty||1)}x ${esc(i.name)}</b> • SKU fornecedor: ${esc(i.supplierSku||'—')} • ${esc(i.supplierName||'—')} • custo ref. ${money(i.supplierCost||0)} ${i.supplierProductUrl?`• <a href="${esc(i.supplierProductUrl)}" target="_blank">abrir fornecedor</a>`:''}</div>`).join('')}</div>
+    <div class="muted" style="margin-bottom:10px"><b>Entrega:</b> ${esc(formatAddress(o.shippingAddress))}</div>
+    <div class="order-grid">
+      <div class="field"><label>Status</label><select class="q-status" data-id="${o.orderId}"><option value="pending_purchase" ${o.status==='pending_purchase'?'selected':''}>A comprar no fornecedor</option><option value="ordered_with_supplier" ${o.status==='ordered_with_supplier'?'selected':''}>Pedido feito no fornecedor</option><option value="supplier_processing" ${o.status==='supplier_processing'?'selected':''}>Fornecedor processando</option><option value="shipped" ${o.status==='shipped'?'selected':''}>Enviado</option><option value="delivered" ${o.status==='delivered'?'selected':''}>Entregue</option><option value="cancelled" ${o.status==='cancelled'?'selected':''}>Cancelado</option></select></div>
+      <div class="field"><label>Nº pedido no fornecedor</label><input class="q-supplier-order" data-id="${o.orderId}" value="${esc(o.supplierOrderNumber||'')}"></div>
+      <div class="field"><label>Rastreio</label><input class="q-tracking" data-id="${o.orderId}" value="${esc(o.trackingCode||'')}"></div>
+      <div class="field"><label>URL rastreio</label><input class="q-tracking-url" data-id="${o.orderId}" value="${esc(o.trackingUrl||'')}"></div>
+    </div>
+    <div class="field" style="margin-top:8px"><label>Observação interna</label><input class="q-notes" data-id="${o.orderId}" value="${esc(o.notes||'')}"></div>
+    <div class="toolbar" style="justify-content:flex-end"><button class="btn primary save-order" data-id="${o.orderId}">Salvar acompanhamento</button></div>
+  </div>`).join('')||'<div class="empty">Nenhum pedido pago com produto dropshipping nesta fila.</div>';
+}
+function formatAddress(a){if(!a)return'Endereço não informado';if(typeof a==='string')return a;return[a.logradouro||a.street,a.numero||a.number,a.complemento||a.complement,a.bairro||a.neighborhood,a.cidade||a.city,a.uf||a.state,a.cep||a.zip].filter(Boolean).join(', ')}
+async function saveOrder(id){
+  const get=cls=>document.querySelector(`.${cls}[data-id="${CSS.escape(id)}"]`)?.value||'';
+  const body={status:get('q-status'),supplierOrderNumber:get('q-supplier-order'),trackingCode:get('q-tracking'),trackingUrl:get('q-tracking-url'),notes:get('q-notes')};
+  await api('/erp/dropshipping/pedidos/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify(body)});await Promise.all([loadOrders(),loadDashboard()]);alert('Acompanhamento atualizado.');
+}
+
+$('setup-atacadum').onclick=()=>setupAtacadum().catch(e=>alert(e.message));
+$('supplier-select').onchange=e=>{const s=suppliers.find(x=>String(x._id)===e.target.value);if(s)fillSupplier(s)};
+$('supplier-save').onclick=()=>saveSupplier().catch(e=>alert(e.message));
+$('product-create').onclick=()=>createProduct().catch(e=>alert(e.message));
+$('product-search-btn').onclick=()=>loadProducts().catch(e=>alert(e.message));
+$('order-search-btn').onclick=()=>loadOrders().catch(e=>alert(e.message));
+$('order-refresh').onclick=()=>Promise.all([loadOrders(),loadDashboard()]).catch(e=>alert(e.message));
+$('orders-list').onclick=e=>{const b=e.target.closest('.save-order');if(b)saveOrder(b.dataset.id).catch(err=>alert(err.message))};
+
+if(!token()) location.replace('erp_login.html?return='+encodeURIComponent(location.pathname));
+else Promise.all([loadDashboard(),loadSuppliers(),loadProducts(),loadOrders()]).catch(e=>alert(e.message));
+</script>
+</body>
+</html>

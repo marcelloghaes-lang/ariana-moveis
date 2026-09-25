@@ -12,6 +12,7 @@ import { createErpPurchasePayablesService } from '../../services/erp/erpPurchase
 import { createErpRecurringFinanceService } from '../../services/erp/erpRecurringFinanceService.js';
 import { createErpPaymentReceiptService } from '../../services/erp/erpPaymentReceiptService.js';
 import { createErpDebtAgreementService } from '../../services/erp/erpDebtAgreementService.js';
+import { createErpDropshippingService } from '../../services/erp/erpDropshippingService.js';
 
 const identity=req=>req.adminUser||req.admin||req.auth||req.user||{};
 const isFullAdmin=req=>{const u=identity(req),role=String(u.role||'').trim().toLowerCase();return role==='admin'||u.admin===true||u.isSuperAdmin===true};
@@ -19,7 +20,7 @@ const adminOnly=req=>{if(isFullAdmin(req))return;const error=new Error('Esta inf
 
 export default function createErpManagementRoutes(context={}){
  const router=express.Router();if(!context.adminRequired)throw new Error('[erp-management] adminRequired não informado');
- const ledger=createErpLedgerService(context),stock=createErpStockMovementService(context),reports=createErpReportService(context),settings=createErpSettingsService(context),reconciliation=createErpReconciliationService(context),commissions=createErpCommissionService(context),advancedFinance=createErpAdvancedFinanceReportService(context),profitability=createErpProfitabilityService(context),purchases=createErpPurchaseService(context),purchasePayables=createErpPurchasePayablesService(context),recurringFinance=createErpRecurringFinanceService(context),paymentReceipts=createErpPaymentReceiptService(context),debtAgreements=createErpDebtAgreementService(context);const actor=req=>req.admin||req.auth||req.user||{};
+ const ledger=createErpLedgerService(context),stock=createErpStockMovementService(context),reports=createErpReportService(context),settings=createErpSettingsService(context),reconciliation=createErpReconciliationService(context),commissions=createErpCommissionService(context),advancedFinance=createErpAdvancedFinanceReportService(context),profitability=createErpProfitabilityService(context),purchases=createErpPurchaseService(context),purchasePayables=createErpPurchasePayablesService(context),recurringFinance=createErpRecurringFinanceService(context),paymentReceipts=createErpPaymentReceiptService(context),debtAgreements=createErpDebtAgreementService(context),dropshipping=createErpDropshippingService(context);const actor=req=>req.admin||req.auth||req.user||{};
  const handle=(fn,status=200)=>async(req,res)=>{try{const result=await fn(req);return res.status(status).json({ok:true,...(result&&typeof result==='object'&&!Array.isArray(result)?result:{data:result})})}catch(e){console.error('[erp-management]',e);return res.status(Number(e?.statusCode||500)).json({ok:false,error:e?.message||'Erro no módulo de gestão do ERP.',code:e?.code||'ERP_MANAGEMENT_ERROR'})}};
  router.get('/erp/configuracoes',context.adminRequired,handle(async()=>({settings:await settings.get()})));
  router.put('/erp/configuracoes',context.adminRequired,handle(async req=>({settings:await settings.update(req.body||{},actor(req))})));
@@ -68,6 +69,14 @@ export default function createErpManagementRoutes(context={}){
  router.post('/erp/compras/:id/contas-pagar/preview',context.adminRequired,handle(async req=>{adminOnly(req);return await purchasePayables.preview(req.params.id,req.body||{})}));
  router.post('/erp/compras/:id/contas-pagar/gerar',context.adminRequired,handle(async req=>{adminOnly(req);return await purchasePayables.generate(req.params.id,req.body||{},identity(req))}));
  router.post('/erp/compras/:id/cancelar',context.adminRequired,handle(async req=>{adminOnly(req);return{purchase:await purchases.cancelPurchase(req.params.id,identity(req))}}));
+ router.get('/erp/dropshipping/dashboard',context.adminRequired,handle(async req=>{adminOnly(req);return{dashboard:await dropshipping.dashboard()}}));
+ router.get('/erp/dropshipping/fornecedores',context.adminRequired,handle(async req=>{adminOnly(req);return{suppliers:await dropshipping.listSuppliers(req.query||{})}}));
+ router.post('/erp/dropshipping/atacadum/configurar',context.adminRequired,handle(async req=>{adminOnly(req);return{supplier:await dropshipping.setupAtacadum(identity(req))}},201));
+ router.get('/erp/dropshipping/produtos',context.adminRequired,handle(async req=>{adminOnly(req);return{products:await dropshipping.listProducts(req.query||{})}}));
+ router.post('/erp/dropshipping/produtos',context.adminRequired,handle(async req=>{adminOnly(req);return{product:await dropshipping.createDraftProduct(req.body||{},identity(req))}},201));
+ router.patch('/erp/dropshipping/produtos/:id',context.adminRequired,handle(async req=>{adminOnly(req);return{product:await dropshipping.updateProduct(req.params.id,req.body||{},identity(req))}}));
+ router.get('/erp/dropshipping/pedidos',context.adminRequired,handle(async req=>{adminOnly(req);return{orders:await dropshipping.listOrders(req.query||{})}}));
+ router.patch('/erp/dropshipping/pedidos/:id',context.adminRequired,handle(async req=>{adminOnly(req);return{order:await dropshipping.updateOrder(req.params.id,req.body||{},identity(req))}}));
  router.get('/erp/estoque/movimentacoes',context.adminRequired,handle(async req=>({movements:await stock.list(req.query||{})})));
  router.post('/erp/estoque/:productId/movimentacoes',context.adminRequired,handle(async req=>await stock.move(req.params.productId,req.body||{},actor(req)),201));
  router.get('/erp/relatorios/vendas',context.adminRequired,handle(async req=>({report:await reports.sales(req.query||{})})));
