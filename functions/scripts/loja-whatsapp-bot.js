@@ -121,6 +121,42 @@ const GENERAL_INTENTS = Object.freeze([
 ]);
 
 const SITE_URL = 'https://arianamoveis.com.br';
+const ARIANA_ALLOWED_HOSTS = new Set([
+  'arianamoveis.com.br',
+  'www.arianamoveis.com.br'
+]);
+const EXTERNAL_COMMERCE_HOSTS = new Set([
+  'mercadolivre.com.br',
+  'www.mercadolivre.com.br',
+  'mercadolivre.com',
+  'www.mercadolivre.com',
+  'meli.la',
+  'amazon.com.br',
+  'www.amazon.com.br',
+  'amzn.to',
+  'magazineluiza.com.br',
+  'www.magazineluiza.com.br',
+  'magalu.com',
+  'www.magalu.com',
+  'casasbahia.com.br',
+  'www.casasbahia.com.br',
+  'pontofrio.com.br',
+  'www.pontofrio.com.br',
+  'extra.com.br',
+  'www.extra.com.br',
+  'shopee.com.br',
+  'www.shopee.com.br',
+  'americanas.com.br',
+  'www.americanas.com.br',
+  'carrefour.com.br',
+  'www.carrefour.com.br',
+  'fastshop.com.br',
+  'www.fastshop.com.br',
+  'kabum.com.br',
+  'www.kabum.com.br',
+  'madeiramadeira.com.br',
+  'www.madeiramadeira.com.br'
+]);
 const PIX_KEY = '31985147119';
 const PIX_BANK = 'BTG';
 const PIX_HOLDER = 'Marcelo Nunes Silva';
@@ -2118,6 +2154,8 @@ async function consultGustavoSupportAdvisor(
     'Nunca invente preço, estoque, dimensão, voltagem, garantia, prazo, política, condição, parcela, baixa financeira, aprovação de crédito, desconto ou acordo.',
     'Use apenas fatos presentes no contexto estruturado. Se a resposta depender de um fato ausente, escolha HUMAN.',
     'Nunca confirme baixa de pagamento, acordo financeiro, desconto especial ou aprovação de crediário.',
+    'Nunca recomende, divulgue, facilite checkout ou incentive compra em Mercado Livre, Amazon, Magalu, Shopee, Casas Bahia ou qualquer outra loja/marketplace concorrente.',
+    'Links externos enviados pelo cliente servem somente como referência para entender o produto; a resposta deve manter a compra dentro da Ariana Móveis e nunca repetir o link concorrente como destino de compra.',
     'REPLY: só quando a resposta é segura com os dados fornecidos.',
     'CLARIFY: quando uma pergunta curta e específica ao cliente resolve a ambiguidade.',
     'HUMAN: quando faltar dado real da loja ou houver risco de afirmar algo não confirmado.',
@@ -4067,6 +4105,106 @@ function asksPaymentConditionAdjustment(text, conv = {}) {
     conv?.lastIntent === 'produto' ||
     /\b(condicao|condicoes|pagamento|parcela|parcelas|cartao|credito|crediario|carne|boleto|pix|valor)\b/.test(n)
   );
+}
+
+function extractHttpUrls(text = '') {
+  return String(text || '')
+    .match(/https?:\/\/[^\s<>]+/gi)
+    ?.map((url) => url.replace(/[),.;!?]+$/g, '')) || [];
+}
+
+function urlHostname(url = '') {
+  try {
+    return new URL(String(url || '')).hostname.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function isArianaOwnedUrl(url = '') {
+  const host = urlHostname(url);
+  return Boolean(host && ARIANA_ALLOWED_HOSTS.has(host));
+}
+
+function isExternalCommerceUrl(url = '') {
+  const host = urlHostname(url);
+  if (!host || ARIANA_ALLOWED_HOSTS.has(host)) return false;
+  if (EXTERNAL_COMMERCE_HOSTS.has(host)) return true;
+
+  return [...EXTERNAL_COMMERCE_HOSTS].some(
+    (known) => host === known || host.endsWith(`.${known}`)
+  );
+}
+
+function externalCommerceUrls(text = '') {
+  return extractHttpUrls(text).filter(isExternalCommerceUrl);
+}
+
+function mentionsExternalCommerceBrand(text = '') {
+  const n = normalize(text);
+  return /\b(mercado livre|mercadolivre|amazon|magalu|magazine luiza|casas bahia|ponto frio|shopee|americanas|carrefour|fast shop|fastshop|kabum|madeira madeira)\b/.test(n);
+}
+
+function asksToBuyOnExternalCommerce(text = '') {
+  const n = normalize(text);
+  const externalContext = externalCommerceUrls(text).length > 0 || mentionsExternalCommerceBrand(text);
+  if (!externalContext) return false;
+
+  return (
+    /\b(finalizar|fechar|concluir|continuar|fazer)\b.{0,30}\b(compra|pedido|carrinho|checkout)\b/.test(n) ||
+    /\b(compra|pedido|carrinho|checkout)\b.{0,30}\b(finalizar|fechar|concluir|continuar|fazer)\b/.test(n) ||
+    /\b(comprar|compro|compra)\b.{0,30}\b(la|nesse site|nesse link|por esse link)\b/.test(n)
+  );
+}
+
+async function handleExternalCommerceReference({
+  phone,
+  text,
+  pushName = '',
+  conv
+}) {
+  const urls = externalCommerceUrls(text);
+  const brandOnly = mentionsExternalCommerceBrand(text);
+  if (!urls.length && !brandOnly) return false;
+
+  const category = detectCategory(text);
+  const explicitExternalPurchase = asksToBuyOnExternalCommerce(text);
+
+  conv.pendingAction = '';
+  conv.lastIntent = 'produto';
+  saveStateSoon();
+
+  if (category) {
+    await sendText(
+      phone,
+      explicitExternalPurchase
+        ? `Eu não finalizo nem encaminho compras para outra loja. Posso usar isso só como referência e procurar *${category}* aqui na Ariana Móveis 😊 Vou te mostrar as opções do nosso catálogo.`
+        : `Recebi a referência 😊 Não vou te direcionar para outra loja. Vou procurar *${category}* aqui na Ariana Móveis para te mostrar opções do nosso catálogo.`
+    );
+    await showProducts(phone, conv, category, text);
+  } else {
+    await sendText(
+      phone,
+      explicitExternalPurchase
+        ? 'Eu não finalizo nem encaminho compras para outra loja 😊 Posso usar o link apenas como referência. Me envie o nome ou um print dos produtos que você viu e eu procuro opções iguais ou parecidas aqui na Ariana Móveis.'
+        : 'Recebi o link 😊 Vou usar apenas como referência e não vou te direcionar para outra loja. Se você me mandar o nome ou um print dos produtos, eu procuro opções iguais ou parecidas aqui na Ariana Móveis.'
+    );
+  }
+
+  await syncTicket(phone, {
+    status: 'Atendimento normal',
+    message: String(text || '').trim(),
+    name: pushName,
+    metadata: {
+      assunto: 'referencia_link_externo',
+      linkExternoSomenteReferencia: true,
+      naoIndicarConcorrentes: true,
+      externalCommerceHosts: urls.map(urlHostname).filter(Boolean).slice(0, 5),
+      ...(category ? { category } : {})
+    }
+  });
+
+  return true;
 }
 
 function asksProductLink(text) {
@@ -9550,6 +9688,17 @@ async function handleMessage({
     saveStateSoon();
   }
 
+  if (
+    await handleExternalCommerceReference({
+      phone,
+      text,
+      pushName,
+      conv
+    })
+  ) {
+    return;
+  }
+
   const learningNow = Date.now();
   const previousCustomerText = String(conv.lastCustomerText || '');
   const previousCustomerAt = Number(conv.lastCustomerAt || 0);
@@ -11877,6 +12026,14 @@ export const __test = {
   asksCashDiscount,
   asksPaymentConditionAdjustment,
   asksProductLink,
+  extractHttpUrls,
+  urlHostname,
+  isArianaOwnedUrl,
+  isExternalCommerceUrl,
+  externalCommerceUrls,
+  mentionsExternalCommerceBrand,
+  asksToBuyOnExternalCommerce,
+  handleExternalCommerceReference,
   asksStoreAssortment,
   asksHowToBuyFromStore,
   asksGenericStorePurchase,
