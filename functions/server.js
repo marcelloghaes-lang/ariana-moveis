@@ -2953,6 +2953,21 @@ startErpFifteenDayOverdueWhatsappWorker({
   toJSON,
   redact
 });
+setTimeout(async()=>{
+  try{
+    const Entry=mongoose.models.ErpFinancialEntry;
+    if(!Entry||mongoose.connection.readyState!==1)return;
+    const filter={direction:'payable',origin:'sige_import',$or:[{value:{$gte:10000000}},{value:{$lte:-10000000}}]};
+    const rows=await Entry.collection.find(filter).project({_id:1,value:1,paidValue:1,payments:1}).toArray();
+    const unsafe=rows.filter(r=>Number(r.paidValue||0)>0||(Array.isArray(r.payments)&&r.payments.length));
+    if(unsafe.length){console.error('[erp-cleanup] LIMPEZA BLOQUEADA: anomalia histórica a pagar possui pagamento vinculado.',{count:unsafe.length});return}
+    if(!rows.length)return;
+    const ids=rows.map(r=>r._id),totalValue=rows.reduce((s,r)=>s+Number(r.value||0),0);
+    const result=await Entry.collection.deleteMany({_id:{$in:ids},direction:'payable',origin:'sige_import'});
+    await IntegrationAuditLog.create({scope:'erp_ariana',eventType:'erp.finance.historical_payable_anomalies_deleted',status:'success',message:'Anomalias históricas importadas de contas a pagar removidas por autorização administrativa.',metadata:{count:Number(result.deletedCount||0),totalValue,threshold:10000000}});
+    console.log('[erp-cleanup] anomalias históricas a pagar removidas',{count:result.deletedCount,totalValue});
+  }catch(error){console.error('[erp-cleanup] falha segura; nenhum filtro amplo executado',error?.message||error)}
+},45000).unref?.();
 registerCrediarioConversationRoutes(app, { mongoose, adminRequired });
 registerAdminUserRoutes(app, { User, AdminAuditLog, AdminSession, AdminLoginEvent, adminRequired, bcrypt, mongoose, isSuperAdminEmail });
 
