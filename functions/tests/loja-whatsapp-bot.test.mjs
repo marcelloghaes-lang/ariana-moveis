@@ -8669,3 +8669,246 @@ test('emoji positivo com caractere invisível continua reconhecido como reação
   assert.equal(bot.emojiOnlyIntent('\u200e😊\u200f'), 'positive');
   assert.equal(bot.emojiOnlyIntent('\u2060🙏\u2060'), 'positive');
 });
+
+
+test('print Angela: resposta de bem-estar continua a conversa sem repetir boas-vindas', async () => {
+  const phone = '5533977000101';
+
+  await bot.handleMessage({
+    phone,
+    text: 'Oi boa tarde',
+    pushName: 'Angela 2 Cliente'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /^Boa tarde, Angela! 😊 Tudo bem\?/i);
+
+  sentTexts = [];
+
+  await bot.handleMessage({
+    phone,
+    text: 'Tudo bem sim',
+    pushName: 'Angela 2 Cliente'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /^Ah, que bom 😊/i);
+  assert.match(sentTexts[0].text, /O que você tá precisando pra hoje\?/i);
+  assert.doesNotMatch(sentTexts[0].text, /Seja bem-vind[oa]|Tudo bem\?/i);
+});
+
+test('print Angela: ok depois de pedir Marcelo não dispara resposta genérica', async () => {
+  const phone = '5533977000102';
+
+  bot.patchTestIntentClassification({
+    intent: 'FALAR_COM_MARCELO',
+    confidence: 0.99,
+    category: '',
+    product_reference: '',
+    product_ordinal: 0,
+    installments: 0,
+    payment_method: 'unknown',
+    location_hint: ''
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'Nesse número eu consigo falar direto com o Marcelo',
+    pushName: 'Angela 2 Cliente'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Marcelo está em outro atendimento/i);
+
+  sentTexts = [];
+
+  await bot.handleMessage({
+    phone,
+    text: 'Ok',
+    pushName: 'Angela 2 Cliente'
+  });
+
+  assert.equal(sentTexts.length, 0);
+  assert.equal(bot.conversation(phone).marceloCallbackRequested, true);
+});
+
+test('print Leiliane: obgd após encaminhamento financeiro recebe só cortesia curta', async () => {
+  const phone = '5533977000103';
+
+  bot.patchTestConversation(phone, {
+    marceloCallbackRequested: true,
+    marceloCallbackRequestedAt: Date.now()
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'Obgd',
+    pushName: 'Leiliane Cliente'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.equal(sentTexts[0].text, 'Por nada 😊');
+  assert.doesNotMatch(sentTexts[0].text, /Não consigo te ajudar|Marcelo chegar|fotos de produtos/i);
+});
+
+test('print Nadia: segunda saudação rápida após comprovante não duplica cumprimento', async () => {
+  const phone = '5533977000104';
+
+  await bot.acknowledgePaymentProof(phone, bot.conversation(phone), {
+    text: 'Cliente enviou comprovante',
+    pushName: 'Nadia Oliveira',
+    paymentMethod: 'pix'
+  });
+
+  sentTexts = [];
+
+  await bot.handleMessage({
+    phone,
+    text: 'Oi',
+    pushName: 'Nadia Oliveira'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'Bom dia',
+    pushName: 'Nadia Oliveira'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /^(?:Bom dia|Boa tarde|Boa noite), Nadia! 😊 Tudo bem\?/i);
+});
+
+test('print Nadia: primeira parcela após comprovante é vinculada ao comprovante sem confirmar baixa', async () => {
+  const phone = '5533977000105';
+
+  await bot.acknowledgePaymentProof(phone, bot.conversation(phone), {
+    text: 'Comprovante PIX recebido',
+    pushName: 'Nadia Oliveira',
+    paymentMethod: 'pix'
+  });
+
+  sentTexts = [];
+  backendEvents = [];
+
+  await bot.handleMessage({
+    phone,
+    text: 'E a primeira parcela tá bom',
+    pushName: 'Nadia Oliveira'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /primeira parcela/i);
+  assert.match(sentTexts[0].text, /continua em análise/i);
+  assert.match(sentTexts[0].text, /baixa só fica confirmada depois da conferência/i);
+  assert.doesNotMatch(sentTexts[0].text, /Me conta um pouco mais do produto/i);
+
+  assert.equal(backendEvents.length, 1);
+  assert.equal(backendEvents[0].metadata.referenciaParcela, 'primeira');
+  assert.equal(backendEvents[0].metadata.naoConfirmarBaixaAutomaticamente, true);
+});
+
+test('print Lorrane: indecisão no produto durante crediário recebe ajuda para escolher', async () => {
+  const phone = '5533977000106';
+
+  bot.patchTestConversation(phone, {
+    pendingAction: 'crediario_product',
+    creditContextUntil: Date.now() + 30 * 60 * 1000
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'Ainda estou em dúvida',
+    pushName: 'Lorrane'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /pode escolher o produto primeiro/i);
+  assert.match(sentTexts[0].text, /faixa de valor/i);
+  assert.match(sentTexts[0].text, /eu te ajudo a encontrar opções/i);
+  assert.doesNotMatch(sentTexts[0].text, /Me conta um pouco mais do produto ou da condição/i);
+  assert.equal(bot.conversation(phone).pendingAction, 'crediario_product');
+});
+
+test('print Lorrane: como assim explica por que precisa do produto no crediário', async () => {
+  const phone = '5533977000107';
+
+  bot.patchTestConversation(phone, {
+    pendingAction: 'crediario_product',
+    creditContextUntil: Date.now() + 30 * 60 * 1000
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'Como assim?',
+    pushName: 'Lorrane'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /abrir a solicitação do crediário com o valor correto/i);
+  assert.match(sentTexts[0].text, /preciso saber qual produto/i);
+  assert.match(sentTexts[0].text, /posso te ajudar a escolher primeiro/i);
+});
+
+test('apoio de segundo nível encaminha dúvida sem dado real em vez de inventar', async () => {
+  const phone = '5533977000108';
+  const tv = bot.compactProduct(product('support-tv-1', 'Smart TV Exemplo 50', {
+    category: 'TV',
+    stock: 2,
+    pixPrice: 1999,
+    price: 2399
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: tv,
+    lastProducts: [tv],
+    lastIntent: 'produto'
+  });
+
+  bot.patchTestSupportAdvisory({
+    action: 'HUMAN',
+    confidence: 0.96,
+    reply: 'Quero confirmar essa informação certinho para não te passar algo errado 😊 Vou deixar para o Marcelo verificar e te responder por aqui.',
+    reason: 'A especificação perguntada não está presente nos dados confiáveis do produto.'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'Esse modelo tem uma proteção especial que não aparece na descrição?',
+    pushName: 'Cliente Apoio'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /confirmar essa informação certinho/i);
+  assert.doesNotMatch(sentTexts[0].text, /tem sim|não tem/i);
+  assert.equal(bot.conversation(phone).marceloCallbackRequested, true);
+
+  const learning = backendEvents.find((event) => event.status === 'Aprendizado do Gustavo');
+  assert.ok(learning, 'deve registrar caso para aprendizado');
+  assert.equal(learning.metadata.apoioSegundoNivel, true);
+  assert.equal(learning.metadata.supportAction, 'HUMAN');
+  assert.equal(learning.metadata.revisarParaRegraFutura, true);
+});
+
+test('apoio de segundo nível pode responder com segurança quando há contexto suficiente', async () => {
+  const phone = '5533977000109';
+
+  bot.patchTestSupportAdvisory({
+    action: 'REPLY',
+    confidence: 0.94,
+    reply: 'Consigo te ajudar com isso 😊 Me diga qual modelo você está olhando para eu conferir certinho.',
+    reason: 'Pergunta comercial segura para pedir identificação do produto.'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'Quero saber uma informação mais específica de um produto',
+    pushName: 'Cliente Apoio'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /qual modelo você está olhando/i);
+
+  const learning = backendEvents.find((event) => event.status === 'Aprendizado do Gustavo');
+  assert.ok(learning);
+  assert.equal(learning.metadata.supportAction, 'REPLY');
+});
