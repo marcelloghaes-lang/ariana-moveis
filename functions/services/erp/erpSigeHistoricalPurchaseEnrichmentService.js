@@ -344,6 +344,25 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
     }
 
     const queries=[];
+    const referenceDate=dateOrNull(fallback.date);
+    if(referenceDate){
+      const from=new Date(referenceDate);from.setUTCDate(from.getUTCDate()-2);from.setUTCHours(0,0,0,0);
+      const to=new Date(referenceDate);to.setUTCDate(to.getUTCDate()+2);to.setUTCHours(23,59,59,999);
+      const dateParams={dataInicial:from.toISOString(),dataFinal:to.toISOString()};
+      // O SIGE permite escolher qual data da venda será filtrada.
+      // Testamos os quatro marcos possíveis, sempre mantendo cliente/documento
+      // e só aceitando ID interno exatamente igual ao sourceSaleId.
+      for(const filtrarPor of [0,1,2,3]){
+        if(personDocument)queries.push({
+          label:`customer_document_date_${filtrarPor}_and_sale_id`,
+          params:{cpf_cnpj:personDocument,...dateParams,filtrarPor}
+        });
+        if(personName)queries.push({
+          label:`customer_name_date_${filtrarPor}_and_sale_id`,
+          params:{cliente:personName,...dateParams,filtrarPor}
+        });
+      }
+    }
     if(personDocument)queries.push({label:'customer_document_and_sale_id',params:{cpf_cnpj:personDocument}});
     if(personName)queries.push({label:'customer_name_and_sale_id',params:{cliente:personName}});
 
@@ -405,7 +424,8 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
       console.warn('[erp-sige-enrichment] compra histórica órfã não localizada no SIGE',{
         sourceSaleId:sid,
         customerName:personName||'',
-        customerDocument:personDocument?'informado':'ausente'
+        customerDocument:personDocument?'informado':'ausente',
+        referenceDate:referenceDate?referenceDate.toISOString():''
       });
       return null;
     }
@@ -418,6 +438,7 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
         matchedBy,
         sourceSaleId:sid,
         financialCodes,
+        referenceDate:referenceDate||null,
         recoveredAt:new Date(),
         entryCount:entries.length,
         financeUntouched:true
