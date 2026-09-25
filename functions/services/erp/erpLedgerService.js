@@ -89,7 +89,7 @@ export function createErpLedgerService(context={}){
     const installmentByEntry=new Map();
 
     if(saleIds.length){
-      const HistoricalSale=db?.models?.ErpSigeHistoricalSale||context.mongoose?.models?.ErpSigeHistoricalSale;
+      const HistoricalSale=context.mongoose?.models?.ErpSigeHistoricalSale||mongoose.models?.ErpSigeHistoricalSale||null;
       const historicalSales=HistoricalSale?await HistoricalSale.find({sourceSystem:'sige',sourceId:{$in:saleIds}}).lean():[];
       const originalTotalBySale=new Map(historicalSales.map(s=>{
         const live=s?.metadata?.sigeLive||{};
