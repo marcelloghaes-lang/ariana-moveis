@@ -114,12 +114,30 @@ export function createErpLedgerService(context={}){
           if(as!==bs)return as.localeCompare(bs,'pt-BR',{numeric:true});
           return String(a?._id||'').localeCompare(String(b?._id||''));
         });
-        const total=list.length;
-        list.forEach((row,index)=>installmentByEntry.set(String(row._id),{
-          number:index+1,
-          installments:total,
-          sourceSaleId:sid
-        }));
+        // Uma mesma compra histórica pode conter lançamentos duplicados.
+        // O parcelamento real é a sequência de vencimentos da compra, não a
+        // quantidade bruta de documentos financeiros encontrados.
+        const dueKey=row=>{
+          const d=new Date(row?.dueAt||row?.competenceAt||row?.createdAt||0);
+          return Number.isNaN(d.getTime())?'':d.toISOString().slice(0,10);
+        };
+        const installmentGroups=new Map();
+        for(const row of list){
+          const key=dueKey(row)||String(row?._id||'');
+          if(!installmentGroups.has(key))installmentGroups.set(key,[]);
+          installmentGroups.get(key).push(row);
+        }
+        const orderedGroups=[...installmentGroups.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+        const total=orderedGroups.length;
+        orderedGroups.forEach(([,sameInstallment],index)=>{
+          for(const row of sameInstallment){
+            installmentByEntry.set(String(row._id),{
+              number:index+1,
+              installments:total,
+              sourceSaleId:sid
+            });
+          }
+        });
       }
     }
 
