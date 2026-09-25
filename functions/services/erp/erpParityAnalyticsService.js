@@ -50,7 +50,10 @@ export function createErpParityAnalyticsService(context={}){
  async function finance(q={}){
   const Entry=mongoose.models.ErpFinancialEntry;
   if(!Entry)throw Object.assign(new Error('Financeiro ainda não inicializado.'),{statusCode:503});
-  const filter={};
+  // Dívidas que viraram acordo permanecem preservadas para auditoria, mas
+  // nunca podem compor novamente saldo, cobrança, inadimplência ou KPIs.
+  const filter={renegotiatedAt:{$exists:false}};
+  if(q.includeRenegotiated==='true')delete filter.renegotiatedAt;
   if(['receivable','payable'].includes(q.direction))filter.direction=q.direction;
   if(q.origin)filter.origin=clean(q.origin,80);
   if(q.categoryId)filter.categoryId=clean(q.categoryId,120);
@@ -68,7 +71,7 @@ export function createErpParityAnalyticsService(context={}){
   if(q.paymentMethod){const method=clean(q.paymentMethod,100).toLowerCase();base=base.filter(r=>String(r.paymentMethod||'').toLowerCase()===method)}
   if(q.from||q.to){const from=q.from?new Date(q.from):null,to=q.to?new Date(q.to):null;if(to)to.setHours(23,59,59,999);base=base.filter(r=>{const d=new Date(r.dueAt);return(!from||d>=from)&&(!to||d<=to)})}
 
-  const anomalyFilter={origin:'sige_import',$or:[{value:{$gte:HISTORICAL_ANOMALY_MIN_VALUE}},{value:{$lte:-HISTORICAL_ANOMALY_MIN_VALUE}}]};
+  const anomalyFilter={origin:'sige_import',renegotiatedAt:{$exists:false},$or:[{value:{$gte:HISTORICAL_ANOMALY_MIN_VALUE}},{value:{$lte:-HISTORICAL_ANOMALY_MIN_VALUE}}]};
   const qualityAnomalies=(await Entry.collection.find(anomalyFilter).toArray()).map(normalizeLedgerRow);
   const operational=base,active=operational.filter(r=>r.status!=='cancelled'),rec=active.filter(r=>r.direction==='receivable'),pay=active.filter(r=>r.direction==='payable'),recPending=rec.filter(r=>r.status==='pending'),payPending=pay.filter(r=>r.status==='pending'),recOver=recPending.filter(r=>dueView(r)==='overdue'),payOver=payPending.filter(r=>dueView(r)==='overdue'),recUpcoming=recPending.filter(r=>dueView(r)==='upcoming'),payUpcoming=payPending.filter(r=>dueView(r)==='upcoming'),recPaid=rec.filter(r=>r.status==='paid'),payPaid=pay.filter(r=>r.status==='paid');
   const bucketOpen=a=>({count:a.length,value:money(a.reduce((s,r)=>s+outstanding(r),0))});
