@@ -4978,6 +4978,42 @@ function parsePendingInstallments(text) {
   return match ? Number(match[1]) : 0;
 }
 
+function asksFewerCardInstallments(text = '', conv = {}) {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n || Number(conv?.cardContextUntil || 0) <= Date.now()) return false;
+
+  return (
+    /\b(?:menos|menas)\s+(?:vezes|parcelas)\b/.test(n) ||
+    /\b(?:diminuir|reduzir|baixar)\b.{0,20}\b(?:parcelas|vezes)\b/.test(n) ||
+    /\b(?:parcelar|fazer|ficar)\b.{0,20}\b(?:menos|menas)\s+(?:vezes|parcelas)\b/.test(n)
+  );
+}
+
+function setCardInstallmentContext(conv, product) {
+  if (!conv || !product) return;
+  conv.cardContextUntil = Date.now() + 30 * 60 * 1000;
+  conv.cardContextProductId = productId(product);
+}
+
+function setPendingCardInstallments(conv, product) {
+  setCardInstallmentContext(conv, product);
+  conv.pendingAction = 'card_installments';
+  conv.pendingCardProductId = productId(product);
+  conv.pendingCardUntil = Date.now() + 30 * 60 * 1000;
+  saveStateSoon();
+}
+
+function clearPendingCardInstallments(conv) {
+  if (conv.pendingAction === 'card_installments') conv.pendingAction = '';
+  conv.pendingCardProductId = '';
+  conv.pendingCardUntil = 0;
+  saveStateSoon();
+}
+
 function parseCreditPlanFollowupInstallments(text = '') {
   const n = normalize(text)
     .replace(/[!?.,;:]+/g, ' ')
@@ -8832,6 +8868,11 @@ async function markConversationStatus(phone, conv, status, message, name = '', m
   else if (/venda em andamento/i.test(statusText) && selected) stage = 'considering';
   else if (/atendimento normal/i.test(statusText) && conv?.lastProductQuery) stage = 'browsing';
 
+  if (metadata?.paymentMode === 'cartao' && selected) {
+    setCardInstallmentContext(conv, selected);
+    saveStateSoon();
+  }
+
   if (stage || selected) {
     rememberCommercialInterest(phone, conv, {
       product: selected || null,
@@ -9567,6 +9608,43 @@ Se quiser, também posso conferir a entrega com você.`
       '',
       { paymentMode: 'pix', productId: productId(product) }
     );
+    return true;
+  }
+
+  if (conv.pendingAction === 'card_installments') {
+    if (conv.pendingCardUntil && Date.now() >= Number(conv.pendingCardUntil)) {
+      clearPendingCardInstallments(conv);
+      return false;
+    }
+
+    const count = parsePendingInstallments(text) || parseInstallments(text);
+    if (!count) return false;
+
+    const product = findConversationProduct(conv, conv.pendingCardProductId || conv.cardContextProductId);
+    if (!product) {
+      clearPendingCardInstallments(conv);
+      await sendText(phone, 'Não consegui recuperar o produto desse cálculo. Me diga qual produto você está olhando que eu calculo novamente para você.');
+      return true;
+    }
+
+    const max = Math.max(1, Number(product.installmentCount || 12));
+    if (count < 1 || count > max) {
+      await sendText(phone, `No cartão, esse produto pode ser parcelado em até *${max}x*. Me diga uma quantidade de 1 a ${max} parcelas.`);
+      return true;
+    }
+
+    const full = productFullPrice(product);
+    conv.selectedProduct = product;
+    clearPendingCardInstallments(conv);
+    setCardInstallmentContext(conv, product);
+    saveStateSoon();
+
+    await sendText(phone, `No cartão, *${product.name}* em *${count}x* fica *${count}x de ${money(full / count)}*, total de *${money(full)}*.`);
+    await markConversationStatus(phone, conv, 'Venda em andamento', `Cliente simulou ${product.name} em ${count}x no cartão.`, '', {
+      paymentMode: 'cartao',
+      productId: productId(product),
+      installments: count
+    });
     return true;
   }
 
@@ -10857,6 +10935,20 @@ async function handleMessage({
       phone,
       'Sim 😊 Pode me mandar a foto ou o print do produto. Eu vou analisar a imagem e conferir no catálogo da Ariana Móveis se temos esse modelo ou opções relacionadas.'
     );
+    return;
+  }
+
+  if (asksFewerCardInstallments(text, conv)) {
+    const product = findConversationProduct(conv, conv.cardContextProductId) || conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
+    if (!product) {
+      await sendText(phone, 'Claro 😊 Me diga qual produto você está olhando e em quantas vezes quer simular no cartão.');
+      return;
+    }
+
+    conv.selectedProduct = product;
+    setPendingCardInstallments(conv, product);
+    const max = Math.max(1, Number(product.installmentCount || 12));
+    await sendText(phone, `Claro 😊 Em quantas vezes você quer simular no cartão? Para esse produto, posso calcular de 1x até *${max}x*.`);
     return;
   }
 
