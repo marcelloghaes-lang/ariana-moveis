@@ -40,6 +40,15 @@ function codeOf(order={}){
 function idOf(order={}){
   return clean(first(order.ID,order.Id,order.id,order.PedidoID,order.PedidoId),120);
 }
+function financialCodeOf(entry={}){
+  const direct=clean(first(entry.documentNumber,entry.codigo,entry.Codigo),80);
+  if(/^\d+$/.test(direct))return direct;
+  const match=clean(entry.description,200).match(/\bSIGE\s+(\d+)\b/i);
+  return match?.[1]||'';
+}
+function saleCodeOfFinancialEntry(data={}){
+  return clean(first(data.CodigoVenda,data.codigoVenda,data.VendaCodigo,data.vendaCodigo),80);
+}
 function itemRows(order={}){
   return arr(first(order.Items,order.items,order.Itens,order.itens,order.Produtos,order.produtos));
 }
@@ -187,11 +196,11 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
     ]);
     return{available:true,running:state.running,last:state.last,total,enriched,pending,latestRun};
   }
-  async function sigeRequest(params={},label='consulta'){
+  async function sigeCall(fn,label='consulta'){
     let result=null;
     for(let attempt=1;attempt<=3;attempt++){
       try{
-        result=await client.pesquisarPedidos(params);
+        result=await fn();
         return result;
       }catch(error){
         const message=clean(error?.message||error,1000);
@@ -203,6 +212,15 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
       }
     }
     return result;
+  }
+  async function sigeRequest(params={},label='consulta'){
+    return sigeCall(()=>client.pesquisarPedidos(params),label);
+  }
+  async function sigeFinancialEntry(codigo){
+    return sigeCall(
+      ()=>client.get('/request/Lancamentos/Get',{codigo:Number(codigo)}),
+      `consulta do lançamento ${codigo}`
+    );
   }
 
   function orphanFallback(entries=[]){
@@ -238,12 +256,47 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
     const fallback=orphanFallback(entries);
     const personName=clean(fallback.customerName,220);
     const personDocument=digits(fallback.customerDocument);
+
+    // Caminho determinístico preferencial:
+    // código do lançamento financeiro -> CodigoVenda -> pedido -> ID interno da venda.
+    let raw=null,result=null,matchedBy='';
+    const financialCodes=[...new Set(entries.map(financialCodeOf).filter(Boolean))].slice(0,4);
+    for(const financialCode of financialCodes){
+      try{
+        const launch=await sigeFinancialEntry(financialCode);
+        const saleCode=saleCodeOfFinancialEntry(launch?.data||{});
+        if(!saleCode)continue;
+        await wait(4000);
+        result=await sigeRequest({codigo:Number(saleCode)},`venda ${saleCode} vinculada ao lançamento ${financialCode}`);
+        const rows=unwrapOrders(result?.data);
+        const exact=rows.find(row=>idOf(row)===sid)||null;
+        if(exact){
+          raw=exact;
+          matchedBy='financial_entry_code_to_sale_code_and_sale_id';
+          break;
+        }
+        console.warn('[erp-sige-enrichment] CodigoVenda retornado, mas ID interno não conferiu',{
+          sourceSaleId:sid,
+          financialCode,
+          saleCode,
+          returnedIds:rows.slice(0,5).map(idOf).filter(Boolean)
+        });
+      }catch(error){
+        console.warn('[erp-sige-enrichment] ponte lançamento->venda falhou',{
+          sourceSaleId:sid,
+          financialCode,
+          statusCode:Number(error?.statusCode||0),
+          response:error?.responseData||null
+        });
+      }
+      await wait(4000);
+    }
+
     const queries=[];
     if(personDocument)queries.push({label:'customer_document_and_sale_id',params:{cpf_cnpj:personDocument}});
     if(personName)queries.push({label:'customer_name_and_sale_id',params:{cliente:personName}});
 
-    let raw=null,result=null,matchedBy='';
-    for(const query of queries){
+    if(!raw)for(const query of queries){
       // O SIGE é mais estável quando a primeira consulta não força paginação.
       // Só pagina em blocos pequenos quando a resposta atingir o limite.
       let firstRows=[];
@@ -303,6 +356,7 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
         source:'financial_entry_sourceSaleId',
         matchedBy,
         sourceSaleId:sid,
+        financialCodes,
         recoveredAt:new Date(),
         entryCount:entries.length,
         financeUntouched:true
