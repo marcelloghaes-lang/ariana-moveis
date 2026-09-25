@@ -554,15 +554,15 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
       });
       const stats={version:VERSION,total,processed:0,updated:0,skipped:0,failed:0,notFound:0,items:0,payments:0,orphanTotal:orphanIds.length,orphanRecovered:0,orphanNotFound:0,financeUntouched:true};
 
-      let orphanOrderIndex=new Map();
-      if(orphanIds.length){
-        orphanOrderIndex=await buildOrderIndex(orphanIds);
-        console.log('[erp-sige-enrichment] índice concluído',{
-          orphanTargets:orphanIds.length,
-          exactMatches:orphanOrderIndex.size,
-          financeUntouched:true
-        });
-      }
+      // Não percorre GetTodosPedidos automaticamente: em produção a listagem atual
+      // não contém os IDs das compras órfãs antigas. A recuperação usa primeiro
+      // cliente/documento + período e confirma o sourceSaleId exato.
+      const orphanOrderIndex=new Map();
+      if(orphanIds.length)console.log('[erp-sige-enrichment] recuperação direta de compras órfãs',{
+        orphanTargets:orphanIds.length,
+        strategy:'customer_period_exact_sourceSaleId',
+        financeUntouched:true
+      });
 
       for(const sid of orphanIds){
         try{
@@ -643,6 +643,72 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
     }));
     return{started:true,background:true};
   }
+  async function financialSnapshot(sourceSaleId){
+    const sid=clean(sourceSaleId,120);
+    const {Entry}=await waitForModels(1000);
+    if(!Entry||!sid)return null;
+    const entries=await Entry.collection.find({
+      direction:'receivable',
+      'migration.sourceSaleId':sid
+    }).sort({dueAt:1,createdAt:1}).toArray();
+    if(!entries.length)return null;
+
+    const fallback=orphanFallback(entries);
+    const codes=[...new Set(entries.map(financialCodeOf).filter(Boolean))];
+    const paymentMethods=[...new Set(entries.map(r=>clean(r.paymentMethod,120)).filter(Boolean))];
+    const statuses={
+      paid:entries.filter(r=>String(r.status||'')==='paid').length,
+      pending:entries.filter(r=>String(r.status||'')==='pending').length,
+      partial:entries.filter(r=>Number(r.paidValue||0)>0&&String(r.status||'')!=='paid').length
+    };
+    const rows=entries.map((r,index)=>({
+      number:index+1,
+      code:financialCodeOf(r),
+      value:money(r.value),
+      paidValue:money(r.paidValue),
+      dueAt:r.dueAt||null,
+      competenceAt:r.competenceAt||null,
+      status:clean(r.status,40),
+      paymentMethod:clean(r.paymentMethod,120)
+    }));
+    return{
+      sourceSystem:'sige',
+      sourceId:sid,
+      code:'',
+      customerSourceId:clean(entries[0]?.migration?.sourcePersonId,120),
+      customerName:fallback.customerName||'Cadastro histórico',
+      customerDocument:fallback.customerDocument||'',
+      date:fallback.date||null,
+      status:'Ficha comercial original pendente de recuperação',
+      billed:false,
+      sellerName:'',
+      subtotal:money(entries.reduce((sum,row)=>sum+Number(row.value||0),0)),
+      shipping:0,
+      total:money(entries.reduce((sum,row)=>sum+Number(row.value||0),0)),
+      paymentCondition:paymentMethods.join(' / '),
+      invoiceNumber:'',
+      invoiceSerie:'',
+      invoiceStatus:'',
+      items:[],
+      metadata:{
+        recovery:{
+          partial:true,
+          source:'financial_snapshot',
+          sourceSaleId:sid,
+          financeUntouched:true,
+          generatedAt:new Date()
+        },
+        financialSnapshot:{
+          installments:entries.length,
+          codes,
+          paymentMethods,
+          statuses,
+          rows
+        }
+      }
+    };
+  }
+
   async function purchase(sourceSaleId){
     const {Sale}=await waitForModels(1000);
     if(!Sale)throw new Error('Histórico de vendas do Ariana ERP indisponível.');
@@ -652,11 +718,12 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
       const recovered=await recoverMissingSale(sid);
       sale=recovered?(recovered.toObject?recovered.toObject():recovered):null;
     }
+    if(!sale) sale=await financialSnapshot(sid);
     if(!sale){
-      const e=new Error('A venda original desta compra ainda não foi localizada no SIGE. O financeiro permanece preservado.');e.statusCode=404;throw e;
+      const e=new Error('Não foi possível localizar dados históricos desta compra. O financeiro permanece preservado.');e.statusCode=404;throw e;
     }
     return sale;
   }
-  return{VERSION,status,one,syncAll,startInBackground,purchase,recoverMissingSale,buildOrderIndex};
+  return{VERSION,status,one,syncAll,startInBackground,purchase,recoverMissingSale,buildOrderIndex,financialSnapshot};
 }
 export default createErpSigeHistoricalPurchaseEnrichmentService;
