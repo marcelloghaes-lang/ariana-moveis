@@ -34,7 +34,7 @@ a{color:inherit}.top{background:linear-gradient(90deg,var(--blue2),var(--blue));
 <main class="wrap">
   <section class="hero">
     <div><h2>Operação Dropshipping</h2><div class="muted">O cliente compra na Ariana Móveis. Depois do pagamento aprovado, o pedido aparece aqui para compra e despacho no fornecedor. Produto novo fica fora da vitrine até revisão no Painel Admin.</div></div>
-    <button class="btn green" id="setup-atacadum">Configurar Atacadum</button>
+    <button class="btn green" id="new-supplier">+ Novo fornecedor dropshipping</button>
   </section>
 
   <section class="kpis">
@@ -54,7 +54,7 @@ a{color:inherit}.top{background:linear-gradient(90deg,var(--blue2),var(--blue));
   <section class="view active" id="supplier">
     <div class="panel">
       <h3>Fornecedor dropshipping</h3>
-      <div class="notice warn" id="supplier-warning">Configure a Atacadum e depois confirme com o comercial as regras fiscais, embalagem, prazo, garantia e integração. O sistema não presume essas condições.</div>
+      <div class="notice warn" id="supplier-warning">Cadastre cada fornecedor dropshipping separadamente e confirme com o comercial as regras fiscais, embalagem, prazo, garantia e integração. Exemplos: Atacadum, Gazin, Oderço Distribuidora e Valle Enxovais. O sistema não presume essas condições.</div>
       <input type="hidden" id="supplier-id">
       <div class="grid3" style="margin-top:12px">
         <div class="field"><label>Fornecedor</label><select id="supplier-select"></select></div>
@@ -161,14 +161,37 @@ function fillSupplier(s={}){
   $('supplier-id').value=s._id||'';$('supplier-name').value=s.name||'';$('supplier-trade').value=s.tradeName||'';$('supplier-document').value=s.document||'';$('supplier-website').value=s.website||'';
   const ds=s.dropshipping||{};$('supplier-integration-status').value=ds.integrationStatus||'pending_commercial';$('supplier-catalog-mode').value=ds.catalogMode||'manual';$('supplier-integration-mode').value=ds.integrationMode||'manual';$('supplier-credential-env').value=ds.credentialEnvName||'';$('supplier-sla').value=Number(ds.shippingSlaDays||0);$('supplier-warranty').value=Number(ds.warrantyDays||0);$('supplier-invoice-model').value=ds.invoiceModel||'';$('supplier-neutral').value=ds.neutralPackaging===true?'true':ds.neutralPackaging===false?'false':'';$('supplier-label').value=ds.allowsOwnLabel===true?'true':ds.allowsOwnLabel===false?'false':'';$('supplier-return').value=ds.returnPolicyNotes||'';$('supplier-notes').value=s.notes||'';
 }
-async function setupAtacadum(){
-  if(!confirm('Preparar a Atacadum como fornecedor dropshipping no Ariana ERP?'))return;
-  const d=await api('/erp/dropshipping/atacadum/configurar',{method:'POST',body:'{}'});await loadSuppliers();const id=d.supplier?._id;if(id){$('supplier-select').value=id;fillSupplier(d.supplier)}await loadDashboard();alert('Atacadum preparada. Agora confirme e complete as condições comerciais antes de automatizar.');
+function newSupplier(){
+  $('supplier-select').value='';
+  $('supplier-id').value='';
+  $('supplier-name').value='';
+  $('supplier-trade').value='';
+  $('supplier-document').value='';
+  $('supplier-website').value='';
+  $('supplier-integration-status').value='pending_commercial';
+  $('supplier-catalog-mode').value='manual';
+  $('supplier-integration-mode').value='manual';
+  $('supplier-credential-env').value='';
+  $('supplier-sla').value='0';
+  $('supplier-warranty').value='0';
+  $('supplier-invoice-model').value='';
+  $('supplier-neutral').value='';
+  $('supplier-label').value='';
+  $('supplier-return').value='';
+  $('supplier-notes').value='';
+  switchView('supplier');
+  $('supplier-name').focus();
 }
 async function saveSupplier(){
-  const id=$('supplier-id').value;if(!id)throw new Error('Selecione ou configure um fornecedor.');
+  const id=$('supplier-id').value;
   const body={name:$('supplier-name').value,tradeName:$('supplier-trade').value,document:$('supplier-document').value,website:$('supplier-website').value,supplierType:'dropshipping',notes:$('supplier-notes').value,dropshipping:{enabled:true,integrationStatus:$('supplier-integration-status').value,catalogMode:$('supplier-catalog-mode').value,integrationMode:$('supplier-integration-mode').value,credentialEnvName:$('supplier-credential-env').value,shippingSlaDays:Number($('supplier-sla').value||0),warrantyDays:Number($('supplier-warranty').value||0),invoiceModel:$('supplier-invoice-model').value,neutralPackaging:boolValue('supplier-neutral'),allowsOwnLabel:boolValue('supplier-label'),returnPolicyNotes:$('supplier-return').value}};
-  await api('/erp/fornecedores/'+id,{method:'PATCH',body:JSON.stringify(body)});await loadSuppliers();await loadDashboard();alert('Configuração salva.');
+  if(!String(body.name||'').trim())throw new Error('Informe o nome do fornecedor.');
+  const d=await api(id?'/erp/fornecedores/'+id:'/erp/fornecedores',{method:id?'PATCH':'POST',body:JSON.stringify(body)});
+  await loadSuppliers();
+  const saved=d.supplier;
+  if(saved?._id){$('supplier-select').value=saved._id;fillSupplier(saved)}
+  await loadDashboard();
+  alert(id?'Configuração do fornecedor atualizada.':'Fornecedor dropshipping cadastrado com sucesso.');
 }
 async function loadProducts(){
   const q=$('product-search').value.trim(),d=await api('/erp/dropshipping/produtos'+(q?'?q='+encodeURIComponent(q):''));products=d.products||[];
@@ -206,7 +229,7 @@ async function saveOrder(id){
   await api('/erp/dropshipping/pedidos/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify(body)});await Promise.all([loadOrders(),loadDashboard()]);alert('Acompanhamento atualizado.');
 }
 
-$('setup-atacadum').onclick=()=>setupAtacadum().catch(e=>alert(e.message));
+$('new-supplier').onclick=()=>newSupplier();
 $('supplier-select').onchange=e=>{const s=suppliers.find(x=>String(x._id)===e.target.value);if(s)fillSupplier(s)};
 $('supplier-save').onclick=()=>saveSupplier().catch(e=>alert(e.message));
 $('product-create').onclick=()=>createProduct().catch(e=>alert(e.message));
