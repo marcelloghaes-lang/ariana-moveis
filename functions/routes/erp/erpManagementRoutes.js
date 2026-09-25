@@ -11,6 +11,7 @@ import { createErpPurchaseService } from '../../services/erp/erpPurchaseService.
 import { createErpPurchasePayablesService } from '../../services/erp/erpPurchasePayablesService.js';
 import { createErpRecurringFinanceService } from '../../services/erp/erpRecurringFinanceService.js';
 import { createErpPaymentReceiptService } from '../../services/erp/erpPaymentReceiptService.js';
+import { createErpDebtAgreementService } from '../../services/erp/erpDebtAgreementService.js';
 
 const identity=req=>req.adminUser||req.admin||req.auth||req.user||{};
 const isFullAdmin=req=>{const u=identity(req),role=String(u.role||'').trim().toLowerCase();return role==='admin'||u.admin===true||u.isSuperAdmin===true};
@@ -18,7 +19,7 @@ const adminOnly=req=>{if(isFullAdmin(req))return;const error=new Error('Esta inf
 
 export default function createErpManagementRoutes(context={}){
  const router=express.Router();if(!context.adminRequired)throw new Error('[erp-management] adminRequired não informado');
- const ledger=createErpLedgerService(context),stock=createErpStockMovementService(context),reports=createErpReportService(context),settings=createErpSettingsService(context),reconciliation=createErpReconciliationService(context),commissions=createErpCommissionService(context),advancedFinance=createErpAdvancedFinanceReportService(context),profitability=createErpProfitabilityService(context),purchases=createErpPurchaseService(context),purchasePayables=createErpPurchasePayablesService(context),recurringFinance=createErpRecurringFinanceService(context),paymentReceipts=createErpPaymentReceiptService(context);const actor=req=>req.admin||req.auth||req.user||{};
+ const ledger=createErpLedgerService(context),stock=createErpStockMovementService(context),reports=createErpReportService(context),settings=createErpSettingsService(context),reconciliation=createErpReconciliationService(context),commissions=createErpCommissionService(context),advancedFinance=createErpAdvancedFinanceReportService(context),profitability=createErpProfitabilityService(context),purchases=createErpPurchaseService(context),purchasePayables=createErpPurchasePayablesService(context),recurringFinance=createErpRecurringFinanceService(context),paymentReceipts=createErpPaymentReceiptService(context),debtAgreements=createErpDebtAgreementService(context);const actor=req=>req.admin||req.auth||req.user||{};
  const handle=(fn,status=200)=>async(req,res)=>{try{const result=await fn(req);return res.status(status).json({ok:true,...(result&&typeof result==='object'&&!Array.isArray(result)?result:{data:result})})}catch(e){console.error('[erp-management]',e);return res.status(Number(e?.statusCode||500)).json({ok:false,error:e?.message||'Erro no módulo de gestão do ERP.',code:e?.code||'ERP_MANAGEMENT_ERROR'})}};
  router.get('/erp/configuracoes',context.adminRequired,handle(async()=>({settings:await settings.get()})));
  router.put('/erp/configuracoes',context.adminRequired,handle(async req=>({settings:await settings.update(req.body||{},actor(req))})));
@@ -38,6 +39,9 @@ export default function createErpManagementRoutes(context={}){
  router.patch('/erp/financeiro/lancamentos/:id',context.adminRequired,handle(async req=>{await settings.assertFinanceMutation(req.params.id,req.body||{});return{entry:await ledger.updateEntry(req.params.id,req.body||{},actor(req))}}));
  router.post('/erp/financeiro/lancamentos/:id/quitar',context.adminRequired,handle(async req=>{const body={...(req.body||{}),__operation:'pay'};await settings.assertFinanceMutation(req.params.id,body);delete body.__operation;let entry=await ledger.pay(req.params.id,body,actor(req));const receiptDelivery=entry?.receiptDelivery||null;entry=await reconciliation.auto(entry,actor(req));if(receiptDelivery)entry={...(entry?.toObject?entry.toObject():entry),receiptDelivery};return{entry,receiptDelivery}}));
  router.post('/erp/financeiro/comprovantes/:id/telefone-enviar',context.adminRequired,handle(async req=>paymentReceipts.savePhoneAndSend({receiptId:req.params.id,phone:req.body?.telefone||req.body?.phone||'',referenceRaw:req.body?.reference||req.body?.referencia||'',actor:actor(req)})));
+ router.post('/erp/financeiro/acordos/preview',context.adminRequired,handle(async req=>({preview:await debtAgreements.preview(req.body||{})})));
+ router.post('/erp/financeiro/acordos',context.adminRequired,handle(async req=>await debtAgreements.create(req.body||{},actor(req)),201));
+ router.get('/erp/financeiro/acordos',context.adminRequired,handle(async req=>({agreements:await debtAgreements.list(req.query||{})})));
  router.patch('/erp/financeiro/lancamentos/:id/pagamentos/:paymentId/conciliacao',context.adminRequired,handle(async req=>({entry:await reconciliation.setPayment(req.params.id,req.params.paymentId,req.body?.reconciled!==false,actor(req))})));
  router.post('/erp/financeiro/lancamentos/:id/reabrir',context.adminRequired,handle(async req=>{await settings.assertFinanceMutation(req.params.id,{__operation:'reopen'});return{entry:await ledger.unpay(req.params.id,actor(req))}}));
  router.post('/erp/financeiro/lancamentos/:id/cancelar',context.adminRequired,handle(async req=>{await settings.assertFinanceMutation(req.params.id,{__operation:'cancel'});return{entry:await ledger.cancel(req.params.id,actor(req))}}));
