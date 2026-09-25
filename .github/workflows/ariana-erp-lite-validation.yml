@@ -156,6 +156,9 @@ jobs:
           grep -Fq "get_all_orders_exact_sale_id" functions/services/erp/erpSigeHistoricalPurchaseEnrichmentService.js
           grep -Fq "buildOrderIndex" functions/services/erp/erpSigeHistoricalPurchaseEnrichmentService.js
           grep -Fq "defaultPageSize" functions/services/erp/erpSigeHistoricalPurchaseEnrichmentService.js
+          grep -Fq "dataInicial" functions/services/erp/erpSigeHistoricalPurchaseEnrichmentService.js
+          grep -Fq "dataFinal" functions/services/erp/erpSigeHistoricalPurchaseEnrichmentService.js
+          grep -Fq "customer_name_date_" functions/services/erp/erpSigeHistoricalPurchaseEnrichmentService.js
           grep -Fq "_paginated" functions/services/erp/erpSigeHistoricalPurchaseEnrichmentService.js
           if grep -Eq "ledger\.pay|Entry\.(update|updateOne|updateMany|findOneAndUpdate|delete|deleteOne|deleteMany|bulkWrite|create)|Entry\.collection\.(update|updateOne|updateMany|findOneAndUpdate|delete|deleteOne|deleteMany|insert|insertOne|insertMany|bulkWrite)" functions/services/erp/erpSigeHistoricalPurchaseEnrichmentService.js; then
             echo "A rotina de enriquecimento pode ler vínculos financeiros, mas não pode escrever no financeiro do Ariana ERP."
