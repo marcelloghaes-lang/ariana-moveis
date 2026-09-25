@@ -8912,3 +8912,214 @@ test('apoio de segundo nível pode responder com segurança quando há contexto 
   assert.ok(learning);
   assert.equal(learning.metadata.supportAction, 'REPLY');
 });
+
+
+test('detector contínuo: correção explícita consulta apoio antes de repetir resposta errada', async () => {
+  const phone = '5533977000201';
+
+  bot.patchTestConversation(phone, {
+    lastBotReplyText: 'Esse modelo tem a função que você perguntou.',
+    lastBotReplyAt: Date.now(),
+    lastCustomerText: 'Esse modelo tem proteção contra queda de energia?',
+    lastCustomerAt: Date.now() - 1000
+  });
+
+  bot.patchTestSupportAdvisory({
+    action: 'CLARIFY',
+    confidence: 0.97,
+    reply: 'Entendi, eu interpretei sua pergunta errado. Você quer saber especificamente se esse modelo tem proteção contra queda de energia, certo?',
+    reason: 'Cliente corrigiu explicitamente o entendimento anterior.'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'Não foi isso que eu perguntei',
+    pushName: 'Cliente Correção'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /interpretei sua pergunta errado/i);
+
+  const learningEvents = backendEvents.filter((event) => event.status === 'Aprendizado do Gustavo');
+  assert.ok(learningEvents.length >= 2);
+  assert.ok(
+    learningEvents.some((event) => event.metadata.learningTrigger === 'explicit_correction')
+  );
+  assert.ok(
+    learningEvents.some((event) => event.metadata.supportAction === 'CLARIFY')
+  );
+});
+
+test('detector contínuo: pergunta repetida aciona apoio e pode encaminhar sem inventar', async () => {
+  const phone = '5533977000202';
+  const previous = 'Qual é a garantia desse produto?';
+
+  bot.patchTestConversation(phone, {
+    lastBotReplyText: 'Ele é um produto muito bom e temos em estoque.',
+    lastBotReplyAt: Date.now(),
+    lastCustomerText: previous,
+    lastCustomerAt: Date.now() - 2000
+  });
+
+  bot.patchTestSupportAdvisory({
+    action: 'HUMAN',
+    confidence: 0.95,
+    reply: 'Quero confirmar a garantia certinho para não te passar uma informação errada 😊 Vou deixar essa pergunta para o Marcelo verificar.',
+    reason: 'Garantia não está confirmada nos dados disponíveis.'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: previous,
+    pushName: 'Cliente Repetição'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /confirmar a garantia certinho/i);
+  assert.equal(bot.conversation(phone).marceloCallbackRequested, true);
+
+  const learningEvents = backendEvents.filter((event) => event.status === 'Aprendizado do Gustavo');
+  assert.ok(
+    learningEvents.some((event) => event.metadata.learningTrigger === 'repeated_question')
+  );
+});
+
+test('detector contínuo: como assim após fallback genérico consulta apoio', async () => {
+  const phone = '5533977000203';
+
+  bot.patchTestConversation(phone, {
+    lastBotReplyText: 'Me conta um pouco mais do produto ou da condição que você precisa, para eu continuar seu atendimento sem te passar informação errada.',
+    lastBotReplyAt: Date.now(),
+    lastCustomerText: 'Quero saber se dá para fazer desse jeito',
+    lastCustomerAt: Date.now() - 1500
+  });
+
+  bot.patchTestSupportAdvisory({
+    action: 'CLARIFY',
+    confidence: 0.94,
+    reply: 'Claro 😊 Eu quis dizer que preciso saber qual produto e qual condição você quer montar para eu conferir a informação correta.',
+    reason: 'Cliente não entendeu o pedido genérico de esclarecimento.'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'Como assim?',
+    pushName: 'Cliente Confuso'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /preciso saber qual produto/i);
+
+  const learningEvents = backendEvents.filter((event) => event.status === 'Aprendizado do Gustavo');
+  assert.ok(
+    learningEvents.some((event) => event.metadata.learningTrigger === 'confusion_followup')
+  );
+});
+
+test('detector contínuo: como assim em fluxo conhecido continua usando a resposta específica do crediário', async () => {
+  const phone = '5533977000204';
+
+  bot.patchTestConversation(phone, {
+    pendingAction: 'crediario_product',
+    creditContextUntil: Date.now() + 30 * 60 * 1000,
+    lastBotReplyText: 'Primeiro me diga qual produto você quer comprar no carnê.',
+    lastBotReplyAt: Date.now(),
+    lastCustomerText: 'Queria tentar realizar um crediário de novo',
+    lastCustomerAt: Date.now() - 2000
+  });
+
+  bot.patchTestSupportAdvisory({
+    action: 'REPLY',
+    confidence: 0.99,
+    reply: 'RESPOSTA QUE NÃO DEVE SER USADA',
+    reason: 'Teste de precedência.'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'Como assim?',
+    pushName: 'Cliente Crediário'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /abrir a solicitação do crediário com o valor correto/i);
+  assert.doesNotMatch(sentTexts[0].text, /RESPOSTA QUE NÃO DEVE SER USADA/);
+});
+
+test('detector contínuo: pedido de humano logo após resposta é sinalizado sem bloquear o fluxo normal', () => {
+  const signal = bot.learningSignalForIncomingMessage(
+    {
+      lastBotReplyText: 'Posso te mostrar alguns modelos disponíveis.',
+      lastBotReplyAt: Date.now(),
+      learningClarificationCount: 0,
+      learningClarificationWindowAt: 0
+    },
+    'Quero falar com o Marcelo',
+    {
+      previousCustomerText: 'Tenho uma dúvida sobre esse produto',
+      previousCustomerAt: Date.now() - 1000,
+      now: Date.now()
+    }
+  );
+
+  assert.equal(signal.type, 'human_after_bot');
+  assert.equal(signal.consultSupport, false);
+  assert.equal(signal.severity, 'medium');
+});
+
+test('detector contínuo: mesmo sinal repetido em poucos minutos não cria spam na fila', async () => {
+  const phone = '5533977000205';
+  const conv = bot.patchTestConversation(phone, {
+    lastBotReplyText: 'Resposta anterior',
+    lastBotReplyAt: Date.now(),
+    lastCustomerText: 'Pergunta anterior',
+    lastCustomerAt: Date.now() - 1000
+  });
+
+  const signal = {
+    type: 'explicit_correction',
+    severity: 'high',
+    consultSupport: true,
+    reason: 'Cliente corrigiu o entendimento.'
+  };
+
+  const first = await bot.recordDetectedLearningSignal(
+    phone,
+    'Não foi isso que eu perguntei',
+    'Cliente',
+    conv,
+    signal
+  );
+  const second = await bot.recordDetectedLearningSignal(
+    phone,
+    'Não foi isso que eu perguntei',
+    'Cliente',
+    conv,
+    signal
+  );
+
+  assert.equal(first, true);
+  assert.equal(second, false);
+  assert.equal(
+    backendEvents.filter((event) => event.status === 'Aprendizado do Gustavo').length,
+    1
+  );
+});
+
+test('detector contínuo: comparação de repetição tolera reformulação muito parecida', () => {
+  assert.equal(
+    bot.comparableRepeatedCustomerMessage(
+      'Qual é a garantia desse produto?',
+      'Qual a garantia desse produto'
+    ),
+    true
+  );
+
+  assert.equal(
+    bot.comparableRepeatedCustomerMessage(
+      'Quero ver uma geladeira',
+      'Quero ver um sofá'
+    ),
+    false
+  );
+});
