@@ -1,0 +1,40 @@
+import mongoose from 'mongoose';
+import crypto from 'crypto';
+const clean=(v='',m=500)=>String(v??'').trim().slice(0,m),money=v=>Math.round((Number(v||0)+Number.EPSILON)*100)/100;
+const fail=(message,statusCode=400,code='ERP_AGREEMENT_ERROR')=>Object.assign(new Error(message),{statusCode,code}),actorName=a=>clean(a?.name||a?.nome||a?.email||'Operador',180);
+const validDate=(v,label)=>{const d=new Date(v);if(Number.isNaN(d.getTime()))throw fail(label+' inválido.');return d};
+const schema=new mongoose.Schema({number:{type:String,required:true,unique:true,index:true},fingerprint:{type:String,required:true,unique:true,index:true},personName:{type:String,required:true,index:true},personDocument:String,status:{type:String,enum:['active','completed','cancelled'],default:'active',index:true},sourceEntryIds:[String],sourceOriginalTotal:Number,sourcePaidTotal:Number,sourceBalance:Number,negotiatedTotal:Number,downPayment:Number,installments:Number,firstDueAt:Date,installmentEntryIds:[String],createdBy:String,notes:String},{timestamps:true,versionKey:false,minimize:false});
+const Agreement=mongoose.models.ErpDebtAgreement||mongoose.model('ErpDebtAgreement',schema);
+export function createErpDebtAgreementService(context={}){
+ const {IntegrationAuditLog,redact}=context,Entry=()=>mongoose.connection.collection('erpfinancialentries');
+ const principalPaid=r=>{const ps=Array.isArray(r.payments)?r.payments:[];return money(ps.length?ps.reduce((s,p)=>s+Number(p.principalApplied??p.principal??0),0):(r.principalPaid??(r.status==='paid'?r.value:0)))},remaining=r=>Math.max(0,money(Number(r.value||0)-principalPaid(r)));
+ async function audit(meta){if(!IntegrationAuditLog)return;try{await IntegrationAuditLog.create({scope:'erp_ariana',eventType:'erp.debt_agreement.created',status:'success',message:'Acordo financeiro criado sem duplicação de saldo.',metadata:redact?redact(meta):meta})}catch(e){}}
+ async function preview(payload={}){
+  const ids=[...new Set((Array.isArray(payload.entryIds)?payload.entryIds:[]).map(v=>clean(v,120)).filter(Boolean))].sort();if(!ids.length)throw fail('Selecione ao menos uma dívida para o acordo.',400,'AGREEMENT_EMPTY');
+  const oids=ids.map(id=>{try{return new mongoose.Types.ObjectId(id)}catch{return null}}).filter(Boolean),rows=await Entry().find({_id:{$in:oids},direction:'receivable'}).toArray();
+  if(rows.length!==ids.length)throw fail('Uma ou mais dívidas não foram encontradas.',409,'AGREEMENT_SOURCE_CHANGED');
+  if(rows.some(r=>r.renegotiatedAt||r.agreementId))throw fail('Uma das dívidas já pertence a outro acordo.',409,'AGREEMENT_SOURCE_ALREADY_USED');
+  if(rows.some(r=>r.status==='cancelled'||remaining(r)<=.009))throw fail('Há parcela cancelada ou sem saldo na seleção.',409,'AGREEMENT_SOURCE_NOT_OPEN');
+  const docs=[...new Set(rows.map(r=>clean(r.personDocument,60)).filter(Boolean))],names=[...new Set(rows.map(r=>clean(r.personName,200).toLowerCase()).filter(Boolean))];if(docs.length>1||(!docs.length&&names.length>1))throw fail('Selecione dívidas de um único cliente.',409,'AGREEMENT_MULTIPLE_CUSTOMERS');
+  return{ids,personName:rows[0].personName,personDocument:rows[0].personDocument||'',sourceOriginalTotal:money(rows.reduce((s,r)=>s+Number(r.value||0),0)),sourcePaidTotal:money(rows.reduce((s,r)=>s+principalPaid(r),0)),sourceBalance:money(rows.reduce((s,r)=>s+remaining(r),0))};
+ }
+ async function create(payload={},actor={}){
+  const base=await preview(payload),installments=Math.max(1,Math.min(120,Math.trunc(Number(payload.installments||0))));if(!installments)throw fail('Informe a quantidade de parcelas.',400,'AGREEMENT_INSTALLMENTS_REQUIRED');
+  const firstDueAt=validDate(payload.firstDueAt||payload.firstDueDate,'Primeiro vencimento'),negotiatedTotal=payload.negotiatedTotal===undefined?base.sourceBalance:money(payload.negotiatedTotal),downPayment=Math.max(0,money(payload.downPayment||0));if(negotiatedTotal<=0||downPayment-negotiatedTotal>.009)throw fail('Confira o valor negociado e a entrada.',400,'AGREEMENT_VALUE_INVALID');
+  const fingerprint=crypto.createHash('sha256').update(base.ids.join('|')).digest('hex'),session=await mongoose.startSession();let result;
+  try{await session.withTransaction(async()=>{
+   const existing=await Agreement.findOne({fingerprint,status:{$ne:'cancelled'}}).session(session);if(existing)throw fail('Estas dívidas já possuem um acordo ativo.',409,'AGREEMENT_DUPLICATE');
+   const oids=base.ids.map(id=>new mongoose.Types.ObjectId(id)),fresh=await Entry().find({_id:{$in:oids},direction:'receivable',renegotiatedAt:{$exists:false}},{session}).toArray();if(fresh.length!==base.ids.length)throw fail('A dívida mudou durante a criação. Nada foi alterado.',409,'AGREEMENT_SOURCE_CHANGED');
+   const now=new Date(),number='AC-'+now.toISOString().slice(0,10).replace(/-/g,'')+'-'+String(now.getTime()).slice(-6),docs=await Agreement.create([{number,fingerprint,personName:base.personName,personDocument:base.personDocument,status:'active',sourceEntryIds:base.ids,sourceOriginalTotal:base.sourceOriginalTotal,sourcePaidTotal:base.sourcePaidTotal,sourceBalance:base.sourceBalance,negotiatedTotal,downPayment,installments,firstDueAt,createdBy:actorName(actor),notes:clean(payload.notes,2000)}],{session}),agreement=docs[0];
+   const newRows=[],financed=money(negotiatedTotal-downPayment),totalCents=Math.round(financed*100),baseCents=Math.floor(totalCents/installments),rest=totalCents-baseCents*installments;
+   if(downPayment>0)newRows.push({direction:'receivable',personName:base.personName,personDocument:base.personDocument,description:'Entrada do acordo '+number,categoryName:'Vendas',paymentMethod:clean(payload.paymentMethod||'crediario',80),value:downPayment,competenceAt:now,dueAt:validDate(payload.downPaymentDueAt||now,'Vencimento da entrada'),status:'pending',payments:[],principalPaid:0,paidValue:0,origin:'debt_agreement',agreementId:String(agreement._id),agreementNumber:number,createdBy:actorName(actor),createdAt:now,updatedAt:now});
+   for(let i=0;i<installments;i++){const due=new Date(firstDueAt);due.setMonth(due.getMonth()+i);const cents=baseCents+(i===installments-1?rest:0);newRows.push({direction:'receivable',personName:base.personName,personDocument:base.personDocument,description:'Acordo '+number+' • Parcela '+String(i+1).padStart(2,'0')+'/'+String(installments).padStart(2,'0'),categoryName:'Vendas',paymentMethod:clean(payload.paymentMethod||'crediario',80),value:cents/100,competenceAt:now,dueAt:due,status:'pending',payments:[],principalPaid:0,paidValue:0,origin:'debt_agreement',agreementId:String(agreement._id),agreementNumber:number,installmentNumber:i+1,installments,createdBy:actorName(actor),createdAt:now,updatedAt:now})}
+   const inserted=newRows.length?await Entry().insertMany(newRows,{session}):{insertedIds:{}},ids=Object.values(inserted.insertedIds||{}).map(String),upd=await Entry().updateMany({_id:{$in:oids},renegotiatedAt:{$exists:false}},{$set:{renegotiatedAt:now,agreementId:String(agreement._id),agreementNumber:number,renegotiatedBy:actorName(actor),updatedAt:now}},{session});if(upd.modifiedCount!==base.ids.length)throw fail('Não foi possível travar todas as dívidas originais. Nada foi alterado.',409,'AGREEMENT_ATOMIC_GUARD');
+   agreement.installmentEntryIds=ids;await agreement.save({session});result={agreement:agreement.toObject(),createdEntries:ids.length};
+  })}finally{await session.endSession()}
+  await audit({agreementId:String(result.agreement._id),agreementNumber:result.agreement.number,sourceBalance:base.sourceBalance,negotiatedTotal});return{...result,preview:base};
+ }
+ async function list(query={}){const filter={};if(query.status)filter.status=clean(query.status,30);return Agreement.find(filter).sort({createdAt:-1}).limit(1000).lean()}
+ return{preview,create,list};
+}
+export default createErpDebtAgreementService;
