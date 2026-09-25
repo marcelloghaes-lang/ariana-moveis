@@ -9162,10 +9162,11 @@ test('concorrente: link externo com categoria redireciona a busca para o catálo
     pushName: 'Cliente'
   });
 
-  assert.ok(sentTexts.length >= 2);
+  assert.ok(sentTexts.length >= 1);
   assert.match(sentTexts[0].text, /Não vou te direcionar para outra loja|procurar \*tanquinho\* aqui na Ariana Móveis/i);
-  assert.ok(sentTexts.some((item) => /Tanquinho Colormaq 15 KG/i.test(item.text)));
+  assert.ok(sentMedia.some((item) => /Tanquinho Colormaq 15 KG/i.test(item.caption || '')));
   assert.ok(sentTexts.every((item) => !/amazon\.com\.br/i.test(item.text)));
+  assert.ok(sentMedia.every((item) => !/amazon\.com\.br/i.test(item.caption || '')));
 });
 
 test('concorrente: pedido explícito para finalizar no marketplace é recusado sem perder a venda Ariana', async () => {
