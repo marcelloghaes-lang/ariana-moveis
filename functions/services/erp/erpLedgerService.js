@@ -122,23 +122,28 @@ export function createErpLedgerService(context={}){
           if(as!==bs)return as.localeCompare(bs,'pt-BR',{numeric:true});
           return String(a?._id||'').localeCompare(String(b?._id||''));
         });
-        // Uma mesma compra histórica pode conter lançamentos duplicados.
-        // O parcelamento real é a sequência de vencimentos da compra, não a
-        // quantidade bruta de documentos financeiros encontrados.
-        const dueKey=row=>{
-          const d=new Date(row?.dueAt||row?.competenceAt||row?.createdAt||0);
-          return Number.isNaN(d.getTime())?'':d.toISOString().slice(0,10);
-        };
+        // Uma mesma compra histórica pode ter sido importada mais de uma vez.
+        // Duplicidade é definida pelo ID original do lançamento (sourceId),
+        // nunca pela data: parcelas legítimas podem compartilhar vencimento.
         const installmentGroups=new Map();
         for(const row of list){
-          const key=dueKey(row)||String(row?._id||'');
+          const originalId=clean(row?.sourceId,120);
+          const key=originalId?('source:'+originalId):('entry:'+String(row?._id||''));
           if(!installmentGroups.has(key))installmentGroups.set(key,[]);
           installmentGroups.get(key).push(row);
         }
-        const orderedGroups=[...installmentGroups.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+        const orderedGroups=[...installmentGroups.values()].sort((a,b)=>{
+          const ar=a[0]||{},br=b[0]||{};
+          const ad=new Date(ar?.dueAt||ar?.competenceAt||ar?.createdAt||0).getTime()||0;
+          const bd=new Date(br?.dueAt||br?.competenceAt||br?.createdAt||0).getTime()||0;
+          if(ad!==bd)return ad-bd;
+          return clean(ar?.sourceId,120).localeCompare(clean(br?.sourceId,120),'pt-BR',{numeric:true});
+        });
         const declaredTotal=Math.max(0,Number(originalTotalBySale.get(sid)||0));
-        const total=declaredTotal||orderedGroups.length;
-        orderedGroups.forEach(([,sameInstallment],index)=>{
+        // Nunca permita que um total declarado menor encolha uma série original
+        // maior já comprovada pelos IDs financeiros da própria compra.
+        const total=Math.max(declaredTotal,orderedGroups.length);
+        orderedGroups.forEach((sameInstallment,index)=>{
           for(const row of sameInstallment){
             installmentByEntry.set(String(row._id),{
               number:index+1,
