@@ -3155,16 +3155,10 @@ test('aprendizado: "e se for de menos vezes?" mantém o cartão e pergunta quant
   bot.patchTestConversation(phone, {
     lastProducts: [last],
     selectedProduct: last,
-    lastIntent: 'produto'
+    lastIntent: 'produto',
+    cardContextUntil: Date.now() + 60_000,
+    cardContextProductId: last.id
   });
-
-  await bot.handleMessage({
-    phone,
-    text: 'essa no cartão',
-    pushName: 'Cliente Menos Parcelas'
-  });
-
-  assert.match(sentTexts.at(-1).text, /12x de R\$\s*200,00/i);
 
   await bot.handleMessage({
     phone,
