@@ -239,19 +239,50 @@ export function createErpSigeHistoricalPurchaseEnrichmentService(context={}){
     const personName=clean(fallback.customerName,220);
     const personDocument=digits(fallback.customerDocument);
     const queries=[];
-    if(personDocument)queries.push({cpf_cnpj:personDocument,pageSize:200,skip:0});
-    if(personName)queries.push({cliente:personName,pageSize:200,skip:0});
+    if(personDocument)queries.push({label:'customer_document_and_sale_id',params:{cpf_cnpj:personDocument}});
+    if(personName)queries.push({label:'customer_name_and_sale_id',params:{cliente:personName}});
 
     let raw=null,result=null,matchedBy='';
-    for(const baseQuery of queries){
-      for(let page=0;page<5&&!raw;page++){
-        const params={...baseQuery,skip:page*200};
-        result=await sigeRequest(params,`recuperação da venda ${sid}`);
-        const rows=unwrapOrders(result?.data);
-        raw=rows.find(row=>idOf(row)===sid)||null;
-        if(raw){matchedBy=personDocument?'customer_document_and_sale_id':'customer_name_and_sale_id';break}
-        if(rows.length<200)break;
-        await wait(4000);
+    for(const query of queries){
+      // O SIGE é mais estável quando a primeira consulta não força paginação.
+      // Só pagina em blocos pequenos quando a resposta atingir o limite.
+      let firstRows=[];
+      try{
+        result=await sigeRequest(query.params,`recuperação da venda ${sid}`);
+        firstRows=unwrapOrders(result?.data);
+      }catch(error){
+        console.warn('[erp-sige-enrichment] filtro simples rejeitado pelo SIGE',{
+          sourceSaleId:sid,
+          filter:Object.keys(query.params),
+          statusCode:Number(error?.statusCode||0),
+          response:error?.responseData||null
+        });
+        continue;
+      }
+
+      raw=firstRows.find(row=>idOf(row)===sid)||null;
+      if(raw){matchedBy=query.label;break}
+
+      if(firstRows.length>=50){
+        for(let page=1;page<10&&!raw;page++){
+          const params={...query.params,pageSize:50,skip:page*50};
+          try{
+            result=await sigeRequest(params,`paginação da venda ${sid}`);
+          }catch(error){
+            console.warn('[erp-sige-enrichment] paginação rejeitada pelo SIGE',{
+              sourceSaleId:sid,
+              page,
+              statusCode:Number(error?.statusCode||0),
+              response:error?.responseData||null
+            });
+            break;
+          }
+          const rows=unwrapOrders(result?.data);
+          raw=rows.find(row=>idOf(row)===sid)||null;
+          if(raw){matchedBy=query.label;break}
+          if(rows.length<50)break;
+          await wait(4000);
+        }
       }
       if(raw)break;
     }
