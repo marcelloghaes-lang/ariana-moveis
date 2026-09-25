@@ -198,6 +198,11 @@ export function createErpLedgerService(context={}){
   }catch(error){
     console.warn('[erp-ledger] falha ao enriquecer parcela para comprovante:',error?.message||error);
   }
+  const explicitNumber=Math.max(0,Number(payload?.installmentNumber||0));
+  const explicitTotal=Math.max(0,Number(payload?.installments||0));
+  if(explicitNumber&&explicitTotal){
+    receiptEntry={...receiptEntry,historicalInstallmentNumber:explicitNumber,historicalInstallments:explicitTotal,installmentLabel:clean(payload?.installmentLabel,80)};
+  }
   const receiptDelivery=await paymentReceipts.afterLedgerReceive({
     entry:receiptEntry,
     payment,
