@@ -9241,17 +9241,10 @@ test('concorrente silencioso: print de produto mostra somente opções da Ariana
     summary: 'Print de anúncio de marketplace'
   };
 
-  await bot.handleVisionMedia(
-    {
-      phone,
-      text: '',
-      pushName: 'Cliente Print',
-      hasMedia: true,
-      mediaType: 'image',
-      mimetype: 'image/jpeg',
-      message: {}
-    },
-    bot.conversation(phone)
+  await bot.showProductsFromVision(
+    phone,
+    bot.conversation(phone),
+    visionClassification
   );
 
   const allOutgoing = [
