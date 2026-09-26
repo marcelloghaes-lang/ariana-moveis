@@ -72,3 +72,40 @@ Processos:
 - `loja-bot`: Gustavo de produção, preservado;
 - `ariana-ai-core-shadow`: roteador sombra em 127.0.0.1:8098;
 - `ariana-ai-db-observer-shadow`: observador passivo das conversas novas.
+
+
+## Fase 3 — interpretação multimídia em modo sombra
+
+O Core agora interpreta novas mídias do Chatwoot sem responder o cliente:
+- áudio é transcrito e roteado pela intenção do conteúdo;
+- imagem distingue comprovante PIX/boleto, produto, documento pessoal, outra imagem ou desconhecido;
+- comprovante é roteado para Financeiro sem confirmar baixa;
+- produto é roteado para Comercial;
+- documento pessoal fica em rota própria;
+- mídia incerta continua pendente.
+
+Privacidade:
+- imagem e áudio não são copiados para o Core;
+- transcrição não é persistida no log;
+- logs guardam somente hashes, classificação, confiança, rota e metadados mínimos;
+- há limite diário separado de 25 interpretações por padrão.
+
+Auditoria local:
+- `GET /v1/audit/summary`
+- `GET /audit`
+- serviço permanece escutando somente em `127.0.0.1:8098`.
+
+## Fase 4 — políticas por canal
+
+Cada canal possui allow/deny explícito e o Core continua sem escrita em produção:
+- Loja: pode consultar catálogo e rotear financeiro/SAC/crediário, mas não confirmar pagamento;
+- Site: pode catálogo, estoque, preço, frete e assistência de carrinho/checkout, sem dados financeiros sensíveis;
+- Televendas: foco comercial, sem aprovação de crédito;
+- SAC: pedidos, entrega, ocorrência, troca e garantia, sem venda proativa;
+- Financeiro: recebíveis e comprovantes, sem empurrar catálogo;
+- Crediário: leitura/negociação preparada, sem aprovação automática;
+- Ouvidoria: histórico/caso/handoff, sem venda.
+
+Endpoint local:
+- `GET /v1/policy/:channel`
+- `POST /v1/route` retorna também a política do canal.
