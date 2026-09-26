@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { createErpDelinquencyReportService } from './erpDelinquencyReportService.js';
+import { getErpSettingsSnapshot } from './erpSettingsService.js';
 
 const TZ='America/Sao_Paulo';
 const clean=(v='',m=1000)=>String(v??'').trim().replace(/\s+/g,' ').slice(0,m);
@@ -86,6 +87,9 @@ export function createErpCollectionWorkflowService(context={}){
 
   async function fila(query={}){
     const {entries,caseById}=await openReport(query),todayIso=localIso(),filter=clean(query.faixa||query.filter||'all',40),q=clean(query.q||query.search||'',180).toLocaleLowerCase('pt-BR');
+    const settings=await getErpSettingsSnapshot().catch(()=>({}));
+    const finePercent=Math.max(0,Number(settings?.finance?.delinquencyFinePercent??2));
+    const monthlyInterestPercent=Math.max(0,Number(settings?.finance?.delinquencyMonthlyInterestPercent??1));
     const clients=new Map();
     for(const row of entries){
       const c=caseById.get(String(row.id||'')),state=caseState(c,todayIso);
@@ -93,14 +97,22 @@ export function createErpCollectionWorkflowService(context={}){
       if(!matchesFilter(row,state,filter))continue;
       const hay=[row.name,row.document,row.phone,row.email,row.reference].join(' ').toLocaleLowerCase('pt-BR');if(q&&!hay.includes(q))continue;
       const key=digits(row.document)?`doc:${digits(row.document)}`:`name:${clean(row.name,220).toLocaleLowerCase('pt-BR')}`;
-      const fineAmount=Math.max(0,money(row.fineAmount??row.fine??0)),interestAmount=Math.max(0,money(row.interestAmount??row.interest??0)),updatedAmount=money(Number(row.outstanding||0)+fineAmount+interestAmount);
-      const item={...row,originalValue:money(row.value),fineAmount,interestAmount,updatedAmount,chargesCalculated:false,faixa:band(row.daysLate),faixaLabel:bandLabel(band(row.daysLate)),case:c?{id:String(c._id),status:c.status,lastAction:c.lastAction,lastActionAt:c.lastActionAt,promiseDate:c.promiseDate,promiseAmount:money(c.promiseAmount),nextActionDate:c.nextActionDate,note:c.note,...state}:null,priority:priority(row,state)};
+      const principal=Math.max(0,money(row.outstanding||0));
+      const storedFine=row.fineAmount??row.fine,storedInterest=row.interestAmount??row.interest;
+      const fineAmount=storedFine!==undefined&&storedFine!==null
+        ? Math.max(0,money(storedFine))
+        : (Number(row.daysLate||0)>0?money(principal*finePercent/100):0);
+      const interestAmount=storedInterest!==undefined&&storedInterest!==null
+        ? Math.max(0,money(storedInterest))
+        : (Number(row.daysLate||0)>0?money(principal*monthlyInterestPercent/100*(Number(row.daysLate||0)/30)):0);
+      const updatedAmount=money(principal+fineAmount+interestAmount);
+      const item={...row,originalValue:money(row.value),fineAmount,interestAmount,updatedAmount,chargesCalculated:true,chargePolicy:{finePercent,monthlyInterestPercent},faixa:band(row.daysLate),faixaLabel:bandLabel(band(row.daysLate)),case:c?{id:String(c._id),status:c.status,lastAction:c.lastAction,lastActionAt:c.lastActionAt,promiseDate:c.promiseDate,promiseAmount:money(c.promiseAmount),nextActionDate:c.nextActionDate,note:c.note,...state}:null,priority:priority(row,state)};
       const group=clients.get(key)||{key,name:row.name||'Sem identificação',document:row.document||'',phone:row.phone||'',email:row.email||'',totalOverdue:0,totalUpdated:0,maxDaysLate:0,priority:0,entries:[],alerts:{promiseToday:0,promiseLate:0,returnToday:0,whatsappInternalDue:0}};
       group.totalOverdue+=Number(row.outstanding||0);group.totalUpdated+=updatedAmount;group.maxDaysLate=Math.max(group.maxDaysLate,Number(row.daysLate||0));group.priority=Math.max(group.priority,item.priority);group.entries.push(item);if(state.promiseToday)group.alerts.promiseToday++;if(state.promiseLate)group.alerts.promiseLate++;if(state.returnToday)group.alerts.returnToday++;if(state.internalWhatsAppAlertDue)group.alerts.whatsappInternalDue++;clients.set(key,group);
     }
     const rows=[...clients.values()].map(c=>({...c,totalOverdue:money(c.totalOverdue),totalUpdated:money(c.totalUpdated),entries:c.entries.sort((a,b)=>b.priority-a.priority||new Date(a.dueAt)-new Date(b.dueAt))})).sort((a,b)=>b.priority-a.priority||b.maxDaysLate-a.maxDaysLate||a.name.localeCompare(b.name,'pt-BR'));
     const allEntries=rows.flatMap(c=>c.entries);
-    return{date:todayIso,filter,chargesNote:'Multa e juros só aparecem quando houver valor oficialmente registrado; o sistema não inventa taxa automática.',summary:{clients:rows.length,installments:allEntries.length,totalOverdue:money(rows.reduce((s,c)=>s+c.totalOverdue,0)),totalUpdated:money(rows.reduce((s,c)=>s+c.totalUpdated,0)),promisesToday:allEntries.filter(x=>x.case?.promiseToday).length,promisesLate:allEntries.filter(x=>x.case?.promiseLate).length,returnsToday:allEntries.filter(x=>x.case?.returnToday).length,whatsappInternalAlertsDue:allEntries.filter(x=>x.case?.internalWhatsAppAlertDue).length},clients:rows};
+    return{date:todayIso,filter,chargesNote:`Encargos automáticos: multa de ${finePercent}% sobre o saldo vencido e juros de ${monthlyInterestPercent}% ao mês, proporcionais aos dias de atraso. No recebimento, o operador pode dispensar multa e juros.`,chargePolicy:{finePercent,monthlyInterestPercent},summary:{clients:rows.length,installments:allEntries.length,totalOverdue:money(rows.reduce((s,c)=>s+c.totalOverdue,0)),totalUpdated:money(rows.reduce((s,c)=>s+c.totalUpdated,0)),promisesToday:allEntries.filter(x=>x.case?.promiseToday).length,promisesLate:allEntries.filter(x=>x.case?.promiseLate).length,returnsToday:allEntries.filter(x=>x.case?.returnToday).length,whatsappInternalAlertsDue:allEntries.filter(x=>x.case?.internalWhatsAppAlertDue).length},clients:rows};
   }
 
   async function promessas(query={}){
