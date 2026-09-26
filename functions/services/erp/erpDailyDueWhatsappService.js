@@ -804,13 +804,9 @@ export async function listErpFifteenDayOverdueAudit(context={}){
   }
 
   const prefix=`erp_15_day_collection_whatsapp:${today}:`;
-  const claims=await Setting.find({key:{$regex:'^'+prefix.replace(/[-/\\^$*+?.()|[\]{}]/g,'\\    }catch(error){
-      await Setting.deleteOne({key:claimKey,'value.status':'sending'}).catch(()=>null);
-      errors.push({customerName:g.customerName,phone:maskedPhone(g.phone),error:text(error?.message||error,500)});
-    }
-  }
-  return{ok:errors.length===0,date:today,dueDate,eligibleInstallments:rows.length,eligibleCustomers:groups.size,sent,skippedAlreadySent,skippedMissingPhone,errors};
-}')}}).lean().catch(()=>[]);
+  const claims=await Setting.find({
+    key: { $gte: prefix, $lt: prefix + '\uffff' }
+  }).lean().catch(()=>[]);
   const claimMap=new Map(claims.map(item=>[String(item?.value?.customerKey||''),item?.value||{}]));
 
   const failures=IntegrationAuditLog
