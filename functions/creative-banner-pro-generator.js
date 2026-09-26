@@ -763,17 +763,57 @@ function backgroundSvg(format, opts) {
   );
 }
 
+function pillIconSvg(icon, x, y, size, color) {
+  const sw = Math.max(2, Math.round(size * .10));
+  const cx = x + size/2;
+  const cy = y + size/2;
+
+  if (icon === 'card') {
+    return (
+      '<g fill="none" stroke="' + color + '" stroke-width="' + sw + '" stroke-linecap="round" stroke-linejoin="round">' +
+      '<rect x="' + x + '" y="' + (y+size*.12) + '" width="' + size + '" height="' + (size*.76) + '" rx="' + (size*.14) + '"/>' +
+      '<path d="M' + (x+size*.12) + ' ' + (y+size*.38) + ' H' + (x+size*.88) + '"/>' +
+      '<path d="M' + (x+size*.18) + ' ' + (y+size*.62) + ' H' + (x+size*.42) + '"/>' +
+      '</g>'
+    );
+  }
+
+  if (icon === 'clock') {
+    return (
+      '<g fill="none" stroke="' + color + '" stroke-width="' + sw + '" stroke-linecap="round" stroke-linejoin="round">' +
+      '<circle cx="' + cx + '" cy="' + cy + '" r="' + (size*.40) + '"/>' +
+      '<path d="M' + cx + ' ' + (cy-size*.23) + ' V' + cy + ' L' + (cx+size*.20) + ' ' + (cy+size*.10) + '"/>' +
+      '<path d="M' + (cx-size*.16) + ' ' + (y+size*.04) + ' H' + (cx+size*.16) + '"/>' +
+      '</g>'
+    );
+  }
+
+  if (icon === 'arrow') {
+    return (
+      '<g fill="none" stroke="' + color + '" stroke-width="' + sw + '" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M' + (x+size*.22) + ' ' + cy + ' H' + (x+size*.78) + '"/>' +
+      '<path d="M' + (x+size*.58) + ' ' + (cy-size*.20) + ' L' + (x+size*.80) + ' ' + cy + ' L' + (x+size*.58) + ' ' + (cy+size*.20) + '"/>' +
+      '</g>'
+    );
+  }
+
+  return '';
+}
+
 function pillSvg({ x, y, w, h, fill, text, textFill, fontSize, subtext = '', icon = '' }) {
   const safeText = escapeXml(text);
   const safeSub = escapeXml(subtext);
   const cx = x + w/2;
   const mainY = subtext ? y + h*.48 : y + h*.62;
   const subY = y + h*.72;
-  const iconText = icon ? '<text x="' + (x+h*.35) + '" y="' + (y+h*.62) + '" font-family="Arial,Helvetica,sans-serif" font-size="' + Math.round(fontSize*.95) + '" font-weight="900" fill="' + textFill + '">' + escapeXml(icon) + '</text>' : '';
-  const textX = icon ? cx + h*.07 : cx;
+  const iconSize = Math.round(h*.34);
+  const iconX = x + h*.25;
+  const iconY = y + (h-iconSize)/2;
+  const iconMarkup = icon ? pillIconSvg(icon,iconX,iconY,iconSize,textFill) : '';
+  const textX = icon ? cx + h*.08 : cx;
   return (
     '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="' + Math.round(h*.50) + '" fill="' + fill + '"/>' +
-    iconText +
+    iconMarkup +
     '<text x="' + textX + '" y="' + mainY + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + fontSize + '" font-weight="900" fill="' + textFill + '">' + safeText + '</text>' +
     (subtext
       ? '<text x="' + textX + '" y="' + subY + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + Math.round(fontSize*.52) + '" font-weight="700" fill="' + textFill + '" opacity=".90">' + safeSub + '</text>'
@@ -829,9 +869,9 @@ function overlayDesktopCampaign(format, opts) {
     linesSvg(headlineLines,{x,y:Math.round(h*headlineTop),size:headlineFs,lineHeight:headlineFs*1.02,fill:'#ffffff',weight:950}) +
     '<text x="' + x + '" y="' + Math.round(h*(headlineTop + .20)) + '" font-family="Arial,Helvetica,sans-serif" font-size="' + subtitleFs + '" font-weight="650" fill="#ffffff" opacity=".94">' + escapeXml(opts.subtitle) + '</text>' +
     price +
-    pillSvg({x:railX,y:Math.round(h*.22),w:railW,h:pillH,fill:'#07143F',text:opts.benefitOne,textFill:'#ffffff',fontSize:pillFs,icon:'▣'}) +
-    pillSvg({x:railX,y:Math.round(h*.43),w:railW,h:pillH,fill:accent,text:opts.benefitTwo,textFill:dark,fontSize:Math.round(pillFs*.82),icon:'◷'}) +
-    pillSvg({x:railX,y:Math.round(h*.66),w:railW,h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0A3A82',fontSize:Math.round(pillFs*.90),icon:'›'}) +
+    pillSvg({x:railX,y:Math.round(h*.22),w:railW,h:pillH,fill:'#07143F',text:opts.benefitOne,textFill:'#ffffff',fontSize:pillFs,icon:'card'}) +
+    pillSvg({x:railX,y:Math.round(h*.43),w:railW,h:pillH,fill:accent,text:opts.benefitTwo,textFill:dark,fontSize:Math.round(pillFs*.82),icon:'clock'}) +
+    pillSvg({x:railX,y:Math.round(h*.66),w:railW,h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0A3A82',fontSize:Math.round(pillFs*.90),icon:'arrow'}) +
     '<text x="' + Math.round(railX+railW/2) + '" y="' + Math.round(h*.92) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + Math.round(h*.026) + '" font-weight="800" fill="#ffffff" opacity=".90">' + escapeXml(opts.siteLabel) + '</text>' +
     '</svg>'
   );
@@ -910,9 +950,9 @@ function overlayMobileCampaign(format, opts) {
       ? '<text x="' + center + '" y="' + Math.round(h*.745) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + Math.round(w*.023) + '" font-weight="850" fill="#ffffff">À VISTA NO PIX</text>' +
         '<text x="' + center + '" y="' + Math.round(h*.805) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + Math.round(w*.065) + '" font-weight="950" fill="' + accent + '">' + escapeXml(money(opts.cashPrice)) + '</text>'
       : '') +
-    pillSvg({x:Math.round(w*.05),y:pillY,w:pillW,h:pillH,fill:'#07143F',text:opts.benefitOne,textFill:'#ffffff',fontSize:Math.round(w*.020),icon:'▣'}) +
-    pillSvg({x:Math.round(w*.05)+pillW+gap,y:pillY,w:pillW,h:pillH,fill:accent,text:opts.benefitTwo,textFill:dark,fontSize:Math.round(w*.018),icon:'◷'}) +
-    pillSvg({x:Math.round(w*.05)+(pillW+gap)*2,y:pillY,w:pillW,h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0A3A82',fontSize:Math.round(w*.020),icon:'›'}) +
+    pillSvg({x:Math.round(w*.05),y:pillY,w:pillW,h:pillH,fill:'#07143F',text:opts.benefitOne,textFill:'#ffffff',fontSize:Math.round(w*.020),icon:'card'}) +
+    pillSvg({x:Math.round(w*.05)+pillW+gap,y:pillY,w:pillW,h:pillH,fill:accent,text:opts.benefitTwo,textFill:dark,fontSize:Math.round(w*.018),icon:'clock'}) +
+    pillSvg({x:Math.round(w*.05)+(pillW+gap)*2,y:pillY,w:pillW,h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0A3A82',fontSize:Math.round(w*.020),icon:'arrow'}) +
     '</svg>'
   );
 }
