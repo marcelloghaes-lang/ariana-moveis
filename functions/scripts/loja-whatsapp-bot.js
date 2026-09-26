@@ -3290,7 +3290,11 @@ function isSupplierContactSignal({ phone = '', text = '', pushName = '' } = {}) 
     /\bdemandas? de pedidos?\b/.test(n) ||
     /\bpreco a partir de (?:1|uma) peca\b/.test(n) ||
     /\bboas vendas\b/.test(n) ||
-    /\bconsultor(?:a)? comercial\b/.test(n);
+    /\bconsultor(?:a)? comercial\b/.test(n) ||
+    /\b(?:mega )?promocao\b.{0,80}\b(?:atacado|fabrica|moveis|demobile|fornecedor)\b/.test(n) ||
+    /\b(?:nunca|ainda nao) (?:realizaram|fizeram|efetuaram) compras? conosco\b/.test(n) ||
+    /\b(?:interesse|gostariam) (?:em )?(?:comecar|iniciar|fazer) (?:uma )?parceria conosco\b/.test(n) ||
+    (/\b(?:vencimento|parcela)\b/.test(n) && /\b(?:atacadista|distribuidora|fornecedor|fabrica)\b/.test(n));
 
   const b2bContext =
     /\b(lojista|revenda|atacado|estoque|pecas|fabrica|pedido minimo|mix da loja)\b/.test(n);
