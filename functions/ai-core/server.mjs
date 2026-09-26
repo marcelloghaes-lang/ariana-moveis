@@ -3,6 +3,7 @@ import fs from 'fs';
 import { createHash } from 'crypto';
 import { classifyCurrentMessage, extractEnvelope } from './router.mjs';
 import { policyForChannel } from './channel-policy.mjs';
+import { routeSiteShadow } from './site-adapter.mjs';
 
 const PORT = Math.max(1, Number(process.env.ARIANA_AI_CORE_PORT || 8098));
 const HOST = '127.0.0.1';
@@ -206,6 +207,33 @@ const server = http.createServer(async (req, res) => {
     const payload = await readJson(req);
     const envelope = extractEnvelope(payload);
     const decision = classifyCurrentMessage(envelope);
+
+    if (path === '/v1/site/shadow') {
+      const site = routeSiteShadow(payload);
+      const siteEnvelope = {
+        channel: 'site',
+        text: site.request.message,
+        transcription: '',
+        caption: '',
+        mediaType: '',
+        previousIntent: String(payload.previousIntent || '')
+      };
+      const audit = appendDecision(siteEnvelope, site.decision);
+      return sendJson(res, 202, {
+        ok: true,
+        accepted: true,
+        decision: site.decision,
+        policy: site.policy,
+        page: {
+          type: site.request.page.pageType,
+          path: site.request.page.path,
+          productId: site.request.page.productId
+        },
+        responseEnabled: false,
+        productionWritesEnabled: false,
+        audit
+      });
+    }
 
     if (path === '/v1/route') {
       return sendJson(res, 200, {
