@@ -44,7 +44,7 @@ app.get('/api/home/index-data', async (_req, res) => {
     const [categories, products, banners, paymentSettings] = await Promise.all([
       Category.find({ active: true }).select('_id name slug parentId active sortOrder image updatedAt').sort({ sortOrder: 1, name: 1 }).lean(),
       Product.find({ active: true }).select(PRODUCT_CARD_FIELDS).slice('images', 1).slice('imageUrls', 1).slice('imagePaths', 1).sort({ createdAt: -1 }).limit(200).lean(),
-      Banner.find({ active: true }).select('_id slot targetSlot title subtitle image href alt active status source sortOrder device createdAt updatedAt').sort({ sortOrder: 1, createdAt: -1 }).lean(),
+      Banner.find({ active: true }).select('_id slot targetSlot title subtitle image mobileImage href alt mobileAlt active status source sortOrder device createdAt updatedAt').sort({ sortOrder: 1, createdAt: -1 }).lean(),
       getPaymentsSettings()
     ]);
 

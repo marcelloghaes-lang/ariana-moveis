@@ -12,6 +12,15 @@
   let savedPosterUrl = '';
   let deferredInstallPrompt = null;
 
+  const OUTPUT_FORMATS = Object.freeze({
+    poster_4x5: { label: 'PRÉVIA • CARTAZ 4:5', size: '1080 × 1350 pixels', banner: false },
+    site_hero_desktop: { label: 'PRÉVIA • HERO DESKTOP', size: '1920 × 480 pixels', banner: true },
+    site_hero_mobile: { label: 'PRÉVIA • HERO CELULAR', size: '1080 × 1080 pixels', banner: true },
+    site_secondary_desktop: { label: 'PRÉVIA • SECUNDÁRIO DESKTOP', size: '1600 × 400 pixels', banner: true },
+    site_secondary_mobile: { label: 'PRÉVIA • SECUNDÁRIO CELULAR', size: '1080 × 720 pixels', banner: true },
+    site_card_square: { label: 'PRÉVIA • CARD QUADRADO', size: '1080 × 1080 pixels', banner: true }
+  });
+
   function byId(id) { return document.getElementById(id); }
   function token() {
     for (const key of ['adminToken', 'admin_token', 'authToken', 'token']) {
@@ -89,7 +98,34 @@
   function setBusy(busy) {
     els.previewButton.disabled = busy;
     els.previewLoading.classList.toggle('hidden', !busy);
-    if (busy) status('Ajustando produto, marca, preços e acabamento...', '');
+    if (busy) status('Ajustando produto, marca, preços, formato e acabamento...', '');
+  }
+
+  function outputFormatValue() {
+    return document.querySelector('input[name="output-format"]:checked')?.value || 'poster_4x5';
+  }
+
+  function outputFormatMeta() {
+    return OUTPUT_FORMATS[outputFormatValue()] || OUTPUT_FORMATS.poster_4x5;
+  }
+
+  function isBannerOutput() {
+    return outputFormatMeta().banner === true;
+  }
+
+  function updateOutputFormatSelection() {
+    document.querySelectorAll('.format-card').forEach(card => {
+      card.classList.toggle('selected', card.querySelector('input')?.checked);
+    });
+    const meta = outputFormatMeta();
+    if (els.previewLabel) els.previewLabel.textContent = meta.label;
+    if (els.previewSize) els.previewSize.textContent = meta.size;
+    if (els.posterStage) els.posterStage.dataset.format = outputFormatValue();
+
+    const banner = isBannerOutput();
+    if (banner) {
+      status('Formato de banner selecionado. A composição será refeita para esta proporção, sem esticar o cartaz.', 'ok');
+    }
   }
 
   function templateValue() {
@@ -307,6 +343,7 @@
         installmentPrice
       },
       options: {
+        outputFormat: outputFormatValue(),
         template: templateValue(),
         colorTheme: colorThemeValue(),
         layoutVariant: layoutVariantValue() || undefined,
@@ -347,10 +384,13 @@
     try { payload = buildPayload(); } catch (error) { status(error.message, 'error'); return; }
     setBusy(true);
     try {
-      const blob = await api('/admin/posters/preview', { method: 'POST', body: JSON.stringify(payload) }, 'blob');
+      const endpoint = isBannerOutput() ? '/admin/posters/preview-banner' : '/admin/posters/preview';
+      const blob = await api(endpoint, { method: 'POST', body: JSON.stringify(payload) }, 'blob');
       showPreview(blob);
       savedPosterUrl = '';
-      status('Prévia concluída. Confira todos os dados antes de salvar.', 'ok');
+      status(isBannerOutput()
+        ? 'Prévia do banner concluída no tamanho real selecionado. Confira antes de salvar.'
+        : 'Prévia do cartaz concluída. Confira todos os dados antes de salvar.', 'ok');
     } catch (error) {
       status(`Não foi possível gerar a prévia: ${error.message}`, 'error');
     } finally {
@@ -371,9 +411,9 @@
   function renderHistory() {
     const rows = readHistory();
     els.historyList.innerHTML = rows.length ? rows.map(row => row.url
-      ? `<article class="history-card"><img src="${escapeHtml(row.url)}" alt=""><div><b>${escapeHtml(row.name || 'Cartaz Ariana')}</b><small>${new Date(row.createdAt).toLocaleString('pt-BR')}</small><a href="${escapeHtml(row.url)}" target="_blank" rel="noopener">Abrir cartaz antigo</a></div></article>`
+      ? `<article class="history-card"><img src="${escapeHtml(row.url)}" alt=""><div><b>${escapeHtml(row.name || 'Cartaz Ariana')}</b><small>${new Date(row.createdAt).toLocaleString('pt-BR')}</small><a href="${escapeHtml(row.url)}" target="_blank" rel="noopener">Abrir arte antiga</a></div></article>`
       : `<article class="history-card"><div><b>${escapeHtml(row.name || 'Cartaz Ariana')}</b><small>${new Date(row.createdAt).toLocaleString('pt-BR')}</small><small>Salvo somente no dispositivo</small></div></article>`
-    ).join('') : '<div class="history-empty">Nenhum cartaz salvo neste navegador.</div>';
+    ).join('') : '<div class="history-empty">Nenhuma arte salva neste navegador.</div>';
   }
 
   async function savePoster() {
@@ -383,13 +423,22 @@
     els.saveButton.textContent = 'Salvando no dispositivo...';
     status('Gerando o PNG em alta resolução sem armazenar cópia no servidor...', '');
     try {
-      const blob = await api('/admin/posters/professional', { method: 'POST', body: JSON.stringify(payload) }, 'blob');
+      const endpoint = isBannerOutput() ? '/admin/posters/professional-banner' : '/admin/posters/professional';
+      const blob = await api(endpoint, { method: 'POST', body: JSON.stringify(payload) }, 'blob');
       if (!blob || !blob.size) throw new Error('O arquivo final não retornou.');
       previewBlob = blob;
       savedPosterUrl = '';
-      saveHistory({ name: payload.product.name, createdAt: new Date().toISOString(), template: payload.options.template, layout: payload.options.layoutVariant || 'automatico' });
+      saveHistory({
+        name: payload.product.name,
+        createdAt: new Date().toISOString(),
+        template: payload.options.template,
+        layout: payload.options.layoutVariant || 'automatico',
+        outputFormat: payload.options.outputFormat
+      });
       downloadPoster();
-      status('Cartaz salvo no seu dispositivo. Nenhuma cópia foi armazenada no Cloudinary.', 'ok');
+      status(isBannerOutput()
+        ? 'Banner salvo no seu dispositivo no formato selecionado. Nenhuma cópia foi armazenada no Cloudinary.'
+        : 'Cartaz salvo no seu dispositivo. Nenhuma cópia foi armazenada no Cloudinary.', 'ok');
     } catch (error) {
       status(`Erro ao salvar: ${error.message}`, 'error');
     } finally {
@@ -400,8 +449,9 @@
 
   function posterFile() {
     if (!previewBlob) return null;
-    const safeName = String(els.productName.value || 'cartaz-ariana').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
-    return new File([previewBlob], `${safeName || 'cartaz-ariana'}.png`, { type: 'image/png' });
+    const safeName = String(els.productName.value || 'arte-ariana').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
+    const suffix = outputFormatValue();
+    return new File([previewBlob], `${safeName || 'arte-ariana'}-${suffix}.png`, { type: 'image/png' });
   }
 
   function downloadPoster() {
@@ -442,9 +492,11 @@
       installments: byId('installments'), calculateCard: byId('calculate-card'), pricingSummary: byId('pricing-summary'), removeBackground: byId('remove-background'), showMascot: byId('show-mascot'),
       offsetX: byId('offset-x'), offsetY: byId('offset-y'), offsetXValue: byId('offset-x-value'), offsetYValue: byId('offset-y-value'), previewButton: byId('preview-button'), saveButton: byId('save-button'),
       downloadButton: byId('download-button'), shareButton: byId('share-button'), globalStatus: byId('global-status'), previewEmpty: byId('preview-empty'), previewLoading: byId('preview-loading'),
-      posterPreview: byId('poster-preview'), historyList: byId('history-list'), clearHistory: byId('clear-history'), installApp: byId('install-app')
+      posterPreview: byId('poster-preview'), posterStage: byId('poster-stage'), previewLabel: byId('preview-label'), previewSize: byId('preview-size'),
+      historyList: byId('history-list'), clearHistory: byId('clear-history'), installApp: byId('install-app')
     });
 
+    document.querySelectorAll('input[name="output-format"]').forEach(input => input.addEventListener('change', updateOutputFormatSelection));
     document.querySelectorAll('input[name="template"]').forEach(input => input.addEventListener('change', () => updateTemplateSelection(true)));
     document.querySelectorAll('input[name="color-theme"]').forEach(input => input.addEventListener('change', updateColorSelection));
     document.querySelectorAll('input[name="layout-variant"]').forEach(input => input.addEventListener('change', () => updateLayoutSelection(true)));
@@ -487,6 +539,7 @@
 
   async function start() {
     bind();
+    updateOutputFormatSelection();
     updateTemplateSelection(false);
     updateColorSelection();
     updateLayoutSelection();

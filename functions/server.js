@@ -1954,9 +1954,11 @@ function normalizeBannerPayload(input = {}, fallback = {}) {
     targetSlot: String(source.targetSlot || source.slot || '').trim(),
     title: String(source.title || '').trim(),
     subtitle: String(source.subtitle || '').trim(),
-    image: String(source.image || source.imageUrl || '').trim(),
+    image: String(source.image || source.imageUrl || source.desktopImageUrl || '').trim(),
+    mobileImage: String(source.mobileImage || source.mobileImageUrl || source.imageMobile || source.mobileUrl || '').trim(),
     href: String(source.href || source.linkUrl || '').trim(),
     alt: String(source.alt || '').trim(),
+    mobileAlt: String(source.mobileAlt || source.altMobile || source.alt || '').trim(),
     active: source.active === true || String(source.active).toLowerCase() == 'true',
     status: String(source.status || (source.active === false ? 'draft' : 'published')).trim(),
     source: String(source.source || 'manual').trim(),
@@ -1974,6 +1976,9 @@ function normalizeBannerForResponse(doc) {
     id: String(obj.slot || obj.id || obj._id || ''),
     slot: String(obj.slot || obj.id || ''),
     imageUrl: String(obj.image || obj.imageUrl || '').trim(),
+    desktopImageUrl: String(obj.image || obj.imageUrl || '').trim(),
+    mobileImageUrl: String(obj.mobileImage || obj.mobileImageUrl || '').trim(),
+    mobileImage: String(obj.mobileImage || obj.mobileImageUrl || '').trim(),
     linkUrl: String(obj.href || obj.linkUrl || '').trim(),
     targetSlot: String(obj.targetSlot || obj.slot || '').trim(),
     status: String(obj.status || (obj.active === false ? 'draft' : 'published')).trim(),
@@ -1981,6 +1986,7 @@ function normalizeBannerForResponse(doc) {
     draftType: String(obj.draftType || '').trim(),
     products: Array.isArray(obj.products) ? obj.products : [],
     alt: String(obj.alt || '').trim(),
+    mobileAlt: String(obj.mobileAlt || obj.alt || '').trim(),
   };
 }
 

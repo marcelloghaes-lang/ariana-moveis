@@ -2841,7 +2841,7 @@ function addToCart(action = 'add') {
 // IDs esperados na coleção "banners":
 // - produto_detail_horizontal_1
 // - produto_detail_horizontal_2
-// Campos aceitos: imageUrl | url | image | desktopUrl | src
+// Campos aceitos: desktop imageUrl/image + mobileImageUrl/mobileImage (fallback automático para desktop)
 // =========================================================
 window.loadProductDetailBanners = async function () {
     const section = document.getElementById('product-detail-banners');
@@ -2849,12 +2849,15 @@ window.loadProductDetailBanners = async function () {
     const slot2 = document.getElementById('product-detail-banner-2');
     if (!section || !slot1 || !slot2) return;
 
-    const pickImage = (data) => data?.imageUrl || data?.url || data?.image || data?.desktopUrl || data?.src || '';
+    const pickDesktopImage = (data) => data?.imageUrl || data?.desktopImageUrl || data?.url || data?.image || data?.desktopUrl || data?.src || '';
+    const pickMobileImage = (data) => data?.mobileImageUrl || data?.mobileImage || data?.imageMobile || data?.mobileUrl || '';
     const pickLink = (data) => data?.link || data?.href || data?.linkUrl || data?.targetUrl || data?.to || '';
+    const attr = (value) => String(value || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
     const renderSlot = (el, data) => {
-        const imgUrl = pickImage(data);
-        if (!imgUrl) return false;
+        const desktopUrl = pickDesktopImage(data);
+        const mobileUrl = pickMobileImage(data);
+        if (!desktopUrl) return false;
         const isActive = (data.active !== false) && (data.isActive !== false) && (data.enabled !== false);
         if (!isActive) return false;
 
@@ -2866,7 +2869,11 @@ window.loadProductDetailBanners = async function () {
             if (u.origin !== window.location.origin) el.target = '_blank';
         } catch (_) {}
 
-        el.innerHTML = `<img src="${imgUrl}" alt="${(data.title || data.nome || 'Banner promocional').toString().replace(/"/g,'&quot;')}" loading="lazy">`;
+        const alt = attr(data.mobileAlt || data.alt || data.title || data.nome || 'Banner promocional');
+        el.innerHTML = `<picture>
+          ${mobileUrl ? `<source media="(max-width: 767px)" srcset="${attr(mobileUrl)}">` : ''}
+          <img src="${attr(desktopUrl)}" alt="${alt}" loading="lazy">
+        </picture>`;
         el.classList.remove('hidden');
         return true;
     };
