@@ -3543,8 +3543,7 @@ function paymentProofPurchaseReference(text = '') {
     .trim();
   const category = detectCategory(text);
   const financialReference = /\b(?:parcela|prestacao|notinha|mensalidade|pagamento|comprovante)\b/.test(n);
-  const ownershipReference = /\b(?:minha|meu|da minha|do meu|da compra|do produto)\b/.test(n);
-  return financialReference && Boolean(category) && ownershipReference ? category : '';
+  return financialReference && Boolean(category) ? category : '';
 }
 
 function asksBotWellbeingQuestion(text = '') {
