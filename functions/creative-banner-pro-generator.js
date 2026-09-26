@@ -272,8 +272,7 @@ async function removeConnectedBackground(buffer, enabled = true) {
 
   let transparentPixels = 0;
   for (let i = 0; i < total; i += 1) {
-    const alpha = data[i * channels + 3];
-    if (alpha < 40) transparentPixels += 1;
+    if (data[i * channels + 3] < 40) transparentPixels += 1;
   }
 
   const initialTransparentRatio = transparentPixels / Math.max(1, total);
@@ -300,6 +299,7 @@ async function removeConnectedBackground(buffer, enabled = true) {
   const bg = colorStats(data, info);
   const uniformEdge = bg.variance < 1200;
   const lightEdge = bg.brightness >= 205;
+
   if (!uniformEdge && !lightEdge) {
     const original = await source.png().toBuffer();
     const meta = await sharp(original).metadata();
@@ -316,55 +316,96 @@ async function removeConnectedBackground(buffer, enabled = true) {
     };
   }
 
-  const tolerance = lightEdge ? 72 : clamp(42 + Math.sqrt(Math.max(0, bg.variance)) * 0.45, 42, 68);
-  const tolerance2 = tolerance * tolerance;
-  const visited = new Uint8Array(total);
-  const queue = new Int32Array(total);
-  let head = 0;
-  let tail = 0;
+  function flood(tolerance, pureWhiteGuard = false) {
+    const tolerance2 = tolerance * tolerance;
+    const visited = new Uint8Array(total);
+    const queue = new Int32Array(total);
+    let head = 0;
+    let tail = 0;
 
-  function matches(index) {
-    const p = index * channels;
-    const alpha = data[p + 3];
-    if (alpha < 24) return true;
-    const dr = data[p] - bg.r;
-    const dg = data[p + 1] - bg.g;
-    const db = data[p + 2] - bg.b;
-    const dist2 = dr * dr + dg * dg + db * db;
-    const pixelBrightness = (data[p] + data[p + 1] + data[p + 2]) / 3;
-    if (lightEdge && pixelBrightness >= 225 && dist2 < tolerance2 * 1.4) return true;
-    return dist2 < tolerance2;
+    function matches(index) {
+      const p = index * channels;
+      const alpha = data[p + 3];
+      if (alpha < 24) return true;
+
+      const r = data[p];
+      const g = data[p + 1];
+      const b = data[p + 2];
+      const dr = r - bg.r;
+      const dg = g - bg.g;
+      const db = b - bg.b;
+      const dist2 = dr * dr + dg * dg + db * db;
+      const brightness = (r + g + b) / 3;
+      const chroma = Math.max(r,g,b) - Math.min(r,g,b);
+
+      if (pureWhiteGuard && lightEdge) {
+        return brightness >= 242 && chroma <= 18 && dist2 < tolerance2 * 1.15;
+      }
+
+      if (lightEdge && brightness >= 232 && chroma <= 30 && dist2 < tolerance2 * 1.22) return true;
+      return dist2 < tolerance2;
+    }
+
+    function enqueue(index) {
+      if (visited[index] || !matches(index)) return;
+      visited[index] = 1;
+      queue[tail++] = index;
+    }
+
+    for (let x = 0; x < width; x += 1) {
+      enqueue(x);
+      enqueue((height - 1) * width + x);
+    }
+    for (let y = 0; y < height; y += 1) {
+      enqueue(y * width);
+      enqueue(y * width + width - 1);
+    }
+
+    while (head < tail) {
+      const index = queue[head++];
+      const x = index % width;
+      const y = Math.floor(index / width);
+      if (x > 0) enqueue(index - 1);
+      if (x + 1 < width) enqueue(index + 1);
+      if (y > 0) enqueue(index - width);
+      if (y + 1 < height) enqueue(index + width);
+    }
+
+    return { visited, removedRatio: tail / Math.max(1, total) };
   }
 
-  function enqueue(index) {
-    if (visited[index] || !matches(index)) return;
-    visited[index] = 1;
-    queue[tail++] = index;
+  const baseTolerance = lightEdge
+    ? 58
+    : clamp(40 + Math.sqrt(Math.max(0, bg.variance)) * 0.40, 38, 62);
+
+  const attempts = lightEdge
+    ? [
+        { tolerance: baseTolerance, pureWhiteGuard: false, label: 'connected_light_background' },
+        { tolerance: 42, pureWhiteGuard: false, label: 'connected_light_background_gentle' },
+        { tolerance: 30, pureWhiteGuard: true, label: 'connected_white_background_precise' },
+        { tolerance: 22, pureWhiteGuard: true, label: 'connected_white_background_precise' },
+        { tolerance: 15, pureWhiteGuard: true, label: 'connected_white_background_precise' }
+      ]
+    : [
+        { tolerance: baseTolerance, pureWhiteGuard: false, label: 'connected_uniform_background' },
+        { tolerance: Math.max(24, baseTolerance * .70), pureWhiteGuard: false, label: 'connected_uniform_background_gentle' }
+      ];
+
+  let chosen = null;
+  let lastAttempt = null;
+  for (const attempt of attempts) {
+    const result = flood(attempt.tolerance, attempt.pureWhiteGuard);
+    lastAttempt = { ...attempt, ...result };
+    if (result.removedRatio >= 0.015 && result.removedRatio <= 0.92) {
+      chosen = { ...attempt, ...result };
+      break;
+    }
   }
 
-  for (let x = 0; x < width; x += 1) {
-    enqueue(x);
-    enqueue((height - 1) * width + x);
-  }
-  for (let y = 0; y < height; y += 1) {
-    enqueue(y * width);
-    enqueue(y * width + width - 1);
-  }
-
-  while (head < tail) {
-    const index = queue[head++];
-    const x = index % width;
-    const y = Math.floor(index / width);
-    if (x > 0) enqueue(index - 1);
-    if (x + 1 < width) enqueue(index + 1);
-    if (y > 0) enqueue(index - width);
-    if (y + 1 < height) enqueue(index + width);
-  }
-
-  const removedRatio = tail / Math.max(1, total);
-  if (removedRatio < 0.015 || removedRatio > 0.94) {
+  if (!chosen) {
     const original = await source.png().toBuffer();
     const meta = await sharp(original).metadata();
+    const ratio = Number(lastAttempt?.removedRatio || 0);
     return {
       buffer: original,
       sourceWidth: sourceMeta.width || width,
@@ -372,33 +413,34 @@ async function removeConnectedBackground(buffer, enabled = true) {
       width: meta.width || width,
       height: meta.height || height,
       backgroundRemoved: false,
-      removalMode: removedRatio > 0.94 ? 'unsafe_overremove_blocked' : 'no_background_detected',
-      removedRatio,
-      confidence: removedRatio > 0.94 ? 0 : 0.3
+      removalMode: ratio > 0.92 ? 'unsafe_overremove_blocked' : 'no_background_detected',
+      removedRatio: ratio,
+      confidence: ratio > 0.92 ? 0 : 0.30
     };
   }
 
+  const out = Buffer.from(data);
   for (let i = 0; i < total; i += 1) {
-    if (visited[i]) data[i * channels + 3] = 0;
+    if (chosen.visited[i]) out[i * channels + 3] = 0;
   }
 
-  // Feather one pixel along the cut edge.
   for (let i = 0; i < total; i += 1) {
-    if (visited[i]) continue;
+    if (chosen.visited[i]) continue;
     const x = i % width;
     const y = Math.floor(i / width);
     const touchesRemoved =
-      (x > 0 && visited[i - 1]) ||
-      (x + 1 < width && visited[i + 1]) ||
-      (y > 0 && visited[i - width]) ||
-      (y + 1 < height && visited[i + width]);
+      (x > 0 && chosen.visited[i - 1]) ||
+      (x + 1 < width && chosen.visited[i + 1]) ||
+      (y > 0 && chosen.visited[i - width]) ||
+      (y + 1 < height && chosen.visited[i + width]);
+
     if (touchesRemoved) {
       const alphaIndex = i * channels + 3;
-      data[alphaIndex] = Math.min(data[alphaIndex], 224);
+      out[alphaIndex] = Math.min(out[alphaIndex], 220);
     }
   }
 
-  const png = await sharp(data, { raw: info }).png().toBuffer();
+  const png = await sharp(out, { raw: info }).png().toBuffer();
   const trimmed = await sharp(png)
     .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 8 })
     .png()
@@ -406,9 +448,10 @@ async function removeConnectedBackground(buffer, enabled = true) {
   const meta = await sharp(trimmed).metadata();
 
   const confidence = clamp(
-    (uniformEdge ? 0.45 : 0.2) +
-    (lightEdge ? 0.25 : 0.1) +
-    Math.min(0.25, removedRatio * 0.35),
+    (uniformEdge ? 0.40 : 0.18) +
+    (lightEdge ? 0.25 : 0.12) +
+    Math.min(0.25, chosen.removedRatio * .35) +
+    (chosen.pureWhiteGuard ? 0.06 : 0),
     0,
     0.98
   );
@@ -420,8 +463,8 @@ async function removeConnectedBackground(buffer, enabled = true) {
     width: meta.width || width,
     height: meta.height || height,
     backgroundRemoved: true,
-    removalMode: lightEdge ? 'connected_light_background' : 'connected_uniform_background',
-    removedRatio,
+    removalMode: chosen.label,
+    removedRatio: chosen.removedRatio,
     confidence
   };
 }
