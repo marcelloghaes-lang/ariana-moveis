@@ -1268,6 +1268,53 @@ const loadClientAddress = () => {
 
 
     
+const __bannerMobileMedia = window.matchMedia('(max-width: 767px)');
+
+function __syncResponsiveBannerImage(imgEl) {
+  if (!imgEl) return;
+  const mobile = __bannerMobileMedia.matches;
+  const desktopSrc = String(imgEl.dataset.bannerDesktopSrc || '').trim();
+  const mobileSrc = String(imgEl.dataset.bannerMobileSrc || '').trim();
+  const useMobile = mobile && !!mobileSrc;
+  const nextSrc = useMobile ? mobileSrc : desktopSrc;
+  const nextAlt = useMobile
+    ? String(imgEl.dataset.bannerMobileAlt || imgEl.dataset.bannerDesktopAlt || imgEl.alt || '')
+    : String(imgEl.dataset.bannerDesktopAlt || imgEl.alt || '');
+
+  if (nextSrc && imgEl.getAttribute('src') !== nextSrc) imgEl.src = nextSrc;
+  if (nextAlt) imgEl.alt = nextAlt;
+
+  const linkEl = imgEl.closest('a');
+  if (!linkEl) return;
+
+  if (!useMobile) {
+    linkEl.style.removeProperty('aspect-ratio');
+    return;
+  }
+
+  const adjust = () => {
+    if (!__bannerMobileMedia.matches || !mobileSrc) return;
+    const w = Number(imgEl.naturalWidth || 0);
+    const h = Number(imgEl.naturalHeight || 0);
+    if (w > 0 && h > 0) linkEl.style.aspectRatio = w + ' / ' + h;
+  };
+
+  if (imgEl.complete) adjust();
+  else imgEl.addEventListener('load', adjust, { once: true });
+}
+
+if (!window.__ARIANA_RESPONSIVE_BANNER_BOUND__) {
+  window.__ARIANA_RESPONSIVE_BANNER_BOUND__ = true;
+  const refreshResponsiveBanners = () => {
+    document.querySelectorAll('img[data-responsive-banner="true"]').forEach(__syncResponsiveBannerImage);
+  };
+  if (typeof __bannerMobileMedia.addEventListener === 'function') {
+    __bannerMobileMedia.addEventListener('change', refreshResponsiveBanners);
+  } else if (typeof __bannerMobileMedia.addListener === 'function') {
+    __bannerMobileMedia.addListener(refreshResponsiveBanners);
+  }
+}
+
 const loadAllBanners = async () => {
   const slotAliases = {
     index_main: ['index_main','main','hero','banner_principal','index-principal'],
@@ -1306,16 +1353,23 @@ const loadAllBanners = async () => {
 
     if (sectionEl) sectionEl.classList.remove('hidden');
     const href = banner.linkUrl || banner.href || banner.link || slot.defaultHref || '#';
-    const image = banner.imageUrl || banner.image || banner.url || banner.src || '';
+    const desktopImage = banner.imageUrl || banner.desktopImageUrl || banner.image || banner.url || banner.src || '';
+    const mobileImage = banner.mobileImageUrl || banner.mobileImage || banner.imageMobile || banner.mobileUrl || '';
+    const desktopAlt = String(banner.alt || slot.placeholderText || imgEl?.alt || 'Banner Ariana Móveis');
+    const mobileAlt = String(banner.mobileAlt || banner.altMobile || desktopAlt);
     if (linkEl) linkEl.href = href;
-    if (imgEl && image) {
+    if (imgEl && desktopImage) {
       if (slotKey === 'index_main') {
         imgEl.loading = 'eager';
         imgEl.fetchPriority = 'high';
         imgEl.decoding = 'async';
       }
-      imgEl.src = image;
-      imgEl.alt = String(banner.alt || slot.placeholderText || imgEl.alt || 'Banner Ariana Móveis');
+      imgEl.dataset.responsiveBanner = 'true';
+      imgEl.dataset.bannerDesktopSrc = desktopImage;
+      imgEl.dataset.bannerMobileSrc = mobileImage;
+      imgEl.dataset.bannerDesktopAlt = desktopAlt;
+      imgEl.dataset.bannerMobileAlt = mobileAlt;
+      __syncResponsiveBannerImage(imgEl);
     }
   };
 
@@ -1338,7 +1392,9 @@ const loadAllBanners = async () => {
       const banner = merged.find((b) => aliases.includes(String(b.slotId || b.tipo || b.slot || b.key || b.id || '').trim()));
       applyBanner(slotKey, banner ? {
         ...banner,
-        imageUrl: banner.imageUrl || banner.image || banner.url || banner.src || '',
+        imageUrl: banner.imageUrl || banner.desktopImageUrl || banner.image || banner.url || banner.src || '',
+        mobileImageUrl: banner.mobileImageUrl || banner.mobileImage || banner.imageMobile || banner.mobileUrl || '',
+        mobileAlt: banner.mobileAlt || banner.altMobile || banner.alt || '',
         linkUrl: banner.linkUrl || banner.href || banner.link || '',
         active: banner.active !== false
       } : null);
