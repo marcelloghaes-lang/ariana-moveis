@@ -109,3 +109,30 @@ Cada canal possui allow/deny explícito e o Core continua sem escrita em produç
 Endpoint local:
 - `GET /v1/policy/:channel`
 - `POST /v1/route` retorna também a política do canal.
+
+
+## Fase 5 — adaptador do Site em modo sombra
+
+O Core possui agora um adaptador exclusivo para o site:
+- força o canal `site` mesmo se o cliente tentar enviar outro canal;
+- recebe mensagem + contexto mínimo da página;
+- reconhece home, catálogo, produto, carrinho, checkout e pedidos;
+- sessão é registrada somente como hash;
+- aplica automaticamente a política do Site;
+- não gera resposta ao cliente e não executa escrita em produção nesta fase.
+
+Endpoint local:
+- `POST /v1/site/shadow`
+
+Exemplo de contexto aceito:
+```json
+{
+  "message": "Quanto fica essa geladeira no cartão?",
+  "page": {
+    "path": "/produto.html?id=...",
+    "productId": "..."
+  }
+}
+```
+
+O front-end público ainda não foi alterado. A próxima etapa é criar uma ponte autenticada entre o backend público e este adaptador, e só depois habilitar um widget beta controlado.
