@@ -156,12 +156,17 @@ function logoPath() {
   return candidates.find(file => fs.existsSync(file)) || '';
 }
 
-async function logoLayer(format) {
+async function logoLayer(format, options = {}) {
   const file = logoPath();
   if (!file) return null;
   const mobile = format.device === 'mobile';
-  const width = mobile ? Math.round(format.width * .22) : Math.round(format.height * .40);
-  const height = mobile ? Math.round(format.height * .062) : Math.round(format.height * .105);
+  const campaign = Boolean(options.brandCampaign);
+  const width = mobile
+    ? Math.round(format.width * .22)
+    : Math.round(format.height * (campaign ? .34 : .40));
+  const height = mobile
+    ? Math.round(format.height * .062)
+    : Math.round(format.height * (campaign ? .085 : .105));
   const buffer = await sharp(file)
     .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 5 })
     .resize(width, height, {
@@ -175,8 +180,12 @@ async function logoLayer(format) {
     input: buffer,
     left: mobile
       ? Math.round((format.width - Number(meta.width || width)) / 2)
-      : Math.round(format.width * .055),
-    top: mobile ? Math.round(format.height * .022) : Math.round(format.height * .025)
+      : campaign
+        ? Math.round(format.width * .82)
+        : Math.round(format.width * .055),
+    top: mobile
+      ? Math.round(format.height * .022)
+      : Math.round(format.height * (campaign ? .035 : .025))
   };
 }
 
@@ -561,21 +570,21 @@ function clusterSlots(format, count = 1) {
   const n = clamp(Math.round(count), 1, 4);
 
   if (!mobile) {
-    if (n === 1) return [{ x: .51, y: .06, w: .27, h: .86 }];
+    if (n === 1) return [{ x: .49, y: .06, w: .25, h: .86 }];
     if (n === 2) return [
-      { x: .42, y: .11, w: .22, h: .77 },
-      { x: .57, y: .05, w: .25, h: .87 }
+      { x: .42, y: .12, w: .19, h: .75 },
+      { x: .56, y: .06, w: .22, h: .85 }
     ];
     if (n === 3) return [
-      { x: .40, y: .16, w: .19, h: .70 },
-      { x: .52, y: .05, w: .24, h: .88 },
-      { x: .67, y: .15, w: .19, h: .71 }
+      { x: .39, y: .17, w: .17, h: .68 },
+      { x: .51, y: .06, w: .21, h: .86 },
+      { x: .65, y: .17, w: .15, h: .67 }
     ];
     return [
-      { x: .37, y: .18, w: .17, h: .66 },
-      { x: .48, y: .09, w: .20, h: .78 },
-      { x: .60, y: .05, w: .22, h: .84 },
-      { x: .72, y: .18, w: .17, h: .66 }
+      { x: .36, y: .19, w: .15, h: .64 },
+      { x: .46, y: .10, w: .17, h: .76 },
+      { x: .57, y: .06, w: .18, h: .82 },
+      { x: .69, y: .20, w: .12, h: .62 }
     ];
   }
 
@@ -671,7 +680,7 @@ function brandFallbackSvg(format, opts) {
   if (!opts.brandName || opts.brandLogoUrl) return '';
   const mobile = format.device === 'mobile';
   const x = mobile ? format.width/2 : Math.round(format.width*.055);
-  const y = mobile ? Math.round(format.height*.14) : Math.round(format.height*.20);
+  const y = mobile ? Math.round(format.height*.14) : Math.round(format.height*.29);
   const anchor = mobile ? 'middle' : 'start';
   const fs = mobile ? Math.round(format.width*.060) : Math.round(format.height*.115);
   return '<text x="' + x + '" y="' + y + '" text-anchor="' + anchor + '" font-family="Arial Black,Arial,sans-serif" font-size="' + fs + '" font-weight="950" fill="#ffffff">' + escapeXml(opts.brandName) + '</text>';
@@ -687,7 +696,7 @@ function overlayDesktopCampaign(format, opts) {
   const badgeFs = Math.round(h*.035);
   const headlineFs = Math.round(h*(opts.headline.length > 31 ? .083 : .100));
   const subtitleFs = Math.round(h*.040);
-  const headlineTop = opts.brandName || opts.brandLogoUrl ? .31 : .23;
+  const headlineTop = opts.brandName || opts.brandLogoUrl ? .42 : .27;
   const headlineLines = wrap(opts.headline, 21, 2);
 
   const railX = Math.round(w*.80);
@@ -882,7 +891,7 @@ async function brandLogoLayer(format, opts) {
     if (!raw) return null;
     const mobile = format.device === 'mobile';
     const width = mobile ? Math.round(format.width*.28) : Math.round(format.width*.21);
-    const height = mobile ? Math.round(format.height*.075) : Math.round(format.height*.18);
+    const height = mobile ? Math.round(format.height*.075) : Math.round(format.height*.15);
     const buffer = await sharp(raw)
       .rotate()
       .ensureAlpha()
@@ -896,7 +905,7 @@ async function brandLogoLayer(format, opts) {
       left:mobile
         ? Math.round((format.width-Number(meta.width||width))/2)
         : Math.round(format.width*.055),
-      top:mobile ? Math.round(format.height*.155) : Math.round(format.height*.15)
+      top:mobile ? Math.round(format.height*.155) : Math.round(format.height*.17)
     };
   } catch {
     return null;
@@ -1009,7 +1018,7 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
 
   const layers=[{input:backgroundSvg(format,opts),left:0,top:0}];
 
-  const arianaLogo=await logoLayer(format);
+  const arianaLogo=await logoLayer(format,opts);
   if(arianaLogo) layers.push(arianaLogo);
 
   const brandLogo=await brandLogoLayer(format,opts);
