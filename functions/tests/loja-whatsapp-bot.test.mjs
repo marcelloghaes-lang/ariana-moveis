@@ -9415,7 +9415,7 @@ test('aprendizado integrado: comprovante recente seguido de prestação do fogã
   bot.patchTestConversation(phone, { lastPaymentProofAt: Date.now(), lastIntent: 'comprovante_pagamento' });
   catalogRows = [product('fogao-x', 'Fogão Teste', { category: 'Fogões' })];
   await bot.handleMessage({ phone, text: 'Prestação do fogão', pushName: 'Cliente' });
-  const body = sentTexts.join(' ');
+  const body = sentTexts.map((item) => String(item?.text || item || '')).join(' ');
   assert.match(body, /comprovante|conferência|prestação/i);
   assert.doesNotMatch(body, /opções disponíveis no catálogo|vou te mostrar as primeiras/i);
   assert.equal(sentMedia.length, 0);
