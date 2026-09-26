@@ -1,6 +1,7 @@
 import fs from 'fs';
 import { spawnSync } from 'child_process';
 import { createHash } from 'crypto';
+import { fileURLToPath } from 'url';
 
 const DB_CONTAINER = String(process.env.ARIANA_AI_CHATWOOT_DB_CONTAINER || 'chatwoot-db-1');
 const DB_NAME = String(process.env.ARIANA_AI_CHATWOOT_DB_NAME || 'chatwoot_production');
@@ -298,7 +299,7 @@ async function loop() {
   }
 }
 
-if (process.argv[1] && import.meta.url.endsWith(process.argv[1])) {
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   console.log('[ariana-ai-db-observer] read-only shadow observer starting');
   console.log('[ariana-ai-db-observer] monitored inboxes: 5 SAC, 6 Financeiro, 7 Loja, 9 Crediario');
   console.log('[ariana-ai-db-observer] customer outbound messaging: disabled');
