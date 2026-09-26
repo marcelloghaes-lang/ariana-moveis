@@ -1,5 +1,6 @@
 import { releaseStockReservation, syncStockReservationForPayment } from '../services/stockReservationService.js';
 import { generateCreativeBannerBuffer, resolveCreativeBannerFormat } from '../creative-banner-generator.js';
+import { generateCreativeBannerPro, analyzeCreativeBannerPro, resolveProFormat } from '../creative-banner-pro-generator.js';
 
 // ============================================================
 // ROTAS ADMIN CORE / UPLOAD / POSTERS / CRUD GENÉRICO
@@ -948,6 +949,67 @@ app.post('/api/admin/posters/professional-banner', adminRequired, async (req, re
   } catch (error) {
     console.error('[creative-studio] erro ao gerar banner:', error);
     return res.status(500).json({ ok: false, error: error.message || 'creative_banner_generate_failed' });
+  }
+});
+
+app.post('/api/admin/creative-studio/pro/analyze', adminRequired, async (req, res) => {
+  try {
+    const { product, options } = professionalCreativeInput(req.body || {});
+    const analysis = await analyzeCreativeBannerPro(product, options);
+    return res.json(analysis);
+  } catch (error) {
+    console.error('[creative-studio-pro] erro ao analisar imagem:', error);
+    return res.status(500).json({ ok: false, error: error.message || 'creative_studio_pro_analyze_failed' });
+  }
+});
+
+app.post('/api/admin/creative-studio/pro/preview', adminRequired, async (req, res) => {
+  try {
+    const { product, options } = professionalCreativeInput(req.body || {});
+    const result = await generateCreativeBannerPro(product, options);
+    const format = result.meta?.format || resolveProFormat(options.outputFormat);
+    res.set({
+      'Content-Type': 'image/png',
+      'Content-Disposition': 'inline; filename="previa-creative-studio-pro.png"',
+      'Cache-Control': 'no-store, max-age=0',
+      'X-Creative-Pro': '1',
+      'X-Creative-Format': format.id,
+      'X-Creative-Width': String(format.width),
+      'X-Creative-Height': String(format.height),
+      'X-Creative-Quality': String(result.meta?.quality?.score ?? ''),
+      'X-Creative-Background': String(result.meta?.product?.removalMode || ''),
+      'X-Content-Type-Options': 'nosniff'
+    });
+    return res.send(result.buffer);
+  } catch (error) {
+    console.error('[creative-studio-pro] erro ao gerar prévia:', error);
+    return res.status(500).json({ ok: false, error: error.message || 'creative_studio_pro_preview_failed' });
+  }
+});
+
+app.post('/api/admin/creative-studio/pro/render', adminRequired, async (req, res) => {
+  try {
+    const { product, options } = professionalCreativeInput(req.body || {});
+    const result = await generateCreativeBannerPro(product, options);
+    const format = result.meta?.format || resolveProFormat(options.outputFormat);
+    const productName = String(product.name || product.title || 'banner-ariana-pro');
+    const safeName = sanitizeIdPart(productName) || 'banner-ariana-pro';
+    res.set({
+      'Content-Type': 'image/png',
+      'Content-Disposition': `attachment; filename="${safeName}-${format.id}-pro.png"`,
+      'Cache-Control': 'no-store, max-age=0',
+      'X-Creative-Pro': '1',
+      'X-Creative-Format': format.id,
+      'X-Creative-Width': String(format.width),
+      'X-Creative-Height': String(format.height),
+      'X-Creative-Quality': String(result.meta?.quality?.score ?? ''),
+      'X-Creative-Background': String(result.meta?.product?.removalMode || ''),
+      'X-Content-Type-Options': 'nosniff'
+    });
+    return res.send(result.buffer);
+  } catch (error) {
+    console.error('[creative-studio-pro] erro ao gerar arquivo final:', error);
+    return res.status(500).json({ ok: false, error: error.message || 'creative_studio_pro_render_failed' });
   }
 });
 
