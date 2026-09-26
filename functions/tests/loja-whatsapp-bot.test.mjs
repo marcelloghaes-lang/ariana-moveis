@@ -9404,7 +9404,19 @@ test('boleto contextual reconhece variações naturais sem iniciar cadastro ante
 
 test('aprendizado: referência financeira ao produto após comprovante é reconhecida como compra paga', () => {
   assert.equal(bot.paymentProofPurchaseReference('Prestação da minha geladeira'), 'geladeira');
+  assert.equal(bot.paymentProofPurchaseReference('Prestação do fogão'), 'fogão');
   assert.equal(bot.paymentProofPurchaseReference('É a parcela da minha televisão'), 'tv');
   assert.equal(bot.paymentProofPurchaseReference('Quero uma geladeira'), '');
   assert.equal(bot.paymentProofPurchaseReference('Tem televisão?'), '');
+});
+
+test('aprendizado integrado: comprovante recente seguido de prestação do fogão não envia catálogo nem fotos', async () => {
+  const phone = '553399999883';
+  bot.patchTestConversation(phone, { lastPaymentProofAt: Date.now(), lastIntent: 'comprovante_pagamento' });
+  catalogRows = [product('fogao-x', 'Fogão Teste', { category: 'Fogões' })];
+  await bot.handleMessage({ phone, text: 'Prestação do fogão', pushName: 'Cliente' });
+  const body = sentTexts.join(' ');
+  assert.match(body, /comprovante|conferência|prestação/i);
+  assert.doesNotMatch(body, /opções disponíveis no catálogo|vou te mostrar as primeiras/i);
+  assert.equal(sentMedia.length, 0);
 });
