@@ -188,26 +188,39 @@ export function createErpLedgerService(context={}){
   await audit(paid?'erp.ledger.entry.paid':'erp.ledger.entry.partial',{message:paid?'Lançamento quitado':'Pagamento parcial registrado',entryId:String(row._id),direction:row.direction,principal,totalPaid,remaining:newRemaining,bankAccountId:bank?String(bank._id):'',by:actorName(actor)});
   const decorated=decorate(row);
   if(row.direction!=='receivable')return decorated;
-  // O comprovante deve usar exatamente a mesma numeração histórica calculada
-  // para a tela/extrato (ex.: 10/12), sem recalcular uma série isolada como 01/01.
-  let receiptEntry=decorated;
-  try{
-    const receiptRows=await listEntries({direction:'receivable',limit:3000});
-    const matched=receiptRows.find(item=>String(item?._id||item?.id||'')===String(row._id));
-    if(matched)receiptEntry=matched;
-  }catch(error){
-    console.warn('[erp-ledger] falha ao enriquecer parcela para comprovante:',error?.message||error);
-  }
+  // O frontend do Financeiro já envia a numeração histórica exibida na tela
+  // (ex.: 10/12). Quando ela existir, não faça uma varredura de milhares de
+  // lançamentos apenas para redescobrir a mesma numeração.
   const explicitNumber=Math.max(0,Number(payload?.installmentNumber||0));
   const explicitTotal=Math.max(0,Number(payload?.installments||0));
+  let receiptEntry=decorated;
   if(explicitNumber&&explicitTotal){
     receiptEntry={...receiptEntry,historicalInstallmentNumber:explicitNumber,historicalInstallments:explicitTotal,installmentLabel:clean(payload?.installmentLabel,80)};
+  }else{
+    try{
+      const receiptRows=await listEntries({direction:'receivable',limit:3000});
+      const matched=receiptRows.find(item=>String(item?._id||item?.id||'')===String(row._id));
+      if(matched)receiptEntry=matched;
+    }catch(error){
+      console.warn('[erp-ledger] falha ao enriquecer parcela para comprovante:',error?.message||error);
+    }
   }
-  const receiptDelivery=await paymentReceipts.afterLedgerReceive({
+
+  // A baixa financeira nunca pode ficar presa aguardando indefinidamente o
+  // provedor de WhatsApp. A tentativa de comprovante continua limitada no tempo.
+  const deliveryPromise=paymentReceipts.afterLedgerReceive({
     entry:receiptEntry,
     payment,
     actor
   }).catch(error=>({whatsappEnviado:false,requiresPhone:false,whatsapp:{ok:false,error:error?.message||String(error)}}));
+  const receiptDelivery=await Promise.race([
+    deliveryPromise,
+    new Promise(resolve=>setTimeout(()=>resolve({
+      whatsappEnviado:false,
+      requiresPhone:false,
+      whatsapp:{ok:false,pending:true,error:'O comprovante continua sendo processado em segundo plano.'}
+    }),12000))
+  ]);
   return{...decorated,receiptDelivery}
  }
  async function unpay(id,actor={}){
