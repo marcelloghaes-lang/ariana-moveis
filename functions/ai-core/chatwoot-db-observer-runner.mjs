@@ -9,7 +9,7 @@ async function tick() {
   } catch (error) {
     console.error('[ariana-ai-db-observer]', error?.message || error);
   } finally {
-    setTimeout(tick, POLL_MS).unref();
+    setTimeout(tick, POLL_MS);
   }
 }
 
