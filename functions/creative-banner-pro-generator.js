@@ -502,6 +502,47 @@ async function removeConnectedBackground(buffer, enabled = true) {
     }
   }
 
+  // Detecta máscara fragmentada: muitos cortes alternados numa mesma linha
+  // normalmente significam que partes claras do próprio produto foram
+  // confundidas com o fundo. Nessa situação é melhor reprovar o recorte do que
+  // entregar um eletrodoméstico "furado".
+  let transitionRows = 0;
+  let totalTransitions = 0;
+  for (let y = 0; y < height; y += Math.max(1, Math.round(height / 180))) {
+    let previousRemoved = chosen.visited[y * width] && !restore[y * width];
+    let transitions = 0;
+    for (let x = 1; x < width; x += 1) {
+      const i = y * width + x;
+      const currentRemoved = chosen.visited[i] && !restore[i];
+      if (currentRemoved !== previousRemoved) {
+        transitions += 1;
+        previousRemoved = currentRemoved;
+      }
+    }
+    if (transitions >= 8) transitionRows += 1;
+    totalTransitions += transitions;
+  }
+
+  const sampledRows = Math.max(1, Math.ceil(height / Math.max(1, Math.round(height / 180))));
+  const fragmentationRatio = transitionRows / sampledRows;
+  const averageTransitions = totalTransitions / sampledRows;
+
+  if (fragmentationRatio > 0.10 || averageTransitions > 7.5) {
+    const original = await source.png().toBuffer();
+    const meta = await sharp(original).metadata();
+    return {
+      buffer: original,
+      sourceWidth: sourceMeta.width || width,
+      sourceHeight: sourceMeta.height || height,
+      width: meta.width || width,
+      height: meta.height || height,
+      backgroundRemoved: false,
+      removalMode: 'fragmented_mask_blocked',
+      removedRatio: chosen.removedRatio,
+      confidence: 0.10
+    };
+  }
+
   const png = await sharp(out, { raw: info }).png().toBuffer();
   const trimmed = await sharp(png)
     .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 8 })
@@ -1157,9 +1198,18 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
   const format=opts.format;
   const assets=await prepareCampaignAssets(opts);
   const campaignMode=opts.brandCampaign || assets.length>1;
+
+  let renderEntries=assets.map((asset,index)=>({asset,index}));
+  if(campaignMode && assets.length>1){
+    const cleanEntries=renderEntries.filter(entry=>entry.asset.backgroundRemoved);
+    // Com pelo menos dois recortes bons, é visualmente melhor usar apenas
+    // esses produtos do que inserir um retângulo/foto ruim no meio da campanha.
+    if(cleanEntries.length>=2) renderEntries=cleanEntries;
+  }
+
   const slots=campaignMode
-    ? clusterSlots(format,assets.length)
-    : [singleComposition(format,assets[0],opts).product];
+    ? clusterSlots(format,renderEntries.length)
+    : [singleComposition(format,renderEntries[0].asset,opts).product];
 
   const layers=[{input:backgroundSvg(format,opts),left:0,top:0}];
 
@@ -1169,9 +1219,9 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
   const brandLogo=await brandLogoLayer(format,opts);
   if(brandLogo) layers.push(brandLogo);
 
-  for(let index=0;index<assets.length;index+=1){
-    const asset=assets[index];
-    const box=slots[index] || slots[slots.length-1];
+  for(let renderIndex=0;renderIndex<renderEntries.length;renderIndex+=1){
+    const {asset}=renderEntries[renderIndex];
+    const box=slots[renderIndex] || slots[slots.length-1];
     const layer=await productCompositeForBox(asset,format,box);
     if(!asset.backgroundRemoved){
       layers.push({input:fallbackPanelSvgForBox(format,box,opts.template),left:0,top:0});
@@ -1207,6 +1257,7 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
       brandCampaign:campaignMode,
       showPrice:opts.showPrice,
       productCount:assets.length,
+      renderedProductCount:renderEntries.length,
       products:assets.map((asset,index)=>({
         name:clean(opts.products[index]?.name || opts.products[index]?.title || 'Produto',90),
         sourceWidth:asset.sourceWidth,
