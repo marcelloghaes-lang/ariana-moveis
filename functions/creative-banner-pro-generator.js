@@ -419,20 +419,82 @@ async function removeConnectedBackground(buffer, enabled = true) {
     };
   }
 
+  // Produto branco sobre fundo branco pode ter grandes áreas internas com
+  // praticamente a mesma cor do fundo. Antes de zerar o alpha, verificamos se
+  // o foreground remanescente é predominantemente claro. Nesse caso,
+  // recuperamos somente pixels removidos que estejam cercados pela silhueta
+  // tanto na horizontal quanto na vertical. Isso preserva a frente de
+  // geladeiras/freezers sem transformar a foto inteira em um retângulo.
+  const restore = new Uint8Array(total);
+  if (lightEdge && chosen.removedRatio > 0.48) {
+    let retained = 0;
+    let retainedLight = 0;
+
+    for (let i = 0; i < total; i += 1) {
+      if (chosen.visited[i]) continue;
+      const p = i * channels;
+      if (data[p + 3] < 30) continue;
+      retained += 1;
+      const brightness = (data[p] + data[p + 1] + data[p + 2]) / 3;
+      const chroma = Math.max(data[p], data[p + 1], data[p + 2]) - Math.min(data[p], data[p + 1], data[p + 2]);
+      if (brightness >= 205 && chroma <= 55) retainedLight += 1;
+    }
+
+    const lightForegroundRatio = retainedLight / Math.max(1, retained);
+    if (lightForegroundRatio >= 0.34) {
+      const rowMin = new Int32Array(height);
+      const rowMax = new Int32Array(height);
+      const colMin = new Int32Array(width);
+      const colMax = new Int32Array(width);
+      rowMin.fill(width);
+      rowMax.fill(-1);
+      colMin.fill(height);
+      colMax.fill(-1);
+
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          const i = y * width + x;
+          if (chosen.visited[i]) continue;
+          const p = i * channels;
+          if (data[p + 3] < 30) continue;
+          rowMin[y] = Math.min(rowMin[y], x);
+          rowMax[y] = Math.max(rowMax[y], x);
+          colMin[x] = Math.min(colMin[x], y);
+          colMax[x] = Math.max(colMax[x], y);
+        }
+      }
+
+      const rowPad = Math.max(2, Math.round(width * .004));
+      const colPad = Math.max(2, Math.round(height * .004));
+      for (let y = 0; y < height; y += 1) {
+        if (rowMax[y] - rowMin[y] < Math.round(width * .12)) continue;
+        for (let x = rowMin[y] + rowPad; x <= rowMax[y] - rowPad; x += 1) {
+          const i = y * width + x;
+          if (!chosen.visited[i]) continue;
+          if (colMax[x] - colMin[x] < Math.round(height * .12)) continue;
+          if (y > colMin[x] + colPad && y < colMax[x] - colPad) {
+            restore[i] = 1;
+          }
+        }
+      }
+    }
+  }
+
   const out = Buffer.from(data);
   for (let i = 0; i < total; i += 1) {
-    if (chosen.visited[i]) out[i * channels + 3] = 0;
+    if (chosen.visited[i] && !restore[i]) out[i * channels + 3] = 0;
   }
 
   for (let i = 0; i < total; i += 1) {
-    if (chosen.visited[i]) continue;
+    if ((chosen.visited[i] && !restore[i])) continue;
     const x = i % width;
     const y = Math.floor(i / width);
+    const removed = (idx) => idx >= 0 && idx < total && chosen.visited[idx] && !restore[idx];
     const touchesRemoved =
-      (x > 0 && chosen.visited[i - 1]) ||
-      (x + 1 < width && chosen.visited[i + 1]) ||
-      (y > 0 && chosen.visited[i - width]) ||
-      (y + 1 < height && chosen.visited[i + width]);
+      (x > 0 && removed(i - 1)) ||
+      (x + 1 < width && removed(i + 1)) ||
+      (y > 0 && removed(i - width)) ||
+      (y + 1 < height && removed(i + width));
 
     if (touchesRemoved) {
       const alphaIndex = i * channels + 3;
