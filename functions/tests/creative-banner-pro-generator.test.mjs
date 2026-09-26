@@ -54,11 +54,11 @@ test('remove fundo branco conectado sem apagar branco interno do produto', async
     removeBackground: true
   });
 
-  assert.equal(analysis.product.backgroundRemoved, true);
-  assert.match(analysis.product.removalMode, /connected_light_background|connected_uniform_background/);
-  assert.ok(analysis.product.removedRatio > 0.25);
-  assert.ok(analysis.product.removedRatio < 0.90);
-  assert.ok(analysis.product.backgroundConfidence >= 0.5);
+  assert.equal(analysis.products[0].backgroundRemoved, true);
+  assert.match(analysis.products[0].removalMode, /connected_light_background|connected_uniform_background/);
+  assert.ok(analysis.products[0].removedRatio > 0.25);
+  assert.ok(analysis.products[0].removedRatio < 0.90);
+  assert.ok(analysis.products[0].backgroundConfidence >= 0.5);
 });
 
 test('imagem de fundo complexo não é destruída por remoção agressiva', async () => {
@@ -71,8 +71,8 @@ test('imagem de fundo complexo não é destruída por remoção agressiva', asyn
     removeBackground: true
   });
 
-  assert.equal(analysis.product.backgroundRemoved, false);
-  assert.equal(analysis.product.removalMode, 'complex_background');
+  assert.equal(analysis.products[0].backgroundRemoved, false);
+  assert.equal(analysis.products[0].removalMode, 'complex_background');
 });
 
 test('banner Pro gera normalmente sem preço', async () => {
@@ -108,7 +108,7 @@ test('banner Pro gera preço quando existe e está habilitado', async () => {
   assert.equal(result.meta.showPrice, true);
   const meta = await sharp(result.buffer).metadata();
   assert.equal(meta.width, 1080);
-  assert.equal(meta.height, 1080);
+  assert.equal(meta.height, 875);
 });
 
 test('templates Pro produzem composições realmente diferentes', async () => {
@@ -138,3 +138,54 @@ test('qualidade informa explicitamente quando preço foi omitido por escolha', a
   assert.equal(priceCheck.ok, true);
   assert.match(priceCheck.label, /sem preço/i);
 });
+
+test('campanha de marca aceita até quatro produtos e ativa composição varejo', async () => {
+  const products = [1,2,3,4].map(index => ({
+    id: 'p' + index,
+    name: 'Geladeira Teste ' + index,
+    brand: 'Midea',
+    category: 'Geladeira',
+    imageUrl: WHITE_BG_PRODUCT,
+    pixPrice: 2499 + index,
+    price: 2998.80 + index
+  }));
+
+  const result = await generateCreativeBannerPro(products[0], {
+    products,
+    outputFormat: 'hero_desktop',
+    templatePro: 'campaign',
+    contentMode: 'brand_campaign',
+    showPrice: false,
+    brandName: 'Midea',
+    promoCode: 'ARIANA10',
+    headline: 'ESPECIAL MIDEA',
+    subtitle: 'Tecnologia e praticidade para sua casa',
+    benefitOne: '12X NO CARTÃO',
+    benefitTwo: 'OFERTA LIMITADA'
+  });
+
+  assert.equal(result.meta.productCount, 4);
+  assert.equal(result.meta.brandCampaign, true);
+  const meta = await sharp(result.buffer).metadata();
+  assert.equal(meta.width, 1920);
+  assert.equal(meta.height, 480);
+});
+
+test('análise de campanha de marca valida identidade e quantidade de produtos', async () => {
+  const analysis = await analyzeCreativeBannerPro(product, {
+    products: [product, { ...product, id: 'p2', name: 'Geladeira Teste 2' }],
+    outputFormat: 'hero_mobile',
+    templatePro: 'campaign',
+    contentMode: 'brand_campaign',
+    brandName: 'Midea',
+    showPrice: false
+  });
+
+  assert.equal(analysis.productCount, 2);
+  assert.equal(analysis.brandCampaign, true);
+  const brandCheck = analysis.quality.checks.find(item => item.id === 'brand');
+  const productsCheck = analysis.quality.checks.find(item => item.id === 'products');
+  assert.equal(brandCheck.ok, true);
+  assert.equal(productsCheck.ok, true);
+});
+
