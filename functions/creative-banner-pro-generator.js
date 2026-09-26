@@ -693,21 +693,21 @@ function clusterSlots(format, count = 1) {
     ];
   }
 
-  if (n === 1) return [{ x: .25, y: .31, w: .50, h: .43 }];
+  if (n === 1) return [{ x: .27, y: .46, w: .46, h: .31 }];
   if (n === 2) return [
-    { x: .15, y: .34, w: .39, h: .38 },
-    { x: .47, y: .30, w: .40, h: .43 }
+    { x: .16, y: .49, w: .36, h: .27 },
+    { x: .49, y: .45, w: .37, h: .32 }
   ];
   if (n === 3) return [
-    { x: .10, y: .38, w: .34, h: .32 },
-    { x: .33, y: .31, w: .40, h: .42 },
-    { x: .62, y: .38, w: .30, h: .32 }
+    { x: .11, y: .50, w: .30, h: .25 },
+    { x: .35, y: .45, w: .35, h: .31 },
+    { x: .65, y: .50, w: .27, h: .25 }
   ];
   return [
-    { x: .08, y: .39, w: .29, h: .31 },
-    { x: .28, y: .33, w: .33, h: .37 },
-    { x: .51, y: .31, w: .34, h: .39 },
-    { x: .72, y: .40, w: .25, h: .29 }
+    { x: .07, y: .51, w: .27, h: .24 },
+    { x: .27, y: .46, w: .30, h: .29 },
+    { x: .51, y: .44, w: .31, h: .31 },
+    { x: .73, y: .51, w: .23, h: .23 }
   ];
 }
 
@@ -825,9 +825,9 @@ function brandFallbackSvg(format, opts) {
   if (!opts.brandName || opts.brandLogoUrl) return '';
   const mobile = format.device === 'mobile';
   const x = mobile ? format.width/2 : Math.round(format.width*.055);
-  const y = mobile ? Math.round(format.height*.14) : Math.round(format.height*.29);
+  const y = mobile ? Math.round(format.height*.145) : Math.round(format.height*.29);
   const anchor = mobile ? 'middle' : 'start';
-  const fs = mobile ? Math.round(format.width*.060) : Math.round(format.height*.115);
+  const fs = mobile ? Math.round(format.width*.047) : Math.round(format.height*.115);
   return '<text x="' + x + '" y="' + y + '" text-anchor="' + anchor + '" font-family="Arial Black,Arial,sans-serif" font-size="' + fs + '" font-weight="950" fill="#ffffff">' + escapeXml(opts.brandName) + '</text>';
 }
 
@@ -923,7 +923,7 @@ function overlayMobileCampaign(format, opts) {
   const dark = opts.template === 'premium' ? '#071B3B' : '#003B8F';
   const headlineFs = Math.round(w*(opts.headline.length > 30 ? .050 : .058));
   const headlineLines = wrap(opts.headline, 24, 2);
-  const pillY = Math.round(h*.83);
+  const pillY = Math.round(h*.855);
   const gap = Math.round(w*.018);
   const pillW = Math.round((w - Math.round(w*.10) - gap*2)/3);
   const pillH = Math.round(h*.083);
@@ -931,20 +931,20 @@ function overlayMobileCampaign(format, opts) {
   let promo = '';
   if (opts.promoCode) {
     promo =
-      '<text x="' + center + '" y="' + Math.round(h*.255) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + Math.round(w*.028) + '" font-weight="850" fill="#ffffff">USE O CÓDIGO</text>' +
-      '<rect x="' + Math.round(w*.31) + '" y="' + Math.round(h*.272) + '" width="' + Math.round(w*.38) + '" height="' + Math.round(h*.072) + '" rx="' + Math.round(h*.022) + '" fill="' + accent + '"/>' +
-      '<text x="' + center + '" y="' + Math.round(h*.322) + '" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-size="' + Math.round(w*.037) + '" font-weight="950" fill="' + dark + '">' + escapeXml(opts.promoCode) + '</text>';
+      '<text x="' + center + '" y="' + Math.round(h*.420) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + Math.round(w*.023) + '" font-weight="850" fill="#ffffff">USE O CÓDIGO</text>' +
+      '<rect x="' + Math.round(w*.33) + '" y="' + Math.round(h*.432) + '" width="' + Math.round(w*.34) + '" height="' + Math.round(h*.060) + '" rx="' + Math.round(h*.020) + '" fill="' + accent + '"/>' +
+      '<text x="' + center + '" y="' + Math.round(h*.474) + '" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-size="' + Math.round(w*.031) + '" font-weight="950" fill="' + dark + '">' + escapeXml(opts.promoCode) + '</text>';
   } else {
     promo =
-      '<text x="' + center + '" y="' + Math.round(h*.282) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + Math.round(w*.029) + '" font-weight="650" fill="#ffffff" opacity=".94">' + escapeXml(opts.subtitle) + '</text>';
+      '<text x="' + center + '" y="' + Math.round(h*.405) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + Math.round(w*.026) + '" font-weight="650" fill="#ffffff" opacity=".94">' + escapeXml(opts.subtitle) + '</text>';
   }
 
   return Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '">' +
     brandFallbackSvg(format, opts) +
-    '<rect x="' + Math.round(w*.32) + '" y="' + Math.round(h*.095) + '" width="' + Math.round(w*.36) + '" height="' + Math.round(h*.057) + '" rx="' + Math.round(h*.029) + '" fill="' + accent + '"/>' +
-    '<text x="' + center + '" y="' + Math.round(h*.135) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + Math.round(w*.025) + '" font-weight="950" fill="' + dark + '">' + escapeXml(opts.badge) + '</text>' +
-    linesSvg(headlineLines,{x:center,y:Math.round(h*.205),size:headlineFs,lineHeight:headlineFs*1.02,fill:'#ffffff',weight:950,anchor:'middle'}) +
+    '<rect x="' + Math.round(w*.32) + '" y="' + Math.round(h*.185) + '" width="' + Math.round(w*.36) + '" height="' + Math.round(h*.055) + '" rx="' + Math.round(h*.028) + '" fill="' + accent + '"/>' +
+    '<text x="' + center + '" y="' + Math.round(h*.223) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + Math.round(w*.024) + '" font-weight="950" fill="' + dark + '">' + escapeXml(opts.badge) + '</text>' +
+    linesSvg(headlineLines,{x:center,y:Math.round(h*.295),size:headlineFs,lineHeight:headlineFs*1.02,fill:'#ffffff',weight:950,anchor:'middle'}) +
     promo +
     (opts.showPrice
       ? '<text x="' + center + '" y="' + Math.round(h*.745) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + Math.round(w*.023) + '" font-weight="850" fill="#ffffff">À VISTA NO PIX</text>' +
@@ -1050,7 +1050,7 @@ async function brandLogoLayer(format, opts) {
       left:mobile
         ? Math.round((format.width-Number(meta.width||width))/2)
         : Math.round(format.width*.055),
-      top:mobile ? Math.round(format.height*.155) : Math.round(format.height*.17)
+      top:mobile ? Math.round(format.height*.095) : Math.round(format.height*.17)
     };
   } catch {
     return null;
