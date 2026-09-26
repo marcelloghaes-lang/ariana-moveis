@@ -9420,3 +9420,20 @@ test('aprendizado integrado: comprovante recente seguido de prestação do fogã
   assert.doesNotMatch(body, /opções disponíveis no catálogo|vou te mostrar as primeiras/i);
   assert.equal(sentMedia.length, 0);
 });
+
+
+test('aprendizado fornecedor: promoção B2B de fabricante não vira busca de produto para consumidor', () => {
+  assert.equal(bot.isSupplierContactSignal({ text: 'Boa tarde, segue MEGA PROMOÇÃO BLACK FRIDAY DEMÓBILE. Dúvidas estou à disposição' }), true);
+});
+
+test('aprendizado fornecedor: proposta de parceria por histórico de compras é classificada como B2B', () => {
+  assert.equal(bot.isSupplierContactSignal({ text: 'Verifiquei em nosso sistema e vocês nunca realizaram compras conosco. Vocês têm interesse em começar uma parceria conosco?' }), true);
+});
+
+test('aprendizado fornecedor: lembrete de conta da Ariana com atacadista não é confundido com cobrança de cliente', () => {
+  assert.equal(bot.isSupplierContactSignal({ text: 'Está chegando o dia de vencimento da sua parcela. 25/09/2026 - R$ 133,09. Pai e Filhos Atacadista de Móveis.' }), true);
+});
+
+test('aprendizado fornecedor: pergunta normal de cliente sobre promoção continua sendo atendimento de consumidor', () => {
+  assert.equal(bot.isSupplierContactSignal({ text: 'Tem alguma promoção de geladeira hoje?' }), false);
+});
