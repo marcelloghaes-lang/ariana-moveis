@@ -168,13 +168,13 @@ function bannerLayout(format) {
   return {
     split: false,
     pad,
-    logoW: Math.round(format.width * 0.30),
-    logoH: Math.round(format.width * 0.105),
+    logoW: Math.round(format.width * 0.27),
+    logoH: Math.round(format.width * 0.078),
     productBox: {
       x: Math.round(format.width * 0.12),
-      y: Math.round(format.height * 0.27),
+      y: Math.round(format.height * 0.30),
       w: Math.round(format.width * 0.76),
-      h: Math.round(format.height * 0.40)
+      h: Math.round(format.height * 0.36)
     },
     textW: format.width - pad * 2
   };
@@ -231,23 +231,25 @@ function overlaySvg(format, palette, layout, product = {}, options = {}) {
   const pad = layout.pad;
 
   if (split) {
-    const tagFs = Math.round(height * .055);
-    const headlineFs = Math.round(height * .115);
-    const subtitleFs = Math.round(height * .050);
-    const nameFs = Math.round(height * .057);
-    const priceFs = Math.round(height * .145);
-    const installmentFs = Math.round(height * .055);
+    const tagFs = Math.round(height * .042);
+    const headlineFs = Math.round(height * (headline.length > 30 ? .078 : .095));
+    const subtitleFs = Math.round(height * .038);
+    const nameFs = Math.round(height * .046);
+    const priceFs = Math.round(height * .118);
+    const installmentFs = Math.round(height * .038);
     const headlineLines = wrapText(headline, Math.max(16, Math.floor(layout.textW / (headlineFs * .55))), 2);
     const nameLines = wrapText(productName, Math.max(25, Math.floor(layout.textW / (nameFs * .52))), 2);
     const x = pad;
     const logoBottom = pad + layout.logoH;
-    const tagY = logoBottom + tagFs * 1.10;
-    const headlineY = tagY + headlineFs * 1.15;
-    const headlineH = headlineLines.length * headlineFs * 1.02;
-    const subtitleY = headlineY + headlineH + subtitleFs * .40;
-    const nameY = subtitleY + subtitleFs * 1.60;
-    const priceY = Math.min(height - pad - installmentFs * 1.55, nameY + nameLines.length * nameFs * 1.05 + priceFs * .88);
-    const installmentY = priceY + installmentFs * 1.32;
+    const tagY = logoBottom + tagFs * .98;
+    const headlineY = tagY + headlineFs * 1.18;
+    const headlineH = headlineLines.length * headlineFs * 1.00;
+    const subtitleY = headlineY + headlineH + subtitleFs * .28;
+    const nameY = subtitleY + subtitleFs * 1.42;
+    const ctaH = Math.round(height * .068);
+    const ctaY = height - pad - ctaH;
+    const installmentY = ctaY - Math.round(height * .020);
+    const priceY = installmentY - installmentFs * 1.22;
 
     return Buffer.from(`
       <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
@@ -259,27 +261,30 @@ function overlaySvg(format, palette, layout, product = {}, options = {}) {
         <text x="${x}" y="${priceY - priceFs * .63}" font-family="Arial,Helvetica,sans-serif" font-size="${Math.round(priceFs * .30)}" font-weight="800" fill="${palette.ink}" opacity=".88">À VISTA NO PIX</text>
         <text x="${x}" y="${priceY}" font-family="Arial,Helvetica,sans-serif" font-size="${priceFs}" font-weight="950" fill="${palette.price}">${escapeXml(money(cash))}</text>
         <text x="${x}" y="${installmentY}" font-family="Arial,Helvetica,sans-serif" font-size="${installmentFs}" font-weight="850" fill="${palette.ink}">ou ${installments}x de ${escapeXml(money(installmentPrice))} no cartão</text>
-        <rect x="${x}" y="${height - pad - Math.round(height*.075)}" width="${Math.round(layout.textW * .48)}" height="${Math.round(height*.075)}" rx="${Math.round(height*.037)}" fill="#ffffff"/>
-        <text x="${x + Math.round(layout.textW*.24)}" y="${height - pad - Math.round(height*.026)}" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="${Math.round(height*.037)}" font-weight="900" fill="${palette.bg1}">COMPRE NO SITE</text>
-        <text x="${x + Math.round(layout.textW*.51)}" y="${height - pad - Math.round(height*.026)}" font-family="Arial,Helvetica,sans-serif" font-size="${Math.round(height*.035)}" font-weight="800" fill="${palette.ink}">${escapeXml(domain)}</text>
+        <rect x="${x}" y="${ctaY}" width="${Math.round(layout.textW * .48)}" height="${ctaH}" rx="${Math.round(ctaH*.50)}" fill="#ffffff"/>
+        <text x="${x + Math.round(layout.textW*.24)}" y="${ctaY + Math.round(ctaH*.68)}" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="${Math.round(height*.032)}" font-weight="900" fill="${palette.bg1}">COMPRE NO SITE</text>
+        <text x="${x + Math.round(layout.textW*.51)}" y="${ctaY + Math.round(ctaH*.68)}" font-family="Arial,Helvetica,sans-serif" font-size="${Math.round(height*.031)}" font-weight="800" fill="${palette.ink}">${escapeXml(domain)}</text>
       </svg>
     `);
   }
 
   const center = width / 2;
-  const tagFs = Math.round(width * .036);
-  const headlineFs = Math.round(width * .068);
-  const nameFs = Math.round(width * .042);
-  const priceFs = Math.round(width * .083);
-  const installmentFs = Math.round(width * .038);
-  const headlineLines = wrapText(headline, 24, 2);
-  const nameLines = wrapText(productName, 34, 2);
-  const tagY = Math.round(height * .14);
-  const headlineY = Math.round(height * .205);
+  const tagFs = Math.round(width * .030);
+  const headlineFs = Math.round(width * (headline.length > 28 ? .055 : .062));
+  const nameFs = Math.round(width * .036);
+  const priceFs = Math.round(width * .071);
+  const installmentFs = Math.round(width * .030);
+  const headlineLines = wrapText(headline, 26, 2);
+  const nameLines = wrapText(productName, 36, 2);
+  const logoBottom = pad + layout.logoH;
+  const tagY = logoBottom + Math.round(height * .030);
+  const headlineY = tagY + Math.round(height * .065);
   const productBottom = layout.productBox.y + layout.productBox.h;
-  const nameY = productBottom + Math.round(height*.055);
-  const priceY = nameY + nameLines.length * nameFs * 1.06 + Math.round(height*.075);
-  const installmentY = priceY + Math.round(height*.055);
+  const nameY = productBottom + Math.round(height*.052);
+  const ctaH = Math.round(height * .060);
+  const ctaY = height - pad - ctaH;
+  const installmentY = ctaY - Math.round(height * .026);
+  const priceY = installmentY - Math.round(height * .050);
 
   return Buffer.from(`
     <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
@@ -287,11 +292,11 @@ function overlaySvg(format, palette, layout, product = {}, options = {}) {
       <text x="${center}" y="${tagY}" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="${tagFs}" font-weight="900" fill="${palette.bg2}">${escapeXml(tag)}</text>
       ${lineSvg(headlineLines, center, headlineY, headlineFs, headlineFs * 1.04, palette.ink, 950, 'middle')}
       ${lineSvg(nameLines, center, nameY, nameFs, nameFs * 1.08, palette.ink, 850, 'middle')}
-      <text x="${center}" y="${priceY - Math.round(priceFs*.68)}" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="${Math.round(priceFs*.31)}" font-weight="800" fill="${palette.ink}" opacity=".9">À VISTA NO PIX</text>
+      <text x="${center}" y="${priceY - Math.round(priceFs*.58)}" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="${Math.round(priceFs*.30)}" font-weight="800" fill="${palette.ink}" opacity=".9">À VISTA NO PIX</text>
       <text x="${center}" y="${priceY}" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="${priceFs}" font-weight="950" fill="${palette.price}">${escapeXml(money(cash))}</text>
       <text x="${center}" y="${installmentY}" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="${installmentFs}" font-weight="850" fill="${palette.ink}">ou ${installments}x de ${escapeXml(money(installmentPrice))} no cartão</text>
-      <rect x="${Math.round(width*.19)}" y="${height - pad - Math.round(height*.09)}" width="${Math.round(width*.62)}" height="${Math.round(height*.075)}" rx="${Math.round(height*.038)}" fill="#ffffff"/>
-      <text x="${center}" y="${height - pad - Math.round(height*.041)}" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="${Math.round(width*.030)}" font-weight="900" fill="${palette.bg1}">COMPRE NO SITE • ${escapeXml(domain)}</text>
+      <rect x="${Math.round(width*.17)}" y="${ctaY}" width="${Math.round(width*.66)}" height="${ctaH}" rx="${Math.round(ctaH*.50)}" fill="#ffffff"/>
+      <text x="${center}" y="${ctaY + Math.round(ctaH*.66)}" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="${Math.round(width*.026)}" font-weight="900" fill="${palette.bg1}">COMPRE NO SITE • ${escapeXml(domain)}</text>
     </svg>
   `);
 }
@@ -319,7 +324,7 @@ export async function generateCreativeBannerBuffer(product = {}, options = {}) {
   } else {
     const brandFallback = Buffer.from(`
       <svg width="${format.width}" height="${format.height}" xmlns="http://www.w3.org/2000/svg">
-        <text x="${layout.split ? layout.pad : format.width/2}" y="${layout.pad + layout.logoH*.72}" text-anchor="${layout.split ? 'start' : 'middle'}" font-family="Arial Black,Arial,sans-serif" font-size="${Math.round(layout.logoH*.62)}" font-weight="950" fill="#FFD51B">ARIANA MÓVEIS</text>
+        <text x="${layout.split ? layout.pad : format.width/2}" y="${layout.pad + layout.logoH*.72}" text-anchor="${layout.split ? 'start' : 'middle'}" font-family="Arial Black,Arial,sans-serif" font-size="${Math.round(layout.logoH*.46)}" font-weight="950" fill="#FFD51B">ARIANA MÓVEIS</text>
       </svg>
     `);
     composites.push({ input: brandFallback, top: 0, left: 0 });
