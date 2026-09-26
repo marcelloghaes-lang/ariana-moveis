@@ -134,3 +134,33 @@ test('pagamento realizado tem prioridade sobre contexto de atraso', () => {
   });
   assert.equal(result.route, 'FINANCEIRO');
 });
+
+
+test('imagem classificada como comprovante vai para financeiro', () => {
+  const result = classifyCurrentMessage({
+    channel: 'loja',
+    mediaType: 'image',
+    mediaKind: 'payment_receipt_pix'
+  });
+  assert.equal(result.route, 'FINANCEIRO');
+  assert.equal(result.reason, 'media_payment_receipt');
+});
+
+test('imagem classificada como produto vai para comercial', () => {
+  const result = classifyCurrentMessage({
+    channel: 'loja',
+    mediaType: 'image',
+    mediaKind: 'product'
+  });
+  assert.equal(result.route, 'COMERCIAL');
+  assert.equal(result.reason, 'media_product');
+});
+
+test('documento pessoal fica em rota própria', () => {
+  const result = classifyCurrentMessage({
+    channel: 'loja',
+    mediaType: 'image',
+    mediaKind: 'personal_document'
+  });
+  assert.equal(result.route, 'DOCUMENTO_PESSOAL');
+});
