@@ -1,5 +1,10 @@
 import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import sharp from 'sharp';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export const PRO_BANNER_FORMATS = Object.freeze({
   hero_desktop: Object.freeze({ width: 1920, height: 480, label: 'Hero Desktop', device: 'desktop' }),
@@ -129,6 +134,39 @@ function productImage(product = {}, options = {}) {
     primary?.imageUrl ||
     ''
   ).trim();
+}
+
+function logoPath() {
+  const configured = String(process.env.ARIANA_LOGO_PATH || process.env.POSTER_LOGO_PATH || '').trim();
+  const candidates = [
+    configured,
+    path.resolve(__dirname, '../public/imagens/logo.png'),
+    path.resolve(__dirname, '../public/imagens/logo-original-3d.png')
+  ].filter(Boolean);
+  return candidates.find(file => fs.existsSync(file)) || '';
+}
+
+async function logoLayer(format) {
+  const file = logoPath();
+  if (!file) return null;
+  const mobile = format.device === 'mobile';
+  const width = mobile ? Math.round(format.width * .22) : Math.round(format.height * .40);
+  const height = mobile ? Math.round(format.height * .062) : Math.round(format.height * .105);
+  const buffer = await sharp(file)
+    .resize(width, height, {
+      fit: 'contain',
+      background: { r: 255, g: 255, b: 255, alpha: 0 }
+    })
+    .png()
+    .toBuffer();
+  const meta = await sharp(buffer).metadata();
+  return {
+    input: buffer,
+    left: mobile
+      ? Math.round((format.width - Number(meta.width || width)) / 2)
+      : Math.round(format.width * .055),
+    top: mobile ? Math.round(format.height * .022) : Math.round(format.height * .025)
+  };
 }
 
 function productCategoryText(product = {}) {
@@ -543,10 +581,10 @@ function overlayMobile(format, opts) {
   const center = Math.round(w/2);
   const accent = opts.template === 'premium' ? '#F0CA6A' : '#FFD51B';
   const dark = opts.template === 'premium' ? '#071B3B' : '#003B8F';
-  const badgeFs = Math.round(w*.028);
-  const headlineFs = Math.round(w*(opts.headline.length>30?.055:.064));
-  const subtitleFs = Math.round(w*.032);
-  const headlineLines = wrap(opts.headline, 27, 2);
+  const badgeFs = Math.round(w*.025);
+  const headlineFs = Math.round(w*(opts.headline.length>26?.050:.057));
+  const subtitleFs = Math.round(w*.029);
+  const headlineLines = wrap(opts.headline, 20, 2);
   const ctaH = Math.round(h*.063);
   const ctaY = h - Math.round(h*.095);
   const priceY = ctaY - Math.round(h*.095);
@@ -566,10 +604,10 @@ function overlayMobile(format, opts) {
 
   return Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '">' +
-    '<rect x="' + Math.round(w*.34) + '" y="' + Math.round(h*.055) + '" width="' + Math.round(w*.32) + '" height="' + Math.round(h*.050) + '" rx="' + Math.round(h*.025) + '" fill="' + accent + '"/>' +
-    '<text x="' + center + '" y="' + Math.round(h*.089) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + badgeFs + '" font-weight="950" fill="' + dark + '">' + escapeXml(opts.badge) + '</text>' +
-    linesSvg(headlineLines,{x:center,y:Math.round(h*.155),size:headlineFs,lineHeight:headlineFs*1.03,fill:'#ffffff',weight:950,anchor:'middle'}) +
-    '<text x="' + center + '" y="' + Math.round(h*.270) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + subtitleFs + '" font-weight="650" fill="#ffffff" opacity=".92">' + escapeXml(opts.subtitle) + '</text>' +
+    '<rect x="' + Math.round(w*.34) + '" y="' + Math.round(h*.092) + '" width="' + Math.round(w*.32) + '" height="' + Math.round(h*.046) + '" rx="' + Math.round(h*.023) + '" fill="' + accent + '"/>' +
+    '<text x="' + center + '" y="' + Math.round(h*.123) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + badgeFs + '" font-weight="950" fill="' + dark + '">' + escapeXml(opts.badge) + '</text>' +
+    linesSvg(headlineLines,{x:center,y:Math.round(h*.184),size:headlineFs,lineHeight:headlineFs*1.03,fill:'#ffffff',weight:950,anchor:'middle'}) +
+    '<text x="' + center + '" y="' + Math.round(h*.300) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + subtitleFs + '" font-weight="650" fill="#ffffff" opacity=".92">' + escapeXml(opts.subtitle) + '</text>' +
     footer +
     '<rect x="' + Math.round(w*.20) + '" y="' + ctaY + '" width="' + Math.round(w*.60) + '" height="' + ctaH + '" rx="' + Math.round(ctaH*.5) + '" fill="#ffffff"/>' +
     '<text x="' + center + '" y="' + (ctaY+Math.round(ctaH*.66)) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + Math.round(w*.028) + '" font-weight="950" fill="#0047AB">' + escapeXml(opts.cta) + ' • ' + escapeXml(opts.siteLabel) + '</text>' +
@@ -705,6 +743,9 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
   const layers = [
     { input: backgroundSvg(format, opts.template), left: 0, top: 0 }
   ];
+
+  const logo = await logoLayer(format);
+  if (logo) layers.push(logo);
 
   if (!asset.backgroundRemoved) {
     layers.push({ input: fallbackPanelSvg(format, comp, opts.template), left: 0, top: 0 });
