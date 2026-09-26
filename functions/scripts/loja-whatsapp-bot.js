@@ -12094,6 +12094,7 @@ export const __test = {
   asksCreditProductExplanation,
   hasRecentPaymentProofContext,
   asksPaymentProofInstallmentReference,
+  paymentProofPurchaseReference,
   greetingForFallback,
   isCommercialTopic,
   isConfiguredSupplier,
