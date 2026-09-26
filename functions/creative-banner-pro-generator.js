@@ -528,7 +528,21 @@ async function removeConnectedBackground(buffer, enabled = true) {
   const averageTransitions = totalTransitions / sampledRows;
 
   if (fragmentationRatio > 0.10 || averageTransitions > 7.5) {
-    const original = await source.png().toBuffer();
+    let original = await source.png().toBuffer();
+    try {
+      original = await sharp(original)
+        .trim({
+          background: {
+            r: Math.round(clamp(bg.r,0,255)),
+            g: Math.round(clamp(bg.g,0,255)),
+            b: Math.round(clamp(bg.b,0,255)),
+            alpha: 1
+          },
+          threshold: 10
+        })
+        .png()
+        .toBuffer();
+    } catch (_) {}
     const meta = await sharp(original).metadata();
     return {
       buffer: original,
@@ -1101,6 +1115,8 @@ async function brandLogoLayer(format, opts) {
 function quality(assets, opts, format) {
   const rows = Array.isArray(assets) ? assets : [assets];
   const allBackground = rows.every(asset => asset?.backgroundRemoved);
+  const cleanCount = rows.filter(asset => asset?.backgroundRemoved).length;
+  const omittedCount = rows.length > 1 && cleanCount >= 2 ? rows.length - cleanCount : 0;
   const allResolution = rows.every(asset => Math.max(Number(asset?.sourceWidth||0),Number(asset?.sourceHeight||0))>=700);
   const checks = [
     {
@@ -1120,8 +1136,10 @@ function quality(assets, opts, format) {
     {
       id:'products',
       ok:rows.length>=1 && rows.length<=4,
-      label:rows.length>1 ? rows.length+' produtos na campanha' : 'Produto principal definido',
-      detail:rows.length>1 ? 'Composição multi-produto ativada.' : 'Você pode adicionar até 4 produtos.'
+      label:rows.length>1 ? rows.length+' produtos selecionados' : 'Produto principal definido',
+      detail:omittedCount
+        ? omittedCount+' imagem(ns) serão omitidas da arte por recorte inseguro. Troque essas fotos para recolocá-las.'
+        : rows.length>1 ? 'Composição multi-produto ativada.' : 'Você pode adicionar até 4 produtos.'
     },
     {
       id:'brand',
