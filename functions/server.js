@@ -36,7 +36,7 @@ import createTelevendasRoutes from './routes/televendas/index.js';
 import registerCieloRoutes from './routes/cieloRoutes.js';
 import { releaseExpiredStockReservations } from './services/stockReservationService.js';
 import { startAdminWhatsappReminderWorker } from './services/adminWhatsappAlertService.js';
-import { startErpDailyDueWhatsappWorker, startErpFifteenDayOverdueWhatsappWorker } from './services/erp/erpDailyDueWhatsappService.js';
+import { startErpDailyDueWhatsappWorker, startErpFifteenDayOverdueWhatsappWorker, listErpFifteenDayOverdueAudit } from './services/erp/erpDailyDueWhatsappService.js';
 import initModels from './models/index.js';
 
 
@@ -2952,6 +2952,26 @@ startErpFifteenDayOverdueWhatsappWorker({
   waSendTextMessage,
   toJSON,
   redact
+});
+app.get('/api/erp/finance-panel/cobrancas-15-dias/auditoria', adminRequired, async (req, res) => {
+  try {
+    const result = await listErpFifteenDayOverdueAudit({
+      Order,
+      Setting,
+      IntegrationAuditLog,
+      mongoose,
+      toJSON,
+      redact,
+      now: new Date()
+    });
+    return res.json(result);
+  } catch (error) {
+    console.error('[erp-15-day-collection-audit]', error?.message || error);
+    return res.status(500).json({
+      ok: false,
+      error: error?.message || 'Não foi possível carregar a auditoria de cobrança de 15 dias.'
+    });
+  }
 });
 setTimeout(async()=>{
   try{
