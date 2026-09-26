@@ -22,7 +22,7 @@
   <header class="topbar">
     <div class="topbar-brand">
       <img src="./imagens/logo.png" alt="Ariana Móveis">
-      <div><strong>Gerador Profissional</strong><span>Cartazes para WhatsApp e redes sociais</span></div>
+      <div><strong>Ariana Creative Studio</strong><span>Cartazes, banners desktop e peças para celular</span></div>
     </div>
     <div class="topbar-actions">
       <button id="install-app" class="button button-ghost" type="button">Instalar aplicativo</button>
@@ -34,12 +34,24 @@
     <section class="editor-panel" aria-label="Configuração do cartaz">
       <div class="editor-intro">
         <span class="eyebrow">PADRÃO OFICIAL ARIANA MÓVEIS</span>
-        <h1>Monte o cartaz e veja a prévia</h1>
-        <p>Produto, preço, marca e contatos permanecem protegidos no modelo profissional.</p>
+        <h1>Crie a peça certa para cada canal</h1>
+        <p>Escolha cartaz, banner desktop ou versão mobile. Produto, preço e identidade da Ariana continuam protegidos.</p>
       </div>
 
       <div class="form-section">
-        <div class="section-title"><span>1</span><div><strong>Modelo da campanha</strong><small>Escolha o clima visual e edite a chamada.</small></div></div>
+        <div class="section-title"><span>1</span><div><strong>Tipo de peça</strong><small>O layout e o tamanho mudam de verdade para cada dispositivo.</small></div></div>
+        <div class="template-grid output-format-grid">
+          <label class="template-card format-card selected"><input type="radio" name="output-format" value="poster_4x5" checked><span class="format-swatch format-poster"></span><b>Cartaz 4:5</b><small>1080 × 1350</small></label>
+          <label class="template-card format-card"><input type="radio" name="output-format" value="site_hero_desktop"><span class="format-swatch format-wide"></span><b>Hero desktop</b><small>1920 × 480</small></label>
+          <label class="template-card format-card"><input type="radio" name="output-format" value="site_hero_mobile"><span class="format-swatch format-square"></span><b>Hero celular</b><small>1080 × 1080</small></label>
+          <label class="template-card format-card"><input type="radio" name="output-format" value="site_secondary_desktop"><span class="format-swatch format-wide"></span><b>Secundário desktop</b><small>1600 × 400</small></label>
+          <label class="template-card format-card"><input type="radio" name="output-format" value="site_secondary_mobile"><span class="format-swatch format-landscape"></span><b>Secundário celular</b><small>1080 × 720</small></label>
+          <label class="template-card format-card"><input type="radio" name="output-format" value="site_card_square"><span class="format-swatch format-square"></span><b>Card quadrado</b><small>1080 × 1080</small></label>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="section-title"><span>2</span><div><strong>Modelo da campanha</strong><small>Escolha o clima visual e edite a chamada.</small></div></div>
         <div class="template-grid">
           <label class="template-card selected"><input type="radio" name="template" value="oferta" checked><span class="template-swatch oferta"></span><b>Oferta</b><small>Azul celeste profissional</small></label>
           <label class="template-card"><input type="radio" name="template" value="campanha"><span class="template-swatch campanha"></span><b>Campanha do mês</b><small>Azul institucional</small></label>
@@ -87,7 +99,7 @@
       </div>
 
       <div class="form-section">
-        <div class="section-title"><span>2</span><div><strong>Produto real</strong><small>Busque no catálogo ou envie outra fotografia.</small></div></div>
+        <div class="section-title"><span>3</span><div><strong>Produto real</strong><small>Busque no catálogo ou envie outra fotografia.</small></div></div>
         <div class="catalog-search">
           <label class="field"><span>Buscar produto cadastrado</span><input id="product-search" autocomplete="off" placeholder="Digite o nome, marca ou código"></label>
           <div id="product-results" class="product-results hidden"></div>
@@ -106,7 +118,7 @@
       </div>
 
       <div class="form-section">
-        <div class="section-title"><span>3</span><div><strong>Preço e pagamento</strong><small>Preço à vista, parcelas no cartão e valor parcelado total.</small></div></div>
+        <div class="section-title"><span>4</span><div><strong>Preço e pagamento</strong><small>Preço à vista, parcelas no cartão e valor parcelado total.</small></div></div>
         <div class="field-grid money-grid">
           <label class="field"><span>Preço à vista</span><input id="cash-price" inputmode="decimal" placeholder="1.508,14"></label>
           <label class="field"><span>Valor parcelado (total no cartão)</span><input id="full-price" inputmode="decimal" placeholder="1.449,48"></label>
@@ -138,19 +150,19 @@
 
     <section class="preview-panel" aria-label="Prévia do cartaz">
       <div class="preview-toolbar">
-        <div><span class="eyebrow">PRÉVIA 4:5</span><h2>1080 × 1350 pixels</h2></div>
+        <div><span id="preview-label" class="eyebrow">PRÉVIA • CARTAZ 4:5</span><h2 id="preview-size">1080 × 1350 pixels</h2></div>
         <div class="preview-actions">
           <button id="download-button" class="button button-light" type="button" disabled>Baixar PNG</button>
           <button id="share-button" class="button button-primary" type="button" disabled>Compartilhar</button>
         </div>
       </div>
-      <div class="poster-stage">
-        <div id="preview-empty" class="preview-empty"><div class="empty-art">A</div><strong>Sua arte aparecerá aqui</strong><span>Selecione um produto, confira os preços e gere a prévia.</span></div>
+      <div id="poster-stage" class="poster-stage" data-format="poster_4x5">
+        <div id="preview-empty" class="preview-empty"><div class="empty-art">A</div><strong>Sua arte aparecerá aqui</strong><span>Escolha o formato, selecione o produto, confira os preços e gere a prévia.</span></div>
         <div id="preview-loading" class="preview-loading hidden"><span></span><b>Produzindo cartaz em alta qualidade...</b></div>
         <img id="poster-preview" class="hidden" alt="Prévia do cartaz Ariana Móveis">
       </div>
       <div class="quality-checks">
-        <span>✓ Produto real</span><span>✓ Logo protegida</span><span>✓ Preços conferidos</span><span>✓ Contatos legíveis</span>
+        <span>✓ Produto real</span><span>✓ Identidade Ariana</span><span>✓ Preços conferidos</span><span>✓ Desktop + mobile</span>
       </div>
       <section class="history-section">
         <div class="history-head"><div><span class="eyebrow">HISTÓRICO LOCAL</span><h2>Últimos cartazes salvos</h2></div><button id="clear-history" class="text-button" type="button">Limpar histórico</button></div>
@@ -159,7 +171,7 @@
     </section>
   </main>
 
-  <script src="./js/gerador_cartazes.js?v=20260908-6"></script>
+  <script src="./js/gerador_cartazes.js?v=20260926-creative-1"></script>
   <script src="./pwa-register.js" data-sw="./sw-gerador-cartazes.js" data-scope="./gerador_cartazes.html"></script>
 </body>
 </html>
