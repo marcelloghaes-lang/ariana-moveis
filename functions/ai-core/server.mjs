@@ -2,6 +2,7 @@ import http from 'http';
 import fs from 'fs';
 import { createHash } from 'crypto';
 import { classifyCurrentMessage, extractEnvelope } from './router.mjs';
+import { policyForChannel } from './channel-policy.mjs';
 
 const PORT = Math.max(1, Number(process.env.ARIANA_AI_CORE_PORT || 8098));
 const HOST = '127.0.0.1';
@@ -192,6 +193,11 @@ const server = http.createServer(async (req, res) => {
     return res.end(html);
   }
 
+  if (req.method === 'GET' && path.startsWith('/v1/policy/')) {
+    const channel = decodeURIComponent(path.slice('/v1/policy/'.length));
+    return sendJson(res, 200, { ok: true, policy: policyForChannel(channel) });
+  }
+
   if (req.method !== 'POST') {
     return sendJson(res, 404, { ok: false, error: 'not_found' });
   }
@@ -202,7 +208,12 @@ const server = http.createServer(async (req, res) => {
     const decision = classifyCurrentMessage(envelope);
 
     if (path === '/v1/route') {
-      return sendJson(res, 200, { ok: true, envelope, decision });
+      return sendJson(res, 200, {
+        ok: true,
+        envelope,
+        decision,
+        policy: policyForChannel(envelope.channel)
+      });
     }
 
     if (path === '/v1/shadow/webhook') {
