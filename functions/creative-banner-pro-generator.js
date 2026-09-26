@@ -53,26 +53,36 @@ function clean(value = '', max = 160) {
 
 function wrap(value = '', maxChars = 26, maxLines = 2) {
   const words = clean(value, 240).split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+
   const lines = [];
   let current = '';
 
-  for (const word of words) {
-    const next = current ? current + ' ' + word : word;
-    if (!current || next.length <= maxChars) {
-      current = next;
+  for (let index = 0; index < words.length; index += 1) {
+    const word = words[index];
+    const candidate = current ? current + ' ' + word : word;
+
+    if (!current || candidate.length <= maxChars) {
+      current = candidate;
       continue;
     }
-    lines.push(current);
-    current = word;
-    if (lines.length >= maxLines - 1) break;
+
+    if (lines.length < maxLines - 1) {
+      lines.push(current);
+      current = word;
+      continue;
+    }
+
+    const remaining = [current, ...words.slice(index)].filter(Boolean).join(' ');
+    const clipped = remaining.length > maxChars
+      ? remaining.slice(0, Math.max(3, maxChars - 1)).replace(/\s+\S*$/, '').trim() + '…'
+      : remaining;
+    current = clipped;
+    break;
   }
 
   if (current && lines.length < maxLines) lines.push(current);
-  const source = words.join(' ');
-  if (lines.join(' ').length + 2 < source.length && lines.length) {
-    lines[lines.length - 1] = lines[lines.length - 1].replace(/…?$/, '') + '…';
-  }
-  return lines;
+  return lines.slice(0, maxLines);
 }
 
 function linesSvg(lines, { x, y, size, lineHeight, fill, weight = 900, anchor = 'start', letterSpacing = 0 }) {
@@ -153,6 +163,7 @@ async function logoLayer(format) {
   const width = mobile ? Math.round(format.width * .22) : Math.round(format.height * .40);
   const height = mobile ? Math.round(format.height * .062) : Math.round(format.height * .105);
   const buffer = await sharp(file)
+    .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 5 })
     .resize(width, height, {
       fit: 'contain',
       background: { r: 255, g: 255, b: 255, alpha: 0 }
@@ -460,14 +471,16 @@ function composition(format, asset, opts) {
     };
   }
 
-  const productHeight = opts.showPrice ? (orientation === 'vertical' ? 0.42 : 0.34) : (orientation === 'vertical' ? 0.50 : 0.42);
+  const productHeight = opts.showPrice
+    ? (orientation === 'vertical' ? 0.39 : 0.31)
+    : (orientation === 'vertical' ? 0.40 : 0.33);
   return {
     mobile,
     orientation,
     text: { x: 0.06, y: 0.06, w: 0.88, h: 0.24 },
     product: {
       x: orientation === 'horizontal' ? 0.08 : 0.13,
-      y: opts.showPrice ? 0.29 : 0.31,
+      y: opts.showPrice ? 0.34 : 0.33,
       w: orientation === 'horizontal' ? 0.84 : 0.74,
       h: productHeight
     }
