@@ -46,3 +46,29 @@ ARIANA_AI_OBSERVER_POLL_MS=30000
 ```
 
 Antes de ativar na VPS, validar os IDs reais das caixas e incluir a caixa da Loja sem alterar o webhook do Gustavo.
+
+
+## Fase 2 ativa na VPS — observador direto do Chatwoot
+
+A implementação ativa usa `chatwoot-db-observer-runner.mjs` + `chatwoot-db-observer.mjs` e executa somente consultas SELECT no banco local do Chatwoot.
+
+Mapeamento confirmado da conta 2:
+- Inbox 5: SAC
+- Inbox 6: Financeiro
+- Inbox 7: Ariana Loja / Televendas (tratada como canal misto `loja`)
+- Inbox 9: Crediário
+
+Proteções:
+- primeira inicialização começa no maior ID atual e não reprocessa histórico;
+- nenhuma escrita é feita no banco Chatwoot;
+- nenhuma API de envio de mensagem é usada;
+- respostas humanas não são usadas como erro do Gustavo quando o estado indica modo humano;
+- comparações persistem somente IDs, rotas e hashes, sem guardar o texto integral;
+- imagem ou áudio sem interpretação suficiente recebe `MULTIMIDIA_PENDENTE`, evitando presumir produto ou pagamento;
+- pagamento realizado/comprovante tem prioridade sobre contexto antigo;
+- parcela atrasada/renegociação segue para Crediário quando não há sinal de pagamento realizado.
+
+Processos:
+- `loja-bot`: Gustavo de produção, preservado;
+- `ariana-ai-core-shadow`: roteador sombra em 127.0.0.1:8098;
+- `ariana-ai-db-observer-shadow`: observador passivo das conversas novas.
