@@ -409,14 +409,19 @@ async function __loadHeaderCategoryBanner() {
         ...merged,
         ...found,
         linkUrl: String(found.linkUrl || found.href || merged.linkUrl || '').trim(),
-        imageUrl: String(found.imageUrl || found.image || found.url || merged.imageUrl || '').trim(),
-        alt: String(found.alt || merged.alt || '').trim()
+        imageUrl: String(found.imageUrl || found.desktopImageUrl || found.image || found.url || merged.imageUrl || '').trim(),
+        mobileImageUrl: String(found.mobileImageUrl || found.mobileImage || found.imageMobile || found.mobileUrl || '').trim(),
+        alt: String(found.alt || merged.alt || '').trim(),
+        mobileAlt: String(found.mobileAlt || found.altMobile || found.alt || merged.alt || '').trim()
       };
     }
 
     const rawUrl = String(merged.imageUrl || merged.image || merged.url || fallback.imageUrl || '').trim();
+    const rawMobileUrl = String(merged.mobileImageUrl || merged.mobileImage || '').trim();
     const resolvedUrl = await __resolveHeaderBannerImageUrl(rawUrl);
+    const resolvedMobileUrl = rawMobileUrl ? await __resolveHeaderBannerImageUrl(rawMobileUrl) : '';
     merged.imageUrl = resolvedUrl || fallback.imageUrl;
+    merged.mobileImageUrl = resolvedMobileUrl;
     merged.__resolved = true;
     window.__HEADER_CATEGORY_BANNER__ = merged;
     return merged;
@@ -447,7 +452,9 @@ function __renderHeaderCategoryBannerCard(data) {
   const active = d.active !== false;
   const linkUrl = String(d.linkUrl || d.href || 'ofertas.html').trim() || 'ofertas.html';
   const imageUrl = String(d.imageUrl || '').trim();
+  const mobileImageUrl = String(d.mobileImageUrl || d.mobileImage || '').trim();
   const alt = escapeHtml(String(d.alt || d.title || 'Banner Ariana Móveis').trim());
+  const mobileAlt = escapeHtml(String(d.mobileAlt || d.alt || d.title || 'Banner Ariana Móveis').trim());
   const eyebrow = escapeHtml(String(d.eyebrow || 'Ariana Móveis').trim());
   const title = escapeHtml(String(d.title || 'Ofertas e departamentos').trim());
   const description = escapeHtml(String(d.description || 'Navegue pelas categorias da loja e aproveite promoções especiais.').trim());
@@ -467,13 +474,16 @@ function __renderHeaderCategoryBannerCard(data) {
   if (imageUrl) {
     return `
       <a href="${linkUrl}" style="display:block;height:100%;min-height:420px;border:1px solid #e5e7eb;border-radius:18px;overflow:hidden;background:#ffffff;text-decoration:none;">
-        <img
+        <picture style="display:block;width:100%;height:100%;min-height:420px;">
+          ${mobileImageUrl ? `<source media="(max-width: 767px)" srcset="${mobileImageUrl}">` : ''}
+          <img
           src="${imageUrl}"
-          alt="${alt}"
+          alt="${mobileImageUrl ? mobileAlt : alt}"
           loading="lazy"
           style="display:block;width:100%;height:100%;min-height:420px;object-fit:cover;background:#ffffff;"
           onerror="if(!this.dataset.fallbackApplied){this.dataset.fallbackApplied='1';this.src='data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%27720%27%20height%3D%27960%27%20viewBox%3D%270%200%20720%20960%27%3E%0A%3Cdefs%3E%3ClinearGradient%20id%3D%27g%27%20x1%3D%270%27%20x2%3D%270%27%20y1%3D%270%27%20y2%3D%271%27%3E%3Cstop%20stop-color%3D%27%231d4ed8%27/%3E%3Cstop%20offset%3D%271%27%20stop-color%3D%27%230b4aa2%27/%3E%3C/linearGradient%3E%3C/defs%3E%0A%3Crect%20width%3D%27720%27%20height%3D%27960%27%20fill%3D%27url%28%23g%29%27/%3E%0A%3Ccircle%20cx%3D%27560%27%20cy%3D%27140%27%20r%3D%2754%27%20fill%3D%27%2322d3ee%27%20opacity%3D%27.35%27/%3E%0A%3Ccircle%20cx%3D%27280%27%20cy%3D%27260%27%20r%3D%27120%27%20fill%3D%27%2360a5fa%27%20opacity%3D%27.20%27/%3E%0A%3Ctext%20x%3D%2760%27%20y%3D%27145%27%20fill%3D%27white%27%20font-size%3D%2756%27%20font-family%3D%27Arial%27%20font-weight%3D%27700%27%3EOFERTAS%3C/text%3E%0A%3Ctext%20x%3D%2760%27%20y%3D%27210%27%20fill%3D%27white%27%20font-size%3D%2756%27%20font-family%3D%27Arial%27%20font-weight%3D%27700%27%3EESPECIAIS%3C/text%3E%0A%3Ctext%20x%3D%2760%27%20y%3D%27330%27%20fill%3D%27%23fde047%27%20font-size%3D%2740%27%20font-family%3D%27Arial%27%20font-weight%3D%27700%27%3EBanner%20carregando%3C/text%3E%0A%3Ctext%20x%3D%2760%27%20y%3D%27390%27%20fill%3D%27%23fde047%27%20font-size%3D%2740%27%20font-family%3D%27Arial%27%20font-weight%3D%27700%27%3Epelo%20Firestore%3C/text%3E%0A%3Crect%20x%3D%2760%27%20y%3D%27780%27%20rx%3D%2720%27%20ry%3D%2720%27%20width%3D%27320%27%20height%3D%2782%27%20fill%3D%27%2322c55e%27/%3E%0A%3Ctext%20x%3D%27105%27%20y%3D%27835%27%20fill%3D%27white%27%20font-size%3D%2738%27%20font-family%3D%27Arial%27%20font-weight%3D%27700%27%3EVER%20OFERTAS%3C/text%3E%0A%3C/svg%3E';}else{this.style.display='none';this.parentElement.innerHTML='<div style=&quot;height:100%;min-height:420px;display:flex;align-items:center;justify-content:center;padding:18px;text-align:center;color:#475569;font-weight:700;background:#f8fafc;&quot;>Banner indisponível no momento.</div>';}"
         >
+        </picture>
       </a>
     `;
   }
