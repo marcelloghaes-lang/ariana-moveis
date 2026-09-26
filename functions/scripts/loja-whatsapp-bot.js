@@ -7919,8 +7919,45 @@ async function showMoreAdvancedAlternatives(phone, conv, baselineProduct, pushNa
   return true;
 }
 
+function isPayBeforeShoppingDeferral(text = '') {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n) return false;
+
+  return (
+    /\b(?:deixa|deixe)\b.{0,55}\b(?:pagar|quitar)\b.{0,35}\b(?:primeiro|primeira)\b/.test(n) ||
+    /\b(?:terminar|acabar)\b.{0,35}\b(?:pagar|quitar)\b.{0,35}\b(?:primeiro|primeira)\b/.test(n) ||
+    /\b(?:pagar|quitar)\b.{0,18}\btudo\b.{0,25}\b(?:primeiro|primeira)\b/.test(n)
+  );
+}
+
+function deferredFutureProductCategory(text = '') {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const category = detectCategory(text);
+  if (!category) return '';
+
+  const futureCue =
+    /\b(?:depois|mais\s+(?:pra|para|pr)\s+frente|mais adiante|mais tarde|outra hora)\b/.test(n);
+
+  const futureShopping =
+    /\b(?:vou|quero|pretendo|penso em)\b.{0,35}\b(?:olhar|ver|comprar|pegar|escolher)\b/.test(n) ||
+    /\b(?:quando|assim que)\b.{0,45}\b(?:terminar|acabar|quitar|pagar)\b.{0,45}\b(?:olhar|ver|comprar|pegar|escolher)\b/.test(n);
+
+  return (futureCue && futureShopping) || isPayBeforeShoppingDeferral(text)
+    ? category
+    : '';
+}
+
 function asksPausePurchaseDecision(text = '') {
   const n = normalize(text);
+  if (deferredFutureProductCategory(text) || isPayBeforeShoppingDeferral(text)) return true;
   return /\b(vou pensar|vou dar uma pensada|vou pensar um pouco|depois eu vejo|vou ver e te falo|mais tarde eu vejo|so estou olhando|so olhando)\b/.test(n);
 }
 
@@ -8081,15 +8118,29 @@ function rememberCreditPlan(conv, product, count, plan) {
 }
 
 function ordinalIndex(text) {
-  const n = normalize(text);
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n) return -1;
+
+  // "primeiro" também é usado como advérbio de ordem temporal:
+  // "deixa eu te pagar primeiro", "vou quitar tudo primeiro" etc.
+  // Nesses casos não existe seleção de produto.
+  const temporalFirst =
+    /\b(?:pagar|pagando|pague|pago|quitar|quitando|terminei|terminar|acabar|resolver|acertar)\b.{0,50}\b(?:primeiro|primeira)\b/.test(n);
+
+  if (temporalFirst) return -1;
+
   const entries = [
-    [0, ['primeiro', 'primeira', '1º', '1o']],
-    [1, ['segundo', 'segunda', '2º', '2o']],
-    [2, ['terceiro', 'terceira', '3º', '3o']],
-    [3, ['quarto', 'quarta', '4º', '4o']]
+    [0, /(?:^|\b)(?:primeiro|primeira|1º|1o)(?:\b|$)/],
+    [1, /(?:^|\b)(?:segundo|segunda|2º|2o)(?:\b|$)/],
+    [2, /(?:^|\b)(?:terceiro|terceira|3º|3o)(?:\b|$)/],
+    [3, /(?:^|\b)(?:quarto|quarta|4º|4o)(?:\b|$)/]
   ];
-  for (const [idx, words] of entries) {
-    if (words.some((w) => n.includes(w))) return idx;
+  for (const [idx, pattern] of entries) {
+    if (pattern.test(n)) return idx;
   }
   return -1;
 }
@@ -10046,6 +10097,24 @@ async function handleMessage({
   if (isCasualSmallTalk(text)) {
     await sendText(phone, 'Tudo certo por aqui 😊 E por aí?');
     return;
+  }
+
+  {
+    const deferredCategory = deferredFutureProductCategory(text);
+    const payBeforeShopping = isPayBeforeShoppingDeferral(text);
+
+    if (deferredCategory || payBeforeShopping) {
+      clearActiveCommercialContext(conv);
+      saveStateSoon();
+
+      await sendText(
+        phone,
+        deferredCategory
+          ? `Combinado 😊 Sem problema. Vamos resolver essa parte primeiro. Quando você quiser olhar *${deferredCategory}* mais pra frente, é só me chamar que eu te mostro as opções.`
+          : 'Combinado 😊 Sem problema. Vamos resolver essa parte primeiro. Quando você quiser voltar a olhar produtos, é só me chamar.'
+      );
+      return;
+    }
   }
 
   if (await handlePendingListClarificationChoice({ phone, text, pushName, conv })) {
@@ -12243,6 +12312,8 @@ export const __test = {
   technicalFeatureWeight,
   technicalFeatureScore,
   showMoreAdvancedAlternatives,
+  isPayBeforeShoppingDeferral,
+  deferredFutureProductCategory,
   asksPausePurchaseDecision,
   asksPurchaseClosing,
   correctedPaymentMethod,
