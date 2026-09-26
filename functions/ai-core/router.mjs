@@ -21,10 +21,14 @@ function hasAny(text, terms) {
   return terms.some((term) => text.includes(term));
 }
 
+const PAYMENT_TERMS = [
+  'comprovante', 'paguei', 'pagamento', 'pix', 'boleto',
+  'transferi', 'transferencia', 'recibo', 'quitacao',
+  'quitei', 'valor pago'
+];
+
 const FINANCE_TERMS = [
-  'comprovante', 'paguei', 'pagamento', 'pagar', 'prestacao',
-  'parcela', 'pix', 'boleto', 'transferi', 'transferencia',
-  'recibo', 'quitacao', 'quitei', 'valor pago'
+  'pagar', 'prestacao', 'parcela'
 ];
 
 const CREDIT_TERMS = [
@@ -67,12 +71,16 @@ export function classifyCurrentMessage(input = {}) {
     return decision('OUVIDORIA', 'explicit_ouvidoria', channel, previousIntent);
   }
 
-  if (hasAny(text, FINANCE_TERMS)) {
+  if (hasAny(text, PAYMENT_TERMS)) {
     return decision('FINANCEIRO', 'current_payment_signal', channel, previousIntent);
   }
 
   if (hasAny(text, CREDIT_TERMS)) {
     return decision('CREDIARIO', 'current_credit_signal', channel, previousIntent);
+  }
+
+  if (hasAny(text, FINANCE_TERMS)) {
+    return decision('FINANCEIRO', 'current_finance_signal', channel, previousIntent);
   }
 
   if (hasAny(text, SAC_TERMS)) {
@@ -83,8 +91,12 @@ export function classifyCurrentMessage(input = {}) {
     return decision('COMERCIAL', 'current_product_signal', channel, previousIntent);
   }
 
-  if (mediaType === 'image' && ['loja', 'site', 'televendas'].includes(channel)) {
-    return decision('COMERCIAL', 'image_on_commercial_channel', channel, previousIntent);
+  if (mediaType === 'image') {
+    return decision('MULTIMIDIA_PENDENTE', 'image_needs_visual_classification', channel, previousIntent);
+  }
+
+  if (mediaType === 'audio') {
+    return decision('MULTIMIDIA_PENDENTE', 'audio_needs_transcription', channel, previousIntent);
   }
 
   if (channel === 'financeiro') {
