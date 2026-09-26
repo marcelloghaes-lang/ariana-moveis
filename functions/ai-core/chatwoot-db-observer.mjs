@@ -2,6 +2,7 @@ import fs from 'fs';
 import { spawnSync } from 'child_process';
 import { createHash } from 'crypto';
 import { fileURLToPath } from 'url';
+import { interpretMediaShadow } from './media-shadow.mjs';
 
 const DB_CONTAINER = String(process.env.ARIANA_AI_CHATWOOT_DB_CONTAINER || 'chatwoot-db-1');
 const DB_NAME = String(process.env.ARIANA_AI_CHATWOOT_DB_NAME || 'chatwoot_production');
@@ -166,9 +167,16 @@ function readRows(afterId) {
       'attachments',coalesce((
         select json_agg(json_build_object(
           'file_type',a.file_type,
-          'extension',coalesce(a.extension,'')
+          'extension',coalesce(a.extension,''),
+          'key',coalesce(b.key,''),
+          'content_type',coalesce(b.content_type,''),
+          'byte_size',coalesce(b.byte_size,0),
+          'filename',coalesce(b.filename,'')
         ))
         from attachments a
+        left join active_storage_attachments asa
+          on asa.record_type='Attachment' and asa.record_id=a.id and asa.name='file'
+        left join active_storage_blobs b on b.id=asa.blob_id
         where a.message_id=m.id
       ),'[]'::json)
     )::text
@@ -227,7 +235,12 @@ function initState() {
 async function processRow(row, state) {
   const conversationKey = String(row.conversation_id);
   if (Number(row.message_type) === 0) {
-    const decision = await shadowDecision(buildEnvelope(row));
+    let envelope = buildEnvelope(row);
+    if (envelope.mediaType) {
+      const interpreted = await interpretMediaShadow(row, envelope);
+      envelope = { ...envelope, ...(interpreted.envelopePatch || {}) };
+    }
+    const decision = await shadowDecision(envelope);
     state.pending[conversationKey] = {
       incomingId: Number(row.id),
       route: String(decision.route || ''),
