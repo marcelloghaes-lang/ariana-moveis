@@ -65,7 +65,20 @@ export function classifyCurrentMessage(input = {}) {
     input.caption
   ].filter(Boolean).join(' '));
   const mediaType = norm(input.mediaType);
+  const mediaKind = norm(input.mediaKind);
   const previousIntent = norm(input.previousIntent);
+
+  if (mediaKind === 'payment_receipt_pix' || mediaKind === 'payment_receipt_boleto') {
+    return decision('FINANCEIRO', 'media_payment_receipt', channel, previousIntent);
+  }
+
+  if (mediaKind === 'product') {
+    return decision('COMERCIAL', 'media_product', channel, previousIntent);
+  }
+
+  if (mediaKind === 'personal_document') {
+    return decision('DOCUMENTO_PESSOAL', 'media_personal_document', channel, previousIntent);
+  }
 
   if (hasAny(text, OUVIDORIA_TERMS)) {
     return decision('OUVIDORIA', 'explicit_ouvidoria', channel, previousIntent);
@@ -154,6 +167,10 @@ export function extractEnvelope(payload = {}) {
     transcription: payload.transcription || '',
     caption: payload.caption || message.imageMessage?.caption || '',
     mediaType,
+    mediaKind: payload.mediaKind || '',
+    mediaConfidence: Number(payload.mediaConfidence || 0),
+    mediaCategoryHint: payload.mediaCategoryHint || '',
+    mediaPaymentMethod: payload.mediaPaymentMethod || '',
     previousIntent: payload.previousIntent || ''
   };
 }
