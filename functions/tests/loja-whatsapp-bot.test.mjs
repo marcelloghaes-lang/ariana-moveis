@@ -9437,3 +9437,47 @@ test('aprendizado fornecedor: lembrete de conta da Ariana com atacadista não é
 test('aprendizado fornecedor: pergunta normal de cliente sobre promoção continua sendo atendimento de consumidor', () => {
   assert.equal(bot.isSupplierContactSignal({ text: 'Tem alguma promoção de geladeira hoje?' }), false);
 });
+
+
+test('nível Diana: segundo nível preserva comprovante recente em resposta dinâmica de áudio', async () => {
+  const phone = '553399999884';
+  bot.patchTestConversation(phone, {
+    lastPaymentProofAt: Date.now(),
+    lastIntent: 'comprovante_pagamento'
+  });
+  bot.patchTestSupportAdvisory({
+    action: 'REPLY',
+    confidence: 0.96,
+    reply: 'Vou encaminhar para a equipe conferir certinho e te retorno assim que tiver a confirmação, beleza?',
+    reason: 'Dúvida financeira após comprovante depende de conferência real.'
+  });
+  await bot.handleMessage({
+    phone,
+    text: 'Quero saber se está faltando alguma coisa',
+    pushName: 'Cliente',
+    source: 'audio',
+    semanticIntent: { intent: 'INCERTO', confidence: 0.2 },
+    semanticIntentTried: true
+  });
+  const body = sentTexts.map((item) => String(item?.text || item || '')).join(' ');
+  assert.match(body, /encaminhar.*conferir|confirmação/i);
+  assert.doesNotMatch(body, /catálogo|opções disponíveis/i);
+  assert.equal(sentMedia.length, 0);
+});
+
+test('nível Diana: produto citado após comprovante continua financeiro e não abre catálogo', async () => {
+  const phone = '553399999885';
+  bot.patchTestConversation(phone, {
+    lastPaymentProofAt: Date.now(),
+    lastIntent: 'comprovante_pagamento'
+  });
+  await bot.handleMessage({
+    phone,
+    text: 'É a prestação da minha geladeira',
+    pushName: 'Cliente'
+  });
+  const body = sentTexts.map((item) => String(item?.text || item || '')).join(' ');
+  assert.match(body, /comprovante|prestação|conferência/i);
+  assert.doesNotMatch(body, /catálogo|opções disponíveis/i);
+  assert.equal(sentMedia.length, 0);
+});
