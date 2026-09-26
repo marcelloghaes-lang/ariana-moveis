@@ -3536,6 +3536,17 @@ function asksPaymentProofInstallmentReference(text = '') {
   );
 }
 
+function paymentProofPurchaseReference(text = '') {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const category = detectCategory(text);
+  const financialReference = /\b(?:parcela|prestacao|notinha|mensalidade|pagamento|comprovante)\b/.test(n);
+  const ownershipReference = /\b(?:minha|meu|da minha|do meu|da compra|do produto)\b/.test(n);
+  return financialReference && Boolean(category) && ownershipReference ? category : '';
+}
+
 function asksBotWellbeingQuestion(text = '') {
   const raw = String(text || '').trim();
   const n = normalize(text)
@@ -9959,6 +9970,27 @@ async function handleMessage({
     } else {
       clearCourtesyGreetingContext(conv);
     }
+  }
+
+  const paymentPurchaseCategory = hasRecentPaymentProofContext(conv)
+    ? paymentProofPurchaseReference(text)
+    : '';
+  if (paymentPurchaseCategory) {
+    await sendText(
+      phone,
+      `Entendi 😊 O comprovante que você enviou é referente à prestação da sua *${paymentPurchaseCategory}*. Vou deixar essa informação junto da conferência do pagamento. A baixa continua dependendo da conferência.`
+    );
+    await syncTicket(phone, {
+      status: 'Comprovante de pagamento recebido - analisar baixa',
+      message: `Cliente identificou a compra relacionada ao comprovante: ${String(text || '').trim()}`,
+      name: pushName,
+      metadata: {
+        assunto: 'comprovante_pagamento',
+        referenciaCompra: paymentPurchaseCategory,
+        naoConfirmarBaixaAutomaticamente: true
+      }
+    });
+    return;
   }
 
   if (hasRecentPaymentProofContext(conv) && asksPaymentProofInstallmentReference(text)) {
