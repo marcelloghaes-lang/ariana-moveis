@@ -40,13 +40,29 @@ test('áudio transcrito sobre pagamento vai para financeiro', () => {
   assert.equal(result.route, 'FINANCEIRO');
 });
 
-test('foto no canal comercial continua comercial', () => {
+test('foto com contexto de produto continua comercial', () => {
   const result = classifyCurrentMessage({
     channel: 'loja',
     mediaType: 'image',
     caption: 'Tem esse modelo?'
   });
   assert.equal(result.route, 'COMERCIAL');
+});
+
+test('imagem sem texto não é presumida como produto', () => {
+  const result = classifyCurrentMessage({
+    channel: 'loja',
+    mediaType: 'image'
+  });
+  assert.equal(result.route, 'MULTIMIDIA_PENDENTE');
+});
+
+test('áudio sem transcrição fica pendente', () => {
+  const result = classifyCurrentMessage({
+    channel: 'loja',
+    mediaType: 'audio'
+  });
+  assert.equal(result.route, 'MULTIMIDIA_PENDENTE');
 });
 
 test('financeiro continua especializado quando mensagem é neutra', () => {
@@ -101,4 +117,20 @@ test('núcleo sombra nunca autoriza saída', () => {
     assert.equal(result.outboundAllowed, false);
     assert.equal(result.mode, 'shadow');
   }
+});
+
+test('parcela atrasada é crediário', () => {
+  const result = classifyCurrentMessage({
+    channel: 'loja',
+    text: 'Quero negociar uma parcela atrasada do carnê.'
+  });
+  assert.equal(result.route, 'CREDIARIO');
+});
+
+test('pagamento realizado tem prioridade sobre contexto de atraso', () => {
+  const result = classifyCurrentMessage({
+    channel: 'loja',
+    text: 'Paguei a parcela atrasada e vou mandar o comprovante.'
+  });
+  assert.equal(result.route, 'FINANCEIRO');
 });
