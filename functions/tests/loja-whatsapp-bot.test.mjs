@@ -9399,3 +9399,25 @@ test('boleto contextual reconhece variações naturais sem iniciar cadastro ante
     assert.equal(bot.asksCreditQuote(text), true, text);
   }
 });
+
+
+test('aprendizado: produto citado após comprovante identifica a prestação e não abre catálogo', async () => {
+  const phone = '553399999881';
+  const conv = conversation(phone);
+  conv.lastPaymentProofAt = Date.now();
+  sent.length = 0;
+  await handleTextMessage({ phone, text: 'Prestação da minha geladeira', pushName: 'Cliente' }, conv);
+  const body = sent.map((item) => String(item.text || '')).join(' ');
+  assert.match(body, /comprovante.*prestação.*geladeira|prestação.*geladeira.*conferência/i);
+  assert.doesNotMatch(body, /opções disponíveis no catálogo|vou te mostrar as primeiras/i);
+});
+
+test('aprendizado: referência financeira a outro produto após comprovante também não dispara catálogo', async () => {
+  const phone = '553399999882';
+  const conv = conversation(phone);
+  conv.lastPaymentProofAt = Date.now();
+  sent.length = 0;
+  await handleTextMessage({ phone, text: 'É a parcela da minha televisão', pushName: 'Cliente' }, conv);
+  const body = sent.map((item) => String(item.text || '')).join(' ');
+  assert.doesNotMatch(body, /opções disponíveis no catálogo|vou te mostrar as primeiras/i);
+});
