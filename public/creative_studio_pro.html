@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Ariana Creative Studio Pro</title>
+  <meta name="theme-color" content="#0047AB">
+  <link rel="stylesheet" href="./css/creative_studio_pro.css?v=20260926-1">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./admin_painel.html" aria-label="Voltar ao painel">
+      <span class="brand-mark">A</span>
+      <span><strong>Ariana Creative Studio Pro</strong><small>Banner profissional • versão de desenvolvimento</small></span>
+    </a>
+    <div class="top-actions">
+      <a class="ghost-button" href="./gerador_cartazes.html">Versão atual</a>
+      <a class="ghost-button" href="./banner_admin.html">Painel de banners</a>
+    </div>
+  </header>
+
+  <main class="studio-shell">
+    <section class="editor">
+      <div class="intro">
+        <span class="eyebrow">CREATIVE STUDIO PRO • V1</span>
+        <h1>Campanhas com composição própria para cada tela</h1>
+        <p>Produto tratado, preço opcional, templates distintos e verificação de qualidade antes de salvar.</p>
+      </div>
+
+      <section class="step">
+        <div class="step-head"><span>1</span><div><strong>Formato</strong><small>Desktop e mobile são composições independentes.</small></div></div>
+        <div class="choice-grid format-grid">
+          <label class="choice selected"><input type="radio" name="format" value="hero_desktop" checked><span class="format-icon wide"></span><b>Hero Desktop</b><small>1920 × 480</small></label>
+          <label class="choice"><input type="radio" name="format" value="hero_mobile"><span class="format-icon square"></span><b>Hero Mobile</b><small>1080 × 1080</small></label>
+          <label class="choice"><input type="radio" name="format" value="secondary_desktop"><span class="format-icon wide small"></span><b>Secundário Desktop</b><small>1600 × 400</small></label>
+          <label class="choice"><input type="radio" name="format" value="secondary_mobile"><span class="format-icon landscape"></span><b>Secundário Mobile</b><small>1080 × 720</small></label>
+          <label class="choice"><input type="radio" name="format" value="square"><span class="format-icon square"></span><b>Card Quadrado</b><small>1080 × 1080</small></label>
+        </div>
+      </section>
+
+      <section class="step">
+        <div class="step-head"><span>2</span><div><strong>Tipo da campanha</strong><small>Preço não é obrigatório.</small></div></div>
+        <div class="segmented" id="content-mode">
+          <button type="button" class="active" data-mode="with_price">Com preço</button>
+          <button type="button" data-mode="no_price">Sem preço</button>
+          <button type="button" data-mode="institutional">Institucional</button>
+        </div>
+      </section>
+
+      <section class="step">
+        <div class="step-head"><span>3</span><div><strong>Template Pro</strong><small>Três composições realmente diferentes.</small></div></div>
+        <div class="template-grid">
+          <label class="template-card selected">
+            <input type="radio" name="template-pro" value="marketplace" checked>
+            <span class="template-preview marketplace"><i></i><i></i><i></i></span>
+            <b>Marketplace Impacto</b>
+            <small>Preço forte, energia visual e CTA.</small>
+          </label>
+          <label class="template-card">
+            <input type="radio" name="template-pro" value="premium">
+            <span class="template-preview premium"><i></i><i></i></span>
+            <b>Premium Ariana</b>
+            <small>Azul-marinho, dourado e acabamento elegante.</small>
+          </label>
+          <label class="template-card">
+            <input type="radio" name="template-pro" value="campaign">
+            <span class="template-preview campaign"><i></i><i></i><i></i></span>
+            <b>Campanha Forte</b>
+            <small>Visual de varejo, marca e ação promocional.</small>
+          </label>
+        </div>
+      </section>
+
+      <section class="step">
+        <div class="step-head"><span>4</span><div><strong>Produto</strong><small>Use o catálogo da Ariana ou envie outra imagem.</small></div></div>
+        <label class="field full">
+          <span>Buscar produto cadastrado</span>
+          <input id="product-search" autocomplete="off" placeholder="Digite nome, marca ou código">
+        </label>
+        <div id="product-results" class="product-results hidden"></div>
+        <div id="selected-product" class="selected-product hidden"></div>
+
+        <div class="fields">
+          <label class="field full"><span>Nome do produto</span><input id="product-name" maxlength="110" placeholder="Ex.: Smart TV 55 polegadas"></label>
+          <label class="field full"><span>Imagem do produto</span><input id="image-url" type="url" placeholder="https://..."></label>
+          <label class="upload full" for="image-file">
+            <input id="image-file" type="file" accept="image/png,image/jpeg,image/webp">
+            <span class="upload-icon">↑</span>
+            <span><b>Enviar imagem</b><small>O Pro tentará remover automaticamente fundo branco ou uniforme conectado às bordas.</small></span>
+          </label>
+          <div id="upload-status" class="inline-status full"></div>
+        </div>
+      </section>
+
+      <section class="step">
+        <div class="step-head"><span>5</span><div><strong>Conteúdo da campanha</strong><small>O sistema completa o benefício quando você deixar vazio.</small></div></div>
+        <div class="fields">
+          <label class="field"><span>Selo</span><input id="badge" maxlength="42" value="OFERTA ARIANA"></label>
+          <label class="field"><span>CTA</span><input id="cta" maxlength="42" value="APROVEITE AGORA"></label>
+          <label class="field full"><span>Headline</span><input id="headline" maxlength="72" value="OFERTA IMPERDÍVEL"></label>
+          <label class="field full"><span>Subheadline</span><input id="subtitle" maxlength="120" value="Porque sua casa merece o melhor"></label>
+          <label class="field full"><span>Benefício / mensagem de apoio</span><textarea id="benefit" maxlength="150" rows="3" placeholder="Se ficar vazio, o Studio cria uma frase conforme o tipo do produto."></textarea></label>
+        </div>
+      </section>
+
+      <section class="step pricing-step" id="pricing-step">
+        <div class="step-head"><span>6</span><div><strong>Preço e parcelamento</strong><small>Este bloco desaparece de verdade quando o modo sem preço for selecionado.</small></div></div>
+        <div class="fields pricing-grid">
+          <label class="field"><span>À vista / PIX</span><input id="cash-price" inputmode="decimal" placeholder="2.499,00"></label>
+          <label class="field"><span>Total no cartão</span><input id="full-price" inputmode="decimal" placeholder="2.998,80"></label>
+          <label class="field"><span>Parcelas</span><select id="installments"><option>10</option><option selected>12</option><option>15</option><option>18</option></select></label>
+          <label class="field"><span>Valor da parcela</span><input id="installment-price" inputmode="decimal" placeholder="249,90"></label>
+        </div>
+        <div id="price-hint" class="hint">O preço pode ser removido da campanha sem impedir a geração.</div>
+      </section>
+
+      <section class="step">
+        <div class="step-head"><span>7</span><div><strong>Tratamento do produto</strong><small>Recorte seguro antes de renderizar.</small></div></div>
+        <label class="switch">
+          <input id="remove-background" type="checkbox" checked>
+          <span><b>Remover fundo automaticamente</b><small>Remove apenas o fundo conectado às bordas. Se a foto for complexa, o Studio preserva a imagem e avisa.</small></span>
+        </label>
+      </section>
+
+      <div class="editor-actions">
+        <button id="preview-button" class="primary-button" type="button">Gerar prévia Pro</button>
+        <button id="save-button" class="success-button" type="button" disabled>Salvar PNG em alta</button>
+      </div>
+      <div id="global-status" class="global-status" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="preview-panel">
+      <div class="preview-head">
+        <div>
+          <span class="eyebrow" id="preview-label">PRÉVIA • HERO DESKTOP</span>
+          <h2 id="preview-size">1920 × 480 pixels</h2>
+        </div>
+        <span class="pro-badge">PRO V1</span>
+      </div>
+
+      <div id="preview-stage" class="preview-stage" data-format="hero_desktop">
+        <div id="preview-empty" class="preview-empty">
+          <span class="preview-logo">A</span>
+          <strong>A prévia Pro aparecerá aqui</strong>
+          <small>Escolha produto, template e formato. O preço é opcional.</small>
+        </div>
+        <div id="preview-loading" class="preview-loading hidden"><span></span><b>Tratando imagem e compondo campanha...</b></div>
+        <img id="preview-image" class="hidden" alt="Prévia Ariana Creative Studio Pro">
+      </div>
+
+      <section class="quality">
+        <div class="quality-head">
+          <div><span class="eyebrow">CONTROLE DE QUALIDADE</span><h3>Antes de publicar</h3></div>
+          <div id="quality-score" class="quality-score">—</div>
+        </div>
+        <div id="quality-list" class="quality-list">
+          <div class="quality-placeholder">Gere uma prévia para analisar recorte, resolução, formato e conteúdo.</div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="./js/creative_studio_pro.js?v=20260926-1"></script>
+</body>
+</html>
