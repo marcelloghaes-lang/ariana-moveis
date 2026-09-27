@@ -138,3 +138,30 @@ test('qualidade informa explicitamente quando preço foi omitido por escolha', a
   assert.equal(priceCheck.ok, true);
   assert.match(priceCheck.label, /sem preço/i);
 });
+
+
+test('campanha de fabricante aceita marca, cupom e composição promocional', async () => {
+  const result = await generateCreativeBannerPro({
+    ...product,
+    brand: 'Midea'
+  }, {
+    outputFormat: 'hero_desktop',
+    templatePro: 'campaign',
+    showPrice: true,
+    cashPrice: 2499,
+    fullPrice: 2998.80,
+    installmentCount: 12,
+    installmentPrice: 249.90,
+    brandLabel: 'MIDEA',
+    couponText: 'PROMOMIDEA',
+    promoText: 'OFERTA POR TEMPO LIMITADO',
+    headline: 'ESPECIAL MIDEA',
+    subtitle: 'Condições especiais para renovar sua casa'
+  });
+
+  const meta = await sharp(result.buffer).metadata();
+  assert.equal(meta.width, 1920);
+  assert.equal(meta.height, 480);
+  assert.equal(meta.format, 'png');
+  assert.ok(result.buffer.length > 5000);
+});
