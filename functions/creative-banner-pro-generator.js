@@ -1825,6 +1825,12 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
         removalMode:campaignBrandAsset.removalMode,
         removedRatio:Number(campaignBrandAsset.removedRatio || 0)
       } : null,
+      copy:{
+        badge:opts.badge,
+        headline:opts.headline,
+        subtitle:opts.subtitle,
+        cta:opts.cta
+      },
       quality:qualityResult
     }
   };
