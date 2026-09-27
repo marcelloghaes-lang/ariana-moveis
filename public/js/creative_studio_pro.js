@@ -185,7 +185,7 @@
     const canUseChosen = chosen === 3;
     const canAutoCatalog = !productsLoading && products.filter(professionalCandidate).length >= 3;
 
-    els.autoHeroButton.disabled = !(canUseChosen || canAutoCatalog) || productsLoading;
+    els.autoHeroButton.disabled = !(canUseChosen || canAutoCatalog) || (productsLoading && !canUseChosen);
     if (productsLoading && !canUseChosen) {
       els.autoHeroButton.textContent = 'Carregando catálogo...';
     } else if (canUseChosen) {
