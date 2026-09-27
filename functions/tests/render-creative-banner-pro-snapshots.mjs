@@ -221,5 +221,16 @@ const copyAuthority = await generateCreativeBannerProMulti(copyAuthorityProducts
 if (copyAuthority.meta?.quality?.blockSave) {
   throw new Error('copy-authority: quality blocked ' + JSON.stringify(copyAuthority.meta.quality));
 }
+const expectedCopy = {
+  badge: 'LINHA SUPERIOR TESTE',
+  headline: 'TITULO PRINCIPAL TESTE',
+  subtitle: 'TEXTO DE APOIO TESTE',
+  cta: 'CHAMADA INFERIOR TESTE'
+};
+for (const [key,value] of Object.entries(expectedCopy)) {
+  if (copyAuthority.meta?.copy?.[key] !== value) {
+    throw new Error('copy-authority: ' + key + ' não chegou ao renderer. Esperado=' + value + ' recebido=' + String(copyAuthority.meta?.copy?.[key] || ''));
+  }
+}
 fs.writeFileSync(path.join(outDir, 'copy-authority-desktop.png'), copyAuthority.buffer);
 console.log('copy-authority-desktop', copyAuthority.buffer.length, copyAuthority.meta.quality.score, copyAuthority.meta.copy || {});
