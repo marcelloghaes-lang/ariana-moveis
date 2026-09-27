@@ -7,7 +7,6 @@ import {
   analyzeCreativeBannerProMulti,
   resolveProFormat
 } from '../creative-banner-pro-generator.js';
-import { researchCreativeCampaignCopy } from '../services/creativeCampaignResearchService.js';
 import { researchCreativeCampaignWithAi } from '../services/creativeCampaignAiDirectorService.js';
 
 // ============================================================
