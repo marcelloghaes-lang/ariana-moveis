@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { generateCreativeBannerPro } from '../creative-banner-pro-generator.js';
+import { generateCreativeBannerPro, generateCreativeBannerProMulti } from '../creative-banner-pro-generator.js';
 
 function svgData(svg) {
   return 'data:image/svg+xml;base64,' + Buffer.from(svg).toString('base64');
@@ -61,6 +61,23 @@ const speaker = {
   )
 };
 
+const microwave = {
+  name: 'Micro-ondas 35L',
+  brand: 'Midea',
+  category: 'Micro-ondas',
+  pixPrice: 699,
+  price: 842,
+  imageUrl: svgData(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="700">' +
+    '<rect width="1100" height="700" fill="#ffffff"/>' +
+    '<rect x="140" y="180" width="820" height="360" rx="32" fill="#334155"/>' +
+    '<rect x="190" y="220" width="560" height="280" rx="18" fill="#111827"/>' +
+    '<rect x="800" y="230" width="90" height="70" rx="10" fill="#94a3b8"/>' +
+    '<circle cx="845" cy="390" r="45" fill="#cbd5e1"/>' +
+    '</svg>'
+  )
+};
+
 const cases = [
   ['marketplace-desktop', tv, {
     outputFormat:'hero_desktop', templatePro:'marketplace', showPrice:true,
@@ -109,6 +126,33 @@ for (const [name, product, options] of cases) {
   if (result.meta?.quality?.blockSave) {
     throw new Error(name + ': quality blocked ' + JSON.stringify(result.meta.quality));
   }
+  fs.writeFileSync(path.join(outDir, name + '.png'), result.buffer);
+  console.log(name, result.buffer.length, result.meta.quality.score);
+}
+
+
+const multiProducts = [
+  { ...fridge, brand: 'Midea' },
+  { ...microwave, brand: 'Midea' },
+  { ...speaker, brand: 'Midea', name: 'Climatizador Portátil' },
+  { ...tv, brand: 'Midea', name: 'Lava e Seca Smart' }
+];
+
+for (const format of ['hero_desktop','hero_mobile']) {
+  const result = await generateCreativeBannerProMulti(multiProducts, {
+    outputFormat: format,
+    brandLabel: 'MIDEA',
+    couponText: 'PROMOMIDEA',
+    headline: 'ESPECIAL MIDEA',
+    subtitle: 'Tecnologia para sua casa com condições especiais',
+    promoText: 'OFERTA POR TEMPO LIMITADO',
+    installmentCount: 12,
+    cta: 'APROVEITE'
+  });
+  if (result.meta?.quality?.blockSave) {
+    throw new Error('multi-' + format + ': quality blocked ' + JSON.stringify(result.meta.quality));
+  }
+  const name = format === 'hero_desktop' ? 'multi-campaign-desktop' : 'multi-campaign-mobile';
   fs.writeFileSync(path.join(outDir, name + '.png'), result.buffer);
   console.log(name, result.buffer.length, result.meta.quality.score);
 }

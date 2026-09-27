@@ -4,6 +4,8 @@ import sharp from 'sharp';
 import {
   analyzeCreativeBannerPro,
   generateCreativeBannerPro,
+  analyzeCreativeBannerProMulti,
+  generateCreativeBannerProMulti,
   prepareOfficialLogoAsset,
   resolveProFormat,
   resolveProTemplate
@@ -236,4 +238,144 @@ test('peça aprovada libera salvar somente com logo, recorte e resolução váli
   assert.equal(analysis.product.cutoutSafe, true);
   assert.equal(analysis.quality.blockSave, false);
   assert.deepEqual(analysis.quality.criticalFailures, []);
+});
+
+
+const MULTI_TV = {
+  id: 'multi-tv',
+  name: 'Smart TV 55 4K',
+  brand: 'Midea',
+  category: 'Smart TV',
+  pixPrice: 2299,
+  price: 2799,
+  imageUrl: svgData(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800">' +
+    '<rect width="1200" height="800" fill="#ffffff"/>' +
+    '<rect x="160" y="150" width="880" height="500" rx="18" fill="#111827"/>' +
+    '<rect x="195" y="185" width="810" height="430" fill="#1d4ed8"/>' +
+    '<rect x="555" y="650" width="90" height="60" fill="#111827"/>' +
+    '<rect x="450" y="705" width="300" height="26" rx="12" fill="#111827"/>' +
+    '</svg>'
+  )
+};
+
+const MULTI_FRIDGE = {
+  id: 'multi-fridge',
+  name: 'Geladeira Frost Free 400L',
+  brand: 'Midea',
+  category: 'Geladeira',
+  pixPrice: 3199,
+  price: 3854,
+  imageUrl: svgData(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1200">' +
+    '<rect width="800" height="1200" fill="#ffffff"/>' +
+    '<rect x="230" y="90" width="340" height="980" rx="35" fill="#94a3b8"/>' +
+    '<rect x="510" y="210" width="12" height="180" rx="6" fill="#374151"/>' +
+    '<rect x="510" y="610" width="12" height="250" rx="6" fill="#374151"/>' +
+    '</svg>'
+  )
+};
+
+const MULTI_WASHER = {
+  id: 'multi-washer',
+  name: 'Lavadora Automática 12kg',
+  brand: 'Midea',
+  category: 'Lavadora',
+  pixPrice: 1899,
+  price: 2288,
+  imageUrl: svgData(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="900" height="900">' +
+    '<rect width="900" height="900" fill="#ffffff"/>' +
+    '<rect x="210" y="140" width="480" height="620" rx="42" fill="#64748b"/>' +
+    '<circle cx="450" cy="470" r="180" fill="#0f172a" stroke="#94a3b8" stroke-width="28"/>' +
+    '<rect x="270" y="190" width="360" height="70" rx="20" fill="#1e293b"/>' +
+    '</svg>'
+  )
+};
+
+const MULTI_MICROWAVE = {
+  id: 'multi-micro',
+  name: 'Micro-ondas 35L',
+  brand: 'Midea',
+  category: 'Micro-ondas',
+  pixPrice: 699,
+  price: 842,
+  imageUrl: svgData(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="700">' +
+    '<rect width="1100" height="700" fill="#ffffff"/>' +
+    '<rect x="140" y="180" width="820" height="360" rx="32" fill="#334155"/>' +
+    '<rect x="190" y="220" width="560" height="280" rx="18" fill="#111827"/>' +
+    '<rect x="800" y="230" width="90" height="70" rx="10" fill="#94a3b8"/>' +
+    '<circle cx="845" cy="390" r="45" fill="#cbd5e1"/>' +
+    '</svg>'
+  )
+};
+
+test('campanha multi-produto analisa 4 itens e libera quando todos estão íntegros', async () => {
+  const analysis = await analyzeCreativeBannerProMulti(
+    [MULTI_TV, MULTI_FRIDGE, MULTI_WASHER, MULTI_MICROWAVE],
+    {
+      outputFormat: 'hero_desktop',
+      brandLabel: 'MIDEA',
+      couponText: 'PROMOMIDEA',
+      headline: 'ESPECIAL MIDEA',
+      subtitle: 'Condições especiais para renovar sua casa',
+      promoText: 'OFERTA POR TEMPO LIMITADO'
+    }
+  );
+
+  assert.equal(analysis.multiProduct, true);
+  assert.equal(analysis.productCount, 4);
+  assert.equal(analysis.quality.blockSave, false);
+  assert.equal(analysis.products.every(item => item.cutoutSafe), true);
+});
+
+test('campanha multi-produto gera desktop e mobile nas dimensões oficiais', async () => {
+  for (const format of ['hero_desktop','hero_mobile']) {
+    const result = await generateCreativeBannerProMulti(
+      [MULTI_TV, MULTI_FRIDGE, MULTI_WASHER, MULTI_MICROWAVE],
+      {
+        outputFormat: format,
+        brandLabel: 'MIDEA',
+        couponText: 'PROMOMIDEA',
+        headline: 'ESPECIAL MIDEA',
+        subtitle: 'Condições especiais para renovar sua casa',
+        promoText: 'OFERTA POR TEMPO LIMITADO',
+        cta: 'APROVEITE'
+      }
+    );
+    const meta = await sharp(result.buffer).metadata();
+    const expected = resolveProFormat(format);
+    assert.equal(meta.width, expected.width);
+    assert.equal(meta.height, expected.height);
+    assert.equal(result.meta.productCount, 4);
+    assert.equal(result.meta.quality.blockSave, false);
+  }
+});
+
+test('campanha multi-produto exige no mínimo dois produtos', async () => {
+  await assert.rejects(
+    () => generateCreativeBannerProMulti([MULTI_TV], { outputFormat: 'hero_desktop' }),
+    /at_least_two_products/
+  );
+});
+
+test('campanha multi-produto bloqueia se qualquer produto falhar no recorte', async () => {
+  const bad = {
+    ...product,
+    id: 'bad-multi',
+    name: 'Guarda Roupa Branco 6 Portas',
+    category: 'Móveis',
+    imageUrl: FRAGMENTED_WHITE_PRODUCT
+  };
+  const analysis = await analyzeCreativeBannerProMulti(
+    [MULTI_TV, bad],
+    {
+      outputFormat: 'hero_desktop',
+      brandLabel: 'ARIANA',
+      headline: 'OFERTAS PARA SUA CASA'
+    }
+  );
+  assert.equal(analysis.quality.blockSave, true);
+  assert.ok(analysis.quality.criticalFailures.includes('multi_cutout'));
 });
