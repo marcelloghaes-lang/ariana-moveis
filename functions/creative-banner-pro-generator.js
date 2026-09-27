@@ -884,16 +884,27 @@ function backgroundSvg(format, template) {
   }
 
   if (template === 'campaign') {
+    const mobile = format.device === 'mobile';
+    const dots = Array.from({length:18},(_,i)=>{
+      const col=i%6, row=Math.floor(i/6);
+      return '<circle cx="' + Math.round(w*(mobile ? .08+col*.035 : .54+col*.018)) + '" cy="' + Math.round(h*(mobile ? .18+row*.025 : .18+row*.045)) + '" r="' + Math.max(2,Math.round(h*.005)) + '"/>';
+    }).join('');
     return Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '">' +
-      '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0062D6"/><stop offset=".50" stop-color="#003E9A"/><stop offset="1" stop-color="#031F56"/></linearGradient></defs>' +
+      '<defs>' +
+      '<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0874F2"/><stop offset=".42" stop-color="#0758C9"/><stop offset=".72" stop-color="#063B91"/><stop offset="1" stop-color="#031B4D"/></linearGradient>' +
+      '<radialGradient id="heroGlow" cx="' + (mobile?'50%':'78%') + '" cy="' + (mobile?'60%':'48%') + '" r="58%"><stop offset="0" stop-color="#36A9FF" stop-opacity=".42"/><stop offset=".48" stop-color="#1168D8" stop-opacity=".14"/><stop offset="1" stop-color="#05285F" stop-opacity="0"/></radialGradient>' +
+      '<linearGradient id="goldBeam" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFF15A"/><stop offset=".45" stop-color="#FFD51B"/><stop offset="1" stop-color="#F2A600"/></linearGradient>' +
+      '<filter id="softGlow"><feGaussianBlur stdDeviation="' + Math.max(8,Math.round(h*.025)) + '"/></filter>' +
+      '</defs>' +
       '<rect width="100%" height="100%" fill="url(#bg)"/>' +
-      '<path d="M' + Math.round(w*.58) + ' 0 H' + w + ' V' + h + ' H' + Math.round(w*.73) + ' Z" fill="#0EA5E9" opacity=".18"/>' +
-      '<path d="M' + Math.round(w*.74) + ' 0 H' + w + ' V' + h + ' H' + Math.round(w*.87) + ' Z" fill="#FFD51B" opacity=".92"/>' +
-      '<circle cx="' + Math.round(w*.10) + '" cy="' + Math.round(h*.92) + '" r="' + Math.round(h*.34) + '" fill="#ffffff" opacity=".06"/>' +
-      '<g fill="#ffffff" opacity=".12">' +
-      Array.from({length:14},(_,i)=>'<circle cx="' + Math.round(w*(.04+i*.035)) + '" cy="' + Math.round(h*.12) + '" r="' + Math.max(2,Math.round(h*.008)) + '"/>').join('') +
-      '</g></svg>'
+      '<rect width="100%" height="100%" fill="url(#heroGlow)"/>' +
+      '<path d="M' + Math.round(w*(mobile?.74:.69)) + ' -' + Math.round(h*.18) + ' L' + Math.round(w*(mobile?.92:.80)) + ' -' + Math.round(h*.18) + ' L' + Math.round(w*(mobile?.68:.64)) + ' ' + Math.round(h*1.18) + ' L' + Math.round(w*(mobile?.55:.55)) + ' ' + Math.round(h*1.18) + ' Z" fill="url(#goldBeam)" opacity=".98"/>' +
+      '<path d="M' + Math.round(w*(mobile?.80:.76)) + ' -' + Math.round(h*.18) + ' L' + Math.round(w*(mobile?.98:.88)) + ' -' + Math.round(h*.18) + ' L' + Math.round(w*(mobile?.80:.73)) + ' ' + Math.round(h*1.18) + ' L' + Math.round(w*(mobile?.69:.66)) + ' ' + Math.round(h*1.18) + ' Z" fill="#ffffff" opacity=".08"/>' +
+      '<path d="M0 ' + Math.round(h*.96) + ' C' + Math.round(w*.25) + ' ' + Math.round(h*.88) + ' ' + Math.round(w*.62) + ' ' + Math.round(h*1.04) + ' ' + w + ' ' + Math.round(h*.92) + ' V' + h + ' H0 Z" fill="#021638" opacity=".35"/>' +
+      '<ellipse cx="' + Math.round(w*(mobile?.50:.79)) + '" cy="' + Math.round(h*(mobile?.66:.60)) + '" rx="' + Math.round(w*(mobile?.33:.24)) + '" ry="' + Math.round(h*(mobile?.22:.42)) + '" fill="#35A8FF" opacity=".16" filter="url(#softGlow)"/>' +
+      '<g fill="#ffffff" opacity=".20">' + dots + '</g>' +
+      '</svg>'
     );
   }
 
@@ -1403,9 +1414,9 @@ function multiProductSlots(format, count = 2) {
       { x:.50, y:.38, w:.34, h:.36 }
     ];
     if (n === 3) return [
-      { x:.10, y:.43, w:.29, h:.31 },
-      { x:.33, y:.35, w:.34, h:.40 },
-      { x:.61, y:.43, w:.29, h:.31 }
+      { x:.34, y:.35, w:.34, h:.40 },
+      { x:.09, y:.45, w:.29, h:.30 },
+      { x:.64, y:.46, w:.27, h:.29 }
     ];
     if (n === 4) return [
       { x:.06, y:.43, w:.26, h:.30 },
@@ -1427,9 +1438,9 @@ function multiProductSlots(format, count = 2) {
     { x:.76, y:.15, w:.20, h:.70 }
   ];
   if (n === 3) return [
-    { x:.55, y:.25, w:.16, h:.58 },
-    { x:.67, y:.10, w:.20, h:.75 },
-    { x:.82, y:.25, w:.15, h:.58 }
+    { x:.68, y:.08, w:.21, h:.77 },
+    { x:.55, y:.29, w:.16, h:.54 },
+    { x:.84, y:.31, w:.14, h:.50 }
   ];
   if (n === 4) return [
     { x:.53, y:.28, w:.14, h:.54 },
@@ -1444,6 +1455,32 @@ function multiProductSlots(format, count = 2) {
     { x:.82, y:.19, w:.14, h:.62 },
     { x:.90, y:.30, w:.09, h:.50 }
   ];
+}
+
+
+function multiShowcaseStageSvg(format, count = 3) {
+  const w=format.width,h=format.height;
+  const mobile=format.device==='mobile';
+  if(mobile){
+    return Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+      '<defs><linearGradient id="stage" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0B4AA7"/><stop offset="1" stop-color="#021B49"/></linearGradient><filter id="sg"><feGaussianBlur stdDeviation="'+Math.round(h*.018)+'"/></filter></defs>'+
+      '<ellipse cx="'+Math.round(w*.50)+'" cy="'+Math.round(h*.705)+'" rx="'+Math.round(w*.405)+'" ry="'+Math.round(h*.055)+'" fill="#FFD51B" opacity=".52" filter="url(#sg)"/>'+
+      '<ellipse cx="'+Math.round(w*.50)+'" cy="'+Math.round(h*.690)+'" rx="'+Math.round(w*.39)+'" ry="'+Math.round(h*.052)+'" fill="#FFD51B"/>'+
+      '<rect x="'+Math.round(w*.11)+'" y="'+Math.round(h*.655)+'" width="'+Math.round(w*.78)+'" height="'+Math.round(h*.052)+'" rx="'+Math.round(h*.026)+'" fill="url(#stage)"/>'+
+      '<ellipse cx="'+Math.round(w*.50)+'" cy="'+Math.round(h*.655)+'" rx="'+Math.round(w*.39)+'" ry="'+Math.round(h*.048)+'" fill="#0E5BC6" stroke="#FFD51B" stroke-width="'+Math.max(3,Math.round(h*.006))+'"/>'+
+      '</svg>'
+    );
+  }
+  return Buffer.from(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+    '<defs><linearGradient id="stage" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0D5FCB"/><stop offset=".55" stop-color="#073C91"/><stop offset="1" stop-color="#021A48"/></linearGradient><filter id="sg"><feGaussianBlur stdDeviation="'+Math.round(h*.020)+'"/></filter></defs>'+
+    '<ellipse cx="'+Math.round(w*.79)+'" cy="'+Math.round(h*.865)+'" rx="'+Math.round(w*.235)+'" ry="'+Math.round(h*.075)+'" fill="#FFD51B" opacity=".44" filter="url(#sg)"/>'+
+    '<ellipse cx="'+Math.round(w*.79)+'" cy="'+Math.round(h*.845)+'" rx="'+Math.round(w*.225)+'" ry="'+Math.round(h*.065)+'" fill="#FFD51B"/>'+
+    '<rect x="'+Math.round(w*.565)+'" y="'+Math.round(h*.790)+'" width="'+Math.round(w*.45)+'" height="'+Math.round(h*.078)+'" rx="'+Math.round(h*.039)+'" fill="url(#stage)"/>'+
+    '<ellipse cx="'+Math.round(w*.79)+'" cy="'+Math.round(h*.790)+'" rx="'+Math.round(w*.225)+'" ry="'+Math.round(h*.063)+'" fill="#0E5BC6" stroke="#FFD51B" stroke-width="'+Math.max(3,Math.round(h*.008))+'"/>'+
+    '</svg>'
+  );
 }
 
 function multiCampaignOverlay(format, opts, count = 2) {
