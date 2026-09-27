@@ -147,10 +147,9 @@ function productImage(product = {}, options = {}) {
 }
 
 function logoPath() {
-  const configured = String(process.env.ARIANA_LOGO_PATH || process.env.POSTER_LOGO_PATH || '').trim();
+  const configured = String(process.env.ARIANA_OFFICIAL_LOGO_PATH || '').trim();
   const candidates = [
     configured,
-    path.resolve(__dirname, '../public/imagens/logo.png'),
     path.resolve(__dirname, '../public/imagens/logo-original-3d.png')
   ].filter(Boolean);
   return candidates.find(file => fs.existsSync(file)) || '';
@@ -158,7 +157,7 @@ function logoPath() {
 
 async function logoLayer(format) {
   const file = logoPath();
-  if (!file) return null;
+  if (!file) throw new Error('official_ariana_logo_missing');
   const mobile = format.device === 'mobile';
   const width = mobile ? Math.round(format.width * .22) : Math.round(format.height * .40);
   const height = mobile ? Math.round(format.height * .062) : Math.round(format.height * .105);
