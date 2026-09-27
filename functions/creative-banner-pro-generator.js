@@ -796,8 +796,10 @@ function normalizedOptions(product = {}, options = {}) {
   const format = resolveProFormat(options.outputFormat || options.format);
   const productName = clean(options.productName || product.name || product.title || 'Produto Ariana Móveis', 110);
   const headline = clean(options.headline || (showPrice ? 'OFERTA IMPERDÍVEL' : 'DESTAQUE ARIANA'), 72).toUpperCase();
-  const subtitle = clean(options.subtitle || defaultBenefit(product), 120);
-  const benefit = clean(options.benefit || defaultBenefit(product), 150);
+  const explicitSubtitle = Object.prototype.hasOwnProperty.call(options, 'subtitle');
+  const explicitBenefit = Object.prototype.hasOwnProperty.call(options, 'benefit');
+  const subtitle = clean(explicitSubtitle ? options.subtitle : defaultBenefit(product), 120);
+  const benefit = clean(explicitBenefit ? options.benefit : '', 150);
   const cta = clean(options.cta || (showPrice ? 'APROVEITE AGORA' : 'CONFIRA NO SITE'), 42).toUpperCase();
   const badge = clean(options.badge || (
     template === 'premium' ? 'SELEÇÃO ARIANA' :
@@ -1503,11 +1505,12 @@ function multiCampaignOverlay(format, opts, count = 2) {
     72
   );
   const support = clean(
-    opts.subtitle || opts.benefit || (brandCampaign
+    opts.subtitle || (brandCampaign
       ? 'Tecnologia, design e praticidade para sua casa.'
       : 'Grandes marcas e produtos para transformar sua casa.'),
     96
   );
+  const topLabel = clean(opts.badge || '', 42);
   const promo = clean(opts.promoText || '', 46);
   const cta = clean(opts.cta || 'CONHEÇA A SELEÇÃO', 42);
   const installment = clamp(Number(opts.installmentCount || 12), 1, 24);
@@ -1543,11 +1546,9 @@ function multiCampaignOverlay(format, opts, count = 2) {
 
     return Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-      (opts.hasBrandLogo
-        ? ''
-        : '<text x="'+cx+'" y="'+Math.round(h*.135)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.021)+'" font-weight="900" letter-spacing="2.4" fill="#FFD51B">'+
-          escapeXml(brandCampaign && brand ? brand.toUpperCase() : (opts.badge || 'ARIANA MÓVEIS'))+
-          '</text>')+
+      (topLabel
+        ? '<text x="'+cx+'" y="'+Math.round(h*.135)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.021)+'" font-weight="900" letter-spacing="2.4" fill="#FFD51B">'+escapeXml(topLabel)+'</text>'
+        : '')+
       linesSvg(wrap(headline,22,2),{
         x:cx,
         y:titleY,
@@ -1595,11 +1596,9 @@ function multiCampaignOverlay(format, opts, count = 2) {
 
   return Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-    (opts.hasBrandLogo
-      ? ''
-      : '<text x="'+x+'" y="'+Math.round(h*.205)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.032)+'" font-weight="900" letter-spacing="3" fill="#FFD51B">'+
-        escapeXml(brandCampaign && brand ? brand.toUpperCase() : (opts.badge || 'ARIANA MÓVEIS'))+
-        '</text>')+
+    (topLabel
+      ? '<text x="'+x+'" y="'+Math.round(h*.205)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.032)+'" font-weight="900" letter-spacing="3" fill="#FFD51B">'+escapeXml(topLabel)+'</text>'
+      : '')+
     linesSvg(wrap(headline,28,2),{
       x,
       y:titleY,
