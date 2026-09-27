@@ -1493,140 +1493,98 @@ function multiCampaignOverlay(format, opts, count = 2) {
   const mobile = format.device === 'mobile';
   const brand = String(opts.brandLabel || '').trim();
   const brandCampaign = Boolean(opts.couponText || opts.hasBrandLogo || brand);
-  const headline = clean(opts.headline || (brandCampaign ? ('ESPECIAL ' + brand) : 'OFERTA IMPERDÍVEL'), 72);
-  const promo = clean(opts.promoText || 'OFERTA POR TEMPO LIMITADO', 46);
-  const cta = clean(opts.cta || 'APROVEITAR', 42);
+  const headline = clean(
+    opts.headline || (brandCampaign && brand ? ('ESPECIAL ' + brand.toUpperCase()) : 'SELEÇÃO ESPECIAL ARIANA'),
+    72
+  );
+  const support = clean(
+    opts.subtitle || opts.benefit || (brandCampaign
+      ? 'Tecnologia, design e praticidade para sua casa.'
+      : 'Grandes marcas e produtos para transformar sua casa.'),
+    96
+  );
+  const promo = clean(opts.promoText || 'CONDIÇÕES ESPECIAIS', 46);
+  const cta = clean(opts.cta || 'CONHEÇA A SELEÇÃO', 42);
   const installment = clamp(Number(opts.installmentCount || 12), 1, 24);
+  const coupon = clean(opts.couponText || '', 26);
 
   if (mobile) {
     const w = format.width;
     const h = format.height;
     const cx = Math.round(w / 2);
-    const footerY = Math.round(h * .872);
-    const pillH = Math.round(h * .056);
 
-    if (!brandCampaign) {
-      return Buffer.from(
-        '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-        '<text x="'+cx+'" y="'+Math.round(h*.145)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.024)+'" font-weight="900" letter-spacing="2.2" fill="#ffffff">'+escapeXml(opts.badge || 'OFERTAS ARIANA')+'</text>'+
-        linesSvg(wrap(headline,24,2),{
-          x:cx,
-          y:Math.round(h*.215),
-          size:Math.round(w*.052),
-          lineHeight:Math.round(w*.057),
-          fill:'#ffffff',
-          weight:950,
-          anchor:'middle'
-        })+
-        pillSvg({
-          x:Math.round(w*.055),y:footerY,w:Math.round(w*.38),h:pillH,
-          fill:'#071D49',text:installment+'x SEM JUROS NO CARTÃO',
-          textFill:'#ffffff',fs:Math.round(w*.0155)
-        })+
-        pillSvg({
-          x:Math.round(w*.455),y:footerY,w:Math.round(w*.29),h:pillH,
-          fill:'#FFD51B',text:promo,textFill:'#08285A',fs:Math.round(w*.0145)
-        })+
-        pillSvg({
-          x:Math.round(w*.765),y:footerY,w:Math.round(w*.18),h:pillH,
-          fill:'#ffffff',text:cta,textFill:'#0047AB',fs:Math.round(w*.0165)
-        })+
-        '</svg>'
-      );
-    }
-
-    const coupon = clean(opts.couponText || '', 26);
-    const brandTitle = brand ? ('ESPECIAL ' + brand.toUpperCase()) : 'CAMPANHA ESPECIAL';
-    const main = coupon || headline;
+    const titleY = brandCampaign ? Math.round(h*.205) : Math.round(h*.195);
+    const supportY = Math.round(h*.315);
+    const infoY = Math.round(h*.815);
 
     return Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
       (opts.hasBrandLogo
         ? ''
-        : '<text x="'+cx+'" y="'+Math.round(h*.145)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.024)+'" font-weight="900" letter-spacing="2.1" fill="#ffffff">'+escapeXml(brandTitle)+'</text>')+
-      '<text x="'+cx+'" y="'+Math.round(h*.205)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.036)+'" font-weight="950" fill="#ffffff">'+escapeXml(coupon ? 'USE O CUPOM' : headline)+'</text>'+
+        : '<text x="'+cx+'" y="'+Math.round(h*.135)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.021)+'" font-weight="900" letter-spacing="2.4" fill="#FFD51B">'+
+          escapeXml(brandCampaign && brand ? brand.toUpperCase() : (opts.badge || 'ARIANA MÓVEIS'))+
+          '</text>')+
+      linesSvg(wrap(headline,22,2),{
+        x:cx,
+        y:titleY,
+        size:Math.round(w*.049),
+        lineHeight:Math.round(w*.054),
+        fill:'#ffffff',
+        weight:950,
+        anchor:'middle'
+      })+
+      '<text x="'+cx+'" y="'+supportY+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.021)+'" font-weight="650" fill="#ffffff" opacity=".90">'+escapeXml(support)+'</text>'+
       (coupon
-        ? '<rect x="'+Math.round(w*.20)+'" y="'+Math.round(h*.225)+'" width="'+Math.round(w*.60)+'" height="'+Math.round(h*.073)+'" rx="'+Math.round(h*.036)+'" fill="#FFD51B"/>'+
-          '<text x="'+cx+'" y="'+Math.round(h*.275)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*(main.length>16?.033:.042))+'" font-weight="950" fill="#08285A">'+escapeXml(main)+'</text>'
+        ? '<text x="'+cx+'" y="'+Math.round(h*.365)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.019)+'" font-weight="850" fill="#ffffff">USE O CUPOM</text>'+
+          '<text x="'+cx+'" y="'+Math.round(h*.415)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.038)+'" font-weight="950" fill="#FFD51B">'+escapeXml(coupon)+'</text>'
         : '')+
-      pillSvg({
-        x:Math.round(w*.055),y:footerY,w:Math.round(w*.38),h:pillH,
-        fill:'#071D49',text:installment+'x SEM JUROS NO CARTÃO',
-        textFill:'#ffffff',fs:Math.round(w*.0155)
-      })+
-      pillSvg({
-        x:Math.round(w*.455),y:footerY,w:Math.round(w*.29),h:pillH,
-        fill:'#FFD51B',text:promo,textFill:'#08285A',fs:Math.round(w*.0145)
-      })+
-      pillSvg({
-        x:Math.round(w*.765),y:footerY,w:Math.round(w*.18),h:pillH,
-        fill:'#ffffff',text:cta,textFill:'#0047AB',fs:Math.round(w*.0165)
-      })+
+      '<g font-family="Arial,Helvetica,sans-serif">'+
+        '<text x="'+Math.round(w*.10)+'" y="'+infoY+'" font-size="'+Math.round(w*.030)+'" font-weight="950" fill="#FFD51B">'+installment+'x</text>'+
+        '<text x="'+Math.round(w*.10)+'" y="'+Math.round(infoY+h*.026)+'" font-size="'+Math.round(w*.0145)+'" font-weight="800" fill="#ffffff">SEM JUROS NO CARTÃO</text>'+
+        '<line x1="'+Math.round(w*.39)+'" y1="'+Math.round(infoY-h*.026)+'" x2="'+Math.round(w*.39)+'" y2="'+Math.round(infoY+h*.034)+'" stroke="#ffffff" stroke-opacity=".38" stroke-width="2"/>'+
+        '<text x="'+Math.round(w*.44)+'" y="'+Math.round(infoY-h*.002)+'" font-size="'+Math.round(w*.017)+'" font-weight="900" fill="#FFD51B">'+escapeXml(promo)+'</text>'+
+        '<line x1="'+Math.round(w*.70)+'" y1="'+Math.round(infoY-h*.026)+'" x2="'+Math.round(w*.70)+'" y2="'+Math.round(infoY+h*.034)+'" stroke="#ffffff" stroke-opacity=".38" stroke-width="2"/>'+
+        '<text x="'+Math.round(w*.75)+'" y="'+Math.round(infoY-h*.002)+'" font-size="'+Math.round(w*.017)+'" font-weight="900" fill="#ffffff">'+escapeXml(cta)+' →</text>'+
+      '</g>'+
       '</svg>'
     );
   }
 
   const w = format.width;
   const h = format.height;
-  const x = Math.round(w * .055);
-  const footerY = Math.round(h * .820);
-  const pillH = Math.round(h * .105);
-
-  if (!brandCampaign) {
-    return Buffer.from(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-      '<text x="'+x+'" y="'+Math.round(h*.235)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.033)+'" font-weight="900" letter-spacing="3" fill="#ffffff">'+escapeXml(opts.badge || 'OFERTAS ARIANA')+'</text>'+
-      linesSvg(wrap(headline,28,2),{
-        x,
-        y:Math.round(h*.370),
-        size:Math.round(h*.095),
-        lineHeight:Math.round(h*.100),
-        fill:'#ffffff',
-        weight:950
-      })+
-      pillSvg({
-        x,y:footerY,w:Math.round(w*.175),h:pillH,
-        fill:'#071D49',text:installment+'x SEM JUROS NO CARTÃO',
-        textFill:'#ffffff',fs:Math.round(h*.0225)
-      })+
-      pillSvg({
-        x:x+Math.round(w*.185),y:footerY,w:Math.round(w*.165),h:pillH,
-        fill:'#FFD51B',text:promo,textFill:'#08285A',fs:Math.round(h*.0215)
-      })+
-      pillSvg({
-        x:x+Math.round(w*.360),y:footerY,w:Math.round(w*.120),h:pillH,
-        fill:'#ffffff',text:cta,textFill:'#0047AB',fs:Math.round(h*.024)
-      })+
-      '</svg>'
-    );
-  }
-
-  const coupon = clean(opts.couponText || '', 26);
-  const brandTitle = brand ? ('ESPECIAL ' + brand.toUpperCase()) : 'CAMPANHA ESPECIAL';
+  const x = Math.round(w*.055);
+  const titleY = brandCampaign ? Math.round(h*.345) : Math.round(h*.330);
+  const supportY = Math.round(h*.585);
+  const infoY = Math.round(h*.820);
 
   return Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
     (opts.hasBrandLogo
       ? ''
-      : '<text x="'+x+'" y="'+Math.round(h*.225)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.038)+'" font-weight="900" letter-spacing="3" fill="#ffffff">'+escapeXml(brandTitle)+'</text>')+
-    '<text x="'+x+'" y="'+Math.round(h*.345)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.075)+'" font-weight="950" fill="#ffffff">'+escapeXml(coupon ? 'USE O CUPOM' : headline)+'</text>'+
+      : '<text x="'+x+'" y="'+Math.round(h*.205)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.032)+'" font-weight="900" letter-spacing="3" fill="#FFD51B">'+
+        escapeXml(brandCampaign && brand ? brand.toUpperCase() : (opts.badge || 'ARIANA MÓVEIS'))+
+        '</text>')+
+    linesSvg(wrap(headline,28,2),{
+      x,
+      y:titleY,
+      size:Math.round(h*.092),
+      lineHeight:Math.round(h*.098),
+      fill:'#ffffff',
+      weight:950
+    })+
+    '<text x="'+x+'" y="'+supportY+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.030)+'" font-weight="650" fill="#ffffff" opacity=".90">'+escapeXml(support)+'</text>'+
     (coupon
-      ? '<rect x="'+x+'" y="'+Math.round(h*.395)+'" width="'+Math.round(w*.255)+'" height="'+Math.round(h*.135)+'" rx="'+Math.round(h*.030)+'" fill="#FFD51B"/>'+
-        '<text x="'+(x+Math.round(w*.1275))+'" y="'+Math.round(h*.486)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*(coupon.length>15?.052:.064))+'" font-weight="950" fill="#08285A">'+escapeXml(coupon)+'</text>'
+      ? '<text x="'+x+'" y="'+Math.round(h*.665)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.025)+'" font-weight="850" fill="#ffffff">USE O CUPOM</text>'+
+        '<text x="'+x+'" y="'+Math.round(h*.748)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.062)+'" font-weight="950" fill="#FFD51B">'+escapeXml(coupon)+'</text>'
       : '')+
-    pillSvg({
-      x,y:footerY,w:Math.round(w*.175),h:pillH,
-      fill:'#071D49',text:installment+'x SEM JUROS NO CARTÃO',
-      textFill:'#ffffff',fs:Math.round(h*.0225)
-    })+
-    pillSvg({
-      x:x+Math.round(w*.185),y:footerY,w:Math.round(w*.165),h:pillH,
-      fill:'#FFD51B',text:promo,textFill:'#08285A',fs:Math.round(h*.0215)
-    })+
-    pillSvg({
-      x:x+Math.round(w*.360),y:footerY,w:Math.round(w*.120),h:pillH,
-      fill:'#ffffff',text:cta,textFill:'#0047AB',fs:Math.round(h*.024)
-    })+
+    '<g font-family="Arial,Helvetica,sans-serif">'+
+      '<text x="'+x+'" y="'+infoY+'" font-size="'+Math.round(h*.052)+'" font-weight="950" fill="#FFD51B">'+installment+'x</text>'+
+      '<text x="'+x+'" y="'+Math.round(infoY+h*.050)+'" font-size="'+Math.round(h*.020)+'" font-weight="850" fill="#ffffff">SEM JUROS NO CARTÃO</text>'+
+      '<line x1="'+Math.round(w*.178)+'" y1="'+Math.round(infoY-h*.045)+'" x2="'+Math.round(w*.178)+'" y2="'+Math.round(infoY+h*.058)+'" stroke="#ffffff" stroke-opacity=".35" stroke-width="'+Math.max(1,Math.round(h*.004))+'"/>'+
+      '<text x="'+Math.round(w*.200)+'" y="'+Math.round(infoY+h*.010)+'" font-size="'+Math.round(h*.025)+'" font-weight="900" fill="#FFD51B">'+escapeXml(promo)+'</text>'+
+      '<line x1="'+Math.round(w*.390)+'" y1="'+Math.round(infoY-h*.045)+'" x2="'+Math.round(w*.390)+'" y2="'+Math.round(infoY+h*.058)+'" stroke="#ffffff" stroke-opacity=".35" stroke-width="'+Math.max(1,Math.round(h*.004))+'"/>'+
+      '<text x="'+Math.round(w*.412)+'" y="'+Math.round(infoY+h*.010)+'" font-size="'+Math.round(h*.025)+'" font-weight="900" fill="#ffffff">'+escapeXml(cta)+' →</text>'+
+    '</g>'+
     '</svg>'
   );
 }
