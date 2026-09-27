@@ -259,6 +259,160 @@ async function logoLayer(format, preparedAsset = null) {
   };
 }
 
+
+async function prepareCampaignBrandLogo(url = '') {
+  const sourceUrl = String(url || '').trim();
+  if (!sourceUrl) return null;
+  const raw = await loadImage(sourceUrl);
+  if (!raw) throw new Error('campaign_brand_logo_unavailable');
+
+  const source = sharp(raw)
+    .rotate()
+    .resize({ width: 1400, height: 520, fit: 'inside', withoutEnlargement: true })
+    .ensureAlpha();
+  const { data, info } = await source.raw().toBuffer({ resolveWithObject: true });
+  const { width, height, channels } = info;
+  const total = width * height;
+
+  let transparentPixels = 0;
+  for (let i = 0; i < total; i += 1) {
+    if (data[i * channels + 3] < 40) transparentPixels += 1;
+  }
+  const transparentRatio = transparentPixels / Math.max(1, total);
+
+  if (transparentRatio > .025) {
+    const png = await source.png().toBuffer();
+    const trimmed = await sharp(png)
+      .trim({ background: { r:0,g:0,b:0,alpha:0 }, threshold:5 })
+      .png()
+      .toBuffer();
+    const meta = await sharp(trimmed).metadata();
+    return {
+      buffer: trimmed,
+      width: meta.width || width,
+      height: meta.height || height,
+      backgroundRemoved: true,
+      removalMode: 'existing_alpha',
+      removedRatio: transparentRatio
+    };
+  }
+
+  const bg = colorStats(data, info);
+  const uniformEdge = bg.variance < 1800;
+  if (!uniformEdge) {
+    return {
+      buffer: await source.png().toBuffer(),
+      width,
+      height,
+      backgroundRemoved: false,
+      removalMode: 'complex_brand_logo_background',
+      removedRatio: 0
+    };
+  }
+
+  const bright = bg.brightness >= 205;
+  const dark = bg.brightness <= 65;
+  const tolerance = bright ? 86 : dark ? 62 : 54;
+  const tolerance2 = tolerance * tolerance;
+  const visited = new Uint8Array(total);
+  const queue = new Int32Array(total);
+  let head = 0;
+  let tail = 0;
+
+  function matches(index) {
+    const p = index * channels;
+    if (data[p + 3] < 24) return true;
+    const dr = data[p] - bg.r;
+    const dg = data[p + 1] - bg.g;
+    const db = data[p + 2] - bg.b;
+    return dr*dr + dg*dg + db*db <= tolerance2;
+  }
+
+  function enqueue(index) {
+    if (visited[index] || !matches(index)) return;
+    visited[index] = 1;
+    queue[tail++] = index;
+  }
+
+  for (let x = 0; x < width; x += 1) {
+    enqueue(x);
+    enqueue((height - 1) * width + x);
+  }
+  for (let y = 0; y < height; y += 1) {
+    enqueue(y * width);
+    enqueue(y * width + width - 1);
+  }
+
+  while (head < tail) {
+    const index = queue[head++];
+    const x = index % width;
+    const y = Math.floor(index / width);
+    if (x > 0) enqueue(index - 1);
+    if (x + 1 < width) enqueue(index + 1);
+    if (y > 0) enqueue(index - width);
+    if (y + 1 < height) enqueue(index + width);
+  }
+
+  const removedRatio = tail / Math.max(1,total);
+  if (removedRatio < .02 || removedRatio > .94) {
+    return {
+      buffer: await source.png().toBuffer(),
+      width,
+      height,
+      backgroundRemoved: false,
+      removalMode: 'brand_logo_background_not_safe',
+      removedRatio
+    };
+  }
+
+  for (let i = 0; i < total; i += 1) {
+    if (visited[i]) data[i * channels + 3] = 0;
+  }
+
+  const png = await sharp(data,{raw:info}).png().toBuffer();
+  const trimmed = await sharp(png)
+    .trim({ background:{r:0,g:0,b:0,alpha:0}, threshold:5 })
+    .png()
+    .toBuffer();
+  const meta = await sharp(trimmed).metadata();
+
+  return {
+    buffer: trimmed,
+    width: meta.width || width,
+    height: meta.height || height,
+    backgroundRemoved: true,
+    removalMode: bright ? 'connected_light_brand_logo' : dark ? 'connected_dark_brand_logo' : 'connected_uniform_brand_logo',
+    removedRatio
+  };
+}
+
+async function campaignBrandLogoLayer(format, asset = null) {
+  if (!asset?.buffer || !asset.backgroundRemoved) return null;
+  const mobile = format.device === 'mobile';
+  const maxW = mobile ? Math.round(format.width * .34) : Math.round(format.width * .18);
+  const maxH = mobile ? Math.round(format.height * .070) : Math.round(format.height * .120);
+  const buffer = await sharp(asset.buffer)
+    .resize(maxW,maxH,{
+      fit:'inside',
+      withoutEnlargement:false,
+      background:{r:255,g:255,b:255,alpha:0}
+    })
+    .png()
+    .toBuffer();
+  const meta = await sharp(buffer).metadata();
+  const bw = Number(meta.width || maxW);
+  return {
+    input: buffer,
+    left: mobile
+      ? Math.round((format.width - bw)/2)
+      : Math.round(format.width * .055),
+    top: mobile
+      ? Math.round(format.height * .115)
+      : Math.round(format.height * .155),
+    blend:'over'
+  };
+}
+
 function productCategoryText(product = {}) {
   return clean([
     product.category,
@@ -653,6 +807,7 @@ function normalizedOptions(product = {}, options = {}) {
   const brandLabel = clean(options.brandLabel || options.brand || product.brand || product.brandName || '', 34).toUpperCase();
   const couponText = clean(options.couponText || options.coupon || '', 26).toUpperCase();
   const promoText = clean(options.promoText || (showPrice ? 'OFERTA POR TEMPO LIMITADO' : 'CONDIÇÕES ESPECIAIS'), 46).toUpperCase();
+  const brandLogoUrl = String(options.brandLogoUrl || options.manufacturerLogoUrl || product.brandLogoUrl || '').trim();
 
   return {
     format,
@@ -671,6 +826,8 @@ function normalizedOptions(product = {}, options = {}) {
     brandLabel,
     couponText,
     promoText,
+    brandLogoUrl,
+    hasBrandLogo: false,
     siteLabel: clean(options.siteLabel || 'arianamoveis.com.br', 45),
     removeBackground: options.removeBackground !== false && options.removeLightBackground !== false
   };
