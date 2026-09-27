@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {
   buildAiDirectorRequest,
   sanitizeAiCreativeDirection,
-  fixCopyByVisualCategory
+  fixCopyByVisualCategory,
+  categorySpecificFallback
 } from '../services/creativeCampaignAiDirectorService.js';
 
 const PRODUCTS = [
@@ -161,4 +162,29 @@ test('prompt exige copy específica quando a visão reconhece áudio', () => {
   assert.match(textBody, /categoria visual reconhecida/i);
   assert.match(textBody, /áudio\/som\/caixas de som/i);
   assert.match(textBody, /não use "SELEÇÃO ARIANA"/i);
+});
+
+
+test('fallback por falha da API continua específico para caixas de som', () => {
+  const fallback = categorySpecificFallback({
+    copy: {
+      badge: 'SELEÇÃO ARIANA',
+      headline: 'SOLUÇÕES QUE FACILITAM O SEU DIA A DIA',
+      subtitle: 'Soluções para facilitar a rotina e aproveitar melhor cada momento.',
+      cta: 'VEJA A SELEÇÃO'
+    },
+    context: {
+      category: '',
+      sameCategory: false
+    },
+    sources: []
+  }, PRODUCTS);
+
+  assert.equal(fallback.category, 'ÁUDIO & SOM');
+  assert.equal(fallback.copy.badge, 'ÁUDIO & SOM');
+  assert.equal(fallback.copy.headline, 'SOM PARA TODOS OS MOMENTOS');
+  assert.equal(
+    fallback.copy.subtitle,
+    'Potência, conectividade e música para curtir cada momento do seu jeito.'
+  );
 });
