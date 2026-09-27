@@ -811,7 +811,11 @@ function normalizedOptions(product = {}, options = {}) {
     34
   ).toUpperCase();
   const couponText = clean(options.couponText || options.coupon || '', 26).toUpperCase();
-  const promoText = clean(options.promoText || (showPrice ? 'OFERTA POR TEMPO LIMITADO' : 'CONDIÇÕES ESPECIAIS'), 46).toUpperCase();
+  const showCommercialInfo = options.showCommercialInfo === true || String(options.promotionMode || '').toLowerCase() === 'commercial';
+  const promoText = clean(
+    options.promoText || (showCommercialInfo ? 'CONDIÇÕES ESPECIAIS' : ''),
+    46
+  ).toUpperCase();
   const brandLogoUrl = String(
     explicitBrandLogo ? options.brandLogoUrl : (options.manufacturerLogoUrl || product.brandLogoUrl || '')
   ).trim();
@@ -833,6 +837,7 @@ function normalizedOptions(product = {}, options = {}) {
     brandLabel,
     couponText,
     promoText,
+    showCommercialInfo,
     brandLogoUrl,
     hasBrandLogo: false,
     siteLabel: clean(options.siteLabel || 'arianamoveis.com.br', 45),
@@ -1492,7 +1497,7 @@ function multiShowcaseStageSvg(format, count = 3) {
 function multiCampaignOverlay(format, opts, count = 2) {
   const mobile = format.device === 'mobile';
   const brand = String(opts.brandLabel || '').trim();
-  const brandCampaign = Boolean(opts.couponText || opts.hasBrandLogo || brand);
+  const brandCampaign = Boolean(opts.hasBrandLogo || brand);
   const headline = clean(
     opts.headline || (brandCampaign && brand ? ('ESPECIAL ' + brand.toUpperCase()) : 'SELEÇÃO ESPECIAL ARIANA'),
     72
@@ -1503,19 +1508,38 @@ function multiCampaignOverlay(format, opts, count = 2) {
       : 'Grandes marcas e produtos para transformar sua casa.'),
     96
   );
-  const promo = clean(opts.promoText || 'CONDIÇÕES ESPECIAIS', 46);
+  const promo = clean(opts.promoText || '', 46);
   const cta = clean(opts.cta || 'CONHEÇA A SELEÇÃO', 42);
   const installment = clamp(Number(opts.installmentCount || 12), 1, 24);
   const coupon = clean(opts.couponText || '', 26);
+  const showCommercialInfo = opts.showCommercialInfo === true;
 
   if (mobile) {
     const w = format.width;
     const h = format.height;
     const cx = Math.round(w / 2);
-
     const titleY = brandCampaign ? Math.round(h*.205) : Math.round(h*.195);
     const supportY = Math.round(h*.315);
     const infoY = Math.round(h*.815);
+
+    let footer = '';
+    if (showCommercialInfo) {
+      footer =
+        '<g font-family="Arial,Helvetica,sans-serif">'+
+          '<text x="'+Math.round(w*.10)+'" y="'+infoY+'" font-size="'+Math.round(w*.030)+'" font-weight="950" fill="#FFD51B">'+installment+'x</text>'+
+          '<text x="'+Math.round(w*.10)+'" y="'+Math.round(infoY+h*.026)+'" font-size="'+Math.round(w*.0145)+'" font-weight="800" fill="#ffffff">SEM JUROS NO CARTÃO</text>'+
+          '<line x1="'+Math.round(w*.39)+'" y1="'+Math.round(infoY-h*.026)+'" x2="'+Math.round(w*.39)+'" y2="'+Math.round(infoY+h*.034)+'" stroke="#ffffff" stroke-opacity=".38" stroke-width="2"/>'+
+          (promo ? '<text x="'+Math.round(w*.44)+'" y="'+Math.round(infoY-h*.002)+'" font-size="'+Math.round(w*.017)+'" font-weight="900" fill="#FFD51B">'+escapeXml(promo)+'</text>' : '')+
+          '<line x1="'+Math.round(w*.70)+'" y1="'+Math.round(infoY-h*.026)+'" x2="'+Math.round(w*.70)+'" y2="'+Math.round(infoY+h*.034)+'" stroke="#ffffff" stroke-opacity=".38" stroke-width="2"/>'+
+          '<text x="'+Math.round(w*.75)+'" y="'+Math.round(infoY-h*.002)+'" font-size="'+Math.round(w*.017)+'" font-weight="900" fill="#ffffff">'+escapeXml(cta)+' →</text>'+
+        '</g>';
+    } else {
+      footer =
+        '<g font-family="Arial,Helvetica,sans-serif">'+
+          '<line x1="'+Math.round(w*.20)+'" y1="'+Math.round(infoY-h*.010)+'" x2="'+Math.round(w*.80)+'" y2="'+Math.round(infoY-h*.010)+'" stroke="#FFD51B" stroke-opacity=".70" stroke-width="2"/>'+
+          '<text x="'+cx+'" y="'+Math.round(infoY+h*.030)+'" text-anchor="middle" font-size="'+Math.round(w*.017)+'" font-weight="900" letter-spacing="1.4" fill="#ffffff">'+escapeXml(cta)+' →</text>'+
+        '</g>';
+    }
 
     return Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
@@ -1538,14 +1562,7 @@ function multiCampaignOverlay(format, opts, count = 2) {
         ? '<text x="'+cx+'" y="'+Math.round(h*.365)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.019)+'" font-weight="850" fill="#ffffff">USE O CUPOM</text>'+
           '<text x="'+cx+'" y="'+Math.round(h*.415)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.038)+'" font-weight="950" fill="#FFD51B">'+escapeXml(coupon)+'</text>'
         : '')+
-      '<g font-family="Arial,Helvetica,sans-serif">'+
-        '<text x="'+Math.round(w*.10)+'" y="'+infoY+'" font-size="'+Math.round(w*.030)+'" font-weight="950" fill="#FFD51B">'+installment+'x</text>'+
-        '<text x="'+Math.round(w*.10)+'" y="'+Math.round(infoY+h*.026)+'" font-size="'+Math.round(w*.0145)+'" font-weight="800" fill="#ffffff">SEM JUROS NO CARTÃO</text>'+
-        '<line x1="'+Math.round(w*.39)+'" y1="'+Math.round(infoY-h*.026)+'" x2="'+Math.round(w*.39)+'" y2="'+Math.round(infoY+h*.034)+'" stroke="#ffffff" stroke-opacity=".38" stroke-width="2"/>'+
-        '<text x="'+Math.round(w*.44)+'" y="'+Math.round(infoY-h*.002)+'" font-size="'+Math.round(w*.017)+'" font-weight="900" fill="#FFD51B">'+escapeXml(promo)+'</text>'+
-        '<line x1="'+Math.round(w*.70)+'" y1="'+Math.round(infoY-h*.026)+'" x2="'+Math.round(w*.70)+'" y2="'+Math.round(infoY+h*.034)+'" stroke="#ffffff" stroke-opacity=".38" stroke-width="2"/>'+
-        '<text x="'+Math.round(w*.75)+'" y="'+Math.round(infoY-h*.002)+'" font-size="'+Math.round(w*.017)+'" font-weight="900" fill="#ffffff">'+escapeXml(cta)+' →</text>'+
-      '</g>'+
+      footer+
       '</svg>'
     );
   }
@@ -1556,6 +1573,25 @@ function multiCampaignOverlay(format, opts, count = 2) {
   const titleY = brandCampaign ? Math.round(h*.345) : Math.round(h*.330);
   const supportY = Math.round(h*.585);
   const infoY = Math.round(h*.820);
+
+  let footer = '';
+  if (showCommercialInfo) {
+    footer =
+      '<g font-family="Arial,Helvetica,sans-serif">'+
+        '<text x="'+x+'" y="'+infoY+'" font-size="'+Math.round(h*.052)+'" font-weight="950" fill="#FFD51B">'+installment+'x</text>'+
+        '<text x="'+x+'" y="'+Math.round(infoY+h*.050)+'" font-size="'+Math.round(h*.020)+'" font-weight="850" fill="#ffffff">SEM JUROS NO CARTÃO</text>'+
+        '<line x1="'+Math.round(w*.178)+'" y1="'+Math.round(infoY-h*.045)+'" x2="'+Math.round(w*.178)+'" y2="'+Math.round(infoY+h*.058)+'" stroke="#ffffff" stroke-opacity=".35" stroke-width="'+Math.max(1,Math.round(h*.004))+'"/>'+
+        (promo ? '<text x="'+Math.round(w*.200)+'" y="'+Math.round(infoY+h*.010)+'" font-size="'+Math.round(h*.025)+'" font-weight="900" fill="#FFD51B">'+escapeXml(promo)+'</text>' : '')+
+        '<line x1="'+Math.round(w*.390)+'" y1="'+Math.round(infoY-h*.045)+'" x2="'+Math.round(w*.390)+'" y2="'+Math.round(infoY+h*.058)+'" stroke="#ffffff" stroke-opacity=".35" stroke-width="'+Math.max(1,Math.round(h*.004))+'"/>'+
+        '<text x="'+Math.round(w*.412)+'" y="'+Math.round(infoY+h*.010)+'" font-size="'+Math.round(h*.025)+'" font-weight="900" fill="#ffffff">'+escapeXml(cta)+' →</text>'+
+      '</g>';
+  } else {
+    footer =
+      '<g font-family="Arial,Helvetica,sans-serif">'+
+        '<line x1="'+x+'" y1="'+Math.round(infoY-h*.035)+'" x2="'+Math.round(w*.330)+'" y2="'+Math.round(infoY-h*.035)+'" stroke="#FFD51B" stroke-opacity=".72" stroke-width="'+Math.max(2,Math.round(h*.006))+'"/>'+
+        '<text x="'+x+'" y="'+Math.round(infoY+h*.020)+'" font-size="'+Math.round(h*.025)+'" font-weight="900" letter-spacing="1.2" fill="#ffffff">'+escapeXml(cta)+' →</text>'+
+      '</g>';
+  }
 
   return Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
@@ -1577,14 +1613,7 @@ function multiCampaignOverlay(format, opts, count = 2) {
       ? '<text x="'+x+'" y="'+Math.round(h*.665)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.025)+'" font-weight="850" fill="#ffffff">USE O CUPOM</text>'+
         '<text x="'+x+'" y="'+Math.round(h*.748)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.062)+'" font-weight="950" fill="#FFD51B">'+escapeXml(coupon)+'</text>'
       : '')+
-    '<g font-family="Arial,Helvetica,sans-serif">'+
-      '<text x="'+x+'" y="'+infoY+'" font-size="'+Math.round(h*.052)+'" font-weight="950" fill="#FFD51B">'+installment+'x</text>'+
-      '<text x="'+x+'" y="'+Math.round(infoY+h*.050)+'" font-size="'+Math.round(h*.020)+'" font-weight="850" fill="#ffffff">SEM JUROS NO CARTÃO</text>'+
-      '<line x1="'+Math.round(w*.178)+'" y1="'+Math.round(infoY-h*.045)+'" x2="'+Math.round(w*.178)+'" y2="'+Math.round(infoY+h*.058)+'" stroke="#ffffff" stroke-opacity=".35" stroke-width="'+Math.max(1,Math.round(h*.004))+'"/>'+
-      '<text x="'+Math.round(w*.200)+'" y="'+Math.round(infoY+h*.010)+'" font-size="'+Math.round(h*.025)+'" font-weight="900" fill="#FFD51B">'+escapeXml(promo)+'</text>'+
-      '<line x1="'+Math.round(w*.390)+'" y1="'+Math.round(infoY-h*.045)+'" x2="'+Math.round(w*.390)+'" y2="'+Math.round(infoY+h*.058)+'" stroke="#ffffff" stroke-opacity=".35" stroke-width="'+Math.max(1,Math.round(h*.004))+'"/>'+
-      '<text x="'+Math.round(w*.412)+'" y="'+Math.round(infoY+h*.010)+'" font-size="'+Math.round(h*.025)+'" font-weight="900" fill="#ffffff">'+escapeXml(cta)+' →</text>'+
-    '</g>'+
+    footer+
     '</svg>'
   );
 }
