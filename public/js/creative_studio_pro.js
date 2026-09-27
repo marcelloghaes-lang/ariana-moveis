@@ -140,32 +140,40 @@
         campaign.checked = true;
         updateChoiceCards();
       }
-      els.badge.value = 'OFERTAS ARIANA';
-      els.headline.value = 'OFERTA IMPERDÍVEL';
-      els.subtitle.value = '';
+      els.badge.value = 'SELEÇÃO ARIANA';
+      els.headline.value = 'GRANDES MARCAS PARA SUA CASA';
+      els.subtitle.value = 'Produtos e fabricantes que combinam com a sua casa.';
       els.benefit.value = '';
-      els.cta.value = 'APROVEITAR';
-      els.promoText.value = 'OFERTA POR TEMPO LIMITADO';
+      els.cta.value = 'CONHEÇA A SELEÇÃO';
+      els.promoText.value = '';
       renderSelectedProducts();
-      status('Modo multi-produto ativado. Escolha de 2 a 5 produtos do catálogo para montar uma única vitrine.', 'ok');
+      status('Modo multi-produto ativado. Escolha os produtos e depois ajuste os textos na ordem em que aparecem no banner.', 'ok');
     } else if (contentMode === 'no_price') {
-      els.badge.value = 'DESTAQUE ARIANA';
+      els.badge.value = 'SELEÇÃO ARIANA';
       els.headline.value = 'TECNOLOGIA PARA SUA CASA';
-      els.cta.value = 'CONFIRA NO SITE';
+      els.subtitle.value = 'Produtos para transformar o seu dia a dia.';
+      els.benefit.value = '';
+      els.cta.value = 'CONHEÇA A SELEÇÃO';
+      els.promoText.value = '';
       renderSelectedProducts();
-      status('Modo sem preço ativado. O banner será reorganizado sem reservar espaço para valor.', 'ok');
+      status('Modo sem preço ativado. O banner prioriza apresentação de produto e fabricante.', 'ok');
     } else if (contentMode === 'institutional') {
-      els.badge.value = 'CAMPANHA ARIANA';
+      els.badge.value = 'ARIANA MÓVEIS';
       els.headline.value = 'PORQUE SUA CASA MERECE O MELHOR';
+      els.subtitle.value = 'Móveis, eletro e tecnologia para o seu lar.';
+      els.benefit.value = '';
       els.cta.value = 'CONHEÇA A ARIANA';
+      els.promoText.value = '';
       renderSelectedProducts();
       status('Modo institucional ativado. Preço e parcelamento não serão usados.', 'ok');
     } else {
       els.badge.value = 'OFERTA ARIANA';
       els.headline.value = 'OFERTA IMPERDÍVEL';
+      els.subtitle.value = '';
+      els.benefit.value = '';
       els.cta.value = 'APROVEITE AGORA';
       renderSelectedProducts();
-      status('Modo com preço ativado. Se o valor ficar vazio, o Pro ainda gera uma composição sem preço.', 'ok');
+      status('Modo com preço ativado. As informações promocionais continuam opcionais.', 'ok');
     }
   }
 
