@@ -1,0 +1,41 @@
+name: Creative Studio Pro Quality
+
+on:
+  pull_request:
+    paths:
+      - 'functions/creative-banner-pro-generator.js'
+      - 'functions/routes/adminCoreRoutes.js'
+      - 'functions/tests/creative-banner-pro-generator.test.mjs'
+      - 'public/js/creative_studio_pro.js'
+      - 'public/creative_studio_pro.html'
+      - '.github/workflows/creative-studio-pro-quality.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'functions/creative-banner-pro-generator.js'
+      - 'functions/routes/adminCoreRoutes.js'
+      - 'functions/tests/creative-banner-pro-generator.test.mjs'
+      - 'public/js/creative_studio_pro.js'
+      - 'public/creative_studio_pro.html'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - run: npm ci
+      - name: Syntax
+        run: |
+          node --check creative-banner-pro-generator.js
+          node --check routes/adminCoreRoutes.js
+          node --check ../public/js/creative_studio_pro.js
+      - name: Creative Studio Pro regressions
+        run: node --test tests/creative-banner-pro-generator.test.mjs
