@@ -9,6 +9,7 @@
   let contentMode = 'with_price';
   let previewBlob = null;
   let previewUrl = '';
+  let qualityAllowsSave = false;
 
   const FORMATS = Object.freeze({
     hero_desktop: { label: 'PRÉVIA • HERO DESKTOP', size: '1920 × 480 pixels' },
@@ -320,6 +321,7 @@
 
   function renderQuality(analysis) {
     const quality = analysis?.quality || {};
+    qualityAllowsSave = !quality.blockSave;
     els.qualityScore.textContent = Number.isFinite(Number(quality.score)) ? quality.score + '%' : '—';
     const checks = Array.isArray(quality.checks) ? quality.checks : [];
     els.qualityList.innerHTML = checks.length
@@ -330,6 +332,13 @@
           '</div>'
         ).join('')
       : '<div class="quality-placeholder">Nenhuma análise disponível.</div>';
+
+    if (quality.blockSave) {
+      els.qualityList.insertAdjacentHTML(
+        'afterbegin',
+        '<div class="quality-item warn"><span class="quality-icon">×</span><div><b>Salvar em alta está bloqueado</b><small>Corrija os itens críticos abaixo. O Studio não vai liberar uma peça com logo, recorte ou resolução reprovados.</small></div></div>'
+      );
+    }
   }
 
   function showPreview(blob) {
@@ -339,7 +348,7 @@
     els.previewImage.src = previewUrl;
     els.previewImage.classList.remove('hidden');
     els.previewEmpty.classList.add('hidden');
-    els.saveButton.disabled = false;
+    els.saveButton.disabled = !qualityAllowsSave;
   }
 
   function setBusy(busy) {
@@ -365,7 +374,9 @@
       });
       renderQuality(analysis);
 
-      if (contentMode === 'with_price' && !payload.options.showPrice) {
+      if (analysis?.quality?.blockSave) {
+        status('Prévia gerada, mas a arte final está bloqueada: corrija logo, recorte ou resolução antes de salvar.', 'error');
+      } else if (contentMode === 'with_price' && !payload.options.showPrice) {
         status('Nenhum preço válido foi preenchido. O Pro mudou automaticamente para uma composição sem preço.', 'ok');
       } else if (analysis?.product?.backgroundRemoved) {
         status('Fundo tratado com segurança. Gerando composição Pro...', 'ok');
@@ -378,7 +389,9 @@
         body:JSON.stringify(payload)
       },'blob');
       showPreview(blob);
-      status('Prévia Pro concluída. Confira a arte e o controle de qualidade.', 'ok');
+      if (!analysis?.quality?.blockSave) {
+        status('Prévia Pro aprovada na qualidade mínima. Confira a arte antes de salvar.', 'ok');
+      }
     } catch (error) {
       status('Falha ao gerar a prévia Pro: ' + error.message,'error');
     } finally {
@@ -415,7 +428,7 @@
     } catch (error) {
       status('Falha ao salvar: ' + error.message,'error');
     } finally {
-      els.saveButton.disabled = !previewBlob;
+      els.saveButton.disabled = !previewBlob || !qualityAllowsSave;
     }
   }
 
