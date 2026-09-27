@@ -1,6 +1,7 @@
 import { buildStockReservation } from '../services/stockReservationService.js';
 import { createAdminNotification } from '../services/notificationService.js';
 import { sendNewOrderWhatsappAlert } from '../services/adminWhatsappAlertService.js';
+import { mirrorSiteShadow } from '../services/aiCoreShadowService.js';
 
 // ============================================================
 // ROTAS DE PEDIDOS, TICKETS, CONTATO E DENÚNCIAS
@@ -831,8 +832,29 @@ export default function registerOrderSupportRoutes(app, context = {}) {
     }
   });
   app.get('/api/orders/:id', authRequired, async (req, res) => { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' }); const row = await Order.findById(oid); if (!row) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' }); if (req.user.role === 'customer' && String(row.userId || '') !== String(req.user._id)) return res.status(403).json({ ok: false, error: 'Sem permissão' }); return res.json(toJSON(row)); });
-  app.post('/api/tickets', async (req, res) => { const body = req.body || {}; const doc = await Ticket.create({ userId: normalizeObjectId(body.userId) || null, orderId: body.orderId || null, protocolo: body.protocolo || `TK-${Date.now()}`, tipo: body.tipo || 'Suporte', assunto: body.assunto || '', mensagem: body.mensagem || body.message || '', status: body.status || 'Novo', origem: body.origem || 'site', nome: body.nome || body.name || '', email: body.email || '', telefone: body.telefone || body.phone || '', metadata: body.metadata || {} }); return res.json({ ok: true, ticket: toJSON(doc) }); });
+  app.post('/api/tickets', async (req, res) => {
+    const body = req.body || {};
+    const doc = await Ticket.create({ userId: normalizeObjectId(body.userId) || null, orderId: body.orderId || null, protocolo: body.protocolo || `TK-${Date.now()}`, tipo: body.tipo || 'Suporte', assunto: body.assunto || '', mensagem: body.mensagem || body.message || '', status: body.status || 'Novo', origem: body.origem || 'site', nome: body.nome || body.name || '', email: body.email || '', telefone: body.telefone || body.phone || '', metadata: body.metadata || {} });
+    void mirrorSiteShadow({
+      message: body.mensagem || body.message || '',
+      page: {
+        path: body.metadata?.pagina || (body.origem === 'sac' ? '/sac.html' : '/site-ticket'),
+        title: body.assunto || body.tipo || 'Atendimento pelo site'
+      },
+      sessionId: body.metadata?.sessionId || ''
+    });
+    return res.json({ ok: true, ticket: toJSON(doc) });
+  });
   app.get('/api/tickets', authRequired, async (req, res) => { const query = req.user.role === 'admin' ? {} : { userId: req.user._id }; return res.json((await Ticket.find(query).sort({ createdAt: -1 })).map(toJSON)); });
-  app.post('/api/contact', async (req, res) => res.json({ ok: true, contact: toJSON(await Contact.create({ name: req.body?.name || '', email: req.body?.email || '', phone: req.body?.phone || '', subject: req.body?.subject || '', message: req.body?.message || '', source: 'fale_conosco' })) }));
+  app.post('/api/contact', async (req, res) => {
+    const body = req.body || {};
+    const doc = await Contact.create({ name: body.name || '', email: body.email || '', phone: body.phone || '', subject: body.subject || '', message: body.message || '', source: 'fale_conosco' });
+    void mirrorSiteShadow({
+      message: body.message || body.mensagem || '',
+      page: { path: '/contato.html', title: body.subject || body.assunto || 'Fale Conosco' },
+      sessionId: body.sessionId || ''
+    });
+    return res.json({ ok: true, contact: toJSON(doc) });
+  });
   app.post('/api/denuncias', async (req, res) => res.json({ ok: true, denuncia: toJSON(await Denuncia.create({ userId: normalizeObjectId(req.body?.userId) || null, productId: req.body?.productId || null, sellerId: req.body?.sellerId || null, motivo: req.body?.motivo || '', descricao: req.body?.descricao || '', status: 'nova', nome: req.body?.nome || '', email: req.body?.email || '' })) }));
 }
