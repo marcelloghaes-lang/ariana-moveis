@@ -53,28 +53,158 @@ function scheduleMinutes(value = '09:00') {
   return hour * 60 + minute;
 }
 
+function easterSundayDateKey(year = new Date().getUTCFullYear()) {
+  const y = Number(year);
+  const a = y % 19;
+  const b = Math.floor(y / 100);
+  const c = y % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const ff = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - ff + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return `${String(y).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function erpHolidayName(dateKey = '') {
+  const match = String(dateKey).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return '';
+  const year = Number(match[1]);
+  const mmdd = `${match[2]}-${match[3]}`;
+
+  const fixed = {
+    '01-01': 'Confraternização Universal',
+    '04-21': 'Tiradentes',
+    '05-01': 'Dia do Trabalho',
+    '09-07': 'Independência do Brasil',
+    '09-29': 'São Miguel Arcanjo — feriado municipal de Guanhães',
+    '10-12': 'Nossa Senhora Aparecida',
+    '10-25': 'Aniversário de Guanhães — feriado municipal',
+    '11-02': 'Finados',
+    '11-15': 'Proclamação da República',
+    '11-20': 'Consciência Negra',
+    '12-25': 'Natal'
+  };
+  if (fixed[mmdd]) return fixed[mmdd];
+
+  const easter = easterSundayDateKey(year);
+  if (dateKey === shiftLocalDateKey(easter, -2)) return 'Paixão de Cristo';
+  if (dateKey === shiftLocalDateKey(easter, 60)) return 'Corpus Christi';
+
+  const extra = String(process.env.ERP_BUSINESS_HOLIDAY_DATES || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (extra.includes(dateKey)) return 'Feriado configurado no ERP';
+
+  return '';
+}
+
+function weekdayFromDateKey(dateKey = '') {
+  const match = String(dateKey).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return -1;
+  return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12)).getUTCDay();
+}
+
+function nonWorkingReason(dateKey = '') {
+  if (weekdayFromDateKey(dateKey) === 0) return 'domingo';
+  const holiday = erpHolidayName(dateKey);
+  return holiday ? `feriado: ${holiday}` : '';
+}
+
+function nextBusinessDateKey(dateKey = '') {
+  let cursor = String(dateKey || '');
+  for (let i = 0; i < 15; i += 1) {
+    cursor = shiftLocalDateKey(cursor, 1);
+    if (!nonWorkingReason(cursor)) return cursor;
+  }
+  return cursor;
+}
+
+function businessCarryDates(today = '') {
+  const reason = nonWorkingReason(today);
+  if (reason) {
+    return {
+      businessDay: false,
+      reason,
+      dates: [],
+      carriedDates: [],
+      nextBusinessDate: nextBusinessDateKey(today)
+    };
+  }
+
+  const dates = [today];
+  const carriedDates = [];
+  let cursor = shiftLocalDateKey(today, -1);
+
+  for (let i = 0; i < 15 && cursor && nonWorkingReason(cursor); i += 1) {
+    dates.unshift(cursor);
+    carriedDates.unshift(cursor);
+    cursor = shiftLocalDateKey(cursor, -1);
+  }
+
+  return {
+    businessDay: true,
+    reason: '',
+    dates,
+    carriedDates,
+    nextBusinessDate: today
+  };
+}
+
+function formatDatePtBr(dateKey = '') {
+  const match = String(dateKey).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : String(dateKey || '');
+}
+
 function titleFirstName(name = '') {
   const first = text(name || 'Cliente', 160).split(/\s+/).filter(Boolean)[0] || 'Cliente';
   return first.charAt(0).toUpperCase() + first.slice(1).toLocaleLowerCase('pt-BR');
 }
 
-export function buildDailyDueReminderMessage(customerName = 'Cliente', installmentCount = 1) {
+export function buildDailyDueReminderMessage(customerName = 'Cliente', installmentCount = 1, dueDates = [], today = '') {
   const name = titleFirstName(customerName);
   const plural = Number(installmentCount || 1) > 1;
+  const dates = Array.from(new Set((Array.isArray(dueDates) ? dueDates : []).filter(Boolean))).sort();
+  const deferred = Boolean(today) && dates.some((date) => date !== today);
+  const datesText = dates.map(formatDatePtBr).join(' e ');
 
-  return [
+  let reminderLine = plural
+    ? 'Passando para lembrar sobre parcelas referentes às suas compras realizadas aqui na Ariana Móveis.'
+    : 'Passando para lembrar sobre uma parcela referente à sua compra realizada aqui na Ariana Móveis.';
+
+  if (datesText) {
+    reminderLine = plural
+      ? `Passando para lembrar sobre parcelas referentes às suas compras realizadas aqui na Ariana Móveis, com vencimento em ${datesText}.`
+      : `Passando para lembrar sobre uma parcela referente à sua compra realizada aqui na Ariana Móveis, com vencimento em ${datesText}.`;
+  }
+
+  const lines = [
     `Bom dia, ${name}! Tudo bem?`,
     '',
-    plural
-      ? 'Passando para lembrar que hoje vencem parcelas referentes às suas compras realizadas aqui na Ariana Móveis.'
-      : 'Passando para lembrar que hoje vence uma parcela referente à sua compra realizada aqui na Ariana Móveis.',
+    reminderLine
+  ];
+
+  if (deferred) {
+    lines.push('', 'O lembrete que caiu em domingo ou feriado está sendo enviado no próximo dia útil.');
+  }
+
+  lines.push(
     '',
     'Se o pagamento já tiver sido realizado, por favor desconsidere esta mensagem.',
     '',
     'Qualquer dúvida, estamos à disposição. 💙',
     '',
     'Marcelo'
-  ].join('\n');
+  );
+
+  return lines.join('\n');
 }
 
 function isOpenDueRow(row = {}) {
