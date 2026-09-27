@@ -795,17 +795,27 @@ function normalizedOptions(product = {}, options = {}) {
   const template = resolveProTemplate(options.templatePro || options.template);
   const format = resolveProFormat(options.outputFormat || options.format);
   const productName = clean(options.productName || product.name || product.title || 'Produto Ariana Móveis', 110);
-  const headline = clean(options.headline || (showPrice ? 'OFERTA IMPERDÍVEL' : 'DESTAQUE ARIANA'), 72).toUpperCase();
-  const explicitSubtitle = Object.prototype.hasOwnProperty.call(options, 'subtitle');
+  const manualCopy = options && typeof options.manualCopy === 'object' && options.manualCopy
+    ? options.manualCopy
+    : null;
+  const hasOwn = (object, key) => Boolean(object) && Object.prototype.hasOwnProperty.call(object, key);
+  const copyValue = (key, fallback, maxLength) => {
+    const raw = hasOwn(manualCopy, key)
+      ? manualCopy[key]
+      : (hasOwn(options, key) ? options[key] : '');
+    const value = clean(raw, maxLength);
+    return value || clean(fallback, maxLength);
+  };
+  const headline = copyValue('headline', showPrice ? 'OFERTA IMPERDÍVEL' : 'DESTAQUE ARIANA', 72);
   const explicitBenefit = Object.prototype.hasOwnProperty.call(options, 'benefit');
-  const subtitle = clean(explicitSubtitle ? options.subtitle : defaultBenefit(product), 120);
+  const subtitle = copyValue('subtitle', defaultBenefit(product), 120);
   const benefit = clean(explicitBenefit ? options.benefit : '', 150);
-  const cta = clean(options.cta || (showPrice ? 'APROVEITE AGORA' : 'CONFIRA NO SITE'), 42).toUpperCase();
-  const badge = clean(options.badge || (
+  const cta = copyValue('cta', showPrice ? 'APROVEITE AGORA' : 'CONFIRA NO SITE', 42);
+  const badge = copyValue('badge', (
     template === 'premium' ? 'SELEÇÃO ARIANA' :
     template === 'campaign' ? 'CAMPANHA ESPECIAL' :
     'OFERTA ARIANA'
-  ), 42).toUpperCase();
+  ), 42);
   const explicitBrand = Object.prototype.hasOwnProperty.call(options, 'brandLabel');
   const explicitBrandLogo = Object.prototype.hasOwnProperty.call(options, 'brandLogoUrl');
   const brandLabel = clean(
@@ -1500,19 +1510,13 @@ function multiCampaignOverlay(format, opts, count = 2) {
   const mobile = format.device === 'mobile';
   const brand = String(opts.brandLabel || '').trim();
   const brandCampaign = Boolean(opts.hasBrandLogo || brand);
-  const headline = clean(
-    opts.headline || (brandCampaign && brand ? ('ESPECIAL ' + brand.toUpperCase()) : 'SELEÇÃO ESPECIAL ARIANA'),
-    72
-  );
-  const support = clean(
-    opts.subtitle || (brandCampaign
-      ? 'Tecnologia, design e praticidade para sua casa.'
-      : 'Grandes marcas e produtos para transformar sua casa.'),
-    96
-  );
-  const topLabel = clean(opts.badge || '', 42);
+  // A copy já foi resolvida em normalizedOptions. Não criar uma segunda camada
+  // de fallback aqui: o que chegou do editor precisa ser a fonte final do PNG.
+  const headline = clean(opts.headline, 72);
+  const support = clean(opts.subtitle, 120);
+  const topLabel = clean(opts.badge, 42);
   const promo = clean(opts.promoText || '', 46);
-  const cta = clean(opts.cta || 'CONHEÇA A SELEÇÃO', 42);
+  const cta = clean(opts.cta, 42);
   const installment = clamp(Number(opts.installmentCount || 12), 1, 24);
   const coupon = clean(opts.couponText || '', 26);
   const showCommercialInfo = opts.showCommercialInfo === true;

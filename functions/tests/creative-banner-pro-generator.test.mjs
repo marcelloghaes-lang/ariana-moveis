@@ -362,6 +362,50 @@ test('campanha multi-produto gera desktop e mobile nas dimensões oficiais', asy
   }
 });
 
+test('os quatro campos manuais do editor têm autoridade sobre o PNG multi-produto', async () => {
+  const copy = {
+    badge: 'TESTE LINHA SUPERIOR 123',
+    headline: 'TESTE TITULO 456',
+    subtitle: 'TESTE APOIO 789',
+    cta: 'TESTE FINAL 000'
+  };
+  const baseOptions = {
+    outputFormat: 'hero_desktop',
+    brandLabel: '',
+    brandLogoUrl: '',
+    couponText: '',
+    promoText: '',
+    showCommercialInfo: false,
+    removeBackground: true,
+    manualCopy: copy,
+    ...copy
+  };
+
+  const result = await generateCreativeBannerProMulti(
+    [MULTI_TV, MULTI_FRIDGE, MULTI_WASHER],
+    baseOptions
+  );
+
+  assert.deepEqual(result.meta.copy, copy);
+
+  for (const key of Object.keys(copy)) {
+    const changedCopy = { ...copy, [key]: copy[key] + ' X' };
+    const changed = await generateCreativeBannerProMulti(
+      [MULTI_TV, MULTI_FRIDGE, MULTI_WASHER],
+      {
+        ...baseOptions,
+        ...changedCopy,
+        manualCopy: changedCopy
+      }
+    );
+    assert.notDeepEqual(
+      changed.buffer,
+      result.buffer,
+      key + ' precisa alterar os pixels do PNG'
+    );
+  }
+});
+
 test('campanha multi-produto exige no mínimo dois produtos', async () => {
   await assert.rejects(
     () => generateCreativeBannerProMulti([MULTI_TV], { outputFormat: 'hero_desktop' }),

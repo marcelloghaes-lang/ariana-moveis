@@ -872,8 +872,18 @@
     }
   }
 
+  function editorCopyPayload() {
+    return {
+      badge: els.badge.value.trim(),
+      headline: els.headline.value.trim(),
+      subtitle: els.subtitle.value.trim(),
+      cta: els.cta.value.trim()
+    };
+  }
+
   function buildPayload() {
     const multi = contentMode === 'multi_product';
+    const manualCopy = editorCopyPayload();
 
     if (multi) {
       if (selectedProducts.length < 2) throw new Error('Selecione pelo menos 2 produtos para a campanha multi-produto.');
@@ -888,11 +898,13 @@
           templatePro: 'campaign',
           contentMode: 'multi_product',
           showPrice: false,
-          headline: els.headline.value.trim(),
-          subtitle: els.subtitle.value.trim(),
+          headline: manualCopy.headline,
+          subtitle: manualCopy.subtitle,
           benefit: '',
-          badge: els.badge.value.trim(),
-          cta: els.cta.value.trim(),
+          badge: manualCopy.badge,
+          cta: manualCopy.cta,
+          manualCopy,
+          copyAuthority: 'editor',
           brandLabel: els.brandLabel.value.trim(),
           brandLogoUrl: els.brandLogoUrl.value.trim(),
           couponText: els.couponText.value.trim(),
@@ -933,11 +945,13 @@
         templatePro: selectedTemplate(),
         contentMode,
         showPrice,
-        headline: els.headline.value.trim(),
-        subtitle: els.subtitle.value.trim(),
+        headline: manualCopy.headline,
+        subtitle: manualCopy.subtitle,
         benefit: '',
-        badge: els.badge.value.trim(),
-        cta: els.cta.value.trim(),
+        badge: manualCopy.badge,
+        cta: manualCopy.cta,
+        manualCopy,
+        copyAuthority: 'editor',
         brandLabel: els.brandLabel.value.trim() || selectedProduct?.brand || '',
         brandLogoUrl: els.brandLogoUrl.value.trim(),
         couponText: els.couponText.value.trim(),
