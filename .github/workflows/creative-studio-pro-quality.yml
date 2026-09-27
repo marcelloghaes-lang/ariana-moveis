@@ -31,7 +31,8 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: functions/package-lock.json
-      - run: npm ci
+      - name: Install isolated renderer dependency
+        run: npm install --no-save --package-lock=false sharp@0.34.5
       - name: Syntax
         run: |
           node --check creative-banner-pro-generator.js
