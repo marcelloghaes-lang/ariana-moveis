@@ -416,15 +416,15 @@
     const groups = rows.map(productGroup);
     const sameGroup = new Set(groups).size === 1;
 
-    els.badge.value = 'OFERTAS ARIANA';
-    els.cta.value = 'APROVEITAR';
+    els.badge.value = 'SELEÇÃO ARIANA';
+    els.cta.value = 'CONHEÇA A SELEÇÃO';
     els.couponText.value = '';
-    els.promoText.value = 'OFERTA POR TEMPO LIMITADO';
+    els.promoText.value = '';
 
     if (sameBrand) {
       els.brandLabel.value = brands[0].toUpperCase();
       els.headline.value = 'ESPECIAL ' + brands[0].toUpperCase();
-      els.subtitle.value = '';
+      els.subtitle.value = 'Tecnologia, design e praticidade para sua casa.';
       els.benefit.value = '';
       const logo = rows.find(item => item.brandLogoUrl)?.brandLogoUrl || '';
       if (logo) els.brandLogoUrl.value = logo;
@@ -433,8 +433,21 @@
 
     els.brandLabel.value = '';
     els.brandLogoUrl.value = '';
-    els.headline.value = 'OFERTA IMPERDÍVEL';
-    els.subtitle.value = '';
+    const groupTitles = {
+      tv: 'SMART TVS & ENTRETENIMENTO',
+      audio: 'SOM PARA TODOS OS MOMENTOS',
+      climatizacao: 'CONFORTO PARA SUA CASA',
+      geladeira: 'SOLUÇÕES PARA SUA COZINHA',
+      lavadora: 'PRATICIDADE PARA SUA ROTINA',
+      microondas: 'PRATICIDADE NA COZINHA',
+      moveis: 'MÓVEIS PARA TRANSFORMAR SUA CASA'
+    };
+    els.headline.value = sameGroup
+      ? (groupTitles[groups[0]] || 'SELEÇÃO ESPECIAL PARA SUA CASA')
+      : 'GRANDES MARCAS PARA SUA CASA';
+    els.subtitle.value = sameGroup
+      ? 'Uma seleção pensada para o seu dia a dia.'
+      : 'Produtos e fabricantes que combinam com a sua casa.';
     els.benefit.value = '';
   }
 
@@ -858,9 +871,9 @@
           brandLogoUrl: els.brandLogoUrl.value.trim(),
           couponText: els.couponText.value.trim(),
           promoText: els.promoText.value.trim(),
+          showCommercialInfo: false,
           installmentCount: Number(els.installments.value || 12),
-          removeBackground: els.removeBackground.checked,
-          siteLabel: 'arianamoveis.com.br'
+          removeBackground: els.removeBackground.checked
         }
       };
     }

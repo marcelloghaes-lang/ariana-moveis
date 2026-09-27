@@ -180,13 +180,14 @@ for (const format of ['hero_desktop','hero_mobile']) {
     brandLabel: '',
     brandLogoUrl: '',
     couponText: '',
-    badge: 'OFERTAS ARIANA',
-    headline: 'OFERTA IMPERDÍVEL',
-    subtitle: '',
+    badge: 'SELEÇÃO ARIANA',
+    headline: 'GRANDES MARCAS PARA SUA CASA',
+    subtitle: 'Produtos e fabricantes que combinam com a sua casa.',
     benefit: '',
-    promoText: 'OFERTA POR TEMPO LIMITADO',
+    promoText: '',
+    showCommercialInfo: false,
     installmentCount: 12,
-    cta: 'APROVEITAR'
+    cta: 'CONHEÇA A SELEÇÃO'
   });
   if (result.meta?.quality?.blockSave) {
     throw new Error('auto-hero-' + format + ': quality blocked ' + JSON.stringify(result.meta.quality));
