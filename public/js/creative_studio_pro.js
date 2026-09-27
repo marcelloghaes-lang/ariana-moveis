@@ -15,6 +15,7 @@
   let qualityAllowsSave = false;
   let autoHeroActive = false;
   let catalogReadyPromise = null;
+  let copyTouched = false;
 
   const FORMATS = Object.freeze({
     hero_desktop: { label: 'PRÉVIA • HERO DESKTOP', size: '1920 × 480 pixels' },
@@ -121,6 +122,15 @@
     els.previewStage.dataset.format = selectedFormat();
   }
 
+  function setCopyValues(values = {}, { force = false } = {}) {
+    if (copyTouched && !force) return;
+    if (values.badge !== undefined) els.badge.value = values.badge;
+    if (values.headline !== undefined) els.headline.value = values.headline;
+    if (values.subtitle !== undefined) els.subtitle.value = values.subtitle;
+    if (values.cta !== undefined) els.cta.value = values.cta;
+    els.benefit.value = '';
+  }
+
   function applyMode(mode) {
     contentMode = ['with_price','no_price','institutional','multi_product'].includes(mode) ? mode : 'with_price';
     document.querySelectorAll('#content-mode button').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === contentMode));
@@ -140,38 +150,42 @@
         campaign.checked = true;
         updateChoiceCards();
       }
-      els.badge.value = 'SELEÇÃO ARIANA';
-      els.headline.value = 'GRANDES MARCAS PARA SUA CASA';
-      els.subtitle.value = 'Produtos e fabricantes que combinam com a sua casa.';
-      els.benefit.value = '';
-      els.cta.value = 'CONHEÇA A SELEÇÃO';
+      setCopyValues({
+        badge:'SELEÇÃO ARIANA',
+        headline:'GRANDES MARCAS PARA SUA CASA',
+        subtitle:'Produtos e fabricantes que combinam com a sua casa.',
+        cta:'CONHEÇA A SELEÇÃO'
+      });
       els.promoText.value = '';
       renderSelectedProducts();
       status('Modo multi-produto ativado. Escolha os produtos e depois ajuste os textos na ordem em que aparecem no banner.', 'ok');
     } else if (contentMode === 'no_price') {
-      els.badge.value = 'SELEÇÃO ARIANA';
-      els.headline.value = 'TECNOLOGIA PARA SUA CASA';
-      els.subtitle.value = 'Produtos para transformar o seu dia a dia.';
-      els.benefit.value = '';
-      els.cta.value = 'CONHEÇA A SELEÇÃO';
+      setCopyValues({
+        badge:'SELEÇÃO ARIANA',
+        headline:'TECNOLOGIA PARA SUA CASA',
+        subtitle:'Produtos para transformar o seu dia a dia.',
+        cta:'CONHEÇA A SELEÇÃO'
+      });
       els.promoText.value = '';
       renderSelectedProducts();
       status('Modo sem preço ativado. O banner prioriza apresentação de produto e fabricante.', 'ok');
     } else if (contentMode === 'institutional') {
-      els.badge.value = 'ARIANA MÓVEIS';
-      els.headline.value = 'PORQUE SUA CASA MERECE O MELHOR';
-      els.subtitle.value = 'Móveis, eletro e tecnologia para o seu lar.';
-      els.benefit.value = '';
-      els.cta.value = 'CONHEÇA A ARIANA';
+      setCopyValues({
+        badge:'ARIANA MÓVEIS',
+        headline:'PORQUE SUA CASA MERECE O MELHOR',
+        subtitle:'Móveis, eletro e tecnologia para o seu lar.',
+        cta:'CONHEÇA A ARIANA'
+      });
       els.promoText.value = '';
       renderSelectedProducts();
       status('Modo institucional ativado. Preço e parcelamento não serão usados.', 'ok');
     } else {
-      els.badge.value = 'OFERTA ARIANA';
-      els.headline.value = 'OFERTA IMPERDÍVEL';
-      els.subtitle.value = '';
-      els.benefit.value = '';
-      els.cta.value = 'APROVEITE AGORA';
+      setCopyValues({
+        badge:'OFERTA ARIANA',
+        headline:'OFERTA IMPERDÍVEL',
+        subtitle:'',
+        cta:'APROVEITE AGORA'
+      });
       renderSelectedProducts();
       status('Modo com preço ativado. As informações promocionais continuam opcionais.', 'ok');
     }
@@ -424,23 +438,23 @@
     const groups = rows.map(productGroup);
     const sameGroup = new Set(groups).size === 1;
 
-    els.badge.value = 'SELEÇÃO ARIANA';
-    els.cta.value = 'CONHEÇA A SELEÇÃO';
     els.couponText.value = '';
     els.promoText.value = '';
 
     if (sameBrand) {
       els.brandLabel.value = brands[0].toUpperCase();
-      els.headline.value = 'ESPECIAL ' + brands[0].toUpperCase();
-      els.subtitle.value = 'Tecnologia, design e praticidade para sua casa.';
-      els.benefit.value = '';
       const logo = rows.find(item => item.brandLogoUrl)?.brandLogoUrl || '';
-      if (logo) els.brandLogoUrl.value = logo;
+      if (logo && !els.brandLogoUrl.value.trim()) els.brandLogoUrl.value = logo;
+      setCopyValues({
+        badge: brands[0].toUpperCase(),
+        headline: 'ESPECIAL ' + brands[0].toUpperCase(),
+        subtitle: 'Tecnologia, design e praticidade para sua casa.',
+        cta: 'CONHEÇA A SELEÇÃO'
+      });
       return;
     }
 
     els.brandLabel.value = '';
-    els.brandLogoUrl.value = '';
     const groupTitles = {
       tv: 'SMART TVS & ENTRETENIMENTO',
       audio: 'SOM PARA TODOS OS MOMENTOS',
@@ -450,13 +464,17 @@
       microondas: 'PRATICIDADE NA COZINHA',
       moveis: 'MÓVEIS PARA TRANSFORMAR SUA CASA'
     };
-    els.headline.value = sameGroup
-      ? (groupTitles[groups[0]] || 'SELEÇÃO ESPECIAL PARA SUA CASA')
-      : 'GRANDES MARCAS PARA SUA CASA';
-    els.subtitle.value = sameGroup
-      ? 'Uma seleção pensada para o seu dia a dia.'
-      : 'Produtos e fabricantes que combinam com a sua casa.';
-    els.benefit.value = '';
+
+    setCopyValues({
+      badge: 'SELEÇÃO ARIANA',
+      headline: sameGroup
+        ? (groupTitles[groups[0]] || 'SELEÇÃO ESPECIAL PARA SUA CASA')
+        : 'GRANDES MARCAS PARA SUA CASA',
+      subtitle: sameGroup
+        ? 'Uma seleção pensada para o seu dia a dia.'
+        : 'Produtos e fabricantes que combinam com a sua casa.',
+      cta: 'CONHEÇA A SELEÇÃO'
+    });
   }
 
   async function buildProfessionalHero() {
@@ -872,7 +890,7 @@
           showPrice: false,
           headline: els.headline.value.trim(),
           subtitle: els.subtitle.value.trim(),
-          benefit: els.benefit.value.trim(),
+          benefit: '',
           badge: els.badge.value.trim(),
           cta: els.cta.value.trim(),
           brandLabel: els.brandLabel.value.trim(),
@@ -917,7 +935,7 @@
         showPrice,
         headline: els.headline.value.trim(),
         subtitle: els.subtitle.value.trim(),
-        benefit: els.benefit.value.trim(),
+        benefit: '',
         badge: els.badge.value.trim(),
         cta: els.cta.value.trim(),
         brandLabel: els.brandLabel.value.trim() || selectedProduct?.brand || '',
@@ -1078,6 +1096,14 @@
     });
     els.imageFile.addEventListener('change',event => uploadImage(event.target.files?.[0]));
     els.brandLogoFile.addEventListener('change',event => uploadBrandLogo(event.target.files?.[0]));
+
+    [els.badge, els.headline, els.subtitle, els.cta].forEach(input => {
+      input.addEventListener('input', () => {
+        copyTouched = true;
+        qualityAllowsSave = false;
+        els.saveButton.disabled = true;
+      });
+    });
 
     document.querySelectorAll('input[name="format"]').forEach(input => input.addEventListener('change',updateChoiceCards));
     document.querySelectorAll('input[name="template-pro"]').forEach(input => input.addEventListener('change',updateChoiceCards));
