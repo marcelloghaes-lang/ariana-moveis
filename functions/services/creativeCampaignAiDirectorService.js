@@ -59,17 +59,119 @@ function safeIndex(value, count) {
   return number;
 }
 
+function includesAny(value = '', terms = []) {
+  const normalized = normalize(value);
+  return terms.some(term => normalized.includes(normalize(term)));
+}
+
+const VISUAL_CATEGORY_RULES = Object.freeze({
+  audio: {
+    label: 'ÁUDIO & SOM',
+    detect: [
+      'audio', 'som', 'caixa de som', 'speaker', 'soundbar',
+      'woofer', 'subwoofer', 'torre bluetooth', 'amplificada'
+    ],
+    badgeTerms: ['audio', 'som', 'potencia', 'conectividade'],
+    headlineTerms: ['som', 'potencia', 'musica', 'audio', 'conect', 'entreten', 'energia'],
+    subtitleTerms: ['som', 'potencia', 'musica', 'audio', 'conect', 'entreten', 'energia', 'momento'],
+    forbiddenGeneric: [
+      'boas escolhas para sua casa',
+      'escolhas para sua casa',
+      'produtos para sua casa',
+      'selecao ariana',
+      'tecnologia para sua casa',
+      'tecnologia e boas escolhas'
+    ],
+    fallback: {
+      badge: 'ÁUDIO & SOM',
+      headline: 'SOM PARA TODOS OS MOMENTOS',
+      subtitle: 'Potência, conectividade e música para curtir cada momento do seu jeito.',
+      cta: 'VEJA AS NOVIDADES'
+    }
+  }
+});
+
+function resolveVisualCategory(rawCategory = '', recognizedProducts = [], rows = []) {
+  const evidence = [
+    rawCategory,
+    ...recognizedProducts.map(item => item?.label || ''),
+    ...rows.flatMap(item => [item.name, item.category, item.brand])
+  ].filter(Boolean).join(' ');
+
+  for (const [key, rules] of Object.entries(VISUAL_CATEGORY_RULES)) {
+    if (includesAny(evidence, rules.detect)) return { key, ...rules };
+  }
+
+  return null;
+}
+
+export function fixCopyByVisualCategory(copy = {}, rawCategory = '', recognizedProducts = [], products = []) {
+  const rows = safeProducts(products);
+  const rules = resolveVisualCategory(rawCategory, recognizedProducts, rows);
+  if (!rules) {
+    return {
+      category: sanitizeCampaignCopy(rawCategory || '', 48),
+      copy
+    };
+  }
+
+  const fixed = {
+    badge: cleanCopy(copy.badge, 42, rules.fallback.badge),
+    headline: cleanCopy(copy.headline, 72, rules.fallback.headline),
+    subtitle: cleanCopy(copy.subtitle, 120, rules.fallback.subtitle),
+    cta: cleanCopy(copy.cta, 42, rules.fallback.cta)
+  };
+
+  const genericHeadline = rules.forbiddenGeneric.some(term => normalize(fixed.headline).includes(normalize(term)));
+  const genericSubtitle = rules.forbiddenGeneric.some(term => normalize(fixed.subtitle).includes(normalize(term)));
+
+  if (!includesAny(fixed.badge, rules.badgeTerms)) {
+    fixed.badge = rules.fallback.badge;
+  }
+
+  if (genericHeadline || !includesAny(fixed.headline, rules.headlineTerms)) {
+    fixed.headline = rules.fallback.headline;
+  }
+
+  if (genericSubtitle || !includesAny(fixed.subtitle, rules.subtitleTerms)) {
+    fixed.subtitle = rules.fallback.subtitle;
+  }
+
+  if (!fixed.cta) fixed.cta = rules.fallback.cta;
+
+  return {
+    category: rules.label,
+    copy: fixed
+  };
+}
+
+
 export function sanitizeAiCreativeDirection(raw = {}, products = [], fallbackCopy = {}) {
   const rows = safeProducts(products);
   const count = rows.length;
 
+  const recognizedProducts = (Array.isArray(raw?.recognizedProducts) ? raw.recognizedProducts : [])
+    .slice(0, count)
+    .map((item, index) => ({
+      index: safeIndex(item?.index ?? index, Math.max(1, count)),
+      label: sanitizeCampaignCopy(item?.label || rows[index]?.name || 'Produto', 70),
+      confidence: Math.max(0, Math.min(1, Number(item?.confidence || 0)))
+    }));
+
   const rawCopy = raw?.copy && typeof raw.copy === 'object' ? raw.copy : {};
-  const copy = {
+  const initialCopy = {
     badge: cleanCopy(rawCopy.badge, 42, fallbackCopy.badge || 'SELEÇÃO ARIANA'),
     headline: cleanCopy(rawCopy.headline, 72, fallbackCopy.headline || 'ESCOLHAS PARA SUA CASA'),
     subtitle: cleanCopy(rawCopy.subtitle, 120, fallbackCopy.subtitle || 'Uma seleção pensada para o seu dia a dia.'),
     cta: cleanCopy(rawCopy.cta, 42, fallbackCopy.cta || 'CONHEÇA A SELEÇÃO')
   };
+
+  const categoryAdjusted = fixCopyByVisualCategory(
+    initialCopy,
+    raw?.category || '',
+    recognizedProducts,
+    rows
+  );
 
   const presetRaw = normalize(raw?.direction?.preset || raw?.preset || '');
   const preset = ['manufacturer','category','festival'].includes(presetRaw)
@@ -87,14 +189,14 @@ export function sanitizeAiCreativeDirection(raw = {}, products = [], fallbackCop
     : (count >= 3 ? 'one_plus_two' : 'balanced_three');
 
   return {
-    category: sanitizeCampaignCopy(raw?.category || '', 48),
+    category: categoryAdjusted.category,
     campaignAngle: sanitizeCampaignCopy(raw?.campaignAngle || '', 90),
     trendSummary: sanitizeCampaignCopy(raw?.trendSummary || '', 220),
     trendSignals: (Array.isArray(raw?.trendSignals) ? raw.trendSignals : [])
       .map(item => sanitizeCampaignCopy(item, 80))
       .filter(Boolean)
       .slice(0, 4),
-    copy,
+    copy: categoryAdjusted.copy,
     direction: {
       preset,
       mood,
@@ -102,13 +204,7 @@ export function sanitizeAiCreativeDirection(raw = {}, products = [], fallbackCop
       heroProductIndex: safeIndex(raw?.direction?.heroProductIndex, Math.max(1, count)),
       textSide: 'left'
     },
-    recognizedProducts: (Array.isArray(raw?.recognizedProducts) ? raw.recognizedProducts : [])
-      .slice(0, count)
-      .map((item, index) => ({
-        index: safeIndex(item?.index ?? index, Math.max(1, count)),
-        label: sanitizeCampaignCopy(item?.label || rows[index]?.name || 'Produto', 70),
-        confidence: Math.max(0, Math.min(1, Number(item?.confidence || 0)))
-      }))
+    recognizedProducts
   };
 }
 
@@ -230,6 +326,11 @@ export function buildAiDirectorRequest(products = [], now = new Date()) {
     'Nunca invente nem inclua preço, percentual, PIX, parcelamento, frete ou desconto se isso não estiver explicitamente autorizado.',
     'O banner terá texto à esquerda e produtos à direita. Escolha qual produto deve ser o herói visual pelo impacto da foto.',
     'Evite frases genéricas quebradas como "Campanha escolhidos para sua casa". Escreva português natural, comercial e curto.',
+    'A categoria visual reconhecida nas fotos é a referência principal para a copy. Se as imagens mostram claramente uma categoria, não use copy institucional genérica.',
+    'Quando a categoria for áudio/som/caixas de som, use vocabulário específico como som, potência, música, conectividade, entretenimento, energia e momentos.',
+    'Para áudio/som, o badge deve identificar a família, por exemplo "ÁUDIO & SOM" ou equivalente específico; não use "SELEÇÃO ARIANA" como rótulo principal.',
+    'Para áudio/som, o título precisa conter benefício ou contexto de uso e ao menos um conceito do universo de áudio. Evite "Tecnologia e boas escolhas para sua casa" e variações genéricas.',
+    'O texto de apoio deve continuar a mesma ideia da categoria, sem voltar para frases genéricas de casa, seleção ou produtos.',
     'Data de referência: ' + now.toISOString().slice(0,10) + '.'
   ].join('\n');
 
