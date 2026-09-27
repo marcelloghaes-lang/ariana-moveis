@@ -290,3 +290,44 @@ button,a{touch-action:manipulation}
   .segmented{grid-template-columns:1fr 1fr}
   .multi-selected-grid{grid-template-columns:1fr}
 }
+
+.hero-auto-card{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  gap:14px;
+  margin-bottom:14px;
+  padding:14px;
+  border-radius:16px;
+  border:1px solid #cfe0f4;
+  background:
+    radial-gradient(circle at 85% 10%,#ddebff 0,transparent 34%),
+    linear-gradient(135deg,#f9fcff,#eef6ff);
+}
+.hero-auto-card>div{display:flex;flex-direction:column;gap:4px}
+.hero-auto-card b{font-size:13px;color:#082e66}
+.hero-auto-card small{font-size:10px;line-height:1.45;color:#66758b;max-width:420px}
+.auto-hero-button{
+  border:0;
+  border-radius:13px;
+  padding:12px 15px;
+  background:linear-gradient(135deg,#ffd51b,#f2b800);
+  color:#082e66;
+  font-size:11px;
+  font-weight:950;
+  cursor:pointer;
+  box-shadow:0 8px 20px #d49b001f;
+}
+.auto-hero-button:disabled{opacity:.45;cursor:not-allowed}
+.preview-brand-logo{
+  width:min(220px,65%);
+  max-height:76px;
+  object-fit:contain;
+  display:block;
+  filter:drop-shadow(0 8px 14px #12376418);
+}
+@media(max-width:700px){
+  .hero-auto-card{grid-template-columns:1fr}
+  .auto-hero-button{width:100%}
+  .preview-brand-logo{width:min(180px,72%)}
+}

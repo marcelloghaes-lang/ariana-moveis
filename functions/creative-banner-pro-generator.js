@@ -804,10 +804,17 @@ function normalizedOptions(product = {}, options = {}) {
     template === 'campaign' ? 'CAMPANHA ESPECIAL' :
     'OFERTA ARIANA'
   ), 42).toUpperCase();
-  const brandLabel = clean(options.brandLabel || options.brand || product.brand || product.brandName || '', 34).toUpperCase();
+  const explicitBrand = Object.prototype.hasOwnProperty.call(options, 'brandLabel');
+  const explicitBrandLogo = Object.prototype.hasOwnProperty.call(options, 'brandLogoUrl');
+  const brandLabel = clean(
+    explicitBrand ? options.brandLabel : (options.brand || product.brand || product.brandName || ''),
+    34
+  ).toUpperCase();
   const couponText = clean(options.couponText || options.coupon || '', 26).toUpperCase();
   const promoText = clean(options.promoText || (showPrice ? 'OFERTA POR TEMPO LIMITADO' : 'CONDIÇÕES ESPECIAIS'), 46).toUpperCase();
-  const brandLogoUrl = String(options.brandLogoUrl || options.manufacturerLogoUrl || product.brandLogoUrl || '').trim();
+  const brandLogoUrl = String(
+    explicitBrandLogo ? options.brandLogoUrl : (options.manufacturerLogoUrl || product.brandLogoUrl || '')
+  ).trim();
 
   return {
     format,
@@ -884,16 +891,27 @@ function backgroundSvg(format, template) {
   }
 
   if (template === 'campaign') {
+    const mobile = format.device === 'mobile';
+    const dots = Array.from({length:18},(_,i)=>{
+      const col=i%6, row=Math.floor(i/6);
+      return '<circle cx="' + Math.round(w*(mobile ? .08+col*.035 : .54+col*.018)) + '" cy="' + Math.round(h*(mobile ? .18+row*.025 : .18+row*.045)) + '" r="' + Math.max(2,Math.round(h*.005)) + '"/>';
+    }).join('');
     return Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '">' +
-      '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0062D6"/><stop offset=".50" stop-color="#003E9A"/><stop offset="1" stop-color="#031F56"/></linearGradient></defs>' +
+      '<defs>' +
+      '<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0874F2"/><stop offset=".42" stop-color="#0758C9"/><stop offset=".72" stop-color="#063B91"/><stop offset="1" stop-color="#031B4D"/></linearGradient>' +
+      '<radialGradient id="heroGlow" cx="' + (mobile?'50%':'78%') + '" cy="' + (mobile?'60%':'48%') + '" r="58%"><stop offset="0" stop-color="#36A9FF" stop-opacity=".42"/><stop offset=".48" stop-color="#1168D8" stop-opacity=".14"/><stop offset="1" stop-color="#05285F" stop-opacity="0"/></radialGradient>' +
+      '<linearGradient id="goldBeam" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFF15A"/><stop offset=".45" stop-color="#FFD51B"/><stop offset="1" stop-color="#F2A600"/></linearGradient>' +
+      '<filter id="softGlow"><feGaussianBlur stdDeviation="' + Math.max(8,Math.round(h*.025)) + '"/></filter>' +
+      '</defs>' +
       '<rect width="100%" height="100%" fill="url(#bg)"/>' +
-      '<path d="M' + Math.round(w*.58) + ' 0 H' + w + ' V' + h + ' H' + Math.round(w*.73) + ' Z" fill="#0EA5E9" opacity=".18"/>' +
-      '<path d="M' + Math.round(w*.74) + ' 0 H' + w + ' V' + h + ' H' + Math.round(w*.87) + ' Z" fill="#FFD51B" opacity=".92"/>' +
-      '<circle cx="' + Math.round(w*.10) + '" cy="' + Math.round(h*.92) + '" r="' + Math.round(h*.34) + '" fill="#ffffff" opacity=".06"/>' +
-      '<g fill="#ffffff" opacity=".12">' +
-      Array.from({length:14},(_,i)=>'<circle cx="' + Math.round(w*(.04+i*.035)) + '" cy="' + Math.round(h*.12) + '" r="' + Math.max(2,Math.round(h*.008)) + '"/>').join('') +
-      '</g></svg>'
+      '<rect width="100%" height="100%" fill="url(#heroGlow)"/>' +
+      '<path d="M' + Math.round(w*(mobile?.86:.69)) + ' -' + Math.round(h*.18) + ' L' + Math.round(w*(mobile?1.03:.80)) + ' -' + Math.round(h*.18) + ' L' + Math.round(w*(mobile?.78:.64)) + ' ' + Math.round(h*1.18) + ' L' + Math.round(w*(mobile?.66:.55)) + ' ' + Math.round(h*1.18) + ' Z" fill="url(#goldBeam)" opacity=".98"/>' +
+      '<path d="M' + Math.round(w*(mobile?.91:.76)) + ' -' + Math.round(h*.18) + ' L' + Math.round(w*(mobile?1.10:.88)) + ' -' + Math.round(h*.18) + ' L' + Math.round(w*(mobile?.88:.73)) + ' ' + Math.round(h*1.18) + ' L' + Math.round(w*(mobile?.76:.66)) + ' ' + Math.round(h*1.18) + ' Z" fill="#ffffff" opacity=".08"/>' +
+      '<path d="M0 ' + Math.round(h*.96) + ' C' + Math.round(w*.25) + ' ' + Math.round(h*.88) + ' ' + Math.round(w*.62) + ' ' + Math.round(h*1.04) + ' ' + w + ' ' + Math.round(h*.92) + ' V' + h + ' H0 Z" fill="#021638" opacity=".35"/>' +
+      '<ellipse cx="' + Math.round(w*(mobile?.50:.79)) + '" cy="' + Math.round(h*(mobile?.66:.60)) + '" rx="' + Math.round(w*(mobile?.33:.24)) + '" ry="' + Math.round(h*(mobile?.22:.42)) + '" fill="#35A8FF" opacity=".16" filter="url(#softGlow)"/>' +
+      '<g fill="#ffffff" opacity=".20">' + dots + '</g>' +
+      '</svg>'
     );
   }
 
@@ -1403,9 +1421,9 @@ function multiProductSlots(format, count = 2) {
       { x:.50, y:.38, w:.34, h:.36 }
     ];
     if (n === 3) return [
-      { x:.10, y:.43, w:.29, h:.31 },
-      { x:.33, y:.35, w:.34, h:.40 },
-      { x:.61, y:.43, w:.29, h:.31 }
+      { x:.34, y:.35, w:.34, h:.40 },
+      { x:.09, y:.45, w:.29, h:.30 },
+      { x:.64, y:.46, w:.27, h:.29 }
     ];
     if (n === 4) return [
       { x:.06, y:.43, w:.26, h:.30 },
@@ -1427,9 +1445,9 @@ function multiProductSlots(format, count = 2) {
     { x:.76, y:.15, w:.20, h:.70 }
   ];
   if (n === 3) return [
-    { x:.55, y:.25, w:.16, h:.58 },
-    { x:.67, y:.10, w:.20, h:.75 },
-    { x:.82, y:.25, w:.15, h:.58 }
+    { x:.68, y:.08, w:.21, h:.77 },
+    { x:.55, y:.29, w:.16, h:.54 },
+    { x:.84, y:.31, w:.14, h:.50 }
   ];
   if (n === 4) return [
     { x:.53, y:.28, w:.14, h:.54 },
@@ -1446,45 +1464,118 @@ function multiProductSlots(format, count = 2) {
   ];
 }
 
+
+function multiShowcaseStageSvg(format, count = 3) {
+  const w=format.width,h=format.height;
+  const mobile=format.device==='mobile';
+  if(mobile){
+    return Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+      '<defs><linearGradient id="stage" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0B4AA7"/><stop offset="1" stop-color="#021B49"/></linearGradient><filter id="sg"><feGaussianBlur stdDeviation="'+Math.round(h*.018)+'"/></filter></defs>'+
+      '<ellipse cx="'+Math.round(w*.50)+'" cy="'+Math.round(h*.705)+'" rx="'+Math.round(w*.405)+'" ry="'+Math.round(h*.055)+'" fill="#FFD51B" opacity=".52" filter="url(#sg)"/>'+
+      '<ellipse cx="'+Math.round(w*.50)+'" cy="'+Math.round(h*.690)+'" rx="'+Math.round(w*.39)+'" ry="'+Math.round(h*.052)+'" fill="#FFD51B"/>'+
+      '<rect x="'+Math.round(w*.11)+'" y="'+Math.round(h*.655)+'" width="'+Math.round(w*.78)+'" height="'+Math.round(h*.052)+'" rx="'+Math.round(h*.026)+'" fill="url(#stage)"/>'+
+      '<ellipse cx="'+Math.round(w*.50)+'" cy="'+Math.round(h*.655)+'" rx="'+Math.round(w*.39)+'" ry="'+Math.round(h*.048)+'" fill="#0E5BC6" stroke="#FFD51B" stroke-width="'+Math.max(3,Math.round(h*.006))+'"/>'+
+      '</svg>'
+    );
+  }
+  return Buffer.from(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+    '<defs><linearGradient id="stage" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0D5FCB"/><stop offset=".55" stop-color="#073C91"/><stop offset="1" stop-color="#021A48"/></linearGradient><filter id="sg"><feGaussianBlur stdDeviation="'+Math.round(h*.020)+'"/></filter></defs>'+
+    '<ellipse cx="'+Math.round(w*.79)+'" cy="'+Math.round(h*.865)+'" rx="'+Math.round(w*.235)+'" ry="'+Math.round(h*.075)+'" fill="#FFD51B" opacity=".44" filter="url(#sg)"/>'+
+    '<ellipse cx="'+Math.round(w*.79)+'" cy="'+Math.round(h*.845)+'" rx="'+Math.round(w*.225)+'" ry="'+Math.round(h*.065)+'" fill="#FFD51B"/>'+
+    '<rect x="'+Math.round(w*.565)+'" y="'+Math.round(h*.790)+'" width="'+Math.round(w*.45)+'" height="'+Math.round(h*.078)+'" rx="'+Math.round(h*.039)+'" fill="url(#stage)"/>'+
+    '<ellipse cx="'+Math.round(w*.79)+'" cy="'+Math.round(h*.790)+'" rx="'+Math.round(w*.225)+'" ry="'+Math.round(h*.063)+'" fill="#0E5BC6" stroke="#FFD51B" stroke-width="'+Math.max(3,Math.round(h*.008))+'"/>'+
+    '</svg>'
+  );
+}
+
 function multiCampaignOverlay(format, opts, count = 2) {
   const mobile = format.device === 'mobile';
-  const brand = opts.brandLabel || 'ARIANA';
-  const main = opts.couponText || opts.headline || 'OFERTAS ESPECIAIS';
+  const brand = String(opts.brandLabel || '').trim();
+  const brandCampaign = Boolean(opts.couponText || opts.hasBrandLogo || brand);
+  const headline = opts.headline || 'OFERTAS PARA RENOVAR SUA CASA';
+  const benefit = opts.benefit || 'Grandes marcas com condições especiais.';
 
   if (mobile) {
     const w=format.width,h=format.height,c=Math.round(w/2);
-    const mainFs=Math.round(w*(main.length>16?.034:.045));
-    const footerY=Math.round(h*.865), pillH=Math.round(h*.058);
+    const footerY=Math.round(h*.872),pillH=Math.round(h*.055);
+
+    if (!brandCampaign) {
+      const specialHero = headline.includes('RENOVAR SUA CASA');
+      const headlineLines=specialHero ? ['OFERTAS PARA','RENOVAR SUA CASA'] : wrap(headline,22,2);
+      const headlineSvg = specialHero
+        ? '<text x="'+c+'" y="'+Math.round(h*.205)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.049)+'" font-weight="950" fill="#ffffff">OFERTAS PARA</text>'+
+          '<text x="'+c+'" y="'+Math.round(h*.262)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.053)+'" font-weight="950" fill="#FFD51B">RENOVAR SUA CASA</text>'
+        : linesSvg(headlineLines,{x:c,y:Math.round(h*.205),size:Math.round(w*.049),lineHeight:Math.round(w*.054),fill:'#ffffff',weight:950,anchor:'middle'});
+      return Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+        '<rect x="'+Math.round(w*.31)+'" y="'+Math.round(h*.115)+'" width="'+Math.round(w*.38)+'" height="'+Math.round(h*.046)+'" rx="'+Math.round(h*.023)+'" fill="#FFD51B"/>'+
+        '<text x="'+c+'" y="'+Math.round(h*.146)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.022)+'" font-weight="950" fill="#08285A">'+escapeXml(opts.badge || 'OFERTAS ARIANA')+'</text>'+
+        headlineSvg+
+        '<rect x="'+Math.round(w*.20)+'" y="'+Math.round(h*.298)+'" width="'+Math.round(w*.60)+'" height="'+Math.round(h*.045)+'" rx="'+Math.round(h*.022)+'" fill="#05285F" opacity=".72"/>'+
+        '<text x="'+c+'" y="'+Math.round(h*.329)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.024)+'" font-weight="900" fill="#ffffff">'+escapeXml(opts.subtitle || 'ATÉ 12X SEM JUROS NO CARTÃO')+'</text>'+
+        '<text x="'+c+'" y="'+Math.round(h*.370)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.019)+'" font-weight="650" fill="#ffffff" opacity=".92">'+escapeXml(benefit)+'</text>'+
+        pillSvg({x:Math.round(w*.055),y:footerY,w:Math.round(w*.39),h:pillH,fill:'#ffffff',text:opts.cta||'APROVEITE AGORA',textFill:'#0047AB',fs:Math.round(w*.020)})+
+        pillSvg({x:Math.round(w*.465),y:footerY,w:Math.round(w*.225),h:pillH,fill:'#071D49',text:opts.installmentCount+'x SEM JUROS',textFill:'#ffffff',fs:Math.round(w*.017)})+
+        pillSvg({x:Math.round(w*.710),y:footerY,w:Math.round(w*.235),h:pillH,fill:'#FFD51B',text:'17% OFF NO PIX',textFill:'#08285A',fs:Math.round(w*.017)})+
+        '</svg>'
+      );
+    }
+
+    const main=opts.couponText || (brand ? 'ESPECIAL '+brand.toUpperCase() : headline);
     return Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-      (opts.hasBrandLogo ? '' : '<text x="'+c+'" y="'+Math.round(h*.145)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.026)+'" font-weight="900" letter-spacing="2.5" fill="#ffffff">'+escapeXml('ESPECIAL '+brand)+'</text>')+
-      '<text x="'+c+'" y="'+Math.round(h*.205)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.037)+'" font-weight="950" fill="#ffffff">'+escapeXml(opts.couponText ? 'USE O CUPOM' : opts.headline)+'</text>'+
+      (opts.hasBrandLogo ? '' : '<text x="'+c+'" y="'+Math.round(h*.145)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.025)+'" font-weight="900" letter-spacing="2" fill="#ffffff">'+escapeXml(brand ? 'ESPECIAL '+brand.toUpperCase() : 'CAMPANHA ESPECIAL')+'</text>')+
+      '<text x="'+c+'" y="'+Math.round(h*.205)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.036)+'" font-weight="950" fill="#ffffff">'+escapeXml(opts.couponText ? 'USE O CUPOM' : headline)+'</text>'+
       '<rect x="'+Math.round(w*.20)+'" y="'+Math.round(h*.225)+'" width="'+Math.round(w*.60)+'" height="'+Math.round(h*.073)+'" rx="'+Math.round(h*.036)+'" fill="#FFD51B"/>'+
-      '<text x="'+c+'" y="'+Math.round(h*.275)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+mainFs+'" font-weight="950" fill="#08285A">'+escapeXml(main)+'</text>'+
+      '<text x="'+c+'" y="'+Math.round(h*.275)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*(main.length>16?.033:.042))+'" font-weight="950" fill="#08285A">'+escapeXml(main)+'</text>'+
       '<text x="'+c+'" y="'+Math.round(h*.325)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.023)+'" font-weight="650" fill="#ffffff">'+escapeXml(opts.subtitle)+'</text>'+
-      '<text x="'+c+'" y="'+Math.round(h*.795)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.021)+'" font-weight="800" fill="#ffffff" opacity=".9">'+count+' PRODUTOS EM DESTAQUE</text>'+
-      pillSvg({x:Math.round(w*.055),y:footerY,w:Math.round(w*.285),h:pillH,fill:'#071D49',text:opts.installmentCount+'x no cartão',textFill:'#ffffff',fs:Math.round(w*.019)})+
-      pillSvg({x:Math.round(w*.357),y:footerY,w:Math.round(w*.285),h:pillH,fill:'#FFD51B',text:'TEMPO LIMITADO',textFill:'#08285A',fs:Math.round(w*.018)})+
-      pillSvg({x:Math.round(w*.660),y:footerY,w:Math.round(w*.285),h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(w*.019)})+
+      pillSvg({x:Math.round(w*.055),y:footerY,w:Math.round(w*.39),h:pillH,fill:'#ffffff',text:opts.cta||'APROVEITE',textFill:'#0047AB',fs:Math.round(w*.020)})+
+      pillSvg({x:Math.round(w*.465),y:footerY,w:Math.round(w*.225),h:pillH,fill:'#071D49',text:opts.installmentCount+'x CARTÃO',textFill:'#ffffff',fs:Math.round(w*.017)})+
+      pillSvg({x:Math.round(w*.710),y:footerY,w:Math.round(w*.235),h:pillH,fill:'#FFD51B',text:'TEMPO LIMITADO',textFill:'#08285A',fs:Math.round(w*.016)})+
       '</svg>'
     );
   }
 
   const w=format.width,h=format.height,x=Math.round(w*.055);
+  const footerY=Math.round(h*.815),pillH=Math.round(h*.105),gap=Math.round(w*.008);
+
+  if (!brandCampaign) {
+    const specialHero=headline.includes('RENOVAR SUA CASA');
+    const headlineFs=Math.round(h*.096);
+    const headlineLines=specialHero ? ['OFERTAS PARA','RENOVAR SUA CASA'] : wrap(headline,26,2);
+    const headlineSvg=specialHero
+      ? '<text x="'+x+'" y="'+Math.round(h*.355)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+headlineFs+'" font-weight="950" fill="#ffffff">OFERTAS PARA</text>'+
+        '<text x="'+x+'" y="'+Math.round(h*.470)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.108)+'" font-weight="950" fill="#FFD51B">RENOVAR SUA CASA</text>'
+      : linesSvg(headlineLines,{x,y:Math.round(h*.355),size:headlineFs,lineHeight:headlineFs*.98,fill:'#ffffff',weight:950});
+    return Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+      '<rect x="'+x+'" y="'+Math.round(h*.205)+'" width="'+Math.round(w*.155)+'" height="'+Math.round(h*.065)+'" rx="'+Math.round(h*.032)+'" fill="#FFD51B"/>'+
+      '<text x="'+(x+Math.round(w*.0775))+'" y="'+Math.round(h*.249)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.031)+'" font-weight="950" fill="#08285A">'+escapeXml(opts.badge || 'OFERTAS ARIANA')+'</text>'+
+      headlineSvg+
+      '<text x="'+x+'" y="'+Math.round(h*.625)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.043)+'" font-weight="900" fill="#FFD51B">'+escapeXml(opts.subtitle || 'ATÉ 12X SEM JUROS NO CARTÃO')+'</text>'+
+      '<text x="'+x+'" y="'+Math.round(h*.700)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.029)+'" font-weight="650" fill="#ffffff" opacity=".92">'+escapeXml(benefit)+'</text>'+
+      pillSvg({x,y:footerY,w:Math.round(w*.145),h:pillH,fill:'#ffffff',text:opts.cta||'APROVEITE AGORA',textFill:'#0047AB',fs:Math.round(h*.027)})+
+      pillSvg({x:x+Math.round(w*.153),y:footerY,w:Math.round(w*.120),h:pillH,fill:'#071D49',text:opts.installmentCount+'x SEM JUROS',textFill:'#ffffff',fs:Math.round(h*.024)})+
+      pillSvg({x:x+Math.round(w*.281),y:footerY,w:Math.round(w*.120),h:pillH,fill:'#FFD51B',text:'17% OFF NO PIX',textFill:'#08285A',fs:Math.round(h*.023)})+
+      pillSvg({x:x+Math.round(w*.409),y:footerY,w:Math.round(w*.135),h:pillH,fill:'#06306A',text:'arianamoveis.com.br',textFill:'#ffffff',fs:Math.round(h*.021)})+
+      '</svg>'
+    );
+  }
+
+  const main=opts.couponText || (brand ? 'ESPECIAL '+brand.toUpperCase() : headline);
   const boxY=Math.round(h*.395),boxH=Math.round(h*.135);
-  const footerY=Math.round(h*.820),pillH=Math.round(h*.108),gap=Math.round(w*.010);
-  const pillW=Math.round(w*.165);
   return Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-    (opts.hasBrandLogo ? '' : '<text x="'+x+'" y="'+Math.round(h*.220)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.040)+'" font-weight="900" letter-spacing="3" fill="#ffffff">'+escapeXml('ESPECIAL '+brand)+'</text>')+
-    '<text x="'+x+'" y="'+Math.round(h*.335)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.075)+'" font-weight="950" fill="#ffffff">'+escapeXml(opts.couponText ? 'USE O CUPOM' : opts.headline)+'</text>'+
+    (opts.hasBrandLogo ? '' : '<text x="'+x+'" y="'+Math.round(h*.220)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.037)+'" font-weight="900" letter-spacing="2.5" fill="#ffffff">'+escapeXml(brand ? 'ESPECIAL '+brand.toUpperCase() : 'CAMPANHA ESPECIAL')+'</text>')+
+    '<text x="'+x+'" y="'+Math.round(h*.335)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.072)+'" font-weight="950" fill="#ffffff">'+escapeXml(opts.couponText ? 'USE O CUPOM' : headline)+'</text>'+
     '<rect x="'+x+'" y="'+boxY+'" width="'+Math.round(w*.255)+'" height="'+boxH+'" rx="'+Math.round(h*.030)+'" fill="#FFD51B"/>'+
-    '<text x="'+(x+Math.round(w*.1275))+'" y="'+(boxY+Math.round(boxH*.68))+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*(main.length>15?.052:.066))+'" font-weight="950" fill="#08285A">'+escapeXml(main)+'</text>'+
+    '<text x="'+(x+Math.round(w*.1275))+'" y="'+(boxY+Math.round(boxH*.68))+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*(main.length>15?.052:.064))+'" font-weight="950" fill="#08285A">'+escapeXml(main)+'</text>'+
     '<text x="'+x+'" y="'+Math.round(h*.615)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.034)+'" font-weight="700" fill="#ffffff">'+escapeXml(opts.subtitle)+'</text>'+
-    '<text x="'+x+'" y="'+Math.round(h*.705)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.027)+'" font-weight="850" fill="#ffffff" opacity=".9">'+count+' PRODUTOS EM DESTAQUE</text>'+
-    pillSvg({x,y:footerY,w:pillW,h:pillH,fill:'#071D49',text:opts.installmentCount+'x no cartão',textFill:'#ffffff',fs:Math.round(h*.028)})+
-    pillSvg({x:x+pillW+gap,y:footerY,w:pillW,h:pillH,fill:'#FFD51B',text:opts.promoText,textFill:'#08285A',fs:Math.round(h*.024)})+
-    pillSvg({x:x+pillW*2+gap*2,y:footerY,w:Math.round(w*.130),h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(h*.028)})+
+    pillSvg({x,y:footerY,w:Math.round(w*.145),h:pillH,fill:'#ffffff',text:opts.cta||'APROVEITE',textFill:'#0047AB',fs:Math.round(h*.027)})+
+    pillSvg({x:x+Math.round(w*.153),y:footerY,w:Math.round(w*.140),h:pillH,fill:'#071D49',text:opts.installmentCount+'x NO CARTÃO',textFill:'#ffffff',fs:Math.round(h*.023)})+
+    pillSvg({x:x+Math.round(w*.301),y:footerY,w:Math.round(w*.150),h:pillH,fill:'#FFD51B',text:opts.promoText||'TEMPO LIMITADO',textFill:'#08285A',fs:Math.round(h*.022)})+
     '</svg>'
   );
 }
@@ -1620,7 +1711,8 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
   const slots=multiProductSlots(format,rows.length);
 
   const layers=[
-    {input:backgroundSvg(format,'campaign'),left:0,top:0}
+    {input:backgroundSvg(format,'campaign'),left:0,top:0},
+    {input:multiShowcaseStageSvg(format,rows.length),left:0,top:0}
   ];
   layers.push(await logoLayer(format,brandAsset));
   if(campaignBrandAsset?.backgroundRemoved){
