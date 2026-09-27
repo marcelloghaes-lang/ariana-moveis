@@ -97,7 +97,7 @@ button,a{touch-action:manipulation}
 .format-icon.square:before{inset:5px 25%}
 .format-icon.landscape:before{inset:8px 11px}
 .segmented{
-  display:grid;grid-template-columns:repeat(3,1fr);
+  display:grid;grid-template-columns:repeat(4,1fr);
   gap:5px;padding:5px;border:1px solid #dbe6f2;border-radius:14px;background:#f4f8fd;
 }
 .segmented button{
@@ -234,4 +234,59 @@ button,a{touch-action:manipulation}
 
 @media(max-width:700px){
   .brand-logo{width:125px;height:40px}
+}
+
+.multi-product-hint{margin:10px 0 12px}
+.selected-product.multi-selected-products{
+  display:block;
+  padding:12px;
+}
+.multi-selected-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:10px;
+}
+.multi-selected-head b{font-size:12px;color:#0b356d}
+.multi-selected-head span{
+  font-size:10px;
+  font-weight:900;
+  color:#0047ab;
+  background:#eaf2ff;
+  border-radius:999px;
+  padding:6px 8px;
+}
+.multi-selected-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+}
+.multi-selected-item{
+  position:relative;
+  min-width:0;
+  display:grid;
+  grid-template-columns:52px minmax(0,1fr);
+  align-items:center;
+  gap:8px;
+  border:1px solid #dce6f2;
+  background:#fff;
+  border-radius:12px;
+  padding:8px 34px 8px 8px;
+}
+.multi-selected-item img{
+  width:52px;height:52px;object-fit:contain;border-radius:9px;background:#fff;
+}
+.multi-selected-item>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.multi-selected-item b{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.multi-selected-item small{font-size:9px;color:#718095;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.multi-selected-item button{
+  position:absolute;right:7px;top:7px;
+  width:24px;height:24px;border:0;border-radius:8px;
+  background:#fff0f0;color:#b42318;font-size:16px;font-weight:950;cursor:pointer;
+}
+.multi-warning{display:block;margin-top:9px;color:#b66a00;font-size:10px;font-weight:800}
+@media(max-width:700px){
+  .segmented{grid-template-columns:1fr 1fr}
+  .multi-selected-grid{grid-template-columns:1fr}
 }
