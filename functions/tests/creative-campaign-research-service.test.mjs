@@ -48,3 +48,40 @@ test('sanitizador elimina typo conhecido e palavra repetida', () => {
   const clean = sanitizeCampaignCopy('Melhorws fabricas fabricas para sua casa', 80);
   assert.equal(clean, 'melhores fabricas para sua casa');
 });
+
+
+test('categoria genérica campanha não vira texto do banner e caixas de som viram ÁUDIO & SOM', () => {
+  const result = buildCreativeCampaignCopy(
+    [
+      { name: 'Caixa de Som Amplificada Bluetooth', category: 'Campanha' },
+      { name: 'Caixa de Som Torre com LED', category: 'Campanha' },
+      { name: 'Speaker Amplificada Portátil', category: 'Campanha' }
+    ],
+    [
+      { title: 'Especial da semana', snippet: 'Seleção especial para sua casa.' }
+    ]
+  );
+
+  assert.equal(result.context.sameCategory, true);
+  assert.equal(result.context.category, 'ÁUDIO & SOM');
+  assert.equal(result.copy.badge, 'ÁUDIO & SOM');
+  assert.equal(result.copy.headline, 'SOM PARA TODOS OS MOMENTOS');
+  assert.doesNotMatch(
+    Object.values(result.copy).join(' '),
+    /campanha escolhidos|campanha para sua casa/i
+  );
+});
+
+test('categoria em objeto também é interpretada corretamente', () => {
+  const result = buildCreativeCampaignCopy(
+    [
+      { name: 'Smart TV 50', category: { name: 'Televisores' } },
+      { name: 'Smart TV 55', category: { name: 'Televisores' } }
+    ],
+    []
+  );
+
+  assert.equal(result.context.sameCategory, true);
+  assert.equal(result.context.category, 'Televisores');
+  assert.doesNotMatch(result.copy.headline, /^TELEVISORES ESCOLHIDOS/i);
+});

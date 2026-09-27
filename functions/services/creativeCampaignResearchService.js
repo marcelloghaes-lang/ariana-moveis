@@ -65,14 +65,100 @@ export function sanitizeCampaignCopy(value = '', maxLength = 120) {
   return text.replace(/[\s,;:\-–—]+$/g, '').trim();
 }
 
+const GENERIC_CATEGORY_NAMES = new Set([
+  'campanha',
+  'campanhas',
+  'oferta',
+  'ofertas',
+  'promocao',
+  'promocoes',
+  'destaque',
+  'destaques',
+  'selecao',
+  'produtos',
+  'produto',
+  'geral',
+  'outros',
+  'outro'
+]);
+
+const CATEGORY_FAMILIES = Object.freeze([
+  {
+    label: 'ÁUDIO & SOM',
+    needles: ['caixa de som', 'speaker', 'soundbar', 'torre de som', 'amplificada', 'woofer', 'subwoofer', 'audio']
+  },
+  {
+    label: 'SMART TVS',
+    needles: ['smart tv', 'televisor', 'televisao', 'tv ']
+  },
+  {
+    label: 'REFRIGERAÇÃO',
+    needles: ['geladeira', 'refrigerador', 'freezer', 'frigobar']
+  },
+  {
+    label: 'LAVANDERIA',
+    needles: ['lavadora', 'lava e seca', 'maquina de lavar', 'secadora']
+  },
+  {
+    label: 'CLIMATIZAÇÃO',
+    needles: ['ventilador', 'climatizador', 'ar condicionado']
+  },
+  {
+    label: 'COZINHA',
+    needles: ['micro ondas', 'microondas', 'air fryer', 'fritadeira', 'fogao', 'cooktop', 'forno']
+  },
+  {
+    label: 'MÓVEIS',
+    needles: ['guarda roupa', 'roupeiro', 'sofa', 'mesa', 'rack', 'painel', 'cama', 'colchao']
+  }
+]);
+
+function categoryText(value) {
+  if (!value) return '';
+  if (typeof value === 'string' || typeof value === 'number') return String(value).trim();
+  if (typeof value === 'object') {
+    return String(
+      value.name ||
+      value.title ||
+      value.label ||
+      value.slug ||
+      ''
+    ).trim();
+  }
+  return '';
+}
+
+function inferredCategory(product = {}) {
+  const haystack = normalize([
+    product.name,
+    product.title,
+    product.productName,
+    product.categoryName,
+    categoryText(product.category),
+    product.department,
+    product.group
+  ].filter(Boolean).join(' '));
+
+  for (const family of CATEGORY_FAMILIES) {
+    if (family.needles.some(needle => haystack.includes(normalize(needle)))) {
+      return family.label;
+    }
+  }
+  return '';
+}
+
 function categoryOf(product = {}) {
-  return String(
-    product.categoryName ||
-    product.category ||
-    product.department ||
-    product.group ||
-    ''
-  ).trim();
+  const raw = [
+    product.categoryName,
+    product.category,
+    product.department,
+    product.group
+  ].map(categoryText).find(Boolean) || '';
+
+  const normalizedRaw = normalize(raw);
+  if (raw && !GENERIC_CATEGORY_NAMES.has(normalizedRaw)) return raw;
+
+  return inferredCategory(product);
 }
 
 function brandOf(product = {}) {
@@ -240,14 +326,72 @@ function originalCopy(context = {}, theme = 'special') {
     };
     headline = byTheme[theme] || byTheme.special;
   } else if (context.sameCategory && category) {
-    const byTheme = {
-      technology: upperCategory + ' COM MAIS TECNOLOGIA PARA VOCÊ',
-      renew: 'RENOVE SUA CASA COM NOSSA SELEÇÃO DE ' + upperCategory,
-      comfort: upperCategory + ' PARA UMA CASA MAIS CONFORTÁVEL',
-      practical: 'MAIS PRATICIDADE PARA O SEU DIA A DIA',
-      special: upperCategory + ' ESCOLHIDOS PARA SUA CASA'
+    const normalizedCategory = normalize(category);
+    const categoryCampaigns = {
+      'audio som': {
+        technology: 'SOM, POTÊNCIA E TECNOLOGIA PARA VOCÊ',
+        renew: 'MAIS SOM PARA RENOVAR SEUS MOMENTOS',
+        comfort: 'SOM PARA CURTIR SUA CASA DO SEU JEITO',
+        practical: 'SEU SOM, DO SEU JEITO',
+        special: 'SOM PARA TODOS OS MOMENTOS'
+      },
+      'smart tvs': {
+        technology: 'IMAGEM E TECNOLOGIA PARA SUA CASA',
+        renew: 'RENOVE SUA SALA COM UMA NOVA EXPERIÊNCIA',
+        comfort: 'ENTRETENIMENTO PARA CURTIR EM CASA',
+        practical: 'SMART TVS PARA TODOS OS MOMENTOS',
+        special: 'UMA NOVA EXPERIÊNCIA PARA SUA SALA'
+      },
+      'refrigeracao': {
+        technology: 'TECNOLOGIA QUE CUIDA DOS SEUS ALIMENTOS',
+        renew: 'RENOVE SUA COZINHA COM MAIS PRATICIDADE',
+        comfort: 'MAIS ESPAÇO E PRATICIDADE PARA SUA COZINHA',
+        practical: 'PRATICIDADE PARA SUA ROTINA',
+        special: 'SOLUÇÕES PARA DEIXAR SUA COZINHA COMPLETA'
+      },
+      'lavanderia': {
+        technology: 'TECNOLOGIA PARA FACILITAR SUA ROTINA',
+        renew: 'RENOVE SUA LAVANDERIA',
+        comfort: 'MAIS CUIDADO PARA SUAS ROUPAS',
+        practical: 'PRATICIDADE PARA TODOS OS DIAS',
+        special: 'CUIDADO E PRATICIDADE PARA SUA ROTINA'
+      },
+      'climatizacao': {
+        technology: 'TECNOLOGIA PARA DEIXAR O CLIMA IDEAL',
+        renew: 'RENOVE O CONFORTO DA SUA CASA',
+        comfort: 'CONFORTO PARA TODOS OS AMBIENTES',
+        practical: 'BEM-ESTAR PARA O DIA A DIA',
+        special: 'O CLIMA CERTO PARA SUA CASA'
+      },
+      'cozinha': {
+        technology: 'TECNOLOGIA E PRATICIDADE NA COZINHA',
+        renew: 'RENOVE SUA COZINHA DO SEU JEITO',
+        comfort: 'UMA COZINHA MAIS COMPLETA PARA VOCÊ',
+        practical: 'PRATICIDADE PARA TODOS OS DIAS',
+        special: 'ESCOLHAS PARA DEIXAR SUA COZINHA COMPLETA'
+      },
+      'moveis': {
+        technology: 'DESIGN E FUNCIONALIDADE PARA SUA CASA',
+        renew: 'RENOVE SEUS AMBIENTES DO SEU JEITO',
+        comfort: 'MAIS CONFORTO PARA SUA CASA',
+        practical: 'BELEZA E PRATICIDADE PARA SEUS AMBIENTES',
+        special: 'MÓVEIS PARA TRANSFORMAR SUA CASA'
+      }
     };
-    headline = byTheme[theme] || byTheme.special;
+
+    const knownCampaign = categoryCampaigns[normalizedCategory];
+    if (knownCampaign) {
+      headline = knownCampaign[theme] || knownCampaign.special;
+    } else {
+      const byTheme = {
+        technology: 'MAIS TECNOLOGIA PARA SUA CASA',
+        renew: 'RENOVE SUA CASA COM NOVAS ESCOLHAS',
+        comfort: 'MAIS CONFORTO PARA SUA CASA',
+        practical: 'MAIS PRATICIDADE PARA O SEU DIA A DIA',
+        special: 'ESCOLHAS QUE COMBINAM COM A SUA CASA'
+      };
+      headline = byTheme[theme] || byTheme.special;
+    }
   } else {
     const byTheme = {
       technology: 'TECNOLOGIA E BOAS ESCOLHAS PARA SUA CASA',
