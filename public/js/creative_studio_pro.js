@@ -12,6 +12,7 @@
   let previewUrl = '';
   let qualityAllowsSave = false;
   let autoHeroActive = false;
+  let catalogReadyPromise = null;
 
   const FORMATS = Object.freeze({
     hero_desktop: { label: 'PRÉVIA • HERO DESKTOP', size: '1920 × 480 pixels' },
@@ -288,12 +289,24 @@
   }
 
   async function buildProfessionalHero() {
-    if (productsLoading) {
-      status('O catálogo ainda está carregando. Aguarde alguns segundos.', '');
-      return;
-    }
+    const button = els.autoHeroButton;
+    const originalLabel = button?.textContent || 'Montar campanha';
 
     try {
+      if (button) {
+        button.disabled = true;
+        button.textContent = productsLoading ? 'Carregando catálogo...' : 'Montando 3 produtos...';
+      }
+
+      if (productsLoading && catalogReadyPromise) {
+        status('Carregando o catálogo para montar a campanha...', '');
+        await catalogReadyPromise;
+      }
+
+      if (products.length < 3) {
+        throw new Error('Não encontrei 3 produtos disponíveis no catálogo para montar a campanha.');
+      }
+
       autoHeroActive = true;
       const rows = autoHeroProducts();
       selectedProducts = rows;
@@ -307,11 +320,29 @@
       updateChoiceCards();
       renderSelectedProducts();
 
-      status('Campanha profissional montada com 3 produtos. Validando recortes e gerando a prévia...', 'ok');
+      previewBlob = null;
+      qualityAllowsSave = false;
+      els.saveButton.disabled = true;
+      els.previewImage.classList.add('hidden');
+      els.previewEmpty.classList.remove('hidden');
+      const previewText = els.previewEmpty.querySelector('strong');
+      if (previewText) previewText.textContent = 'Montando campanha profissional com 3 produtos...';
+
+      if (button) button.textContent = 'Gerando prévia...';
+      status('Campanha montada com 3 produtos. Validando recortes e gerando a prévia...', 'ok');
       await generatePreview();
+
+      if (els.previewStage) {
+        setTimeout(() => els.previewStage.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150);
+      }
     } catch (error) {
       autoHeroActive = false;
       status(error.message || 'Não foi possível montar a campanha automática.', 'error');
+    } finally {
+      if (button) {
+        button.disabled = products.length < 3 || productsLoading;
+        button.textContent = products.length >= 3 ? 'Montar campanha' : (productsLoading ? 'Carregando catálogo...' : 'Catálogo insuficiente');
+      }
     }
   }
 
@@ -523,20 +554,54 @@
 
   async function loadProducts() {
     productsLoading = true;
-    try {
-      const data = await api('/admin/products?sortBy=updatedAt&sortDir=desc&limit=1000');
-      products = Array.isArray(data) ? data : (data.products || data.items || data.docs || data.results || data.data || []);
-      if (!products.length) {
-        const fallback = await api('/products?limit=1000&sortBy=updatedAt&sortDir=desc');
-        products = Array.isArray(fallback) ? fallback : (fallback.products || fallback.items || fallback.docs || fallback.results || fallback.data || []);
+    if (els.autoHeroButton) {
+      els.autoHeroButton.disabled = true;
+      els.autoHeroButton.textContent = 'Carregando catálogo...';
+    }
+
+    const extractRows = data => Array.isArray(data)
+      ? data
+      : (data?.products || data?.items || data?.docs || data?.results || data?.data || data?.rows || []);
+
+    const fetchWithTimeout = async (path, timeoutMs = 9000) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        return await api(path, { signal: controller.signal });
+      } finally {
+        clearTimeout(timer);
       }
+    };
+
+    try {
+      let data = null;
+      try {
+        data = await fetchWithTimeout('/admin/products?sortBy=updatedAt&sortDir=desc&limit=250');
+      } catch {}
+
+      products = extractRows(data);
+
+      if (products.length < 3) {
+        const fallback = await fetchWithTimeout('/products?limit=250&sortBy=updatedAt&sortDir=desc');
+        products = extractRows(fallback);
+      }
+
+      products = products.filter(product => product && (product.name || product.title));
       status('Catálogo carregado: ' + products.length + ' produto(s).', products.length ? 'ok' : '');
+      return products;
     } catch (error) {
       products = [];
-      status('Não consegui carregar o catálogo: ' + error.message + '. Você ainda pode preencher manualmente.', 'error');
+      const message = error?.name === 'AbortError'
+        ? 'O catálogo demorou demais para responder.'
+        : ('Não consegui carregar o catálogo: ' + error.message + '.');
+      status(message + ' Você ainda pode preencher manualmente.', 'error');
+      return products;
     } finally {
       productsLoading = false;
-      if (els.autoHeroButton) els.autoHeroButton.disabled = products.length < 3;
+      if (els.autoHeroButton) {
+        els.autoHeroButton.disabled = products.length < 3;
+        els.autoHeroButton.textContent = products.length >= 3 ? 'Montar campanha' : 'Catálogo insuficiente';
+      }
     }
   }
 
@@ -617,7 +682,7 @@
           benefit: els.benefit.value.trim(),
           badge: els.badge.value.trim(),
           cta: els.cta.value.trim(),
-          brandLabel: els.brandLabel.value.trim() || first.brand || '',
+          brandLabel: els.brandLabel.value.trim(),
           brandLogoUrl: els.brandLogoUrl.value.trim(),
           couponText: els.couponText.value.trim(),
           promoText: els.promoText.value.trim(),
@@ -785,7 +850,10 @@
         method:'POST',
         body:JSON.stringify(payload)
       },'blob');
-      const fileName = normalize(els.productName.value || 'banner-ariana-pro').replace(/\s+/g,'-') + '-' + selectedFormat() + '-pro.png';
+      const baseName = contentMode === 'multi_product'
+        ? (els.brandLabel.value.trim() || 'campanha-ariana')
+        : (els.productName.value || 'banner-ariana-pro');
+      const fileName = normalize(baseName).replace(/\s+/g,'-') + '-' + selectedFormat() + '-pro.png';
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -872,7 +940,7 @@
     bind();
     updateChoiceCards();
     applyMode('with_price');
-    loadProducts();
+    catalogReadyPromise = loadProducts();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',start);
