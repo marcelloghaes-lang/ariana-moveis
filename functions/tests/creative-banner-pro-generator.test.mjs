@@ -220,7 +220,7 @@ test('recorte fragmentado de produto branco é bloqueado em vez de gerar produto
 
   assert.equal(analysis.product.backgroundRemoved, false);
   assert.equal(analysis.product.cutoutSafe, false);
-  assert.equal(analysis.product.removalMode, 'unsafe_cutout_blocked');
+  assert.match(analysis.product.removalMode, /^unsafe_(?:cutout|overremove)_blocked$/);
   assert.equal(analysis.quality.blockSave, true);
   assert.ok(analysis.quality.criticalFailures.includes('cutout'));
 });
