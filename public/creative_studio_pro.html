@@ -6,7 +6,7 @@
   <title>Ariana Creative Studio Pro</title>
   <meta name="theme-color" content="#0047AB">
   <meta name="robots" content="noindex,nofollow">
-  <link rel="stylesheet" href="./css/creative_studio_pro.css?v=20260927-3">
+  <link rel="stylesheet" href="./css/creative_studio_pro.css?v=20260927-4">
 </head>
 <body>
   <header class="topbar">
@@ -104,6 +104,13 @@
           <label class="field"><span>CTA</span><input id="cta" maxlength="42" value="APROVEITE AGORA"></label>
           <label class="field"><span>Marca / fabricante</span><input id="brand-label" maxlength="34" placeholder="Ex.: MIDEA, ELECTROLUX, SAMSUNG"></label>
           <label class="field"><span>Cupom (opcional)</span><input id="coupon-text" maxlength="26" placeholder="Ex.: PROMOMIDEA"></label>
+          <label class="field full"><span>Logo oficial do fabricante (opcional)</span><input id="brand-logo-url" type="url" placeholder="https://... ou envie o arquivo abaixo"></label>
+          <label class="upload full brand-logo-upload" for="brand-logo-file">
+            <input id="brand-logo-file" type="file" accept="image/png,image/jpeg,image/webp">
+            <span class="upload-icon">↑</span>
+            <span><b>Enviar logo do fabricante</b><small>Prefira PNG transparente. Fundos branco ou preto simples serão tratados automaticamente.</small></span>
+          </label>
+          <div id="brand-logo-status" class="inline-status full"></div>
           <label class="field full"><span>Headline</span><input id="headline" maxlength="72" value="OFERTA IMPERDÍVEL"></label>
           <label class="field full"><span>Subheadline</span><input id="subtitle" maxlength="120" value="Porque sua casa merece o melhor"></label>
           <label class="field full"><span>Benefício / mensagem de apoio</span><textarea id="benefit" maxlength="150" rows="3" placeholder="Se ficar vazio, o Studio cria uma frase conforme o tipo do produto."></textarea></label>
@@ -168,6 +175,6 @@
     </section>
   </main>
 
-  <script src="./js/creative_studio_pro.js?v=20260927-3"></script>
+  <script src="./js/creative_studio_pro.js?v=20260927-4"></script>
 </body>
 </html>
