@@ -11,6 +11,7 @@
   let previewBlob = null;
   let previewUrl = '';
   let qualityAllowsSave = false;
+  let autoHeroActive = false;
 
   const FORMATS = Object.freeze({
     hero_desktop: { label: 'PRÉVIA • HERO DESKTOP', size: '1920 × 480 pixels' },
@@ -164,6 +165,201 @@
     }
   }
 
+
+  function productStock(product = {}) {
+    const candidates = [
+      product.stock,
+      product.stockQuantity,
+      product.quantity,
+      product.estoque,
+      product.inventory,
+      product.availableQuantity
+    ];
+    for (const value of candidates) {
+      if (value === null || value === undefined || value === '') continue;
+      const number = Number(value);
+      if (Number.isFinite(number)) return number;
+    }
+    return null;
+  }
+
+  function productGroup(product = {}) {
+    const haystack = normalize([
+      product.categoryName, product.category, product.name, product.title
+    ].filter(Boolean).join(' '));
+
+    const groups = [
+      ['geladeira','geladeira'],
+      ['refrigerador','geladeira'],
+      ['lavadora','lavadora'],
+      ['lava e seca','lavadora'],
+      ['maquina de lavar','lavadora'],
+      ['micro ondas','microondas'],
+      ['microondas','microondas'],
+      ['tv','tv'],
+      ['televisor','tv'],
+      ['smart tv','tv'],
+      ['caixa de som','audio'],
+      ['amplificada','audio'],
+      ['ventilador','climatizacao'],
+      ['climatizador','climatizacao'],
+      ['ar condicionado','climatizacao'],
+      ['guarda roupa','moveis'],
+      ['roupeiro','moveis'],
+      ['sofa','moveis'],
+      ['mesa','moveis'],
+      ['colchao','moveis']
+    ];
+    for (const [needle, group] of groups) {
+      if (haystack.includes(needle)) return group;
+    }
+    return normalize(product.categoryName || product.category || '').split(' ')[0] || 'outros';
+  }
+
+  function professionalCandidate(product = {}) {
+    const image = imageOf(product);
+    if (!image) return false;
+    const stock = productStock(product);
+    if (stock !== null && stock <= 0) return false;
+    const price = Number(product.pixPrice || product.cashPrice || product.price || product.fullPrice || 0);
+    return price > 0 || Boolean(product.name || product.title);
+  }
+
+  function autoHeroProducts() {
+    const pool = products.filter(professionalCandidate);
+    if (pool.length < 3) throw new Error('O catálogo precisa ter pelo menos 3 produtos com imagem disponível para montar o Hero automático.');
+
+    const already = selectedProduct && professionalCandidate(selectedProduct) ? selectedProduct : null;
+    const picks = [];
+    const usedIds = new Set();
+    const usedGroups = new Set();
+
+    function add(product) {
+      if (!product || picks.length >= 3) return false;
+      const id = String(product.id || product._id || product.name || '');
+      if (usedIds.has(id)) return false;
+      picks.push(product);
+      usedIds.add(id);
+      usedGroups.add(productGroup(product));
+      return true;
+    }
+
+    add(already);
+
+    for (const product of pool) {
+      if (picks.length >= 3) break;
+      if (!usedGroups.has(productGroup(product))) add(product);
+    }
+    for (const product of pool) {
+      if (picks.length >= 3) break;
+      add(product);
+    }
+
+    if (picks.length < 3) throw new Error('Não encontrei 3 produtos diferentes com imagem para a campanha.');
+    return picks;
+  }
+
+  function configureAutoHeroCopy(rows = []) {
+    const brands = rows.map(item => String(item.brand || item.brandName || '').trim()).filter(Boolean);
+    const sameBrand = brands.length === rows.length && new Set(brands.map(normalize)).size === 1;
+    const groups = rows.map(productGroup);
+    const sameGroup = new Set(groups).size === 1;
+
+    els.badge.value = 'OFERTAS ARIANA';
+    els.cta.value = 'APROVEITE AGORA';
+    els.couponText.value = '';
+    els.promoText.value = '17% OFF NO PIX';
+
+    if (sameBrand) {
+      els.brandLabel.value = brands[0].toUpperCase();
+      els.headline.value = 'ESPECIAL ' + brands[0].toUpperCase();
+      els.subtitle.value = 'ATÉ 12X SEM JUROS NO CARTÃO';
+      els.benefit.value = 'Condições especiais para renovar sua casa.';
+      const logo = rows.find(item => item.brandLogoUrl)?.brandLogoUrl || '';
+      if (logo) els.brandLogoUrl.value = logo;
+      return;
+    }
+
+    els.brandLabel.value = '';
+    els.brandLogoUrl.value = '';
+    els.headline.value = sameGroup ? 'OFERTAS PARA SUA CASA' : 'OFERTAS PARA RENOVAR SUA CASA';
+    els.subtitle.value = 'ATÉ 12X SEM JUROS NO CARTÃO';
+    els.benefit.value = 'Grandes marcas com condições especiais.';
+  }
+
+  async function buildProfessionalHero() {
+    if (productsLoading) {
+      status('O catálogo ainda está carregando. Aguarde alguns segundos.', '');
+      return;
+    }
+
+    try {
+      autoHeroActive = true;
+      const rows = autoHeroProducts();
+      selectedProducts = rows;
+      selectedProduct = rows[0];
+
+      applyMode('multi_product');
+      configureAutoHeroCopy(rows);
+
+      const campaign = document.querySelector('input[name="template-pro"][value="campaign"]');
+      if (campaign) campaign.checked = true;
+      updateChoiceCards();
+      renderSelectedProducts();
+
+      status('Campanha profissional montada com 3 produtos. Validando recortes e gerando a prévia...', 'ok');
+      await generatePreview();
+    } catch (error) {
+      autoHeroActive = false;
+      status(error.message || 'Não foi possível montar a campanha automática.', 'error');
+    }
+  }
+
+  function repairAutoHeroSelection(analysis) {
+    if (!autoHeroActive || contentMode !== 'multi_product') return false;
+    const rows = Array.isArray(analysis?.products) ? analysis.products : [];
+    const badIndexes = rows
+      .filter(item => !item.cutoutSafe || Math.max(Number(item.sourceWidth || 0), Number(item.sourceHeight || 0)) < 700)
+      .map(item => Number(item.index))
+      .filter(Number.isInteger);
+
+    if (!badIndexes.length) return false;
+
+    const usedIds = new Set(selectedProducts.map(item => String(item.id || item._id || item.name || '')));
+    const usedGroups = new Set(selectedProducts.map(productGroup));
+    let changed = false;
+
+    for (const index of badIndexes) {
+      let replacement = products.find(item => {
+        if (!professionalCandidate(item)) return false;
+        const id = String(item.id || item._id || item.name || '');
+        return !usedIds.has(id) && !usedGroups.has(productGroup(item));
+      });
+      if (!replacement) {
+        replacement = products.find(item => {
+          if (!professionalCandidate(item)) return false;
+          const id = String(item.id || item._id || item.name || '');
+          return !usedIds.has(id);
+        });
+      }
+      if (!replacement) continue;
+
+      const old = selectedProducts[index];
+      if (old) usedIds.delete(String(old.id || old._id || old.name || ''));
+      selectedProducts[index] = replacement;
+      usedIds.add(String(replacement.id || replacement._id || replacement.name || ''));
+      usedGroups.add(productGroup(replacement));
+      changed = true;
+    }
+
+    if (changed) {
+      selectedProduct = selectedProducts[0] || null;
+      configureAutoHeroCopy(selectedProducts);
+      renderSelectedProducts();
+    }
+    return changed;
+  }
+
   function renderProductResults(query = '') {
     const normalized = normalize(query);
     if (normalized.length < 2) {
@@ -281,6 +477,7 @@
 
   function selectProduct(product) {
     if (!product) return;
+    autoHeroActive = false;
 
     if (contentMode === 'multi_product') {
       const id = String(product.id || product._id || '');
@@ -339,6 +536,7 @@
       status('Não consegui carregar o catálogo: ' + error.message + '. Você ainda pode preencher manualmente.', 'error');
     } finally {
       productsLoading = false;
+      if (els.autoHeroButton) els.autoHeroButton.disabled = products.length < 3;
     }
   }
 
@@ -529,10 +727,19 @@
     setBusy(true);
     status('Analisando recorte, resolução e composição...', '');
     try {
-      const analysis = await api('/admin/creative-studio/pro/analyze',{
-        method:'POST',
-        body:JSON.stringify(payload)
-      });
+      let analysis = null;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        analysis = await api('/admin/creative-studio/pro/analyze',{
+          method:'POST',
+          body:JSON.stringify(payload)
+        });
+        if (!analysis?.quality?.blockSave) break;
+        const failures = Array.isArray(analysis?.quality?.criticalFailures) ? analysis.quality.criticalFailures : [];
+        const productFailure = failures.some(item => item === 'multi_cutout' || item === 'multi_resolution');
+        if (!productFailure || !repairAutoHeroSelection(analysis)) break;
+        payload = buildPayload();
+        status('Uma imagem não passou na qualidade. O Studio trocou o produto automaticamente e está testando novamente...', '');
+      }
       renderQuality(analysis);
 
       if (analysis?.quality?.blockSave) {
@@ -597,6 +804,7 @@
 
   function bind() {
     els.productSearch.addEventListener('input',event => renderProductResults(event.target.value));
+    els.autoHeroButton.addEventListener('click',buildProfessionalHero);
     els.imageFile.addEventListener('change',event => uploadImage(event.target.files?.[0]));
     els.brandLogoFile.addEventListener('change',event => uploadBrandLogo(event.target.files?.[0]));
 
@@ -621,6 +829,7 @@
 
   function start() {
     Object.assign(els,{
+      autoHeroButton:byId('auto-hero-button'),
       productSearch:byId('product-search'),
       productResults:byId('product-results'),
       selectedProduct:byId('selected-product'),
