@@ -184,7 +184,7 @@ for (const format of ['hero_desktop','hero_mobile']) {
     headline: 'OFERTAS PARA RENOVAR SUA CASA',
     subtitle: 'ATÉ 12X SEM JUROS NO CARTÃO',
     benefit: 'Grandes marcas com condições especiais.',
-    promoText: '17% OFF NO PIX',
+    promoText: 'OFERTA POR TEMPO LIMITADO',
     installmentCount: 12,
     cta: 'APROVEITE AGORA'
   });
