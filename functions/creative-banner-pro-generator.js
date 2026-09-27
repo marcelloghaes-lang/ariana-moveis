@@ -237,8 +237,8 @@ export async function prepareOfficialLogoAsset(input = '') {
   return result;
 }
 
-async function logoLayer(format) {
-  const asset = await prepareOfficialLogoAsset();
+async function logoLayer(format, preparedAsset = null) {
+  const asset = preparedAsset || await prepareOfficialLogoAsset();
   const mobile = format.device === 'mobile';
   const width = mobile ? Math.round(format.width * .32) : Math.round(format.height * .60);
   const height = mobile ? Math.round(format.height * .090) : Math.round(format.height * .140);
@@ -990,36 +990,69 @@ function fallbackPanelSvg(format, comp, template) {
   );
 }
 
-function quality(asset, opts, format) {
+function quality(asset, opts, format, brandAsset = null) {
+  const cutoutOk = Boolean(asset.backgroundRemoved && asset.cutoutSafe !== false);
+  const resolutionOk = Math.max(asset.sourceWidth, asset.sourceHeight) >= 700;
+  const brandOk = Boolean(brandAsset?.backgroundRemoved && brandAsset?.transparentRatio >= .02);
+
   const checks = [
     {
-      id: 'background',
-      ok: asset.backgroundRemoved,
-      label: asset.backgroundRemoved ? 'Fundo do produto tratado' : 'Fundo do produto precisa de atenção',
-      detail: asset.backgroundRemoved ? asset.removalMode : 'A imagem será apresentada em um painel para evitar recorte ruim.'
+      id: 'brand',
+      critical: true,
+      ok: brandOk,
+      label: brandOk ? 'Logo oficial Ariana com fundo transparente' : 'Logo oficial precisa de correção',
+      detail: brandOk
+        ? 'A identidade oficial será usada sem caixa preta.'
+        : 'O banner final fica bloqueado até a logo oficial estar transparente.'
+    },
+    {
+      id: 'cutout',
+      critical: true,
+      ok: cutoutOk,
+      label: cutoutOk ? 'Recorte do produto aprovado' : 'Recorte do produto reprovado',
+      detail: cutoutOk
+        ? asset.removalMode
+        : (
+            asset.cutoutReason === 'possible_white_product_overcut'
+              ? 'O fundo branco está invadindo áreas claras do produto. Envie PNG transparente ou outra foto.'
+              : asset.cutoutReason === 'foreground_fragmented'
+                ? 'O produto ficou fragmentado após o recorte. A arte final foi bloqueada.'
+                : asset.cutoutReason === 'complex_background'
+                  ? 'A foto possui fundo complexo. Use PNG transparente ou uma imagem oficial limpa.'
+                  : 'O recorte automático não atingiu qualidade suficiente.'
+          )
     },
     {
       id: 'resolution',
-      ok: Math.max(asset.sourceWidth, asset.sourceHeight) >= 700,
-      label: Math.max(asset.sourceWidth, asset.sourceHeight) >= 700 ? 'Resolução adequada' : 'Imagem de origem pequena',
+      critical: true,
+      ok: resolutionOk,
+      label: resolutionOk ? 'Resolução adequada' : 'Imagem de origem pequena',
       detail: asset.sourceWidth + '×' + asset.sourceHeight + ' px'
     },
     {
       id: 'pricing',
+      critical: false,
       ok: !opts.showPrice || opts.cashPrice > 0,
       label: opts.showPrice ? 'Preço preenchido' : 'Layout sem preço ativado',
       detail: opts.showPrice ? money(opts.cashPrice) : 'Preço não é obrigatório neste modo.'
     },
     {
       id: 'format',
+      critical: false,
       ok: true,
       label: 'Composição própria para ' + (format.device === 'mobile' ? 'celular' : 'desktop'),
       detail: format.width + '×' + format.height
     }
   ];
 
+  const criticalFailed = checks.filter(item => item.critical && !item.ok);
   const score = Math.round(checks.filter(item => item.ok).length / checks.length * 100);
-  return { score, checks };
+  return {
+    score,
+    checks,
+    blockSave: criticalFailed.length > 0,
+    criticalFailures: criticalFailed.map(item => item.id)
+  };
 }
 
 export async function prepareProProductAsset(product = {}, options = {}) {
@@ -1037,6 +1070,7 @@ export async function prepareProProductAsset(product = {}, options = {}) {
 export async function analyzeCreativeBannerPro(product = {}, options = {}) {
   const opts = normalizedOptions(product, options);
   const asset = await prepareProProductAsset(product, opts);
+  const brandAsset = await prepareOfficialLogoAsset();
   const comp = composition(opts.format, asset, opts);
   return {
     ok: true,
@@ -1052,9 +1086,16 @@ export async function analyzeCreativeBannerPro(product = {}, options = {}) {
       backgroundRemoved: asset.backgroundRemoved,
       removalMode: asset.removalMode,
       removedRatio: Number(asset.removedRatio.toFixed(4)),
-      backgroundConfidence: Number(asset.confidence.toFixed(3))
+      backgroundConfidence: Number(asset.confidence.toFixed(3)),
+      cutoutSafe: Boolean(asset.cutoutSafe),
+      cutoutReason: asset.cutoutReason || '',
+      shape: asset.shape || null
     },
-    quality: quality(asset, opts, opts.format)
+    brand: {
+      backgroundRemoved: Boolean(brandAsset.backgroundRemoved),
+      transparentRatio: Number(brandAsset.transparentRatio.toFixed(4))
+    },
+    quality: quality(asset, opts, opts.format, brandAsset)
   };
 }
 
@@ -1062,6 +1103,7 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
   const opts = normalizedOptions(product, options);
   const format = opts.format;
   const asset = await prepareProProductAsset(product, opts);
+  const brandAsset = await prepareOfficialLogoAsset();
   const comp = composition(format, asset, opts);
   const productLayer = await productComposite(asset, format, comp);
 
@@ -1069,7 +1111,7 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
     { input: backgroundSvg(format, opts.template), left: 0, top: 0 }
   ];
 
-  const logo = await logoLayer(format);
+  const logo = await logoLayer(format, brandAsset);
   if (logo) layers.push(logo);
 
   if (!asset.backgroundRemoved) {
@@ -1123,9 +1165,16 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
         backgroundRemoved: asset.backgroundRemoved,
         removalMode: asset.removalMode,
         removedRatio: Number(asset.removedRatio.toFixed(4)),
-        backgroundConfidence: Number(asset.confidence.toFixed(3))
+        backgroundConfidence: Number(asset.confidence.toFixed(3)),
+        cutoutSafe: Boolean(asset.cutoutSafe),
+        cutoutReason: asset.cutoutReason || '',
+        shape: asset.shape || null
       },
-      quality: quality(asset, opts, format)
+      brand: {
+        backgroundRemoved: Boolean(brandAsset.backgroundRemoved),
+        transparentRatio: Number(brandAsset.transparentRatio.toFixed(4))
+      },
+      quality: quality(asset, opts, format, brandAsset)
     }
   };
 }
