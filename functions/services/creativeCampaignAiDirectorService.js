@@ -403,7 +403,7 @@ async function callCreativeAi(products = []) {
   };
 }
 
-function categorySpecificFallback(fallback = {}, rows = []) {
+export function categorySpecificFallback(fallback = {}, rows = []) {
   const fixed = fixCopyByVisualCategory(
     fallback.copy || {},
     fallback?.context?.category || fallback?.category || '',
