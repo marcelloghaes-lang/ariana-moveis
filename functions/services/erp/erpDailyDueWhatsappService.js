@@ -464,13 +464,32 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
     'America/Sao_Paulo'
   ).trim();
   const today = localDateKey(now, timeZone);
+  const businessWindow = businessCarryDates(today);
+  if (!businessWindow.businessDay) {
+    return {
+      ok: true,
+      skipped: true,
+      reason: 'non_business_day',
+      nonWorkingReason: businessWindow.reason,
+      date: today,
+      nextBusinessDate: businessWindow.nextBusinessDate,
+      dueInstallments: 0,
+      eligibleCustomers: 0,
+      sent: 0,
+      skippedAlreadySent: 0,
+      skippedMissingPhone: 0,
+      errors: []
+    };
+  }
 
-  // Usa exatamente a mesma fonte do modal "Vencimentos de hoje" do Ariana ERP:
-  // /erp/financeiro/completo?direction=receivable&from=HOJE&to=HOJE
+  const dueDateSet = new Set(businessWindow.dates);
+  const fromDate = businessWindow.dates[0] || today;
+
+  // No próximo dia útil, inclui também os vencimentos que caíram em domingo/feriado.
   const parity = createErpParityAnalyticsService({ ...context, Order });
   const screenData = await parity.finance({
     direction: 'receivable',
-    from: today,
+    from: fromDate,
     to: today
   });
 
@@ -479,7 +498,7 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
       const status = String(row.status || '').trim().toLowerCase();
       const open = status !== 'paid' && status !== 'cancelled';
       const remaining = Number(row.outstanding ?? row.value ?? 0);
-      return open && remaining > 0.009 && dueDateKey(row.dueAt, timeZone) === today;
+      return open && remaining > 0.009 && dueDateSet.has(dueDateKey(row.dueAt, timeZone));
     })
     .map((row) => ({
       ...row,
@@ -630,7 +649,8 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
       throw error;
     }
 
-    const message = buildDailyDueReminderMessage(group.customerName, group.rows.length);
+    const groupDueDates = Array.from(new Set(group.rows.map((row) => dueDateKey(row.dueAt, timeZone)).filter(Boolean))).sort();
+    const message = buildDailyDueReminderMessage(group.customerName, group.rows.length, groupDueDates, today);
 
     try {
       const result = await waSendTextMessage({
@@ -684,6 +704,8 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
           customerName: group.customerName,
           phone: maskedPhone(group.phone),
           installmentCount: group.rows.length,
+          dueDates: Array.from(new Set(group.rows.map((row) => dueDateKey(row.dueAt, timeZone)).filter(Boolean))).sort(),
+          carriedDates: businessWindow.carriedDates,
           instanceName: result?.instanceName || '',
           messageId
         }
@@ -737,7 +759,9 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
   return {
     ok: errors.length === 0,
     date: today,
-    source: 'ariana_erp_vencimentos_hoje',
+    businessDatesProcessed: businessWindow.dates,
+    carriedDates: businessWindow.carriedDates,
+    source: 'ariana_erp_vencimentos_dia_util',
     moduleDueInstallments: dueRows.length,
     ledgerDueInstallments: localLedgerRows.length,
     nativeDueInstallments: currentSaleRows.length,
@@ -814,7 +838,7 @@ export function buildFifteenDayOverdueMessage(customerName='Cliente'){
   return [
     `Olá, ${name}!`,
     '',
-    'Consta em aberto aqui na loja uma notinha com quinze dias de atraso.',
+    'Consta em aberto aqui na loja uma notinha que já completou quinze dias de atraso.',
     '',
     'Teria como você me retornar aqui o mais rápido possível, por favor?',
     '',
