@@ -181,12 +181,12 @@ for (const format of ['hero_desktop','hero_mobile']) {
     brandLogoUrl: '',
     couponText: '',
     badge: 'OFERTAS ARIANA',
-    headline: 'OFERTAS PARA RENOVAR SUA CASA',
-    subtitle: 'ATÉ 12X SEM JUROS NO CARTÃO',
-    benefit: 'Grandes marcas com condições especiais.',
+    headline: 'OFERTA IMPERDÍVEL',
+    subtitle: '',
+    benefit: '',
     promoText: 'OFERTA POR TEMPO LIMITADO',
     installmentCount: 12,
-    cta: 'APROVEITE AGORA'
+    cta: 'APROVEITAR'
   });
   if (result.meta?.quality?.blockSave) {
     throw new Error('auto-hero-' + format + ': quality blocked ' + JSON.stringify(result.meta.quality));
