@@ -7,6 +7,7 @@ import {
   analyzeCreativeBannerProMulti,
   resolveProFormat
 } from '../creative-banner-pro-generator.js';
+import { researchCreativeCampaignCopy } from '../services/creativeCampaignResearchService.js';
 
 // ============================================================
 // ROTAS ADMIN CORE / UPLOAD / POSTERS / CRUD GENÉRICO
@@ -955,6 +956,22 @@ app.post('/api/admin/posters/professional-banner', adminRequired, async (req, re
   } catch (error) {
     console.error('[creative-studio] erro ao gerar banner:', error);
     return res.status(500).json({ ok: false, error: error.message || 'creative_banner_generate_failed' });
+  }
+});
+
+app.post('/api/admin/creative-studio/pro/research-copy', adminRequired, async (req, res) => {
+  try {
+    const products = Array.isArray(req.body?.products)
+      ? req.body.products.filter(Boolean).slice(0, 5)
+      : (req.body?.product ? [req.body.product] : []);
+    const result = await researchCreativeCampaignCopy(products);
+    return res.json(result);
+  } catch (error) {
+    console.error('[creative-studio-pro] erro ao pesquisar campanha:', error);
+    return res.status(500).json({
+      ok: false,
+      error: error.message || 'creative_studio_pro_campaign_research_failed'
+    });
   }
 });
 
