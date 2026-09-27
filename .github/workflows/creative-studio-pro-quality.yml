@@ -5,7 +5,9 @@ on:
     paths:
       - 'functions/creative-banner-pro-generator.js'
       - 'functions/routes/adminCoreRoutes.js'
+      - 'functions/services/creativeCampaignResearchService.js'
       - 'functions/tests/creative-banner-pro-generator.test.mjs'
+      - 'functions/tests/creative-campaign-research-service.test.mjs'
       - 'functions/tests/render-creative-banner-pro-snapshots.mjs'
       - 'public/js/creative_studio_pro.js'
       - 'public/creative_studio_pro.html'
@@ -15,7 +17,9 @@ on:
     paths:
       - 'functions/creative-banner-pro-generator.js'
       - 'functions/routes/adminCoreRoutes.js'
+      - 'functions/services/creativeCampaignResearchService.js'
       - 'functions/tests/creative-banner-pro-generator.test.mjs'
+      - 'functions/tests/creative-campaign-research-service.test.mjs'
       - 'functions/tests/render-creative-banner-pro-snapshots.mjs'
       - 'public/js/creative_studio_pro.js'
       - 'public/creative_studio_pro.html'
@@ -39,9 +43,10 @@ jobs:
         run: |
           node --check creative-banner-pro-generator.js
           node --check routes/adminCoreRoutes.js
+          node --check services/creativeCampaignResearchService.js
           node --check ../public/js/creative_studio_pro.js
       - name: Creative Studio Pro regressions
-        run: node --test tests/creative-banner-pro-generator.test.mjs
+        run: node --test tests/creative-banner-pro-generator.test.mjs tests/creative-campaign-research-service.test.mjs
 
       - name: Render visual snapshots
         run: node tests/render-creative-banner-pro-snapshots.mjs
