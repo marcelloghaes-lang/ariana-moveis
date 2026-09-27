@@ -196,3 +196,30 @@ for (const format of ['hero_desktop','hero_mobile']) {
   fs.writeFileSync(path.join(outDir, name + '.png'), result.buffer);
   console.log(name, result.buffer.length, result.meta.quality.score);
 }
+
+
+const copyAuthorityProducts = [
+  { ...fridge, brand: 'Marca Um' },
+  { ...speaker, brand: 'Marca Dois' },
+  { ...tv, brand: 'Marca Tres' }
+];
+
+const copyAuthority = await generateCreativeBannerProMulti(copyAuthorityProducts, {
+  outputFormat: 'hero_desktop',
+  brandLabel: '',
+  brandLogoUrl: '',
+  badge: 'LINHA SUPERIOR TESTE',
+  headline: 'TITULO PRINCIPAL TESTE',
+  subtitle: 'TEXTO DE APOIO TESTE',
+  benefit: '',
+  cta: 'CHAMADA INFERIOR TESTE',
+  couponText: '',
+  promoText: '',
+  showCommercialInfo: false,
+  removeBackground: true
+});
+if (copyAuthority.meta?.quality?.blockSave) {
+  throw new Error('copy-authority: quality blocked ' + JSON.stringify(copyAuthority.meta.quality));
+}
+fs.writeFileSync(path.join(outDir, 'copy-authority-desktop.png'), copyAuthority.buffer);
+console.log('copy-authority-desktop', copyAuthority.buffer.length, copyAuthority.meta.quality.score, copyAuthority.meta.copy || {});
