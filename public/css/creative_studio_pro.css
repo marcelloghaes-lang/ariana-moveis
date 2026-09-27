@@ -450,3 +450,47 @@ button,a{touch-action:manipulation}
   .campaign-optional summary{padding:12px}
   .campaign-optional-fields{padding:11px 12px 12px}
 }
+
+.copy-map{display:grid;gap:10px}
+.copy-field{
+  display:grid;
+  grid-template-columns:36px minmax(150px,.72fr) minmax(0,1.4fr);
+  align-items:center;
+  gap:10px;
+  padding:11px;
+  border:1px solid #dce7f3;
+  border-radius:14px;
+  background:linear-gradient(180deg,#fbfdff,#f7faff);
+}
+.copy-number{
+  width:32px;height:32px;border-radius:10px;display:grid;place-items:center;
+  background:#e9f2ff;color:#0047ab;font-size:12px;font-weight:950;
+}
+.copy-meta{display:flex;flex-direction:column;gap:2px}
+.copy-meta b{font-size:11px;color:#0b356d}
+.copy-meta small{font-size:9px;line-height:1.35;color:#7b899b}
+.copy-field input,.copy-field textarea{
+  width:100%;
+  border:1px solid #d7e1ed;
+  background:#fff;
+  color:#13233a;
+  border-radius:11px;
+  padding:11px 12px;
+  outline:0;
+  font-size:12px;
+  transition:.15s;
+}
+.copy-field textarea{resize:vertical;min-height:54px;line-height:1.35}
+.copy-field input:focus,.copy-field textarea:focus{
+  border-color:#3a76cb;
+  box-shadow:0 0 0 3px #2c72d318;
+}
+@media(max-width:700px){
+  .copy-field{
+    grid-template-columns:34px minmax(0,1fr);
+    align-items:start;
+  }
+  .copy-field input,.copy-field textarea{
+    grid-column:1/-1;
+  }
+}
