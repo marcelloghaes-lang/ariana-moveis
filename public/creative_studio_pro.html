@@ -6,7 +6,7 @@
   <title>Ariana Creative Studio Pro</title>
   <meta name="theme-color" content="#0047AB">
   <meta name="robots" content="noindex,nofollow">
-  <link rel="stylesheet" href="./css/creative_studio_pro.css?v=20260927-6">
+  <link rel="stylesheet" href="./css/creative_studio_pro.css?v=20260927-7">
 </head>
 <body>
   <header class="topbar">
@@ -83,9 +83,72 @@
           </div>
           <button id="auto-hero-button" class="auto-hero-button" type="button" disabled>Carregando catálogo...</button>
         </div>
+        <div class="hero-product-picker" id="hero-product-picker">
+          <div class="hero-picker-head">
+            <div>
+              <b>Escolha os 3 produtos do Hero</b>
+              <small>Produto 1 é o destaque principal. Produtos 2 e 3 entram como apoio.</small>
+            </div>
+            <span id="hero-picker-count">0/3</span>
+          </div>
+          <div class="hero-slot-grid">
+            <article class="hero-slot" id="hero-slot-0" data-slot="0">
+              <div class="hero-slot-preview">
+                <img id="hero-slot-image-0" class="hidden" alt="">
+                <span id="hero-slot-placeholder-0">PRINCIPAL</span>
+              </div>
+              <div class="hero-slot-copy">
+                <b id="hero-slot-name-0">Produto principal</b>
+                <small id="hero-slot-source-0">Nenhuma imagem selecionada</small>
+              </div>
+              <div class="hero-slot-actions">
+                <button type="button" class="hero-slot-catalog" data-hero-catalog-slot="0">Escolher do catálogo</button>
+                <label class="hero-slot-upload">
+                  <input type="file" accept="image/png,image/jpeg,image/webp" data-hero-upload-slot="0">
+                  <span>Enviar imagem</span>
+                </label>
+                <button type="button" class="hero-slot-clear hidden" data-hero-clear-slot="0">Remover</button>
+              </div>
+            </article><article class="hero-slot" id="hero-slot-1" data-slot="1">
+              <div class="hero-slot-preview">
+                <img id="hero-slot-image-1" class="hidden" alt="">
+                <span id="hero-slot-placeholder-1">APOIO 1</span>
+              </div>
+              <div class="hero-slot-copy">
+                <b id="hero-slot-name-1">Produto de apoio 1</b>
+                <small id="hero-slot-source-1">Nenhuma imagem selecionada</small>
+              </div>
+              <div class="hero-slot-actions">
+                <button type="button" class="hero-slot-catalog" data-hero-catalog-slot="1">Escolher do catálogo</button>
+                <label class="hero-slot-upload">
+                  <input type="file" accept="image/png,image/jpeg,image/webp" data-hero-upload-slot="1">
+                  <span>Enviar imagem</span>
+                </label>
+                <button type="button" class="hero-slot-clear hidden" data-hero-clear-slot="1">Remover</button>
+              </div>
+            </article><article class="hero-slot" id="hero-slot-2" data-slot="2">
+              <div class="hero-slot-preview">
+                <img id="hero-slot-image-2" class="hidden" alt="">
+                <span id="hero-slot-placeholder-2">APOIO 2</span>
+              </div>
+              <div class="hero-slot-copy">
+                <b id="hero-slot-name-2">Produto de apoio 2</b>
+                <small id="hero-slot-source-2">Nenhuma imagem selecionada</small>
+              </div>
+              <div class="hero-slot-actions">
+                <button type="button" class="hero-slot-catalog" data-hero-catalog-slot="2">Escolher do catálogo</button>
+                <label class="hero-slot-upload">
+                  <input type="file" accept="image/png,image/jpeg,image/webp" data-hero-upload-slot="2">
+                  <span>Enviar imagem</span>
+                </label>
+                <button type="button" class="hero-slot-clear hidden" data-hero-clear-slot="2">Remover</button>
+              </div>
+            </article>
+          </div>
+        </div>
         <label class="field full">
-          <span>Buscar produto cadastrado</span>
-          <input id="product-search" autocomplete="off" placeholder="Digite nome, marca ou código">
+          <span id="product-search-label">Buscar produto cadastrado</span>
+          <input id="product-search" autocomplete="off" placeholder="Primeiro escolha um espaço acima, depois digite nome, marca ou código">
         </label>
         <div id="product-results" class="product-results hidden"></div>
         <div id="multi-product-hint" class="hint multi-product-hint hidden">
@@ -183,6 +246,6 @@
     </section>
   </main>
 
-  <script src="./js/creative_studio_pro.js?v=20260927-6"></script>
+  <script src="./js/creative_studio_pro.js?v=20260927-7"></script>
 </body>
 </html>
