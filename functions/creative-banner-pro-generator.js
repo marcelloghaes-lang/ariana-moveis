@@ -804,10 +804,17 @@ function normalizedOptions(product = {}, options = {}) {
     template === 'campaign' ? 'CAMPANHA ESPECIAL' :
     'OFERTA ARIANA'
   ), 42).toUpperCase();
-  const brandLabel = clean(options.brandLabel || options.brand || product.brand || product.brandName || '', 34).toUpperCase();
+  const explicitBrand = Object.prototype.hasOwnProperty.call(options, 'brandLabel');
+  const explicitBrandLogo = Object.prototype.hasOwnProperty.call(options, 'brandLogoUrl');
+  const brandLabel = clean(
+    explicitBrand ? options.brandLabel : (options.brand || product.brand || product.brandName || ''),
+    34
+  ).toUpperCase();
   const couponText = clean(options.couponText || options.coupon || '', 26).toUpperCase();
   const promoText = clean(options.promoText || (showPrice ? 'OFERTA POR TEMPO LIMITADO' : 'CONDIÇÕES ESPECIAIS'), 46).toUpperCase();
-  const brandLogoUrl = String(options.brandLogoUrl || options.manufacturerLogoUrl || product.brandLogoUrl || '').trim();
+  const brandLogoUrl = String(
+    explicitBrandLogo ? options.brandLogoUrl : (options.manufacturerLogoUrl || product.brandLogoUrl || '')
+  ).trim();
 
   return {
     format,
