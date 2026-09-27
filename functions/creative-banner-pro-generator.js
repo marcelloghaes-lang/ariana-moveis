@@ -1010,7 +1010,6 @@ function premiumDesktopOverlay(format, opts) {
     pricing+
     '<rect x="'+x+'" y="'+ctaY+'" width="'+Math.round(textW*.40)+'" height="'+ctaH+'" rx="'+Math.round(ctaH*.5)+'" fill="#F0CA6A"/>'+
     '<text x="'+(x+Math.round(textW*.20))+'" y="'+(ctaY+Math.round(ctaH*.66))+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.030)+'" font-weight="950" fill="#071B3B">'+escapeXml(opts.cta)+'</text>'+
-    '<text x="'+(x+Math.round(textW*.45))+'" y="'+(ctaY+Math.round(ctaH*.66))+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.026)+'" font-weight="800" fill="#ffffff">'+escapeXml(opts.siteLabel)+'</text>'+
     '</svg>'
   );
 }
@@ -1502,28 +1501,21 @@ function multiCampaignOverlay(format, opts, count = 2) {
     const footerY=Math.round(h*.872),pillH=Math.round(h*.055);
 
     if (!brandCampaign) {
-      const specialHero = headline.includes('RENOVAR SUA CASA');
-      const headlineLines=specialHero ? ['OFERTAS PARA','RENOVAR SUA CASA'] : wrap(headline,22,2);
-      const headlineSvg = specialHero
-        ? '<text x="'+c+'" y="'+Math.round(h*.205)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.049)+'" font-weight="950" fill="#ffffff">OFERTAS PARA</text>'+
-          '<text x="'+c+'" y="'+Math.round(h*.262)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.053)+'" font-weight="950" fill="#FFD51B">RENOVAR SUA CASA</text>'
-        : linesSvg(headlineLines,{x:c,y:Math.round(h*.205),size:Math.round(w*.049),lineHeight:Math.round(w*.054),fill:'#ffffff',weight:950,anchor:'middle'});
-      return Buffer.from(
-        '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-        '<rect x="'+Math.round(w*.31)+'" y="'+Math.round(h*.115)+'" width="'+Math.round(w*.38)+'" height="'+Math.round(h*.046)+'" rx="'+Math.round(h*.023)+'" fill="#FFD51B"/>'+
-        '<text x="'+c+'" y="'+Math.round(h*.146)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.022)+'" font-weight="950" fill="#08285A">'+escapeXml(opts.badge || 'OFERTAS ARIANA')+'</text>'+
-        headlineSvg+
-        '<rect x="'+Math.round(w*.20)+'" y="'+Math.round(h*.298)+'" width="'+Math.round(w*.60)+'" height="'+Math.round(h*.045)+'" rx="'+Math.round(h*.022)+'" fill="#05285F" opacity=".72"/>'+
-        '<text x="'+c+'" y="'+Math.round(h*.329)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.024)+'" font-weight="900" fill="#ffffff">'+escapeXml(opts.subtitle || 'ATÉ 12X SEM JUROS NO CARTÃO')+'</text>'+
-        '<text x="'+c+'" y="'+Math.round(h*.370)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.019)+'" font-weight="650" fill="#ffffff" opacity=".92">'+escapeXml(benefit)+'</text>'+
-        pillSvg({x:Math.round(w*.055),y:footerY,w:Math.round(w*.39),h:pillH,fill:'#ffffff',text:opts.cta||'APROVEITE AGORA',textFill:'#0047AB',fs:Math.round(w*.020)})+
-        pillSvg({x:Math.round(w*.465),y:footerY,w:Math.round(w*.225),h:pillH,fill:'#071D49',text:opts.installmentCount+'x SEM JUROS',textFill:'#ffffff',fs:Math.round(w*.017)})+
-        pillSvg({x:Math.round(w*.710),y:footerY,w:Math.round(w*.235),h:pillH,fill:'#FFD51B',text:'17% OFF NO PIX',textFill:'#08285A',fs:Math.round(w*.017)})+
-        '</svg>'
-      );
-    }
+    const heroHeadline = headline || 'OFERTA IMPERDÍVEL';
+    const headlineLines = wrap(heroHeadline,28,2);
+    const infoY=Math.round(h*.820), infoH=Math.round(h*.105);
+    return Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+      '<text x="'+x+'" y="'+Math.round(h*.235)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.033)+'" font-weight="900" letter-spacing="3" fill="#ffffff">'+escapeXml(opts.badge || 'OFERTAS ARIANA')+'</text>'+
+      linesSvg(headlineLines,{x,y:Math.round(h*.370),size:Math.round(h*.095),lineHeight:Math.round(h*.100),fill:'#ffffff',weight:950})+
+      pillSvg({x,y:infoY,w:Math.round(w*.175),h:infoH,fill:'#071D49',text:opts.installmentCount+'x SEM JUROS NO CARTÃO',textFill:'#ffffff',fs:Math.round(h*.0225)})+
+      pillSvg({x:x+Math.round(w*.185),y:infoY,w:Math.round(w*.165),h:infoH,fill:'#FFD51B',text:opts.promoText||'OFERTA POR TEMPO LIMITADO',textFill:'#08285A',fs:Math.round(h*.0215)})+
+      pillSvg({x:x+Math.round(w*.360),y:infoY,w:Math.round(w*.120),h:infoH,fill:'#ffffff',text:opts.cta||'APROVEITAR',textFill:'#0047AB',fs:Math.round(h*.024)})+
+      '</svg>'
+    );
+  }
 
-    const main=opts.couponText || (brand ? 'ESPECIAL '+brand.toUpperCase() : headline);
+  const main=opts.couponText || (brand ? 'ESPECIAL '+brand.toUpperCase() : headline);
     return Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
       (opts.hasBrandLogo ? '' : '<text x="'+c+'" y="'+Math.round(h*.145)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.025)+'" font-weight="900" letter-spacing="2" fill="#ffffff">'+escapeXml(brand ? 'ESPECIAL '+brand.toUpperCase() : 'CAMPANHA ESPECIAL')+'</text>')+
@@ -1531,9 +1523,9 @@ function multiCampaignOverlay(format, opts, count = 2) {
       '<rect x="'+Math.round(w*.20)+'" y="'+Math.round(h*.225)+'" width="'+Math.round(w*.60)+'" height="'+Math.round(h*.073)+'" rx="'+Math.round(h*.036)+'" fill="#FFD51B"/>'+
       '<text x="'+c+'" y="'+Math.round(h*.275)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*(main.length>16?.033:.042))+'" font-weight="950" fill="#08285A">'+escapeXml(main)+'</text>'+
       '<text x="'+c+'" y="'+Math.round(h*.325)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.023)+'" font-weight="650" fill="#ffffff">'+escapeXml(opts.subtitle)+'</text>'+
-      pillSvg({x:Math.round(w*.055),y:footerY,w:Math.round(w*.39),h:pillH,fill:'#ffffff',text:opts.cta||'APROVEITE',textFill:'#0047AB',fs:Math.round(w*.020)})+
-      pillSvg({x:Math.round(w*.465),y:footerY,w:Math.round(w*.225),h:pillH,fill:'#071D49',text:opts.installmentCount+'x CARTÃO',textFill:'#ffffff',fs:Math.round(w*.017)})+
-      pillSvg({x:Math.round(w*.710),y:footerY,w:Math.round(w*.235),h:pillH,fill:'#FFD51B',text:'TEMPO LIMITADO',textFill:'#08285A',fs:Math.round(w*.016)})+
+      pillSvg({x:Math.round(w*.055),y:footerY,w:Math.round(w*.38),h:pillH,fill:'#071D49',text:opts.installmentCount+'x SEM JUROS NO CARTÃO',textFill:'#ffffff',fs:Math.round(w*.0155)})+
+      pillSvg({x:Math.round(w*.455),y:footerY,w:Math.round(w*.29),h:pillH,fill:'#FFD51B',text:opts.promoText||'OFERTA POR TEMPO LIMITADO',textFill:'#08285A',fs:Math.round(w*.0148)})+
+      pillSvg({x:Math.round(w*.765),y:footerY,w:Math.round(w*.18),h:pillH,fill:'#ffffff',text:opts.cta||'APROVEITAR',textFill:'#0047AB',fs:Math.round(w*.0165)})+
       '</svg>'
     );
   }
@@ -1573,9 +1565,9 @@ function multiCampaignOverlay(format, opts, count = 2) {
     '<rect x="'+x+'" y="'+boxY+'" width="'+Math.round(w*.255)+'" height="'+boxH+'" rx="'+Math.round(h*.030)+'" fill="#FFD51B"/>'+
     '<text x="'+(x+Math.round(w*.1275))+'" y="'+(boxY+Math.round(boxH*.68))+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*(main.length>15?.052:.064))+'" font-weight="950" fill="#08285A">'+escapeXml(main)+'</text>'+
     '<text x="'+x+'" y="'+Math.round(h*.615)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.034)+'" font-weight="700" fill="#ffffff">'+escapeXml(opts.subtitle)+'</text>'+
-    pillSvg({x,y:footerY,w:Math.round(w*.145),h:pillH,fill:'#ffffff',text:opts.cta||'APROVEITE',textFill:'#0047AB',fs:Math.round(h*.027)})+
-    pillSvg({x:x+Math.round(w*.153),y:footerY,w:Math.round(w*.140),h:pillH,fill:'#071D49',text:opts.installmentCount+'x NO CARTÃO',textFill:'#ffffff',fs:Math.round(h*.023)})+
-    pillSvg({x:x+Math.round(w*.301),y:footerY,w:Math.round(w*.150),h:pillH,fill:'#FFD51B',text:opts.promoText||'TEMPO LIMITADO',textFill:'#08285A',fs:Math.round(h*.022)})+
+    pillSvg({x,y:footerY,w:Math.round(w*.175),h:pillH,fill:'#071D49',text:opts.installmentCount+'x SEM JUROS NO CARTÃO',textFill:'#ffffff',fs:Math.round(h*.0225)})+
+    pillSvg({x:x+Math.round(w*.185),y:footerY,w:Math.round(w*.165),h:pillH,fill:'#FFD51B',text:opts.promoText||'OFERTA POR TEMPO LIMITADO',textFill:'#08285A',fs:Math.round(h*.0215)})+
+    pillSvg({x:x+Math.round(w*.360),y:footerY,w:Math.round(w*.120),h:pillH,fill:'#ffffff',text:opts.cta||'APROVEITAR',textFill:'#0047AB',fs:Math.round(h*.024)})+
     '</svg>'
   );
 }
