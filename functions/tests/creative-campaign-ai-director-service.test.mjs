@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildAiDirectorRequest,
-  sanitizeAiCreativeDirection
+  sanitizeAiCreativeDirection,
+  fixCopyByVisualCategory
 } from '../services/creativeCampaignAiDirectorService.js';
 
 const PRODUCTS = [
@@ -92,4 +93,72 @@ test('índice inválido de produto herói cai para o primeiro produto', () => {
   }, PRODUCTS, {});
 
   assert.equal(result.direction.heroProductIndex, 0);
+});
+
+
+test('caixas de som não podem manter copy genérica de casa', () => {
+  const result = sanitizeAiCreativeDirection({
+    category: 'Eletrônicos',
+    campaignAngle: 'Tecnologia para o dia a dia',
+    trendSummary: 'Produto herói maior com dois apoios.',
+    trendSignals: ['Título curto'],
+    recognizedProducts: [
+      { index: 0, label: 'Caixa de som torre Bluetooth', confidence: 0.98 },
+      { index: 1, label: 'Caixa de som amplificada', confidence: 0.97 },
+      { index: 2, label: 'Speaker portátil', confidence: 0.93 }
+    ],
+    copy: {
+      badge: 'SELEÇÃO ARIANA',
+      headline: 'TECNOLOGIA E BOAS ESCOLHAS PARA SUA CASA',
+      subtitle: 'Tecnologia, design e praticidade para deixar sua rotina mais simples.',
+      cta: 'VEJA AS NOVIDADES'
+    },
+    direction: {
+      preset: 'category',
+      mood: 'energy',
+      productHierarchy: 'one_plus_two',
+      heroProductIndex: 1
+    }
+  }, PRODUCTS, {});
+
+  assert.equal(result.category, 'ÁUDIO & SOM');
+  assert.equal(result.copy.badge, 'ÁUDIO & SOM');
+  assert.equal(result.copy.headline, 'SOM PARA TODOS OS MOMENTOS');
+  assert.equal(
+    result.copy.subtitle,
+    'Potência, conectividade e música para curtir cada momento do seu jeito.'
+  );
+  assert.doesNotMatch(
+    [result.copy.badge, result.copy.headline, result.copy.subtitle].join(' '),
+    /boas escolhas para sua casa|seleção ariana/i
+  );
+});
+
+test('copy específica de áudio aprovada pela IA é preservada', () => {
+  const fixed = fixCopyByVisualCategory({
+    badge: 'SOM E ENTRETENIMENTO',
+    headline: 'MAIS POTÊNCIA PARA CURTIR DO SEU JEITO',
+    subtitle: 'Caixas de som com conectividade e potência para diferentes momentos.',
+    cta: 'CONHEÇA A SELEÇÃO'
+  }, 'Áudio e Som', [
+    { index: 0, label: 'Caixa de som', confidence: 0.99 }
+  ], PRODUCTS);
+
+  assert.equal(fixed.category, 'ÁUDIO & SOM');
+  assert.equal(fixed.copy.badge, 'SOM E ENTRETENIMENTO');
+  assert.equal(fixed.copy.headline, 'MAIS POTÊNCIA PARA CURTIR DO SEU JEITO');
+  assert.equal(
+    fixed.copy.subtitle,
+    'Caixas de som com conectividade e potência para diferentes momentos.'
+  );
+});
+
+test('prompt exige copy específica quando a visão reconhece áudio', () => {
+  const request = buildAiDirectorRequest(PRODUCTS, new Date('2026-09-27T12:00:00Z'));
+  const developer = request.input.find(item => item.role === 'developer');
+  const textBody = developer.content.map(item => item.text || '').join(' ');
+
+  assert.match(textBody, /categoria visual reconhecida/i);
+  assert.match(textBody, /áudio\/som\/caixas de som/i);
+  assert.match(textBody, /não use "SELEÇÃO ARIANA"/i);
 });
