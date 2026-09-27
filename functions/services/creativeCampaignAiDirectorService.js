@@ -80,7 +80,10 @@ const VISUAL_CATEGORY_RULES = Object.freeze({
       'produtos para sua casa',
       'selecao ariana',
       'tecnologia para sua casa',
-      'tecnologia e boas escolhas'
+      'tecnologia e boas escolhas',
+      'solucoes que facilitam o seu dia a dia',
+      'solucoes para facilitar a rotina',
+      'facilitar a rotina'
     ],
     fallback: {
       badge: 'ÁUDIO & SOM',
