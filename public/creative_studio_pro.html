@@ -6,7 +6,7 @@
   <title>Ariana Creative Studio Pro</title>
   <meta name="theme-color" content="#0047AB">
   <meta name="robots" content="noindex,nofollow">
-  <link rel="stylesheet" href="./css/creative_studio_pro.css?v=20260927-7">
+  <link rel="stylesheet" href="./css/creative_studio_pro.css?v=20260927-8">
 </head>
 <body>
   <header class="topbar">
@@ -168,25 +168,91 @@
         </div>
       </section>
 
-      <section class="step">
-        <div class="step-head"><span>5</span><div><strong>Conteúdo da campanha</strong><small>O sistema completa o benefício quando você deixar vazio.</small></div></div>
-        <div class="fields">
-          <label class="field"><span>Selo</span><input id="badge" maxlength="42" value="OFERTA ARIANA"></label>
-          <label class="field"><span>CTA</span><input id="cta" maxlength="42" value="APROVEITE AGORA"></label>
-          <label class="field"><span>Marca / fabricante</span><input id="brand-label" maxlength="34" placeholder="Ex.: MIDEA, ELECTROLUX, SAMSUNG"></label>
-          <label class="field"><span>Cupom (opcional)</span><input id="coupon-text" maxlength="26" placeholder="Ex.: PROMOMIDEA"></label>
-          <label class="field full"><span>Logo oficial do fabricante (opcional)</span><input id="brand-logo-url" type="url" placeholder="https://... ou envie o arquivo abaixo"></label>
-          <label class="upload full brand-logo-upload" for="brand-logo-file">
-            <input id="brand-logo-file" type="file" accept="image/png,image/jpeg,image/webp">
-            <span class="upload-icon">↑</span>
-            <span><b>Enviar logo do fabricante</b><small>Prefira PNG transparente. Fundos branco ou preto simples serão tratados automaticamente.</small></span>
-          </label>
-          <div id="brand-logo-status" class="inline-status full"></div>
-          <label class="field full"><span>Headline</span><input id="headline" maxlength="72" value="OFERTA IMPERDÍVEL"></label>
-          <label class="field full"><span>Subheadline</span><input id="subtitle" maxlength="120" value="Porque sua casa merece o melhor"></label>
-          <label class="field full"><span>Benefício / mensagem de apoio</span><textarea id="benefit" maxlength="150" rows="3" placeholder="Se ficar vazio, o Studio cria uma frase conforme o tipo do produto."></textarea></label>
-          <label class="field full"><span>Condição promocional curta</span><input id="promo-text" maxlength="46" value="OFERTA POR TEMPO LIMITADO"></label>
+      <section class="step campaign-content-step">
+        <div class="step-head"><span>5</span><div><strong>Textos e identidade do banner</strong><small>Preencha de cima para baixo. Cada campo corresponde a uma posição específica da arte.</small></div></div>
+
+        <div class="campaign-block">
+          <div class="campaign-block-head">
+            <b>1. Identidade</b>
+            <small>Quem assina a campanha e o que aparece acima do título.</small>
+          </div>
+          <div class="fields">
+            <label class="field">
+              <span>Linha superior</span>
+              <input id="badge" maxlength="42" value="SELEÇÃO ARIANA" placeholder="Ex.: CONSUL • MIDEA • MUELLER">
+              <small class="field-help">Texto pequeno acima do título principal.</small>
+            </label>
+            <label class="field">
+              <span>Fabricante ou nome da campanha (opcional)</span>
+              <input id="brand-label" maxlength="34" placeholder="Ex.: MIDEA ou ESPECIAL MIDEA">
+              <small class="field-help">Use quando o banner destacar uma marca ou campanha específica.</small>
+            </label>
+            <label class="field full">
+              <span>Logo oficial do fabricante (opcional)</span>
+              <input id="brand-logo-url" type="url" placeholder="https://... ou envie o arquivo abaixo">
+            </label>
+            <label class="upload full brand-logo-upload" for="brand-logo-file">
+              <input id="brand-logo-file" type="file" accept="image/png,image/jpeg,image/webp">
+              <span class="upload-icon">↑</span>
+              <span><b>Enviar logo do fabricante</b><small>Prefira PNG transparente. Fundos branco ou preto simples serão tratados automaticamente.</small></span>
+            </label>
+            <div id="brand-logo-status" class="inline-status full"></div>
+          </div>
         </div>
+
+        <div class="campaign-block">
+          <div class="campaign-block-head">
+            <b>2. Mensagem principal</b>
+            <small>O título é a informação de maior destaque do banner.</small>
+          </div>
+          <div class="fields">
+            <label class="field full">
+              <span>Título principal</span>
+              <input id="headline" maxlength="72" value="GRANDES MARCAS PARA SUA CASA" placeholder="Ex.: OS MELHORES ELETRODOMÉSTICOS ESTÃO AQUI">
+              <small class="field-help">Frase principal. O Studio faz a quebra de linha na arte.</small>
+            </label>
+            <label class="field full">
+              <span>Subtítulo</span>
+              <input id="subtitle" maxlength="120" value="Produtos e fabricantes que combinam com a sua casa." placeholder="Ex.: Tecnologia, conforto e praticidade para o seu dia a dia.">
+              <small class="field-help">Uma frase curta logo abaixo do título.</small>
+            </label>
+            <label class="field full">
+              <span>Texto de apoio (opcional)</span>
+              <textarea id="benefit" maxlength="150" rows="2" placeholder="Ex.: Uma seleção especial pensada para transformar o seu lar."></textarea>
+              <small class="field-help">Use somente se precisar complementar a mensagem principal.</small>
+            </label>
+          </div>
+        </div>
+
+        <div class="campaign-block">
+          <div class="campaign-block-head">
+            <b>3. Fechamento</b>
+            <small>Texto curto exibido na parte inferior da composição, sem botão.</small>
+          </div>
+          <div class="fields">
+            <label class="field full">
+              <span>Chamada inferior</span>
+              <input id="cta" maxlength="42" value="CONHEÇA A SELEÇÃO" placeholder="Ex.: GRANDES MARCAS →">
+              <small class="field-help">Ex.: CONHEÇA A SELEÇÃO →, GRANDES MARCAS → ou DESCUBRA MAIS →</small>
+            </label>
+          </div>
+        </div>
+
+        <details class="campaign-optional">
+          <summary>
+            <span><b>Informações promocionais opcionais</b><small>Abra apenas quando a campanha realmente tiver cupom ou condição promocional.</small></span>
+          </summary>
+          <div class="fields campaign-optional-fields">
+            <label class="field">
+              <span>Cupom (opcional)</span>
+              <input id="coupon-text" maxlength="26" placeholder="Ex.: PROMOMIDEA">
+            </label>
+            <label class="field">
+              <span>Texto promocional curto (opcional)</span>
+              <input id="promo-text" maxlength="46" placeholder="Ex.: OFERTA POR TEMPO LIMITADO">
+            </label>
+          </div>
+        </details>
       </section>
 
       <section class="step pricing-step" id="pricing-step">
@@ -246,6 +312,6 @@
     </section>
   </main>
 
-  <script src="./js/creative_studio_pro.js?v=20260927-7"></script>
+  <script src="./js/creative_studio_pro.js?v=20260927-8"></script>
 </body>
 </html>
