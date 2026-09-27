@@ -166,3 +166,32 @@ for (const format of ['hero_desktop','hero_mobile']) {
   fs.writeFileSync(path.join(outDir, name + '.png'), result.buffer);
   console.log(name, result.buffer.length, result.meta.quality.score);
 }
+
+
+const autoHeroProducts = [
+  { ...fridge, brand: 'Brastemp' },
+  { ...speaker, brand: 'Mondial', name: 'Caixa Amplificada Bluetooth' },
+  { ...tv, brand: 'AOC', name: 'Smart TV 55 4K' }
+];
+
+for (const format of ['hero_desktop','hero_mobile']) {
+  const result = await generateCreativeBannerProMulti(autoHeroProducts, {
+    outputFormat: format,
+    brandLabel: '',
+    brandLogoUrl: '',
+    couponText: '',
+    badge: 'OFERTAS ARIANA',
+    headline: 'OFERTAS PARA RENOVAR SUA CASA',
+    subtitle: 'ATÉ 12X SEM JUROS NO CARTÃO',
+    benefit: 'Grandes marcas com condições especiais.',
+    promoText: '17% OFF NO PIX',
+    installmentCount: 12,
+    cta: 'APROVEITE AGORA'
+  });
+  if (result.meta?.quality?.blockSave) {
+    throw new Error('auto-hero-' + format + ': quality blocked ' + JSON.stringify(result.meta.quality));
+  }
+  const name = format === 'hero_desktop' ? 'auto-hero-desktop' : 'auto-hero-mobile';
+  fs.writeFileSync(path.join(outDir, name + '.png'), result.buffer);
+  console.log(name, result.buffer.length, result.meta.quality.score);
+}
