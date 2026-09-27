@@ -16,6 +16,7 @@
   let autoHeroActive = false;
   let catalogReadyPromise = null;
   let copyTouched = false;
+  let deferredInstallPrompt = null;
 
   const FORMATS = Object.freeze({
     hero_desktop: { label: 'PRÉVIA • HERO DESKTOP', size: '1920 × 480 pixels' },
@@ -1095,6 +1096,67 @@
     }
   }
 
+  function isInstalledApp() {
+    return window.matchMedia?.('(display-mode: standalone)')?.matches === true
+      || window.navigator.standalone === true;
+  }
+
+  function bindInstallApp() {
+    const button = els.installAppButton;
+    if (!button) return;
+
+    const syncButton = () => {
+      if (isInstalledApp()) {
+        button.classList.add('hidden');
+        return;
+      }
+      button.classList.remove('hidden');
+    };
+
+    syncButton();
+
+    window.addEventListener('beforeinstallprompt', event => {
+      event.preventDefault();
+      deferredInstallPrompt = event;
+      syncButton();
+    });
+
+    window.addEventListener('appinstalled', () => {
+      deferredInstallPrompt = null;
+      button.classList.add('hidden');
+      status('Creative Studio instalado no celular.', 'ok');
+    });
+
+    button.addEventListener('click', async () => {
+      if (isInstalledApp()) {
+        button.classList.add('hidden');
+        return;
+      }
+
+      if (deferredInstallPrompt) {
+        const prompt = deferredInstallPrompt;
+        deferredInstallPrompt = null;
+        await prompt.prompt();
+        const choice = await prompt.userChoice.catch(() => null);
+        if (choice?.outcome === 'accepted') {
+          status('Instalação iniciada. O Creative Studio ficará disponível como aplicativo.', 'ok');
+        } else {
+          status('A instalação não foi concluída. Você pode tentar novamente pelo menu do navegador.', '');
+        }
+        syncButton();
+        return;
+      }
+
+      const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      status(
+        ios
+          ? 'No iPhone/iPad: toque em Compartilhar e depois em Adicionar à Tela de Início.'
+          : 'Se a janela de instalação não abrir, use o menu do navegador e toque em Instalar app ou Adicionar à tela inicial.',
+        ''
+      );
+    });
+  }
+
   function bind() {
     els.productSearch.addEventListener('input',event => renderProductResults(event.target.value));
     els.autoHeroButton.addEventListener('click',buildProfessionalHero);
@@ -1140,6 +1202,7 @@
 
   function start() {
     Object.assign(els,{
+      installAppButton:byId('install-app-button'),
       autoHeroButton:byId('auto-hero-button'),
       productSearch:byId('product-search'),
       productSearchLabel:byId('product-search-label'),
@@ -1183,6 +1246,7 @@
     });
 
     bind();
+    bindInstallApp();
     updateChoiceCards();
     applyMode('with_price');
     renderHeroSlots();

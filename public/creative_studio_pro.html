@@ -6,6 +6,12 @@
   <title>Ariana Creative Studio Pro</title>
   <meta name="theme-color" content="#0047AB">
   <meta name="robots" content="noindex,nofollow">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Creative Studio">
+  <link rel="manifest" href="./manifest-creative-studio-pro.json?v=20260927-1">
+  <link rel="apple-touch-icon" href="./pwa-icons/banners-192.png">
   <link rel="stylesheet" href="./css/creative_studio_pro.css?v=20260927-9">
 </head>
 <body>
@@ -15,6 +21,7 @@
       <span><strong>Ariana Creative Studio Pro</strong><small>Banner profissional • versão de desenvolvimento</small></span>
     </a>
     <div class="top-actions">
+      <button id="install-app-button" class="ghost-button" type="button">Instalar app</button>
       <a class="ghost-button" href="./gerador_cartazes.html">Versão atual</a>
       <a class="ghost-button" href="./banner_admin.html">Painel de banners</a>
     </div>
@@ -316,6 +323,7 @@
     </section>
   </main>
 
-  <script src="./js/creative_studio_pro.js?v=20260927-10"></script>
+  <script src="./js/creative_studio_pro.js?v=20260927-11"></script>
+  <script src="./pwa-register.js?v=20260927-1" data-sw="./sw-creative-studio-pro.js" data-scope="./creative_studio_pro.html"></script>
 </body>
 </html>
