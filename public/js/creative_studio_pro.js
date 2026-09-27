@@ -140,10 +140,11 @@
         campaign.checked = true;
         updateChoiceCards();
       }
-      els.badge.value = 'CAMPANHA ESPECIAL';
-      els.headline.value = 'OFERTAS PARA RENOVAR SUA CASA';
-      els.subtitle.value = 'Grandes marcas e condições especiais em uma só campanha';
-      els.cta.value = 'APROVEITE';
+      els.badge.value = 'OFERTAS ARIANA';
+      els.headline.value = 'OFERTA IMPERDÍVEL';
+      els.subtitle.value = '';
+      els.benefit.value = '';
+      els.cta.value = 'APROVEITAR';
       els.promoText.value = 'OFERTA POR TEMPO LIMITADO';
       renderSelectedProducts();
       status('Modo multi-produto ativado. Escolha de 2 a 5 produtos do catálogo para montar uma única vitrine.', 'ok');
@@ -416,15 +417,15 @@
     const sameGroup = new Set(groups).size === 1;
 
     els.badge.value = 'OFERTAS ARIANA';
-    els.cta.value = 'APROVEITE AGORA';
+    els.cta.value = 'APROVEITAR';
     els.couponText.value = '';
-    els.promoText.value = '17% OFF NO PIX';
+    els.promoText.value = 'OFERTA POR TEMPO LIMITADO';
 
     if (sameBrand) {
       els.brandLabel.value = brands[0].toUpperCase();
       els.headline.value = 'ESPECIAL ' + brands[0].toUpperCase();
-      els.subtitle.value = 'ATÉ 12X SEM JUROS NO CARTÃO';
-      els.benefit.value = 'Condições especiais para renovar sua casa.';
+      els.subtitle.value = '';
+      els.benefit.value = '';
       const logo = rows.find(item => item.brandLogoUrl)?.brandLogoUrl || '';
       if (logo) els.brandLogoUrl.value = logo;
       return;
@@ -432,9 +433,9 @@
 
     els.brandLabel.value = '';
     els.brandLogoUrl.value = '';
-    els.headline.value = sameGroup ? 'OFERTAS PARA SUA CASA' : 'OFERTAS PARA RENOVAR SUA CASA';
-    els.subtitle.value = 'ATÉ 12X SEM JUROS NO CARTÃO';
-    els.benefit.value = 'Grandes marcas com condições especiais.';
+    els.headline.value = 'OFERTA IMPERDÍVEL';
+    els.subtitle.value = '';
+    els.benefit.value = '';
   }
 
   async function buildProfessionalHero() {
