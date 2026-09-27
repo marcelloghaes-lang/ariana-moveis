@@ -1266,6 +1266,8 @@ export async function analyzeCreativeBannerPro(product = {}, options = {}) {
   const opts = normalizedOptions(product, options);
   const asset = await prepareProProductAsset(product, opts);
   const brandAsset = await prepareOfficialLogoAsset();
+  const campaignBrandAsset = opts.brandLogoUrl ? await prepareCampaignBrandLogo(opts.brandLogoUrl) : null;
+  opts.hasBrandLogo = Boolean(campaignBrandAsset?.backgroundRemoved);
   const comp = composition(opts.format, asset, opts);
   return {
     ok: true,
@@ -1290,7 +1292,12 @@ export async function analyzeCreativeBannerPro(product = {}, options = {}) {
       backgroundRemoved: Boolean(brandAsset.backgroundRemoved),
       transparentRatio: Number(brandAsset.transparentRatio.toFixed(4))
     },
-    quality: quality(asset, opts, opts.format, brandAsset)
+    manufacturerBrand: campaignBrandAsset ? {
+      backgroundRemoved: Boolean(campaignBrandAsset.backgroundRemoved),
+      removalMode: campaignBrandAsset.removalMode,
+      removedRatio: Number(campaignBrandAsset.removedRatio || 0)
+    } : null,
+    quality: quality(asset, opts, opts.format, brandAsset, campaignBrandAsset)
   };
 }
 
@@ -1299,6 +1306,8 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
   const format = opts.format;
   const asset = await prepareProProductAsset(product, opts);
   const brandAsset = await prepareOfficialLogoAsset();
+  const campaignBrandAsset = opts.brandLogoUrl ? await prepareCampaignBrandLogo(opts.brandLogoUrl) : null;
+  opts.hasBrandLogo = Boolean(campaignBrandAsset?.backgroundRemoved);
   const comp = composition(format, asset, opts);
   const productLayer = await productComposite(asset, format, comp);
 
@@ -1308,6 +1317,10 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
 
   const logo = await logoLayer(format, brandAsset);
   if (logo) layers.push(logo);
+  if (opts.template === 'campaign' && campaignBrandAsset?.backgroundRemoved) {
+    const manufacturerLogo = await campaignBrandLogoLayer(format, campaignBrandAsset);
+    if (manufacturerLogo) layers.push(manufacturerLogo);
+  }
 
   if (!asset.backgroundRemoved) {
     layers.push({ input: fallbackPanelSvg(format, comp, opts.template), left: 0, top: 0 });
@@ -1369,7 +1382,12 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
         backgroundRemoved: Boolean(brandAsset.backgroundRemoved),
         transparentRatio: Number(brandAsset.transparentRatio.toFixed(4))
       },
-      quality: quality(asset, opts, format, brandAsset)
+      manufacturerBrand: campaignBrandAsset ? {
+        backgroundRemoved: Boolean(campaignBrandAsset.backgroundRemoved),
+        removalMode: campaignBrandAsset.removalMode,
+        removedRatio: Number(campaignBrandAsset.removedRatio || 0)
+      } : null,
+      quality: quality(asset, opts, format, brandAsset, campaignBrandAsset)
     }
   };
 }
@@ -1547,6 +1565,8 @@ export async function analyzeCreativeBannerProMulti(products = [], options = {})
   if(rows.length<2) throw new Error('multi_product_requires_at_least_two_products');
   const opts=normalizedOptions(rows[0],{...options,showPrice:false,contentMode:'multi_product',templatePro:'campaign'});
   const brandAsset=await prepareOfficialLogoAsset();
+  const campaignBrandAsset=opts.brandLogoUrl ? await prepareCampaignBrandLogo(opts.brandLogoUrl) : null;
+  opts.hasBrandLogo=Boolean(campaignBrandAsset?.backgroundRemoved);
   const assets=[];
   for(const product of rows) assets.push(await prepareProProductAsset(product,opts));
 
@@ -1571,7 +1591,12 @@ export async function analyzeCreativeBannerProMulti(products = [], options = {})
       backgroundRemoved:Boolean(brandAsset.backgroundRemoved),
       transparentRatio:Number(brandAsset.transparentRatio.toFixed(4))
     },
-    quality:multiQuality(assets,brandAsset,opts.format)
+    manufacturerBrand:campaignBrandAsset ? {
+      backgroundRemoved:Boolean(campaignBrandAsset.backgroundRemoved),
+      removalMode:campaignBrandAsset.removalMode,
+      removedRatio:Number(campaignBrandAsset.removedRatio || 0)
+    } : null,
+    quality:multiQuality(assets,brandAsset,opts.format,opts,campaignBrandAsset)
   };
 }
 
@@ -1587,15 +1612,21 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
   });
   const format=opts.format;
   const brandAsset=await prepareOfficialLogoAsset();
+  const campaignBrandAsset=opts.brandLogoUrl ? await prepareCampaignBrandLogo(opts.brandLogoUrl) : null;
+  opts.hasBrandLogo=Boolean(campaignBrandAsset?.backgroundRemoved);
   const assets=[];
   for(const product of rows) assets.push(await prepareProProductAsset(product,opts));
-  const qualityResult=multiQuality(assets,brandAsset,format);
+  const qualityResult=multiQuality(assets,brandAsset,format,opts,campaignBrandAsset);
   const slots=multiProductSlots(format,rows.length);
 
   const layers=[
     {input:backgroundSvg(format,'campaign'),left:0,top:0}
   ];
   layers.push(await logoLayer(format,brandAsset));
+  if(campaignBrandAsset?.backgroundRemoved){
+    const manufacturerLogo=await campaignBrandLogoLayer(format,campaignBrandAsset);
+    if(manufacturerLogo) layers.push(manufacturerLogo);
+  }
 
   for(let index=0;index<assets.length;index+=1){
     const asset=assets[index];
@@ -1660,6 +1691,11 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
         backgroundRemoved:Boolean(brandAsset.backgroundRemoved),
         transparentRatio:Number(brandAsset.transparentRatio.toFixed(4))
       },
+      manufacturerBrand:campaignBrandAsset ? {
+        backgroundRemoved:Boolean(campaignBrandAsset.backgroundRemoved),
+        removalMode:campaignBrandAsset.removalMode,
+        removedRatio:Number(campaignBrandAsset.removedRatio || 0)
+      } : null,
       quality:qualityResult
     }
   };
