@@ -7,6 +7,8 @@
   let productsLoading = true;
   let selectedProduct = null;
   let selectedProducts = [];
+  let heroSlots = [null, null, null];
+  let activeHeroSlot = -1;
   let contentMode = 'with_price';
   let previewBlob = null;
   let previewUrl = '';
@@ -167,6 +169,153 @@
   }
 
 
+
+  function heroSlotProducts() {
+    return heroSlots.filter(Boolean);
+  }
+
+  function syncHeroSlotsToSelectedProducts() {
+    selectedProducts = heroSlotProducts();
+    selectedProduct = selectedProducts[0] || null;
+  }
+
+  function updateHeroButtonState() {
+    if (!els.autoHeroButton) return;
+    const chosen = heroSlotProducts().length;
+    const canUseChosen = chosen === 3;
+    const canAutoCatalog = !productsLoading && products.filter(professionalCandidate).length >= 3;
+
+    els.autoHeroButton.disabled = !(canUseChosen || canAutoCatalog) || productsLoading;
+    if (productsLoading && !canUseChosen) {
+      els.autoHeroButton.textContent = 'Carregando catálogo...';
+    } else if (canUseChosen) {
+      els.autoHeroButton.textContent = 'Montar campanha com os 3 escolhidos';
+    } else if (canAutoCatalog) {
+      els.autoHeroButton.textContent = 'Preencher 3 produtos automaticamente';
+    } else {
+      els.autoHeroButton.textContent = 'Escolha ou envie 3 produtos';
+    }
+  }
+
+  function renderHeroSlots() {
+    heroSlots.forEach((product,index) => {
+      const card = byId('hero-slot-' + index);
+      const img = byId('hero-slot-image-' + index);
+      const placeholder = byId('hero-slot-placeholder-' + index);
+      const name = byId('hero-slot-name-' + index);
+      const source = byId('hero-slot-source-' + index);
+      if (!card || !img || !placeholder || !name || !source) return;
+
+      const filled = Boolean(product && imageOf(product));
+      card.classList.toggle('filled', filled);
+      card.classList.toggle('active', activeHeroSlot === index);
+      const clear = card.querySelector('[data-hero-clear-slot]');
+      if (clear) clear.classList.toggle('hidden', !filled);
+
+      if (filled) {
+        img.src = imageOf(product);
+        img.classList.remove('hidden');
+        placeholder.classList.add('hidden');
+        name.textContent = product.name || product.title || (index === 0 ? 'Produto principal' : 'Produto de apoio ' + index);
+        source.textContent = product.__heroUploaded
+          ? 'Imagem enviada'
+          : (product.brand || product.categoryName || product.category || 'Produto do catálogo');
+      } else {
+        img.removeAttribute('src');
+        img.classList.add('hidden');
+        placeholder.classList.remove('hidden');
+        placeholder.textContent = index === 0 ? 'PRINCIPAL' : 'APOIO ' + index;
+        name.textContent = index === 0 ? 'Produto principal' : 'Produto de apoio ' + index;
+        source.textContent = 'Nenhuma imagem selecionada';
+      }
+    });
+
+    if (els.heroPickerCount) els.heroPickerCount.textContent = heroSlotProducts().length + '/3';
+    syncHeroSlotsToSelectedProducts();
+    updateHeroButtonState();
+  }
+
+  function setHeroSlot(index, product) {
+    const slot = Number(index);
+    if (!Number.isInteger(slot) || slot < 0 || slot > 2 || !product) return;
+    heroSlots[slot] = product;
+    activeHeroSlot = -1;
+    renderHeroSlots();
+    qualityAllowsSave = false;
+    els.saveButton.disabled = true;
+    previewBlob = null;
+  }
+
+  function clearHeroSlot(index) {
+    const slot = Number(index);
+    if (!Number.isInteger(slot) || slot < 0 || slot > 2) return;
+    heroSlots[slot] = null;
+    if (activeHeroSlot === slot) activeHeroSlot = -1;
+    renderHeroSlots();
+    qualityAllowsSave = false;
+    els.saveButton.disabled = true;
+  }
+
+  function chooseCatalogForHeroSlot(index) {
+    activeHeroSlot = Number(index);
+    renderHeroSlots();
+    els.productSearch.value = '';
+    els.productSearch.placeholder = (activeHeroSlot === 0 ? 'Busque o produto principal...' : 'Busque o produto de apoio ' + activeHeroSlot + '...');
+    if (els.productSearchLabel) {
+      els.productSearchLabel.textContent = activeHeroSlot === 0
+        ? 'Escolher produto principal no catálogo'
+        : 'Escolher produto de apoio ' + activeHeroSlot + ' no catálogo';
+    }
+    status('Digite o nome do produto e toque no resultado para preencher este espaço.', 'ok');
+    els.productSearch.focus();
+    if (window.innerWidth < 800) {
+      setTimeout(() => els.productSearch.scrollIntoView({ behavior:'smooth', block:'center' }), 80);
+    }
+  }
+
+  async function uploadHeroSlot(file, index) {
+    if (!file) return;
+    if (file.size > 20 * 1024 * 1024) {
+      status('A imagem ultrapassa 20 MB.', 'error');
+      return;
+    }
+
+    const slot = Number(index);
+    const card = byId('hero-slot-' + slot);
+    card?.classList.add('active');
+    status('Enviando imagem do ' + (slot === 0 ? 'produto principal' : 'produto de apoio ' + slot) + '...', '');
+
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('folder', 'marketing/creative-studio-pro/hero-produtos');
+      const data = await api('/admin/uploads', { method:'POST', body:form });
+      const uploaded = Array.isArray(data?.files) ? data.files[0] : (data?.file || data);
+      const url = uploaded?.url || uploaded?.secure_url || uploaded?.imageUrl || data?.url;
+      if (!url) throw new Error('O servidor não devolveu a URL da imagem.');
+
+      const cleanName = String(file.name || 'Produto')
+        .replace(/\.[a-z0-9]+$/i,'')
+        .replace(/[_-]+/g,' ')
+        .trim() || 'Produto';
+
+      setHeroSlot(slot, {
+        id: 'hero-upload-' + Date.now() + '-' + slot,
+        name: cleanName,
+        imageUrl: url,
+        category: 'Campanha',
+        __heroUploaded: true
+      });
+      status('Imagem adicionada. ' + heroSlotProducts().length + ' de 3 produtos preenchidos.', 'ok');
+    } catch (error) {
+      status('Falha ao enviar imagem: ' + error.message, 'error');
+    } finally {
+      card?.classList.remove('active');
+      const input = document.querySelector('[data-hero-upload-slot="' + slot + '"]');
+      if (input) input.value = '';
+    }
+  }
+
   function productStock(product = {}) {
     const candidates = [
       product.stock,
@@ -230,7 +379,7 @@
     const pool = products.filter(professionalCandidate);
     if (pool.length < 3) throw new Error('O catálogo precisa ter pelo menos 3 produtos com imagem disponível para montar o Hero automático.');
 
-    const already = selectedProduct && professionalCandidate(selectedProduct) ? selectedProduct : null;
+    const already = activeHeroSlot < 0 && selectedProduct && professionalCandidate(selectedProduct) ? selectedProduct : null;
     const picks = [];
     const usedIds = new Set();
     const usedGroups = new Set();
@@ -290,35 +439,45 @@
 
   async function buildProfessionalHero() {
     const button = els.autoHeroButton;
-    const originalLabel = button?.textContent || 'Montar campanha';
 
     try {
       if (button) {
         button.disabled = true;
-        button.textContent = productsLoading ? 'Carregando catálogo...' : 'Montando 3 produtos...';
+        button.textContent = 'Montando 3 produtos...';
       }
 
-      if (productsLoading && catalogReadyPromise) {
-        status('Carregando o catálogo para montar a campanha...', '');
-        await catalogReadyPromise;
+      let rows = heroSlotProducts();
+
+      if (rows.length !== 3) {
+        if (productsLoading && catalogReadyPromise) {
+          status('Carregando o catálogo para completar os produtos...', '');
+          await catalogReadyPromise;
+        }
+
+        rows = heroSlotProducts();
+        if (rows.length !== 3) {
+          const automatic = autoHeroProducts();
+          heroSlots = automatic.slice(0,3);
+          renderHeroSlots();
+          rows = heroSlotProducts();
+        }
       }
 
-      if (products.length < 3) {
-        throw new Error('Não encontrei 3 produtos disponíveis no catálogo para montar a campanha.');
+      if (rows.length !== 3) {
+        throw new Error('Escolha ou envie exatamente 3 produtos para montar o Hero.');
       }
 
       autoHeroActive = true;
-      const rows = autoHeroProducts();
-      selectedProducts = rows;
-      selectedProduct = rows[0];
+      selectedProducts = rows.slice(0,3);
+      selectedProduct = selectedProducts[0];
 
       applyMode('multi_product');
-      configureAutoHeroCopy(rows);
+      configureAutoHeroCopy(selectedProducts);
 
       const campaign = document.querySelector('input[name="template-pro"][value="campaign"]');
       if (campaign) campaign.checked = true;
       updateChoiceCards();
-      renderSelectedProducts();
+      renderHeroSlots();
 
       previewBlob = null;
       qualityAllowsSave = false;
@@ -329,20 +488,17 @@
       if (previewText) previewText.textContent = 'Montando campanha profissional com 3 produtos...';
 
       if (button) button.textContent = 'Gerando prévia...';
-      status('Campanha montada com 3 produtos. Validando recortes e gerando a prévia...', 'ok');
+      status('Os 3 produtos estão definidos. Validando recortes e gerando a campanha...', 'ok');
       await generatePreview();
 
       if (els.previewStage) {
-        setTimeout(() => els.previewStage.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150);
+        setTimeout(() => els.previewStage.scrollIntoView({ behavior:'smooth', block:'center' }), 150);
       }
     } catch (error) {
       autoHeroActive = false;
       status(error.message || 'Não foi possível montar a campanha automática.', 'error');
     } finally {
-      if (button) {
-        button.disabled = products.length < 3 || productsLoading;
-        button.textContent = products.length >= 3 ? 'Montar campanha' : (productsLoading ? 'Carregando catálogo...' : 'Catálogo insuficiente');
-      }
+      renderHeroSlots();
     }
   }
 
@@ -385,7 +541,9 @@
 
     if (changed) {
       selectedProduct = selectedProducts[0] || null;
+      heroSlots = [selectedProducts[0] || null, selectedProducts[1] || null, selectedProducts[2] || null];
       configureAutoHeroCopy(selectedProducts);
+      renderHeroSlots();
       renderSelectedProducts();
     }
     return changed;
@@ -453,6 +611,11 @@
 
   function renderSelectedProducts() {
     if (contentMode === 'multi_product') {
+      if (heroSlotProducts().length) {
+        els.selectedProduct.classList.add('hidden');
+        els.selectedProduct.innerHTML = '';
+        return;
+      }
       if (!selectedProducts.length) {
         els.selectedProduct.classList.add('hidden');
         els.selectedProduct.innerHTML = '';
@@ -509,6 +672,17 @@
   function selectProduct(product) {
     if (!product) return;
     autoHeroActive = false;
+
+    if (activeHeroSlot >= 0) {
+      const slot = activeHeroSlot;
+      setHeroSlot(slot, product);
+      els.productSearch.value = '';
+      els.productResults.classList.add('hidden');
+      els.productSearch.placeholder = 'Primeiro escolha um espaço acima, depois digite nome, marca ou código';
+      if (els.productSearchLabel) els.productSearchLabel.textContent = 'Buscar produto cadastrado';
+      status('Produto adicionado ao espaço ' + (slot + 1) + '. ' + heroSlotProducts().length + ' de 3 preenchidos.', 'ok');
+      return;
+    }
 
     if (contentMode === 'multi_product') {
       const id = String(product.id || product._id || '');
@@ -598,10 +772,7 @@
       return products;
     } finally {
       productsLoading = false;
-      if (els.autoHeroButton) {
-        els.autoHeroButton.disabled = products.length < 3;
-        els.autoHeroButton.textContent = products.length >= 3 ? 'Montar campanha' : 'Catálogo insuficiente';
-      }
+      updateHeroButtonState();
     }
   }
 
@@ -873,6 +1044,16 @@
   function bind() {
     els.productSearch.addEventListener('input',event => renderProductResults(event.target.value));
     els.autoHeroButton.addEventListener('click',buildProfessionalHero);
+
+    document.querySelectorAll('[data-hero-catalog-slot]').forEach(button => {
+      button.addEventListener('click', () => chooseCatalogForHeroSlot(button.dataset.heroCatalogSlot));
+    });
+    document.querySelectorAll('[data-hero-upload-slot]').forEach(input => {
+      input.addEventListener('change', event => uploadHeroSlot(event.target.files?.[0], input.dataset.heroUploadSlot));
+    });
+    document.querySelectorAll('[data-hero-clear-slot]').forEach(button => {
+      button.addEventListener('click', () => clearHeroSlot(button.dataset.heroClearSlot));
+    });
     els.imageFile.addEventListener('change',event => uploadImage(event.target.files?.[0]));
     els.brandLogoFile.addEventListener('change',event => uploadBrandLogo(event.target.files?.[0]));
 
@@ -899,6 +1080,8 @@
     Object.assign(els,{
       autoHeroButton:byId('auto-hero-button'),
       productSearch:byId('product-search'),
+      productSearchLabel:byId('product-search-label'),
+      heroPickerCount:byId('hero-picker-count'),
       productResults:byId('product-results'),
       selectedProduct:byId('selected-product'),
       multiProductHint:byId('multi-product-hint'),
@@ -940,6 +1123,7 @@
     bind();
     updateChoiceCards();
     applyMode('with_price');
+    renderHeroSlots();
     catalogReadyPromise = loadProducts();
   }
 
