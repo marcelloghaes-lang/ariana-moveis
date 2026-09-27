@@ -8,6 +8,7 @@ import {
   resolveProFormat
 } from '../creative-banner-pro-generator.js';
 import { researchCreativeCampaignCopy } from '../services/creativeCampaignResearchService.js';
+import { researchCreativeCampaignWithAi } from '../services/creativeCampaignAiDirectorService.js';
 
 // ============================================================
 // ROTAS ADMIN CORE / UPLOAD / POSTERS / CRUD GENÉRICO
@@ -964,7 +965,7 @@ app.post('/api/admin/creative-studio/pro/research-copy', adminRequired, async (r
     const products = Array.isArray(req.body?.products)
       ? req.body.products.filter(Boolean).slice(0, 5)
       : (req.body?.product ? [req.body.product] : []);
-    const result = await researchCreativeCampaignCopy(products);
+    const result = await researchCreativeCampaignWithAi(products);
     return res.json(result);
   } catch (error) {
     console.error('[creative-studio-pro] erro ao pesquisar campanha:', error);
