@@ -17,6 +17,7 @@
   let catalogReadyPromise = null;
   const copyTouchedFields = new Set();
   let lastCopyResearchSignature = '';
+  let lastCreativeDirection = null;
   let deferredInstallPrompt = null;
 
   const FORMATS = Object.freeze({
@@ -494,7 +495,8 @@
         id: String(item.id || item._id || ''),
         name: item.name || item.title || '',
         brand: item.brand || item.brandName || '',
-        category: item.category || item.categoryName || ''
+        category: item.category || item.categoryName || '',
+        imageUrl: imageOf(item)
       }));
     }
 
@@ -505,13 +507,14 @@
       id: '',
       name: manualName,
       brand: els.brandLabel?.value?.trim() || '',
-      category: ''
+      category: '',
+      imageUrl: els.imageUrl?.value?.trim() || ''
     }];
   }
 
   function copyResearchSignature(rows = []) {
     return rows
-      .map(item => [item.id,item.name,item.brand,item.category].map(normalize).join(':'))
+      .map(item => [item.id,item.name,item.brand,item.category,item.imageUrl].map(normalize).join(':'))
       .join('|');
   }
 
@@ -537,22 +540,60 @@
       if (!result?.copy) return { applied:false, reason:'no_copy' };
 
       setCopyValues(result.copy);
-      lastCopyResearchSignature = signature;
+      lastCreativeDirection = result.direction || null;
+
+      if (
+        result.engine === 'ai_vision_web' &&
+        autoHeroActive &&
+        contentMode === 'multi_product' &&
+        selectedProducts.length >= 2
+      ) {
+        const heroIndex = Number(result.direction?.heroProductIndex);
+        if (Number.isInteger(heroIndex) && heroIndex > 0 && heroIndex < selectedProducts.length) {
+          const hero = selectedProducts[heroIndex];
+          const reordered = [
+            hero,
+            ...selectedProducts.filter((_, index) => index !== heroIndex)
+          ];
+          selectedProducts = reordered;
+          selectedProduct = reordered[0];
+          heroSlots = reordered.slice(0,3);
+          renderHeroSlots();
+        }
+      }
+
+      lastCopyResearchSignature = copyResearchSignature(campaignResearchProducts());
 
       const count = Number(result.sourceCount || 0);
-      console.info('[Creative Studio] pesquisa de campanha', {
-        researched:Boolean(result.researched),
-        sourceCount:count,
-        theme:result.theme,
-        sources:result.sources || []
+      console.info('[Creative Studio] direção criativa', {
+        engine:result.engine,
+        aiConfigured:Boolean(result.aiConfigured),
+        category:result.category || '',
+        campaignAngle:result.campaignAngle || '',
+        direction:result.direction || null,
+        trendSignals:result.trendSignals || [],
+        references:result.referenceDomains || result.sources || []
       });
 
-      status(
-        count > 0
-          ? 'Pesquisa online concluída em ' + count + ' referência(s). A legenda original da Ariana foi aplicada.'
-          : 'Não encontrei referências online utilizáveis agora. A legenda segura da Ariana foi aplicada.',
-        'ok'
-      );
+      if (result.engine === 'ai_vision_web') {
+        const recognized = Array.isArray(result.recognizedProducts) ? result.recognizedProducts.length : 0;
+        status(
+          'Diretor Criativo IA analisou ' + recognized + ' produto(s), pesquisou tendências atuais e aplicou uma direção original da Ariana.',
+          'ok'
+        );
+      } else if (result.aiConfigured === false) {
+        status(
+          'O Diretor Criativo IA ainda não está configurado no servidor. Usei a pesquisa por regras como fallback.',
+          ''
+        );
+      } else {
+        status(
+          count > 0
+            ? 'A IA ficou indisponível nesta tentativa; usei ' + count + ' referência(s) no fallback seguro.'
+            : 'A IA ficou indisponível nesta tentativa; usei a direção segura da Ariana.',
+          ''
+        );
+      }
 
       return { applied:true, result };
     } catch (error) {
