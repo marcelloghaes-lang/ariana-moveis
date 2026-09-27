@@ -127,11 +127,10 @@ function mainImage(product = {}, options = {}) {
 }
 
 function logoPath() {
-  const configured = String(process.env.POSTER_LOGO_PATH || process.env.ARIANA_LOGO_PATH || '').trim();
+  const configured = String(process.env.ARIANA_OFFICIAL_LOGO_PATH || '').trim();
   const candidates = [
     configured,
-    path.resolve(__dirname, '../public/imagens/logo.png'),
-    path.resolve(__dirname, '../public/favicon.png')
+    path.resolve(__dirname, '../public/imagens/logo-original-3d.png')
   ].filter(Boolean);
   return candidates.find(file => fs.existsSync(file)) || '';
 }
@@ -311,24 +310,17 @@ export async function generateCreativeBannerBuffer(product = {}, options = {}) {
   const composites = [{ input: base, top: 0, left: 0 }];
 
   const logo = logoPath();
-  if (logo) {
-    const logoBuffer = await sharp(logo)
-      .resize(layout.logoW, layout.logoH, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
-      .png()
-      .toBuffer();
-    composites.push({
-      input: logoBuffer,
-      top: layout.pad,
-      left: layout.split ? layout.pad : Math.round((format.width - layout.logoW) / 2)
-    });
-  } else {
-    const brandFallback = Buffer.from(`
-      <svg width="${format.width}" height="${format.height}" xmlns="http://www.w3.org/2000/svg">
-        <text x="${layout.split ? layout.pad : format.width/2}" y="${layout.pad + layout.logoH*.72}" text-anchor="${layout.split ? 'start' : 'middle'}" font-family="Arial Black,Arial,sans-serif" font-size="${Math.round(layout.logoH*.46)}" font-weight="950" fill="#FFD51B">ARIANA MÓVEIS</text>
-      </svg>
-    `);
-    composites.push({ input: brandFallback, top: 0, left: 0 });
-  }
+  if (!logo) throw new Error('official_ariana_logo_missing');
+  const logoBuffer = await sharp(logo)
+    .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 5 })
+    .resize(layout.logoW, layout.logoH, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
+    .png()
+    .toBuffer();
+  composites.push({
+    input: logoBuffer,
+    top: layout.pad,
+    left: layout.split ? layout.pad : Math.round((format.width - layout.logoW) / 2)
+  });
 
   const source = mainImage(product, options);
   const rawProduct = await loadImageBuffer(source).catch(() => null);
