@@ -6,6 +6,7 @@ on:
       - 'functions/creative-banner-pro-generator.js'
       - 'functions/routes/adminCoreRoutes.js'
       - 'functions/tests/creative-banner-pro-generator.test.mjs'
+      - 'functions/tests/render-creative-banner-pro-snapshots.mjs'
       - 'public/js/creative_studio_pro.js'
       - 'public/creative_studio_pro.html'
       - '.github/workflows/creative-studio-pro-quality.yml'
@@ -15,6 +16,7 @@ on:
       - 'functions/creative-banner-pro-generator.js'
       - 'functions/routes/adminCoreRoutes.js'
       - 'functions/tests/creative-banner-pro-generator.test.mjs'
+      - 'functions/tests/render-creative-banner-pro-snapshots.mjs'
       - 'public/js/creative_studio_pro.js'
       - 'public/creative_studio_pro.html'
 
@@ -40,3 +42,12 @@ jobs:
           node --check ../public/js/creative_studio_pro.js
       - name: Creative Studio Pro regressions
         run: node --test tests/creative-banner-pro-generator.test.mjs
+
+      - name: Render visual snapshots
+        run: node tests/render-creative-banner-pro-snapshots.mjs
+      - name: Upload visual snapshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: creative-studio-pro-snapshots
+          path: artifacts/creative-studio-pro/*.png
+          if-no-files-found: error
