@@ -1203,3 +1203,281 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
     }
   };
 }
+
+
+function multiProductSlots(format, count = 2) {
+  const n = clamp(Math.round(Number(count) || 2), 2, 5);
+  const mobile = format.device === 'mobile';
+
+  if (mobile) {
+    if (n === 2) return [
+      { x:.16, y:.38, w:.34, h:.36 },
+      { x:.50, y:.38, w:.34, h:.36 }
+    ];
+    if (n === 3) return [
+      { x:.10, y:.43, w:.29, h:.31 },
+      { x:.33, y:.35, w:.34, h:.40 },
+      { x:.61, y:.43, w:.29, h:.31 }
+    ];
+    if (n === 4) return [
+      { x:.06, y:.43, w:.26, h:.30 },
+      { x:.27, y:.36, w:.28, h:.37 },
+      { x:.50, y:.36, w:.28, h:.37 },
+      { x:.71, y:.43, w:.24, h:.30 }
+    ];
+    return [
+      { x:.06, y:.45, w:.22, h:.27 },
+      { x:.22, y:.38, w:.25, h:.34 },
+      { x:.39, y:.33, w:.29, h:.39 },
+      { x:.61, y:.38, w:.25, h:.34 },
+      { x:.76, y:.45, w:.20, h:.27 }
+    ];
+  }
+
+  if (n === 2) return [
+    { x:.57, y:.15, w:.20, h:.70 },
+    { x:.76, y:.15, w:.20, h:.70 }
+  ];
+  if (n === 3) return [
+    { x:.55, y:.25, w:.16, h:.58 },
+    { x:.67, y:.10, w:.20, h:.75 },
+    { x:.82, y:.25, w:.15, h:.58 }
+  ];
+  if (n === 4) return [
+    { x:.53, y:.28, w:.14, h:.54 },
+    { x:.64, y:.16, w:.16, h:.66 },
+    { x:.76, y:.16, w:.16, h:.66 },
+    { x:.87, y:.28, w:.11, h:.54 }
+  ];
+  return [
+    { x:.52, y:.30, w:.13, h:.50 },
+    { x:.61, y:.19, w:.15, h:.62 },
+    { x:.70, y:.10, w:.18, h:.72 },
+    { x:.82, y:.19, w:.14, h:.62 },
+    { x:.90, y:.30, w:.09, h:.50 }
+  ];
+}
+
+function multiCampaignOverlay(format, opts, count = 2) {
+  const mobile = format.device === 'mobile';
+  const brand = opts.brandLabel || 'ARIANA';
+  const main = opts.couponText || opts.headline || 'OFERTAS ESPECIAIS';
+
+  if (mobile) {
+    const w=format.width,h=format.height,c=Math.round(w/2);
+    const mainFs=Math.round(w*(main.length>16?.034:.045));
+    const footerY=Math.round(h*.865), pillH=Math.round(h*.058);
+    return Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+      '<text x="'+c+'" y="'+Math.round(h*.145)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.026)+'" font-weight="900" letter-spacing="2.5" fill="#ffffff">'+escapeXml('ESPECIAL '+brand)+'</text>'+
+      '<text x="'+c+'" y="'+Math.round(h*.205)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.037)+'" font-weight="950" fill="#ffffff">'+escapeXml(opts.couponText ? 'USE O CUPOM' : opts.headline)+'</text>'+
+      '<rect x="'+Math.round(w*.20)+'" y="'+Math.round(h*.225)+'" width="'+Math.round(w*.60)+'" height="'+Math.round(h*.073)+'" rx="'+Math.round(h*.036)+'" fill="#FFD51B"/>'+
+      '<text x="'+c+'" y="'+Math.round(h*.275)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+mainFs+'" font-weight="950" fill="#08285A">'+escapeXml(main)+'</text>'+
+      '<text x="'+c+'" y="'+Math.round(h*.325)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.023)+'" font-weight="650" fill="#ffffff">'+escapeXml(opts.subtitle)+'</text>'+
+      '<text x="'+c+'" y="'+Math.round(h*.795)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.021)+'" font-weight="800" fill="#ffffff" opacity=".9">'+count+' PRODUTOS EM DESTAQUE</text>'+
+      pillSvg({x:Math.round(w*.055),y:footerY,w:Math.round(w*.285),h:pillH,fill:'#071D49',text:opts.installmentCount+'x no cartão',textFill:'#ffffff',fs:Math.round(w*.019),icon:'▣'})+
+      pillSvg({x:Math.round(w*.357),y:footerY,w:Math.round(w*.285),h:pillH,fill:'#FFD51B',text:opts.promoText,textFill:'#08285A',fs:Math.round(w*.017),icon:'◷'})+
+      pillSvg({x:Math.round(w*.660),y:footerY,w:Math.round(w*.285),h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(w*.019)})+
+      '</svg>'
+    );
+  }
+
+  const w=format.width,h=format.height,x=Math.round(w*.055);
+  const boxY=Math.round(h*.395),boxH=Math.round(h*.135);
+  const footerY=Math.round(h*.820),pillH=Math.round(h*.108),gap=Math.round(w*.010);
+  const pillW=Math.round(w*.165);
+  return Buffer.from(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+    '<text x="'+x+'" y="'+Math.round(h*.220)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.040)+'" font-weight="900" letter-spacing="3" fill="#ffffff">'+escapeXml('ESPECIAL '+brand)+'</text>'+
+    '<text x="'+x+'" y="'+Math.round(h*.335)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.075)+'" font-weight="950" fill="#ffffff">'+escapeXml(opts.couponText ? 'USE O CUPOM' : opts.headline)+'</text>'+
+    '<rect x="'+x+'" y="'+boxY+'" width="'+Math.round(w*.255)+'" height="'+boxH+'" rx="'+Math.round(h*.030)+'" fill="#FFD51B"/>'+
+    '<text x="'+(x+Math.round(w*.1275))+'" y="'+(boxY+Math.round(boxH*.68))+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*(main.length>15?.052:.066))+'" font-weight="950" fill="#08285A">'+escapeXml(main)+'</text>'+
+    '<text x="'+x+'" y="'+Math.round(h*.615)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.034)+'" font-weight="700" fill="#ffffff">'+escapeXml(opts.subtitle)+'</text>'+
+    '<text x="'+x+'" y="'+Math.round(h*.705)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.027)+'" font-weight="850" fill="#ffffff" opacity=".9">'+count+' PRODUTOS EM DESTAQUE</text>'+
+    pillSvg({x,y:footerY,w:pillW,h:pillH,fill:'#071D49',text:opts.installmentCount+'x no cartão',textFill:'#ffffff',fs:Math.round(h*.028),icon:'▣'})+
+    pillSvg({x:x+pillW+gap,y:footerY,w:pillW,h:pillH,fill:'#FFD51B',text:opts.promoText,textFill:'#08285A',fs:Math.round(h*.024),icon:'◷'})+
+    pillSvg({x:x+pillW*2+gap*2,y:footerY,w:Math.round(w*.130),h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(h*.028)})+
+    '</svg>'
+  );
+}
+
+function multiQuality(assets = [], brandAsset = null, format = {}) {
+  const brandOk = Boolean(brandAsset?.backgroundRemoved && brandAsset?.transparentRatio >= .02);
+  const badCutouts = assets
+    .map((asset,index)=>({asset,index}))
+    .filter(({asset}) => !(asset.backgroundRemoved && asset.cutoutSafe !== false));
+  const lowResolution = assets
+    .map((asset,index)=>({asset,index}))
+    .filter(({asset}) => Math.max(asset.sourceWidth, asset.sourceHeight) < 700);
+
+  const checks = [
+    {
+      id:'brand',
+      critical:true,
+      ok:brandOk,
+      label:brandOk ? 'Logo oficial Ariana com fundo transparente' : 'Logo oficial precisa de correção',
+      detail:brandOk ? 'Identidade oficial aprovada.' : 'A campanha final fica bloqueada.'
+    },
+    {
+      id:'multi_cutout',
+      critical:true,
+      ok:badCutouts.length===0,
+      label:badCutouts.length===0 ? 'Todos os produtos com recorte aprovado' : badCutouts.length+' produto(s) com recorte reprovado',
+      detail:badCutouts.length===0
+        ? assets.length+' produto(s) prontos para composição.'
+        : 'Troque as imagens reprovadas por PNG transparente ou foto oficial limpa.'
+    },
+    {
+      id:'multi_resolution',
+      critical:true,
+      ok:lowResolution.length===0,
+      label:lowResolution.length===0 ? 'Resolução dos produtos aprovada' : lowResolution.length+' produto(s) com baixa resolução',
+      detail:lowResolution.length===0 ? 'Todos acima da resolução mínima.' : 'Use imagens maiores antes de salvar.'
+    },
+    {
+      id:'multi_count',
+      critical:true,
+      ok:assets.length>=2 && assets.length<=5,
+      label:'Campanha com '+assets.length+' produto(s)',
+      detail:'O modo multi-produto aceita de 2 a 5 itens.'
+    },
+    {
+      id:'format',
+      critical:false,
+      ok:true,
+      label:'Composição multi-produto própria para '+(format.device==='mobile'?'celular':'desktop'),
+      detail:format.width+'×'+format.height
+    }
+  ];
+
+  const criticalFailures=checks.filter(item=>item.critical&&!item.ok);
+  return {
+    score:Math.round(checks.filter(item=>item.ok).length/checks.length*100),
+    checks,
+    blockSave:criticalFailures.length>0,
+    criticalFailures:criticalFailures.map(item=>item.id)
+  };
+}
+
+export async function analyzeCreativeBannerProMulti(products = [], options = {}) {
+  const rows=(Array.isArray(products)?products:[]).filter(Boolean).slice(0,5);
+  if(rows.length<2) throw new Error('multi_product_requires_at_least_two_products');
+  const opts=normalizedOptions(rows[0],{...options,showPrice:false,contentMode:'multi_product',templatePro:'campaign'});
+  const brandAsset=await prepareOfficialLogoAsset();
+  const assets=[];
+  for(const product of rows) assets.push(await prepareProProductAsset(product,opts));
+
+  return {
+    ok:true,
+    multiProduct:true,
+    format:opts.format,
+    template:'campaign',
+    productCount:rows.length,
+    products:assets.map((asset,index)=>({
+      index,
+      name:clean(rows[index]?.name||rows[index]?.title||('Produto '+(index+1)),90),
+      sourceWidth:asset.sourceWidth,
+      sourceHeight:asset.sourceHeight,
+      backgroundRemoved:Boolean(asset.backgroundRemoved),
+      cutoutSafe:Boolean(asset.cutoutSafe),
+      cutoutReason:asset.cutoutReason||'',
+      removalMode:asset.removalMode,
+      removedRatio:Number(asset.removedRatio.toFixed(4))
+    })),
+    brand:{
+      backgroundRemoved:Boolean(brandAsset.backgroundRemoved),
+      transparentRatio:Number(brandAsset.transparentRatio.toFixed(4))
+    },
+    quality:multiQuality(assets,brandAsset,opts.format)
+  };
+}
+
+export async function generateCreativeBannerProMulti(products = [], options = {}) {
+  const rows=(Array.isArray(products)?products:[]).filter(Boolean).slice(0,5);
+  if(rows.length<2) throw new Error('multi_product_requires_at_least_two_products');
+
+  const opts=normalizedOptions(rows[0],{
+    ...options,
+    showPrice:false,
+    contentMode:'multi_product',
+    templatePro:'campaign'
+  });
+  const format=opts.format;
+  const brandAsset=await prepareOfficialLogoAsset();
+  const assets=[];
+  for(const product of rows) assets.push(await prepareProProductAsset(product,opts));
+  const qualityResult=multiQuality(assets,brandAsset,format);
+  const slots=multiProductSlots(format,rows.length);
+
+  const layers=[
+    {input:backgroundSvg(format,'campaign'),left:0,top:0}
+  ];
+  layers.push(await logoLayer(format,brandAsset));
+
+  for(let index=0;index<assets.length;index+=1){
+    const asset=assets[index];
+    const slot=slots[index];
+    const layer=await productComposite(asset,format,{product:slot});
+    if(asset.backgroundRemoved){
+      layers.push({
+        input:layer.shadow,
+        left:layer.shadowLeft,
+        top:layer.shadowTop,
+        blend:'over'
+      });
+    }else{
+      layers.push({
+        input:fallbackPanelSvg(format,{product:slot},'campaign'),
+        left:0,
+        top:0
+      });
+    }
+    layers.push({
+      input:layer.product,
+      left:layer.productLeft,
+      top:layer.productTop,
+      blend:'over'
+    });
+  }
+
+  layers.push({
+    input:multiCampaignOverlay(format,opts,rows.length),
+    left:0,
+    top:0
+  });
+
+  const buffer=await sharp({
+    create:{
+      width:format.width,
+      height:format.height,
+      channels:4,
+      background:{r:0,g:71,b:171,alpha:1}
+    }
+  })
+    .composite(layers)
+    .png({compressionLevel:9,adaptiveFiltering:true})
+    .toBuffer();
+
+  return {
+    buffer,
+    meta:{
+      multiProduct:true,
+      format,
+      template:'campaign',
+      productCount:rows.length,
+      products:assets.map((asset,index)=>({
+        index,
+        name:clean(rows[index]?.name||rows[index]?.title||('Produto '+(index+1)),90),
+        backgroundRemoved:Boolean(asset.backgroundRemoved),
+        cutoutSafe:Boolean(asset.cutoutSafe),
+        cutoutReason:asset.cutoutReason||'',
+        removalMode:asset.removalMode
+      })),
+      brand:{
+        backgroundRemoved:Boolean(brandAsset.backgroundRemoved),
+        transparentRatio:Number(brandAsset.transparentRatio.toFixed(4))
+      },
+      quality:qualityResult
+    }
+  };
+}
