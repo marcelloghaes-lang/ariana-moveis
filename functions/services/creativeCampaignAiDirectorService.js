@@ -3,6 +3,11 @@ import { researchCreativeCampaignCopy, sanitizeCampaignCopy } from './creativeCa
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const DEFAULT_MODEL = String(process.env.CREATIVE_AI_MODEL || 'gpt-5.6-luna').trim();
 
+console.info('[creative-ai-director] startup', {
+  configured: Boolean(String(process.env.OPENAI_API_KEY || '').trim()),
+  model: DEFAULT_MODEL
+});
+
 function normalize(value = '') {
   return String(value || '')
     .normalize('NFD')
