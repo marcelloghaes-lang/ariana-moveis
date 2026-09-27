@@ -42,6 +42,7 @@ input,select,button{font:inherit;border:1px solid #c8d6e7;border-radius:7px;padd
       <option value="nao_enviado">Não enviados</option>
       <option value="telefone_invalido_ou_ausente">Telefone com problema</option>
       <option value="falha_no_envio">Falha no envio</option>
+      <option value="adiado_dia_nao_util">Adiado por domingo/feriado</option>
       <option value="processando">Processando</option>
     </select>
     <button class="btn" id="refresh">↻ Atualizar</button>
@@ -59,13 +60,13 @@ function money(v){return Number(v||0).toLocaleString('pt-BR',{style:'currency',c
 function dateBR(v){if(!v)return'—';const s=String(v).slice(0,10);const m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?m[3]+'/'+m[2]+'/'+m[1]:new Date(v).toLocaleDateString('pt-BR')}
 function dt(v){if(!v)return'—';const d=new Date(v);return Number.isNaN(d.getTime())?'—':d.toLocaleString('pt-BR')}
 async function api(path){const r=await fetch(API+path,{headers:{Authorization:'Bearer '+token()},cache:'no-store'});let d={};try{d=await r.json()}catch{}if(r.status===401){location.replace('erp_login.html?return=erp_cobranca_15_dias.html')}if(!r.ok)throw new Error(d.error||('Erro HTTP '+r.status));return d}
-function label(s){return({enviado:'Enviado',nao_enviado:'Não enviado',telefone_invalido_ou_ausente:'Telefone inválido/ausente',falha_no_envio:'Falha no envio',processando:'Processando'})[s]||s}
+function label(s){return({enviado:'Enviado',nao_enviado:'Não enviado',telefone_invalido_ou_ausente:'Telefone inválido/ausente',falha_no_envio:'Falha no envio',adiado_dia_nao_util:'Adiado para dia útil',processando:'Processando'})[s]||s}
 function cls(s){return s==='enviado'?'sent':s==='telefone_invalido_ou_ausente'?'phone':s==='falha_no_envio'?'failed':s==='processando'?'processing':'not-sent'}
 function filtered(){const q=$('q').value.trim().toLowerCase(),st=$('status').value;return rows.filter(x=>(st==='all'||x.status===st)&&(!q||(x.customerName||'').toLowerCase().includes(q)||(x.phone||'').includes(q)))}
 function render(){
  const list=filtered();
  $('body').innerHTML=list.map(x=>`<tr><td><b>${esc(x.customerName||'—')}</b></td><td>${esc(x.phone||'—')}</td><td><span class="pill ${cls(x.status)}">${esc(label(x.status))}</span></td><td>${Number(x.installmentCount||0)}</td><td class="money"><b>${money(x.totalOutstanding)}</b></td><td>${dateBR(x.dueDate)}</td><td>${dt(x.sentAt)}</td><td>${esc(x.reason||'—')}</td></tr>`).join('')||'<tr><td colspan="8" class="empty">Nenhum cliente neste filtro.</td></tr>';
- $('print-meta').textContent=`Data da auditoria: ${dateBR(meta.date)} • Vencimento analisado: ${dateBR(meta.dueDate)} • ${list.length} cliente(s) no filtro`;
+ const dueText=Array.isArray(meta.dueDates)&&meta.dueDates.length?meta.dueDates.map(dateBR).join(' e '):'—'; $('print-meta').textContent=`Data da auditoria: ${dateBR(meta.date)} • Vencimentos analisados: ${dueText} • ${list.length} cliente(s) no filtro`;
 }
 function metrics(){
  const count=s=>rows.filter(x=>x.status===s).length;
@@ -73,7 +74,7 @@ function metrics(){
 }
 async function load(){
  $('subtitle').textContent='Carregando auditoria…';
- try{const d=await api('/erp/finance-panel/cobrancas-15-dias/auditoria');rows=Array.isArray(d.customers)?d.customers:[];meta=d;$('subtitle').textContent=`Referência: parcelas vencidas em ${dateBR(d.dueDate)} • atualização em tempo real`;metrics();render()}
+ try{const d=await api('/erp/finance-panel/cobrancas-15-dias/auditoria');rows=Array.isArray(d.customers)?d.customers:[];meta=d;const dueText=Array.isArray(d.dueDates)&&d.dueDates.length?d.dueDates.map(dateBR).join(' e '):'—';$('subtitle').textContent=d.businessDay===false?`Hoje é dia não útil (${d.nonWorkingReason||'domingo/feriado'}). Envios adiados para ${dateBR(d.nextBusinessDate)}.`:`Referência: vencimentos ${dueText} • atualização em tempo real`;metrics();render()}
  catch(e){$('subtitle').textContent=e.message;$('body').innerHTML='<tr><td colspan="8" class="empty">Não foi possível carregar a auditoria.</td></tr>'}
 }
 $('q').addEventListener('input',render);$('status').addEventListener('change',render);$('refresh').onclick=load;$('print').onclick=()=>{render();window.print()};load();
