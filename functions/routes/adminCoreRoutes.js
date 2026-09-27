@@ -959,6 +959,16 @@ app.post('/api/admin/posters/professional-banner', adminRequired, async (req, re
   }
 });
 
+app.get('/api/creative-studio/pro/ai-status', (_req, res) => {
+  return res.json({
+    ok: true,
+    configured: Boolean(String(process.env.OPENAI_API_KEY || '').trim()),
+    model: String(process.env.CREATIVE_AI_MODEL || 'gpt-5.6-luna').trim(),
+    engine: 'ai_vision_web',
+    fallback: 'rules_fallback'
+  });
+});
+
 app.post('/api/admin/creative-studio/pro/research-copy', adminRequired, async (req, res) => {
   try {
     const products = Array.isArray(req.body?.products)
