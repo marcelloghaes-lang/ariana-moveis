@@ -977,6 +977,7 @@ app.post('/api/admin/creative-studio/pro/preview', adminRequired, async (req, re
       'X-Creative-Width': String(format.width),
       'X-Creative-Height': String(format.height),
       'X-Creative-Quality': String(result.meta?.quality?.score ?? ''),
+      'X-Creative-Blocked': result.meta?.quality?.blockSave ? '1' : '0',
       'X-Creative-Background': String(result.meta?.product?.removalMode || ''),
       'X-Content-Type-Options': 'nosniff'
     });
@@ -991,6 +992,16 @@ app.post('/api/admin/creative-studio/pro/render', adminRequired, async (req, res
   try {
     const { product, options } = professionalCreativeInput(req.body || {});
     const result = await generateCreativeBannerPro(product, options);
+    if (result.meta?.quality?.blockSave) {
+      return res.status(422).json({
+        ok: false,
+        error: 'creative_quality_blocked',
+        message: 'A arte final foi bloqueada porque a imagem não atingiu a qualidade mínima.',
+        quality: result.meta.quality,
+        product: result.meta.product,
+        brand: result.meta.brand
+      });
+    }
     const format = result.meta?.format || resolveProFormat(options.outputFormat);
     const productName = String(product.name || product.title || 'banner-ariana-pro');
     const safeName = sanitizeIdPart(productName) || 'banner-ariana-pro';

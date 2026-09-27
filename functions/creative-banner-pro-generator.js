@@ -155,14 +155,94 @@ function logoPath() {
   return candidates.find(file => fs.existsSync(file)) || '';
 }
 
-async function logoLayer(format) {
-  const file = logoPath();
+let officialLogoAssetCache = null;
+
+export async function prepareOfficialLogoAsset(input = '') {
+  if (!input && officialLogoAssetCache) return officialLogoAssetCache;
+
+  const file = input || logoPath();
   if (!file) throw new Error('official_ariana_logo_missing');
+
+  const source = sharp(file).rotate().ensureAlpha();
+  const { data, info } = await source.raw().toBuffer({ resolveWithObject: true });
+  const { width, height, channels } = info;
+  const total = width * height;
+  const visited = new Uint8Array(total);
+  const queue = new Int32Array(total);
+  let head = 0;
+  let tail = 0;
+
+  function isBlackBackground(index) {
+    const p = index * channels;
+    const alpha = data[p + 3];
+    if (alpha < 20) return true;
+    const r = data[p];
+    const g = data[p + 1];
+    const b = data[p + 2];
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    return max <= 42 && (max - min) <= 22;
+  }
+
+  function enqueue(index) {
+    if (visited[index] || !isBlackBackground(index)) return;
+    visited[index] = 1;
+    queue[tail++] = index;
+  }
+
+  for (let x = 0; x < width; x += 1) {
+    enqueue(x);
+    enqueue((height - 1) * width + x);
+  }
+  for (let y = 0; y < height; y += 1) {
+    enqueue(y * width);
+    enqueue(y * width + width - 1);
+  }
+
+  while (head < tail) {
+    const index = queue[head++];
+    const x = index % width;
+    const y = Math.floor(index / width);
+    if (x > 0) enqueue(index - 1);
+    if (x + 1 < width) enqueue(index + 1);
+    if (y > 0) enqueue(index - width);
+    if (y + 1 < height) enqueue(index + width);
+  }
+
+  for (let i = 0; i < total; i += 1) {
+    if (visited[i]) data[i * channels + 3] = 0;
+  }
+
+  const transparentRatio = tail / Math.max(1, total);
+  const png = await sharp(data, { raw: info }).png().toBuffer();
+  const trimmed = await sharp(png)
+    .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 5 })
+    .png()
+    .toBuffer();
+  const meta = await sharp(trimmed).metadata();
+
+  if (!meta.width || !meta.height || transparentRatio < 0.02) {
+    throw new Error('official_ariana_logo_background_not_removed');
+  }
+
+  const result = {
+    buffer: trimmed,
+    width: meta.width,
+    height: meta.height,
+    transparentRatio,
+    backgroundRemoved: true
+  };
+
+  if (!input) officialLogoAssetCache = result;
+  return result;
+}
+
+async function logoLayer(format, preparedAsset = null) {
+  const asset = preparedAsset || await prepareOfficialLogoAsset();
   const mobile = format.device === 'mobile';
   const width = mobile ? Math.round(format.width * .32) : Math.round(format.height * .60);
   const height = mobile ? Math.round(format.height * .090) : Math.round(format.height * .140);
-  const buffer = await sharp(file)
-    .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 5 })
+  const buffer = await sharp(asset.buffer)
     .resize(width, height, {
       fit: 'contain',
       background: { r: 255, g: 255, b: 255, alpha: 0 }
@@ -247,7 +327,101 @@ function colorStats(raw, info) {
   };
 }
 
-async function removeConnectedBackground(buffer, enabled = true) {
+
+function alphaShapeStats(raw, info) {
+  const { width, height, channels } = info;
+  const total = width * height;
+  const opaque = new Uint8Array(total);
+  let opaquePixels = 0;
+
+  for (let i = 0; i < total; i += 1) {
+    if (raw[i * channels + 3] >= 48) {
+      opaque[i] = 1;
+      opaquePixels += 1;
+    }
+  }
+
+  if (!opaquePixels) {
+    return {
+      opaqueRatio: 0,
+      majorComponents: 0,
+      largestShare: 0,
+      components: []
+    };
+  }
+
+  const seen = new Uint8Array(total);
+  const queue = new Int32Array(total);
+  const components = [];
+
+  for (let start = 0; start < total; start += 1) {
+    if (!opaque[start] || seen[start]) continue;
+    let head = 0;
+    let tail = 0;
+    let count = 0;
+    queue[tail++] = start;
+    seen[start] = 1;
+
+    while (head < tail) {
+      const index = queue[head++];
+      count += 1;
+      const x = index % width;
+      const y = Math.floor(index / width);
+
+      const neighbors = [];
+      if (x > 0) neighbors.push(index - 1);
+      if (x + 1 < width) neighbors.push(index + 1);
+      if (y > 0) neighbors.push(index - width);
+      if (y + 1 < height) neighbors.push(index + width);
+
+      for (const next of neighbors) {
+        if (opaque[next] && !seen[next]) {
+          seen[next] = 1;
+          queue[tail++] = next;
+        }
+      }
+    }
+
+    components.push(count);
+  }
+
+  components.sort((a, b) => b - a);
+  const largest = components[0] || 0;
+  const majorThreshold = Math.max(120, Math.round(opaquePixels * .018));
+  const majorComponents = components.filter(value => value >= majorThreshold).length;
+
+  return {
+    opaqueRatio: opaquePixels / Math.max(1, total),
+    majorComponents,
+    largestShare: largest / Math.max(1, opaquePixels),
+    components: components.slice(0, 12)
+  };
+}
+
+function cutoutSafety(stats = {}, removedRatio = 0, productText = '') {
+  const text = String(productText || '').toLowerCase();
+  const kitLike = /(kit|conjunto|combo|antena|parabol|receptor|acess[oó]rio|cabo|jogo)/i.test(text);
+  const tooThin = Number(stats.opaqueRatio || 0) < .055;
+  const tooFragmented = !kitLike && (
+    Number(stats.majorComponents || 0) > 3 ||
+    (Number(stats.majorComponents || 0) > 1 && Number(stats.largestShare || 0) < .78)
+  );
+  const suspiciousWhiteLeak =
+    !kitLike &&
+    removedRatio > .67 &&
+    Number(stats.opaqueRatio || 0) < .19 &&
+    Number(stats.largestShare || 0) < .90;
+
+  const safe = !tooThin && !tooFragmented && !suspiciousWhiteLeak;
+  let reason = 'ok';
+  if (tooThin) reason = 'opaque_area_too_small';
+  else if (tooFragmented) reason = 'foreground_fragmented';
+  else if (suspiciousWhiteLeak) reason = 'possible_white_product_overcut';
+
+  return { safe, reason, kitLike };
+}
+
+async function removeConnectedBackground(buffer, enabled = true, productText = '') {
   const source = sharp(buffer)
     .rotate()
     .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
@@ -274,16 +448,25 @@ async function removeConnectedBackground(buffer, enabled = true) {
       .png()
       .toBuffer();
     const meta = await sharp(trimmed).metadata();
+    const shape = alphaShapeStats(data, info);
+    const safety = initialTransparentRatio > 0.03
+      ? cutoutSafety(shape, initialTransparentRatio, productText)
+      : { safe: false, reason: 'background_removal_disabled', kitLike: false };
     return {
       buffer: trimmed,
       sourceWidth: sourceMeta.width || width,
       sourceHeight: sourceMeta.height || height,
       width: meta.width || width,
       height: meta.height || height,
-      backgroundRemoved: initialTransparentRatio > 0.03,
-      removalMode: initialTransparentRatio > 0.03 ? 'existing_alpha' : 'disabled',
+      backgroundRemoved: initialTransparentRatio > 0.03 && safety.safe,
+      removalMode: initialTransparentRatio > 0.03
+        ? (safety.safe ? 'existing_alpha' : 'unsafe_existing_alpha')
+        : 'disabled',
       removedRatio: initialTransparentRatio,
-      confidence: initialTransparentRatio > 0.03 ? 1 : 0
+      confidence: initialTransparentRatio > 0.03 && safety.safe ? 1 : 0,
+      cutoutSafe: Boolean(safety.safe),
+      cutoutReason: safety.reason,
+      shape
     };
   }
 
@@ -302,7 +485,10 @@ async function removeConnectedBackground(buffer, enabled = true) {
       backgroundRemoved: false,
       removalMode: 'complex_background',
       removedRatio: 0,
-      confidence: 0.15
+      confidence: 0.15,
+      cutoutSafe: false,
+      cutoutReason: 'complex_background',
+      shape: alphaShapeStats(data, info)
     };
   }
 
@@ -364,7 +550,10 @@ async function removeConnectedBackground(buffer, enabled = true) {
       backgroundRemoved: false,
       removalMode: removedRatio > 0.94 ? 'unsafe_overremove_blocked' : 'no_background_detected',
       removedRatio,
-      confidence: removedRatio > 0.94 ? 0 : 0.3
+      confidence: removedRatio > 0.94 ? 0 : 0.3,
+      cutoutSafe: false,
+      cutoutReason: removedRatio > 0.94 ? 'overremove_ratio' : 'no_background_detected',
+      shape: alphaShapeStats(data, info)
     };
   }
 
@@ -395,13 +584,36 @@ async function removeConnectedBackground(buffer, enabled = true) {
     .toBuffer();
   const meta = await sharp(trimmed).metadata();
 
-  const confidence = clamp(
-    (uniformEdge ? 0.45 : 0.2) +
-    (lightEdge ? 0.25 : 0.1) +
-    Math.min(0.25, removedRatio * 0.35),
-    0,
-    0.98
-  );
+  const shape = alphaShapeStats(data, info);
+  const safety = cutoutSafety(shape, removedRatio, productText);
+  const confidence = safety.safe
+    ? clamp(
+        (uniformEdge ? 0.45 : 0.2) +
+        (lightEdge ? 0.25 : 0.1) +
+        Math.min(0.25, removedRatio * 0.35),
+        0,
+        0.98
+      )
+    : 0;
+
+  if (!safety.safe) {
+    const original = await source.png().toBuffer();
+    const originalMeta = await sharp(original).metadata();
+    return {
+      buffer: original,
+      sourceWidth: sourceMeta.width || width,
+      sourceHeight: sourceMeta.height || height,
+      width: originalMeta.width || width,
+      height: originalMeta.height || height,
+      backgroundRemoved: false,
+      removalMode: 'unsafe_cutout_blocked',
+      removedRatio,
+      confidence: 0,
+      cutoutSafe: false,
+      cutoutReason: safety.reason,
+      shape
+    };
+  }
 
   return {
     buffer: trimmed,
@@ -412,7 +624,10 @@ async function removeConnectedBackground(buffer, enabled = true) {
     backgroundRemoved: true,
     removalMode: lightEdge ? 'connected_light_background' : 'connected_uniform_background',
     removedRatio,
-    confidence
+    confidence,
+    cutoutSafe: true,
+    cutoutReason: 'ok',
+    shape
   };
 }
 
@@ -775,36 +990,69 @@ function fallbackPanelSvg(format, comp, template) {
   );
 }
 
-function quality(asset, opts, format) {
+function quality(asset, opts, format, brandAsset = null) {
+  const cutoutOk = Boolean(asset.backgroundRemoved && asset.cutoutSafe !== false);
+  const resolutionOk = Math.max(asset.sourceWidth, asset.sourceHeight) >= 700;
+  const brandOk = Boolean(brandAsset?.backgroundRemoved && brandAsset?.transparentRatio >= .02);
+
   const checks = [
     {
-      id: 'background',
-      ok: asset.backgroundRemoved,
-      label: asset.backgroundRemoved ? 'Fundo do produto tratado' : 'Fundo do produto precisa de atenção',
-      detail: asset.backgroundRemoved ? asset.removalMode : 'A imagem será apresentada em um painel para evitar recorte ruim.'
+      id: 'brand',
+      critical: true,
+      ok: brandOk,
+      label: brandOk ? 'Logo oficial Ariana com fundo transparente' : 'Logo oficial precisa de correção',
+      detail: brandOk
+        ? 'A identidade oficial será usada sem caixa preta.'
+        : 'O banner final fica bloqueado até a logo oficial estar transparente.'
+    },
+    {
+      id: 'cutout',
+      critical: true,
+      ok: cutoutOk,
+      label: cutoutOk ? 'Recorte do produto aprovado' : 'Recorte do produto reprovado',
+      detail: cutoutOk
+        ? asset.removalMode
+        : (
+            asset.cutoutReason === 'possible_white_product_overcut'
+              ? 'O fundo branco está invadindo áreas claras do produto. Envie PNG transparente ou outra foto.'
+              : asset.cutoutReason === 'foreground_fragmented'
+                ? 'O produto ficou fragmentado após o recorte. A arte final foi bloqueada.'
+                : asset.cutoutReason === 'complex_background'
+                  ? 'A foto possui fundo complexo. Use PNG transparente ou uma imagem oficial limpa.'
+                  : 'O recorte automático não atingiu qualidade suficiente.'
+          )
     },
     {
       id: 'resolution',
-      ok: Math.max(asset.sourceWidth, asset.sourceHeight) >= 700,
-      label: Math.max(asset.sourceWidth, asset.sourceHeight) >= 700 ? 'Resolução adequada' : 'Imagem de origem pequena',
+      critical: true,
+      ok: resolutionOk,
+      label: resolutionOk ? 'Resolução adequada' : 'Imagem de origem pequena',
       detail: asset.sourceWidth + '×' + asset.sourceHeight + ' px'
     },
     {
       id: 'pricing',
+      critical: false,
       ok: !opts.showPrice || opts.cashPrice > 0,
       label: opts.showPrice ? 'Preço preenchido' : 'Layout sem preço ativado',
       detail: opts.showPrice ? money(opts.cashPrice) : 'Preço não é obrigatório neste modo.'
     },
     {
       id: 'format',
+      critical: false,
       ok: true,
       label: 'Composição própria para ' + (format.device === 'mobile' ? 'celular' : 'desktop'),
       detail: format.width + '×' + format.height
     }
   ];
 
+  const criticalFailed = checks.filter(item => item.critical && !item.ok);
   const score = Math.round(checks.filter(item => item.ok).length / checks.length * 100);
-  return { score, checks };
+  return {
+    score,
+    checks,
+    blockSave: criticalFailed.length > 0,
+    criticalFailures: criticalFailed.map(item => item.id)
+  };
 }
 
 export async function prepareProProductAsset(product = {}, options = {}) {
@@ -812,12 +1060,17 @@ export async function prepareProProductAsset(product = {}, options = {}) {
   if (!source) throw new Error('product_image_required');
   const raw = await loadImage(source);
   if (!raw) throw new Error('product_image_unavailable');
-  return removeConnectedBackground(raw, options.removeBackground !== false && options.removeLightBackground !== false);
+  return removeConnectedBackground(
+    raw,
+    options.removeBackground !== false && options.removeLightBackground !== false,
+    productCategoryText(product)
+  );
 }
 
 export async function analyzeCreativeBannerPro(product = {}, options = {}) {
   const opts = normalizedOptions(product, options);
   const asset = await prepareProProductAsset(product, opts);
+  const brandAsset = await prepareOfficialLogoAsset();
   const comp = composition(opts.format, asset, opts);
   return {
     ok: true,
@@ -833,9 +1086,16 @@ export async function analyzeCreativeBannerPro(product = {}, options = {}) {
       backgroundRemoved: asset.backgroundRemoved,
       removalMode: asset.removalMode,
       removedRatio: Number(asset.removedRatio.toFixed(4)),
-      backgroundConfidence: Number(asset.confidence.toFixed(3))
+      backgroundConfidence: Number(asset.confidence.toFixed(3)),
+      cutoutSafe: Boolean(asset.cutoutSafe),
+      cutoutReason: asset.cutoutReason || '',
+      shape: asset.shape || null
     },
-    quality: quality(asset, opts, opts.format)
+    brand: {
+      backgroundRemoved: Boolean(brandAsset.backgroundRemoved),
+      transparentRatio: Number(brandAsset.transparentRatio.toFixed(4))
+    },
+    quality: quality(asset, opts, opts.format, brandAsset)
   };
 }
 
@@ -843,6 +1103,7 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
   const opts = normalizedOptions(product, options);
   const format = opts.format;
   const asset = await prepareProProductAsset(product, opts);
+  const brandAsset = await prepareOfficialLogoAsset();
   const comp = composition(format, asset, opts);
   const productLayer = await productComposite(asset, format, comp);
 
@@ -850,7 +1111,7 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
     { input: backgroundSvg(format, opts.template), left: 0, top: 0 }
   ];
 
-  const logo = await logoLayer(format);
+  const logo = await logoLayer(format, brandAsset);
   if (logo) layers.push(logo);
 
   if (!asset.backgroundRemoved) {
@@ -904,9 +1165,16 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
         backgroundRemoved: asset.backgroundRemoved,
         removalMode: asset.removalMode,
         removedRatio: Number(asset.removedRatio.toFixed(4)),
-        backgroundConfidence: Number(asset.confidence.toFixed(3))
+        backgroundConfidence: Number(asset.confidence.toFixed(3)),
+        cutoutSafe: Boolean(asset.cutoutSafe),
+        cutoutReason: asset.cutoutReason || '',
+        shape: asset.shape || null
       },
-      quality: quality(asset, opts, format)
+      brand: {
+        backgroundRemoved: Boolean(brandAsset.backgroundRemoved),
+        transparentRatio: Number(brandAsset.transparentRatio.toFixed(4))
+      },
+      quality: quality(asset, opts, format, brandAsset)
     }
   };
 }

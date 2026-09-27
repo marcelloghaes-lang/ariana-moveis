@@ -4,6 +4,7 @@ import sharp from 'sharp';
 import {
   analyzeCreativeBannerPro,
   generateCreativeBannerPro,
+  prepareOfficialLogoAsset,
   resolveProFormat,
   resolveProTemplate
 } from '../creative-banner-pro-generator.js';
@@ -28,6 +29,28 @@ const COMPLEX_BG_PRODUCT = svgData(
   '</linearGradient></defs>' +
   '<rect width="900" height="900" fill="url(#g)"/>' +
   '<rect x="280" y="120" width="340" height="660" rx="30" fill="#111827"/>' +
+  '</svg>'
+);
+
+
+const TEST_LOGO_PATH = '/tmp/ariana-official-logo-stage1-test.png';
+await sharp(Buffer.from(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="620" height="220">' +
+  '<rect width="620" height="220" fill="#000000"/>' +
+  '<path d="M90 165 L145 45 L205 165 Z" fill="#FFD51B" stroke="#0B4FA8" stroke-width="16"/>' +
+  '<rect x="230" y="65" width="300" height="70" rx="8" fill="#FFD51B"/>' +
+  '</svg>'
+)).png().toFile(TEST_LOGO_PATH);
+process.env.ARIANA_OFFICIAL_LOGO_PATH = TEST_LOGO_PATH;
+
+const FRAGMENTED_WHITE_PRODUCT = svgData(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="900" height="900">' +
+  '<rect width="900" height="900" fill="#ffffff"/>' +
+  '<rect x="250" y="100" width="400" height="680" fill="#ffffff"/>' +
+  '<rect x="270" y="120" width="34" height="620" fill="#7c4a21"/>' +
+  '<rect x="596" y="120" width="34" height="620" fill="#7c4a21"/>' +
+  '<rect x="360" y="260" width="18" height="120" fill="#8b5e34"/>' +
+  '<rect x="520" y="500" width="18" height="120" fill="#8b5e34"/>' +
   '</svg>'
 );
 
@@ -164,4 +187,53 @@ test('campanha de fabricante aceita marca, cupom e composição promocional', as
   assert.equal(meta.height, 480);
   assert.equal(meta.format, 'png');
   assert.ok(result.buffer.length > 5000);
+});
+
+
+test('logo oficial com fundo preto vira transparente antes de entrar no banner', async () => {
+  const logo = await prepareOfficialLogoAsset(TEST_LOGO_PATH);
+  assert.equal(logo.backgroundRemoved, true);
+  assert.ok(logo.transparentRatio > 0.20);
+  assert.ok(logo.width < 620);
+  assert.ok(logo.height < 220);
+
+  const { data, info } = await sharp(logo.buffer)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const cornerAlpha = data[3];
+  assert.equal(info.channels, 4);
+  assert.equal(cornerAlpha, 0);
+});
+
+test('recorte fragmentado de produto branco é bloqueado em vez de gerar produto mastigado', async () => {
+  const analysis = await analyzeCreativeBannerPro({
+    ...product,
+    name: 'Guarda Roupa Branco 6 Portas',
+    category: 'Móveis',
+    imageUrl: FRAGMENTED_WHITE_PRODUCT
+  }, {
+    outputFormat: 'hero_desktop',
+    templatePro: 'marketplace',
+    removeBackground: true
+  });
+
+  assert.equal(analysis.product.backgroundRemoved, false);
+  assert.equal(analysis.product.cutoutSafe, false);
+  assert.match(analysis.product.removalMode, /^unsafe_(?:cutout|overremove)_blocked$/);
+  assert.equal(analysis.quality.blockSave, true);
+  assert.ok(analysis.quality.criticalFailures.includes('cutout'));
+});
+
+test('peça aprovada libera salvar somente com logo, recorte e resolução válidos', async () => {
+  const analysis = await analyzeCreativeBannerPro(product, {
+    outputFormat: 'hero_desktop',
+    templatePro: 'marketplace',
+    removeBackground: true
+  });
+
+  assert.equal(analysis.brand.backgroundRemoved, true);
+  assert.equal(analysis.product.cutoutSafe, true);
+  assert.equal(analysis.quality.blockSave, false);
+  assert.deepEqual(analysis.quality.criticalFailures, []);
 });
