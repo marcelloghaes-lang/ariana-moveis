@@ -200,6 +200,7 @@
 
     els.productName.value = selectedProduct.name || '';
     els.imageUrl.value = imageOf(selectedProduct);
+    if (selectedProduct.brand && !els.brandLabel.value.trim()) els.brandLabel.value = selectedProduct.brand;
     if (cash) els.cashPrice.value = moneyInput(cash);
     if (full) els.fullPrice.value = moneyInput(full);
     if (full) els.installmentPrice.value = moneyInput(full / count);
@@ -302,6 +303,9 @@
         benefit: els.benefit.value.trim(),
         badge: els.badge.value.trim(),
         cta: els.cta.value.trim(),
+        brandLabel: els.brandLabel.value.trim() || selectedProduct?.brand || '',
+        couponText: els.couponText.value.trim(),
+        promoText: els.promoText.value.trim(),
         productName: name,
         imageUrl,
         cashPrice,
@@ -452,6 +456,9 @@
       headline:byId('headline'),
       subtitle:byId('subtitle'),
       benefit:byId('benefit'),
+      brandLabel:byId('brand-label'),
+      couponText:byId('coupon-text'),
+      promoText:byId('promo-text'),
       pricingStep:byId('pricing-step'),
       cashPrice:byId('cash-price'),
       fullPrice:byId('full-price'),
