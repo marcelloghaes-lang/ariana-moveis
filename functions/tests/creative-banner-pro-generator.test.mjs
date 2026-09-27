@@ -241,6 +241,15 @@ test('peça aprovada libera salvar somente com logo, recorte e resolução váli
 });
 
 
+const MANUFACTURER_LOGO_WHITE_BG = svgData(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="900" height="360">' +
+  '<rect width="900" height="360" fill="#ffffff"/>' +
+  '<circle cx="180" cy="180" r="112" fill="none" stroke="#e11d48" stroke-width="30"/>' +
+  '<path d="M140 180 C175 120 215 120 250 180" fill="none" stroke="#e11d48" stroke-width="25" stroke-linecap="round"/>' +
+  '<text x="335" y="225" font-family="Arial" font-size="150" font-weight="900" fill="#0b3b87">MIDEA</text>' +
+  '</svg>'
+);
+
 const MULTI_TV = {
   id: 'multi-tv',
   name: 'Smart TV 55 4K',
@@ -378,4 +387,46 @@ test('campanha multi-produto bloqueia se qualquer produto falhar no recorte', as
   );
   assert.equal(analysis.quality.blockSave, true);
   assert.ok(analysis.quality.criticalFailures.includes('multi_cutout'));
+});
+
+
+test('logo do fabricante com fundo branco é tratada e liberada na campanha', async () => {
+  const analysis = await analyzeCreativeBannerProMulti(
+    [MULTI_TV, MULTI_FRIDGE, MULTI_WASHER],
+    {
+      outputFormat: 'hero_desktop',
+      brandLabel: 'MIDEA',
+      brandLogoUrl: MANUFACTURER_LOGO_WHITE_BG,
+      couponText: 'PROMOMIDEA',
+      headline: 'ESPECIAL MIDEA',
+      subtitle: 'Condições especiais para sua casa',
+      cta: 'APROVEITE'
+    }
+  );
+
+  assert.equal(analysis.manufacturerBrand?.backgroundRemoved, true);
+  const check = analysis.quality.checks.find(item => item.id === 'manufacturer_logo');
+  assert.equal(check?.ok, true);
+  assert.equal(analysis.quality.blockSave, false);
+});
+
+test('campanha com logo do fabricante renderiza sem caixa branca', async () => {
+  const result = await generateCreativeBannerProMulti(
+    [MULTI_TV, MULTI_FRIDGE, MULTI_WASHER, MULTI_MICROWAVE],
+    {
+      outputFormat: 'hero_mobile',
+      brandLabel: 'MIDEA',
+      brandLogoUrl: MANUFACTURER_LOGO_WHITE_BG,
+      couponText: 'PROMOMIDEA',
+      headline: 'ESPECIAL MIDEA',
+      subtitle: 'Condições especiais para renovar sua casa',
+      promoText: 'OFERTA POR TEMPO LIMITADO',
+      cta: 'APROVEITE'
+    }
+  );
+  assert.equal(result.meta.manufacturerBrand?.backgroundRemoved, true);
+  assert.equal(result.meta.quality.blockSave, false);
+  const meta = await sharp(result.buffer).metadata();
+  assert.equal(meta.width, 1080);
+  assert.equal(meta.height, 1080);
 });
