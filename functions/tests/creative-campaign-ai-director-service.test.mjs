@@ -69,7 +69,7 @@ test('direção IA sanitiza comércio inventado e preserva briefing criativo', (
     subtitle: 'Potência e tecnologia para curtir do seu jeito.'
   });
 
-  assert.equal(result.category, 'Áudio & Som');
+  assert.equal(result.category, 'ÁUDIO & SOM');
   assert.equal(result.direction.heroProductIndex, 1);
   assert.equal(result.direction.productHierarchy, 'one_plus_two');
   assert.equal(result.copy.subtitle, 'Potência e tecnologia para curtir do seu jeito.');
