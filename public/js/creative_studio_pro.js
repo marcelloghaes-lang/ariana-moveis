@@ -6,6 +6,7 @@
   let products = [];
   let productsLoading = true;
   let selectedProduct = null;
+  let selectedProducts = [];
   let contentMode = 'with_price';
   let previewBlob = null;
   let previewUrl = '';
@@ -117,29 +118,48 @@
   }
 
   function applyMode(mode) {
-    contentMode = ['with_price','no_price','institutional'].includes(mode) ? mode : 'with_price';
+    contentMode = ['with_price','no_price','institutional','multi_product'].includes(mode) ? mode : 'with_price';
     document.querySelectorAll('#content-mode button').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === contentMode));
 
+    const multi = contentMode === 'multi_product';
     const showPricing = contentMode === 'with_price';
     els.pricingStep.classList.toggle('disabled', !showPricing);
     els.pricingStep.querySelectorAll('input,select').forEach(input => {
       input.disabled = !showPricing;
     });
+    els.multiProductHint?.classList.toggle('hidden', !multi);
+    els.singleProductFields?.classList.toggle('hidden', multi);
 
-    if (contentMode === 'no_price') {
+    if (multi) {
+      const campaign = document.querySelector('input[name="template-pro"][value="campaign"]');
+      if (campaign) {
+        campaign.checked = true;
+        updateChoiceCards();
+      }
+      els.badge.value = 'CAMPANHA ESPECIAL';
+      els.headline.value = 'OFERTAS PARA RENOVAR SUA CASA';
+      els.subtitle.value = 'Grandes marcas e condições especiais em uma só campanha';
+      els.cta.value = 'APROVEITE';
+      els.promoText.value = 'OFERTA POR TEMPO LIMITADO';
+      renderSelectedProducts();
+      status('Modo multi-produto ativado. Escolha de 2 a 5 produtos do catálogo para montar uma única vitrine.', 'ok');
+    } else if (contentMode === 'no_price') {
       els.badge.value = 'DESTAQUE ARIANA';
       els.headline.value = 'TECNOLOGIA PARA SUA CASA';
       els.cta.value = 'CONFIRA NO SITE';
+      renderSelectedProducts();
       status('Modo sem preço ativado. O banner será reorganizado sem reservar espaço para valor.', 'ok');
     } else if (contentMode === 'institutional') {
       els.badge.value = 'CAMPANHA ARIANA';
       els.headline.value = 'PORQUE SUA CASA MERECE O MELHOR';
       els.cta.value = 'CONHEÇA A ARIANA';
+      renderSelectedProducts();
       status('Modo institucional ativado. Preço e parcelamento não serão usados.', 'ok');
     } else {
       els.badge.value = 'OFERTA ARIANA';
       els.headline.value = 'OFERTA IMPERDÍVEL';
       els.cta.value = 'APROVEITE AGORA';
+      renderSelectedProducts();
       status('Modo com preço ativado. Se o valor ficar vazio, o Pro ainda gera uma composição sem preço.', 'ok');
     }
   }
@@ -187,26 +207,63 @@
     });
   }
 
-  function selectProduct(product) {
-    selectedProduct = product || null;
+  function compactCatalogProduct(product = {}) {
+    const full = Number(product.price || product.fullPrice || 0);
+    const cash = Number(product.pixPrice || product.cashPrice || (full ? full * .83 : 0));
+    const count = Number(els.installments?.value || 12);
+    return {
+      id: String(product.id || product._id || ''),
+      name: product.name || product.title || 'Produto',
+      imageUrl: imageOf(product),
+      brand: product.brand || product.brandName || '',
+      category: product.category || product.categoryName || '',
+      cashPrice: cash,
+      fullPrice: full,
+      installmentCount: count,
+      installmentPrice: full > 0 && count > 0 ? full / count : 0
+    };
+  }
+
+  function renderSelectedProducts() {
+    if (contentMode === 'multi_product') {
+      if (!selectedProducts.length) {
+        els.selectedProduct.classList.add('hidden');
+        els.selectedProduct.innerHTML = '';
+        return;
+      }
+      els.selectedProduct.classList.remove('hidden');
+      els.selectedProduct.classList.add('multi-selected-products');
+      els.selectedProduct.innerHTML =
+        '<div class="multi-selected-head"><b>Produtos da campanha</b><span>' + selectedProducts.length + '/5 selecionados</span></div>' +
+        '<div class="multi-selected-grid">' +
+        selectedProducts.map((product,index) =>
+          '<article class="multi-selected-item">' +
+          '<img src="' + escapeHtml(imageOf(product)) + '" alt="">' +
+          '<div><b>' + escapeHtml(product.name || 'Produto') + '</b><small>' + escapeHtml(product.brand || product.categoryName || product.category || '') + '</small></div>' +
+          '<button type="button" data-remove-product="' + index + '" aria-label="Remover produto">×</button>' +
+          '</article>'
+        ).join('') +
+        '</div>' +
+        (selectedProducts.length < 2 ? '<small class="multi-warning">Selecione pelo menos mais ' + (2-selectedProducts.length) + ' produto.</small>' : '');
+
+      els.selectedProduct.querySelectorAll('[data-remove-product]').forEach(button => {
+        button.addEventListener('click', () => {
+          selectedProducts.splice(Number(button.dataset.removeProduct),1);
+          selectedProduct = selectedProducts[0] || null;
+          renderSelectedProducts();
+          qualityAllowsSave = false;
+          els.saveButton.disabled = true;
+        });
+      });
+      return;
+    }
+
+    els.selectedProduct.classList.remove('multi-selected-products');
     if (!selectedProduct) {
       els.selectedProduct.classList.add('hidden');
       els.selectedProduct.innerHTML = '';
       return;
     }
-
-    const full = Number(selectedProduct.price || selectedProduct.fullPrice || 0);
-    const cash = Number(selectedProduct.pixPrice || selectedProduct.cashPrice || (full ? full * .83 : 0));
-    const count = Number(els.installments.value || 12);
-
-    els.productName.value = selectedProduct.name || '';
-    els.imageUrl.value = imageOf(selectedProduct);
-    if (selectedProduct.brand && !els.brandLabel.value.trim()) els.brandLabel.value = selectedProduct.brand;
-    if (cash) els.cashPrice.value = moneyInput(cash);
-    if (full) els.fullPrice.value = moneyInput(full);
-    if (full) els.installmentPrice.value = moneyInput(full / count);
-    els.productSearch.value = selectedProduct.name || '';
-    els.productResults.classList.add('hidden');
 
     els.selectedProduct.innerHTML =
       '<img src="' + escapeHtml(imageOf(selectedProduct)) + '" alt="">' +
@@ -220,7 +277,49 @@
       els.selectedProduct.classList.add('hidden');
       els.productSearch.focus();
     });
+  }
 
+  function selectProduct(product) {
+    if (!product) return;
+
+    if (contentMode === 'multi_product') {
+      const id = String(product.id || product._id || '');
+      const exists = selectedProducts.some(item => String(item.id || item._id || '') === id && id);
+      if (exists) {
+        status('Esse produto já está na campanha.', '');
+        els.productResults.classList.add('hidden');
+        els.productSearch.value = '';
+        return;
+      }
+      if (selectedProducts.length >= 5) {
+        status('A campanha multi-produto aceita no máximo 5 produtos.', 'error');
+        return;
+      }
+      selectedProducts.push(product);
+      selectedProduct = selectedProducts[0] || product;
+      if (!els.brandLabel.value.trim() && product.brand) els.brandLabel.value = product.brand;
+      els.productSearch.value = '';
+      els.productResults.classList.add('hidden');
+      renderSelectedProducts();
+      qualityAllowsSave = false;
+      els.saveButton.disabled = true;
+      status(selectedProducts.length < 2
+        ? 'Primeiro produto adicionado. Escolha pelo menos mais um.'
+        : selectedProducts.length + ' produtos selecionados. Você já pode gerar a campanha.', 'ok');
+      return;
+    }
+
+    selectedProduct = product;
+    const compact = compactCatalogProduct(product);
+    els.productName.value = compact.name;
+    els.imageUrl.value = compact.imageUrl;
+    if (compact.brand && !els.brandLabel.value.trim()) els.brandLabel.value = compact.brand;
+    if (compact.cashPrice) els.cashPrice.value = moneyInput(compact.cashPrice);
+    if (compact.fullPrice) els.fullPrice.value = moneyInput(compact.fullPrice);
+    if (compact.fullPrice) els.installmentPrice.value = moneyInput(compact.installmentPrice);
+    els.productSearch.value = product.name || '';
+    els.productResults.classList.add('hidden');
+    renderSelectedProducts();
     status('Produto carregado. O Pro vai analisar a imagem antes de montar a campanha.', 'ok');
   }
 
@@ -270,6 +369,36 @@
   }
 
   function buildPayload() {
+    const multi = contentMode === 'multi_product';
+
+    if (multi) {
+      if (selectedProducts.length < 2) throw new Error('Selecione pelo menos 2 produtos para a campanha multi-produto.');
+      const rows = selectedProducts.slice(0,5).map(compactCatalogProduct);
+      const first = rows[0];
+      return {
+        products: rows,
+        productId: first.id,
+        product: first,
+        options: {
+          outputFormat: selectedFormat(),
+          templatePro: 'campaign',
+          contentMode: 'multi_product',
+          showPrice: false,
+          headline: els.headline.value.trim(),
+          subtitle: els.subtitle.value.trim(),
+          benefit: els.benefit.value.trim(),
+          badge: els.badge.value.trim(),
+          cta: els.cta.value.trim(),
+          brandLabel: els.brandLabel.value.trim() || first.brand || '',
+          couponText: els.couponText.value.trim(),
+          promoText: els.promoText.value.trim(),
+          installmentCount: Number(els.installments.value || 12),
+          removeBackground: els.removeBackground.checked,
+          siteLabel: 'arianamoveis.com.br'
+        }
+      };
+    }
+
     const name = els.productName.value.trim();
     const imageUrl = els.imageUrl.value.trim();
     if (!name) throw new Error('Informe o nome do produto.');
@@ -376,6 +505,8 @@
 
       if (analysis?.quality?.blockSave) {
         status('Prévia gerada, mas a arte final está bloqueada: corrija logo, recorte ou resolução antes de salvar.', 'error');
+      } else if (contentMode === 'multi_product') {
+        status('Todos os produtos passaram no recorte. Gerando a vitrine multi-produto...', 'ok');
       } else if (contentMode === 'with_price' && !payload.options.showPrice) {
         status('Nenhum preço válido foi preenchido. O Pro mudou automaticamente para uma composição sem preço.', 'ok');
       } else if (analysis?.product?.backgroundRemoved) {
@@ -460,6 +591,8 @@
       productSearch:byId('product-search'),
       productResults:byId('product-results'),
       selectedProduct:byId('selected-product'),
+      multiProductHint:byId('multi-product-hint'),
+      singleProductFields:byId('single-product-fields'),
       productName:byId('product-name'),
       imageUrl:byId('image-url'),
       imageFile:byId('image-file'),
