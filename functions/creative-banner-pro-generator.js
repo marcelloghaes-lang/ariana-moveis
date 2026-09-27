@@ -1485,43 +1485,79 @@ function multiShowcaseStageSvg(format, count = 3) {
 
 function multiCampaignOverlay(format, opts, count = 2) {
   const mobile = format.device === 'mobile';
-  const brand = opts.brandLabel || 'ARIANA';
-  const main = opts.couponText || opts.headline || 'OFERTAS ESPECIAIS';
+  const brand = String(opts.brandLabel || '').trim();
+  const brandCampaign = Boolean(opts.couponText || opts.hasBrandLogo || brand);
+  const headline = opts.headline || 'OFERTAS PARA RENOVAR SUA CASA';
+  const benefit = opts.benefit || 'Grandes marcas com condições especiais.';
 
   if (mobile) {
     const w=format.width,h=format.height,c=Math.round(w/2);
-    const mainFs=Math.round(w*(main.length>16?.034:.045));
-    const footerY=Math.round(h*.865), pillH=Math.round(h*.058);
+    const footerY=Math.round(h*.872),pillH=Math.round(h*.055);
+
+    if (!brandCampaign) {
+      const headlineLines=wrap(headline,22,2);
+      return Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+        '<rect x="'+Math.round(w*.31)+'" y="'+Math.round(h*.115)+'" width="'+Math.round(w*.38)+'" height="'+Math.round(h*.046)+'" rx="'+Math.round(h*.023)+'" fill="#FFD51B"/>'+
+        '<text x="'+c+'" y="'+Math.round(h*.146)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.022)+'" font-weight="950" fill="#08285A">'+escapeXml(opts.badge || 'OFERTAS ARIANA')+'</text>'+
+        linesSvg(headlineLines,{x:c,y:Math.round(h*.205),size:Math.round(w*.051),lineHeight:Math.round(w*.055),fill:'#ffffff',weight:950,anchor:'middle'})+
+        '<text x="'+c+'" y="'+Math.round(h*.315)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.027)+'" font-weight="900" fill="#FFD51B">'+escapeXml(opts.subtitle || 'ATÉ 12X SEM JUROS NO CARTÃO')+'</text>'+
+        '<text x="'+c+'" y="'+Math.round(h*.350)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.020)+'" font-weight="650" fill="#ffffff" opacity=".92">'+escapeXml(benefit)+'</text>'+
+        pillSvg({x:Math.round(w*.055),y:footerY,w:Math.round(w*.39),h:pillH,fill:'#ffffff',text:opts.cta||'APROVEITE AGORA',textFill:'#0047AB',fs:Math.round(w*.020)})+
+        pillSvg({x:Math.round(w*.465),y:footerY,w:Math.round(w*.225),h:pillH,fill:'#071D49',text:opts.installmentCount+'x SEM JUROS',textFill:'#ffffff',fs:Math.round(w*.017)})+
+        pillSvg({x:Math.round(w*.710),y:footerY,w:Math.round(w*.235),h:pillH,fill:'#FFD51B',text:'17% OFF NO PIX',textFill:'#08285A',fs:Math.round(w*.017)})+
+        '</svg>'
+      );
+    }
+
+    const main=opts.couponText || (brand ? 'ESPECIAL '+brand.toUpperCase() : headline);
     return Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-      (opts.hasBrandLogo ? '' : '<text x="'+c+'" y="'+Math.round(h*.145)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.026)+'" font-weight="900" letter-spacing="2.5" fill="#ffffff">'+escapeXml('ESPECIAL '+brand)+'</text>')+
-      '<text x="'+c+'" y="'+Math.round(h*.205)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.037)+'" font-weight="950" fill="#ffffff">'+escapeXml(opts.couponText ? 'USE O CUPOM' : opts.headline)+'</text>'+
+      (opts.hasBrandLogo ? '' : '<text x="'+c+'" y="'+Math.round(h*.145)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.025)+'" font-weight="900" letter-spacing="2" fill="#ffffff">'+escapeXml(brand ? 'ESPECIAL '+brand.toUpperCase() : 'CAMPANHA ESPECIAL')+'</text>')+
+      '<text x="'+c+'" y="'+Math.round(h*.205)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.036)+'" font-weight="950" fill="#ffffff">'+escapeXml(opts.couponText ? 'USE O CUPOM' : headline)+'</text>'+
       '<rect x="'+Math.round(w*.20)+'" y="'+Math.round(h*.225)+'" width="'+Math.round(w*.60)+'" height="'+Math.round(h*.073)+'" rx="'+Math.round(h*.036)+'" fill="#FFD51B"/>'+
-      '<text x="'+c+'" y="'+Math.round(h*.275)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+mainFs+'" font-weight="950" fill="#08285A">'+escapeXml(main)+'</text>'+
+      '<text x="'+c+'" y="'+Math.round(h*.275)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*(main.length>16?.033:.042))+'" font-weight="950" fill="#08285A">'+escapeXml(main)+'</text>'+
       '<text x="'+c+'" y="'+Math.round(h*.325)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.023)+'" font-weight="650" fill="#ffffff">'+escapeXml(opts.subtitle)+'</text>'+
-      '<text x="'+c+'" y="'+Math.round(h*.795)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.021)+'" font-weight="800" fill="#ffffff" opacity=".9">'+count+' PRODUTOS EM DESTAQUE</text>'+
-      pillSvg({x:Math.round(w*.055),y:footerY,w:Math.round(w*.285),h:pillH,fill:'#071D49',text:opts.installmentCount+'x no cartão',textFill:'#ffffff',fs:Math.round(w*.019)})+
-      pillSvg({x:Math.round(w*.357),y:footerY,w:Math.round(w*.285),h:pillH,fill:'#FFD51B',text:'TEMPO LIMITADO',textFill:'#08285A',fs:Math.round(w*.018)})+
-      pillSvg({x:Math.round(w*.660),y:footerY,w:Math.round(w*.285),h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(w*.019)})+
+      pillSvg({x:Math.round(w*.055),y:footerY,w:Math.round(w*.39),h:pillH,fill:'#ffffff',text:opts.cta||'APROVEITE',textFill:'#0047AB',fs:Math.round(w*.020)})+
+      pillSvg({x:Math.round(w*.465),y:footerY,w:Math.round(w*.225),h:pillH,fill:'#071D49',text:opts.installmentCount+'x CARTÃO',textFill:'#ffffff',fs:Math.round(w*.017)})+
+      pillSvg({x:Math.round(w*.710),y:footerY,w:Math.round(w*.235),h:pillH,fill:'#FFD51B',text:'TEMPO LIMITADO',textFill:'#08285A',fs:Math.round(w*.016)})+
       '</svg>'
     );
   }
 
   const w=format.width,h=format.height,x=Math.round(w*.055);
+  const footerY=Math.round(h*.815),pillH=Math.round(h*.105),gap=Math.round(w*.008);
+
+  if (!brandCampaign) {
+    const headlineFs=Math.round(h*(headline.length>30?.085:.100));
+    const headlineLines=wrap(headline,30,2);
+    return Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+      '<rect x="'+x+'" y="'+Math.round(h*.205)+'" width="'+Math.round(w*.155)+'" height="'+Math.round(h*.065)+'" rx="'+Math.round(h*.032)+'" fill="#FFD51B"/>'+
+      '<text x="'+(x+Math.round(w*.0775))+'" y="'+Math.round(h*.249)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.031)+'" font-weight="950" fill="#08285A">'+escapeXml(opts.badge || 'OFERTAS ARIANA')+'</text>'+
+      linesSvg(headlineLines,{x,y:Math.round(h*.345),size:headlineFs,lineHeight:headlineFs*.96,fill:'#ffffff',weight:950})+
+      '<text x="'+x+'" y="'+Math.round(h*.625)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.043)+'" font-weight="900" fill="#FFD51B">'+escapeXml(opts.subtitle || 'ATÉ 12X SEM JUROS NO CARTÃO')+'</text>'+
+      '<text x="'+x+'" y="'+Math.round(h*.700)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.029)+'" font-weight="650" fill="#ffffff" opacity=".92">'+escapeXml(benefit)+'</text>'+
+      pillSvg({x,y:footerY,w:Math.round(w*.145),h:pillH,fill:'#ffffff',text:opts.cta||'APROVEITE AGORA',textFill:'#0047AB',fs:Math.round(h*.027)})+
+      pillSvg({x:x+Math.round(w*.153),y:footerY,w:Math.round(w*.120),h:pillH,fill:'#071D49',text:opts.installmentCount+'x SEM JUROS',textFill:'#ffffff',fs:Math.round(h*.024)})+
+      pillSvg({x:x+Math.round(w*.281),y:footerY,w:Math.round(w*.120),h:pillH,fill:'#FFD51B',text:'17% OFF NO PIX',textFill:'#08285A',fs:Math.round(h*.023)})+
+      pillSvg({x:x+Math.round(w*.409),y:footerY,w:Math.round(w*.135),h:pillH,fill:'#06306A',text:'arianamoveis.com.br',textFill:'#ffffff',fs:Math.round(h*.021)})+
+      '</svg>'
+    );
+  }
+
+  const main=opts.couponText || (brand ? 'ESPECIAL '+brand.toUpperCase() : headline);
   const boxY=Math.round(h*.395),boxH=Math.round(h*.135);
-  const footerY=Math.round(h*.820),pillH=Math.round(h*.108),gap=Math.round(w*.010);
-  const pillW=Math.round(w*.165);
   return Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-    (opts.hasBrandLogo ? '' : '<text x="'+x+'" y="'+Math.round(h*.220)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.040)+'" font-weight="900" letter-spacing="3" fill="#ffffff">'+escapeXml('ESPECIAL '+brand)+'</text>')+
-    '<text x="'+x+'" y="'+Math.round(h*.335)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.075)+'" font-weight="950" fill="#ffffff">'+escapeXml(opts.couponText ? 'USE O CUPOM' : opts.headline)+'</text>'+
+    (opts.hasBrandLogo ? '' : '<text x="'+x+'" y="'+Math.round(h*.220)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.037)+'" font-weight="900" letter-spacing="2.5" fill="#ffffff">'+escapeXml(brand ? 'ESPECIAL '+brand.toUpperCase() : 'CAMPANHA ESPECIAL')+'</text>')+
+    '<text x="'+x+'" y="'+Math.round(h*.335)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.072)+'" font-weight="950" fill="#ffffff">'+escapeXml(opts.couponText ? 'USE O CUPOM' : headline)+'</text>'+
     '<rect x="'+x+'" y="'+boxY+'" width="'+Math.round(w*.255)+'" height="'+boxH+'" rx="'+Math.round(h*.030)+'" fill="#FFD51B"/>'+
-    '<text x="'+(x+Math.round(w*.1275))+'" y="'+(boxY+Math.round(boxH*.68))+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*(main.length>15?.052:.066))+'" font-weight="950" fill="#08285A">'+escapeXml(main)+'</text>'+
+    '<text x="'+(x+Math.round(w*.1275))+'" y="'+(boxY+Math.round(boxH*.68))+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*(main.length>15?.052:.064))+'" font-weight="950" fill="#08285A">'+escapeXml(main)+'</text>'+
     '<text x="'+x+'" y="'+Math.round(h*.615)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.034)+'" font-weight="700" fill="#ffffff">'+escapeXml(opts.subtitle)+'</text>'+
-    '<text x="'+x+'" y="'+Math.round(h*.705)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.027)+'" font-weight="850" fill="#ffffff" opacity=".9">'+count+' PRODUTOS EM DESTAQUE</text>'+
-    pillSvg({x,y:footerY,w:pillW,h:pillH,fill:'#071D49',text:opts.installmentCount+'x no cartão',textFill:'#ffffff',fs:Math.round(h*.028)})+
-    pillSvg({x:x+pillW+gap,y:footerY,w:pillW,h:pillH,fill:'#FFD51B',text:opts.promoText,textFill:'#08285A',fs:Math.round(h*.024)})+
-    pillSvg({x:x+pillW*2+gap*2,y:footerY,w:Math.round(w*.130),h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(h*.028)})+
+    pillSvg({x,y:footerY,w:Math.round(w*.145),h:pillH,fill:'#ffffff',text:opts.cta||'APROVEITE',textFill:'#0047AB',fs:Math.round(h*.027)})+
+    pillSvg({x:x+Math.round(w*.153),y:footerY,w:Math.round(w*.140),h:pillH,fill:'#071D49',text:opts.installmentCount+'x NO CARTÃO',textFill:'#ffffff',fs:Math.round(h*.023)})+
+    pillSvg({x:x+Math.round(w*.301),y:footerY,w:Math.round(w*.150),h:pillH,fill:'#FFD51B',text:opts.promoText||'TEMPO LIMITADO',textFill:'#08285A',fs:Math.round(h*.022)})+
     '</svg>'
   );
 }
@@ -1657,7 +1693,8 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
   const slots=multiProductSlots(format,rows.length);
 
   const layers=[
-    {input:backgroundSvg(format,'campaign'),left:0,top:0}
+    {input:backgroundSvg(format,'campaign'),left:0,top:0},
+    {input:multiShowcaseStageSvg(format,rows.length),left:0,top:0}
   ];
   layers.push(await logoLayer(format,brandAsset));
   if(campaignBrandAsset?.backgroundRemoved){
