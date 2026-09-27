@@ -1577,36 +1577,36 @@ function multiCampaignOverlay(format, opts, count = 2) {
 
   // Bloco tipográfico inspirado em headers de grandes varejistas:
   // largura controlada, respiro entre níveis e nenhuma cápsula/botão.
-  const x = Math.round(w*.060);
-  const textW = Math.round(w*.370);
-  const topY = Math.round(h*.220);
+  const x = Math.round(w*.062);
+  const textW = Math.round(w*.355);
+  const topY = Math.round(h*.225);
   const headlineFs = Math.round(h * (
-    headline.length > 48 ? .068 :
-    headline.length > 34 ? .075 :
-    .082
+    headline.length > 48 ? .080 :
+    headline.length > 34 ? .092 :
+    .108
   ));
   const headlineChars = clamp(
-    Math.floor(textW / Math.max(1, headlineFs * .56)),
-    22,
-    34
+    Math.floor(textW / Math.max(1, headlineFs * .55)),
+    19,
+    29
   );
   const headlineLines = wrap(headline, headlineChars, 2);
-  const headlineLineHeight = Math.round(headlineFs * 1.05);
-  const titleY = topLabel ? Math.round(h*.355) : Math.round(h*.305);
-  const supportFs = Math.round(h*.033);
+  const headlineLineHeight = Math.round(headlineFs * 1.02);
+  const titleY = topLabel ? Math.round(h*.365) : Math.round(h*.305);
+  const supportFs = Math.round(h*.038);
   const supportChars = clamp(
-    Math.floor(textW / Math.max(1, supportFs * .53)),
-    42,
-    64
+    Math.floor(textW / Math.max(1, supportFs * .52)),
+    34,
+    54
   );
   const supportLines = wrap(support, supportChars, 2);
   const supportY = Math.round(
     titleY +
     Math.max(0, headlineLines.length - 1) * headlineLineHeight +
-    h*.112
+    h*.105
   );
-  const supportLineHeight = Math.round(supportFs * 1.28);
-  const infoY = Math.round(h*.820);
+  const supportLineHeight = Math.round(supportFs * 1.30);
+  const infoY = Math.round(h*.835);
 
   let footer = '';
   if (showCommercialInfo) {
@@ -1624,14 +1624,14 @@ function multiCampaignOverlay(format, opts, count = 2) {
     footer =
       '<g font-family="Arial,Helvetica,sans-serif">'+
         '<line x1="'+x+'" y1="'+Math.round(infoY-h*.038)+'" x2="'+ruleEnd+'" y2="'+Math.round(infoY-h*.038)+'" stroke="#FFD51B" stroke-opacity=".72" stroke-width="'+Math.max(2,Math.round(h*.005))+'"/>'+
-        '<text x="'+x+'" y="'+Math.round(infoY+h*.025)+'" font-size="'+Math.round(h*.028)+'" font-weight="900" letter-spacing="1.4" fill="#ffffff">'+escapeXml(cta)+' →</text>'+
+        '<text x="'+x+'" y="'+Math.round(infoY+h*.025)+'" font-size="'+Math.round(h*.032)+'" font-weight="900" letter-spacing="1.2" fill="#ffffff">'+escapeXml(cta)+' →</text>'+
       '</g>';
   }
 
   return Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
     (topLabel
-      ? '<text x="'+x+'" y="'+topY+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.030)+'" font-weight="900" letter-spacing="2.4" fill="#FFD51B">'+escapeXml(topLabel)+'</text>'
+      ? '<text x="'+x+'" y="'+topY+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.032)+'" font-weight="900" letter-spacing="2.2" fill="#FFD51B">'+escapeXml(topLabel)+'</text>'
       : '')+
     linesSvg(headlineLines,{
       x,
