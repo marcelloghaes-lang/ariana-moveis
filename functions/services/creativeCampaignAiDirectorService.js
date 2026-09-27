@@ -403,11 +403,27 @@ async function callCreativeAi(products = []) {
   };
 }
 
+function categorySpecificFallback(fallback = {}, rows = []) {
+  const fixed = fixCopyByVisualCategory(
+    fallback.copy || {},
+    fallback?.context?.category || fallback?.category || '',
+    [],
+    rows
+  );
+
+  return {
+    ...fallback,
+    category: fixed.category || fallback.category || fallback?.context?.category || '',
+    copy: fixed.copy || fallback.copy || {}
+  };
+}
+
 export async function researchCreativeCampaignWithAi(products = []) {
   const rows = safeProducts(products);
 
   if (!String(process.env.OPENAI_API_KEY || '').trim()) {
-    const fallback = await researchCreativeCampaignCopy(rows);
+    const rawFallback = await researchCreativeCampaignCopy(rows);
+    const fallback = categorySpecificFallback(rawFallback, rows);
     return {
       ...fallback,
       engine: 'rules_fallback',
@@ -442,7 +458,8 @@ export async function researchCreativeCampaignWithAi(products = []) {
     };
   } catch (error) {
     console.warn('[creative-ai-director] IA indisponível; usando fallback seguro:', error?.message || error);
-    const fallback = await researchCreativeCampaignCopy(rows);
+    const rawFallback = await researchCreativeCampaignCopy(rows);
+    const fallback = categorySpecificFallback(rawFallback, rows);
     return {
       ...fallback,
       engine: 'rules_fallback',
