@@ -766,67 +766,76 @@ function pillSvg({ x, y, w, h, fill = '#ffffff', text = '', textFill = '#0047AB'
     '<text x="' + textX + '" y="' + (y + Math.round(h*.66)) + '" text-anchor="' + anchor + '" font-family="Arial,Helvetica,sans-serif" font-size="' + fs + '" font-weight="900" fill="' + textFill + '">' + escapeXml(text) + '</text>';
 }
 
+
 function marketplaceDesktopOverlay(format, opts) {
   const w=format.width, h=format.height, x=Math.round(w*.055);
-  const textW=Math.round(w*.47);
-  const headlineFs=Math.round(h*(opts.headline.length>30?.095:.112));
-  const headlineLines=wrap(opts.headline, Math.max(18,Math.floor(textW/(headlineFs*.56))),2);
-  const badgeFs=Math.round(h*.036);
-  const subtitleFs=Math.round(h*.041);
-  const priceFs=Math.round(h*.125);
-  const productNameFs=Math.round(h*.038);
+  const textW=Math.round(w*.45);
+  const badgeY=Math.round(h*.205);
+  const badgeH=Math.round(h*.060);
+  const badgeFs=Math.round(h*.031);
+  const headlineFs=Math.round(h*(opts.headline.length>30?.082:.096));
+  const headlineLines=wrap(opts.headline, Math.max(18,Math.floor(textW/(headlineFs*.55))),2);
+  const headlineY=Math.round(h*.335);
+  const subtitleY=headlineY+headlineLines.length*headlineFs*.96+Math.round(h*.025);
+  const subtitleFs=Math.round(h*.036);
   const bottomY=Math.round(h*.835), pillH=Math.round(h*.105);
   const gap=Math.round(w*.010);
-  const pill1W=Math.round(w*.165), pill2W=Math.round(w*.175), pill3W=Math.round(w*.135);
+  const pill1W=Math.round(w*.155), pill2W=Math.round(w*.175), pill3W=Math.round(w*.135);
   const pill1Text=opts.showPrice ? (opts.installmentCount+'x de '+money(opts.installmentPrice)) : 'CONDIÇÕES ESPECIAIS';
-  const pill2Text=opts.promoText;
-  const headlineY=Math.round(h*.235);
-  const subtitleY=headlineY+headlineLines.length*headlineFs*1.00+Math.round(h*.025);
-  let price='';
+
+  let center='';
   if(opts.showPrice){
-    price='<text x="'+x+'" y="'+Math.round(h*.585)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.027)+'" font-weight="900" fill="#ffffff" opacity=".86">À VISTA NO PIX</text>'+
-      '<text x="'+x+'" y="'+Math.round(h*.715)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+priceFs+'" font-weight="950" fill="#FFD51B">'+escapeXml(money(opts.cashPrice))+'</text>';
+    center=
+      '<text x="'+x+'" y="'+Math.round(h*.610)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.026)+'" font-weight="900" fill="#ffffff" opacity=".86">À VISTA NO PIX</text>'+
+      '<text x="'+x+'" y="'+Math.round(h*.745)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.120)+'" font-weight="950" fill="#FFD51B">'+escapeXml(money(opts.cashPrice))+'</text>';
   } else {
-    const b=wrap(opts.benefit,44,2);
-    price=linesSvg(b,{x,y:Math.round(h*.615),size:Math.round(h*.040),lineHeight:Math.round(h*.050),fill:'#ffffff',weight:700});
+    center=linesSvg(
+      wrap(opts.benefit,42,2),
+      {x,y:Math.round(h*.625),size:Math.round(h*.036),lineHeight:Math.round(h*.047),fill:'#ffffff',weight:700}
+    );
   }
+
   return Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-    '<rect x="'+x+'" y="'+Math.round(h*.145)+'" width="'+Math.round(Math.max(h*.30,opts.badge.length*badgeFs*.65))+'" height="'+Math.round(h*.064)+'" rx="'+Math.round(h*.032)+'" fill="#FFD51B"/>'+
-    '<text x="'+(x+Math.round(h*.035))+'" y="'+Math.round(h*.188)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+badgeFs+'" font-weight="950" fill="#06306A">'+escapeXml(opts.badge)+'</text>'+
+    '<rect x="'+x+'" y="'+badgeY+'" width="'+Math.round(Math.max(h*.31,opts.badge.length*badgeFs*.68))+'" height="'+badgeH+'" rx="'+Math.round(badgeH*.5)+'" fill="#FFD51B"/>'+
+    '<text x="'+(x+Math.round(badgeH*.55))+'" y="'+(badgeY+Math.round(badgeH*.68))+'" font-family="Arial,Helvetica,sans-serif" font-size="'+badgeFs+'" font-weight="950" fill="#06306A">'+escapeXml(opts.badge)+'</text>'+
     linesSvg(headlineLines,{x,y:headlineY,size:headlineFs,lineHeight:headlineFs*.98,fill:'#ffffff',weight:950})+
     '<text x="'+x+'" y="'+subtitleY+'" font-family="Arial,Helvetica,sans-serif" font-size="'+subtitleFs+'" font-weight="650" fill="#ffffff" opacity=".94">'+escapeXml(opts.subtitle)+'</text>'+
-    '<text x="'+x+'" y="'+Math.round(h*.515)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+productNameFs+'" font-weight="800" fill="#ffffff" opacity=".95">'+escapeXml(opts.productName)+'</text>'+
-    price+
-    pillSvg({x,y:bottomY,w:pill1W,h:pillH,fill:'#071D49',text:pill1Text,textFill:'#ffffff',fs:Math.round(h*.031),icon:'▣'})+
-    pillSvg({x:x+pill1W+gap,y:bottomY,w:pill2W,h:pillH,fill:'#FFD51B',text:pill2Text,textFill:'#08285A',fs:Math.round(h*.029),icon:'◷'})+
-    pillSvg({x:x+pill1W+pill2W+gap*2,y:bottomY,w:pill3W,h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(h*.031)})+
+    center+
+    pillSvg({x,y:bottomY,w:pill1W,h:pillH,fill:'#071D49',text:pill1Text,textFill:'#ffffff',fs:Math.round(h*.029),icon:'▣'})+
+    pillSvg({x:x+pill1W+gap,y:bottomY,w:pill2W,h:pillH,fill:'#FFD51B',text:opts.promoText,textFill:'#08285A',fs:Math.round(h*.026),icon:'◷'})+
+    pillSvg({x:x+pill1W+pill2W+gap*2,y:bottomY,w:pill3W,h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(h*.029)})+
     '</svg>'
   );
 }
 
 function premiumDesktopOverlay(format, opts) {
-  const w=format.width,h=format.height,x=Math.round(w*.055), textW=Math.round(w*.43);
-  const headlineFs=Math.round(h*(opts.headline.length>30?.085:.105));
-  const headlineLines=wrap(opts.headline,Math.max(18,Math.floor(textW/(headlineFs*.56))),2);
+  const w=format.width,h=format.height,x=Math.round(w*.055), textW=Math.round(w*.41);
   const brand=opts.brandLabel ? opts.brandLabel+' • ' : '';
   const kicker=brand+'SELEÇÃO ESPECIAL';
-  const body=wrap(opts.benefit,46,2);
-  const ctaY=Math.round(h*.78),ctaH=Math.round(h*.095);
+  const headlineFs=Math.round(h*(opts.headline.length>30?.077:.091));
+  const headlineLines=wrap(opts.headline,Math.max(18,Math.floor(textW/(headlineFs*.55))),2);
+  const body=wrap(opts.benefit,43,2);
+  const ctaY=Math.round(h*.805),ctaH=Math.round(h*.088);
+
   let pricing='';
   if(opts.showPrice){
-    pricing='<text x="'+x+'" y="'+Math.round(h*.635)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.030)+'" font-weight="800" fill="#F0CA6A">NO PIX</text>'+
-      '<text x="'+x+'" y="'+Math.round(h*.750)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.110)+'" font-weight="950" fill="#F0CA6A">'+escapeXml(money(opts.cashPrice))+'</text>';
+    pricing=
+      '<text x="'+x+'" y="'+Math.round(h*.635)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.026)+'" font-weight="800" fill="#F0CA6A">NO PIX</text>'+
+      '<text x="'+x+'" y="'+Math.round(h*.748)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.104)+'" font-weight="950" fill="#F0CA6A">'+escapeXml(money(opts.cashPrice))+'</text>';
+  } else {
+    pricing=linesSvg(body,{x,y:Math.round(h*.650),size:Math.round(h*.034),lineHeight:Math.round(h*.044),fill:'#ffffff',weight:650});
   }
+
   return Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-    '<text x="'+x+'" y="'+Math.round(h*.22)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.035)+'" font-weight="900" letter-spacing="2" fill="#F0CA6A">'+escapeXml(kicker)+'</text>'+
-    linesSvg(headlineLines,{x,y:Math.round(h*.34),size:headlineFs,lineHeight:headlineFs*1.00,fill:'#ffffff',weight:900})+
-    '<text x="'+x+'" y="'+Math.round(h*.55)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.040)+'" font-weight="650" fill="#ffffff" opacity=".86">'+escapeXml(opts.productName)+'</text>'+
-    (opts.showPrice?pricing:linesSvg(body,{x,y:Math.round(h*.66),size:Math.round(h*.038),lineHeight:Math.round(h*.050),fill:'#ffffff',weight:650}))+
-    '<rect x="'+x+'" y="'+ctaY+'" width="'+Math.round(textW*.42)+'" height="'+ctaH+'" rx="'+Math.round(ctaH*.5)+'" fill="#F0CA6A"/>'+
-    '<text x="'+(x+Math.round(textW*.21))+'" y="'+(ctaY+Math.round(ctaH*.66))+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.033)+'" font-weight="950" fill="#071B3B">'+escapeXml(opts.cta)+'</text>'+
-    '<text x="'+(x+Math.round(textW*.47))+'" y="'+(ctaY+Math.round(ctaH*.66))+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.030)+'" font-weight="800" fill="#ffffff">'+escapeXml(opts.siteLabel)+'</text>'+
+    '<text x="'+x+'" y="'+Math.round(h*.225)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.030)+'" font-weight="900" letter-spacing="2.5" fill="#F0CA6A">'+escapeXml(kicker)+'</text>'+
+    linesSvg(headlineLines,{x,y:Math.round(h*.345),size:headlineFs,lineHeight:headlineFs*.98,fill:'#ffffff',weight:900})+
+    '<text x="'+x+'" y="'+Math.round(h*.535)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.034)+'" font-weight="650" fill="#ffffff" opacity=".86">'+escapeXml(opts.subtitle)+'</text>'+
+    pricing+
+    '<rect x="'+x+'" y="'+ctaY+'" width="'+Math.round(textW*.40)+'" height="'+ctaH+'" rx="'+Math.round(ctaH*.5)+'" fill="#F0CA6A"/>'+
+    '<text x="'+(x+Math.round(textW*.20))+'" y="'+(ctaY+Math.round(ctaH*.66))+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.030)+'" font-weight="950" fill="#071B3B">'+escapeXml(opts.cta)+'</text>'+
+    '<text x="'+(x+Math.round(textW*.45))+'" y="'+(ctaY+Math.round(ctaH*.66))+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.026)+'" font-weight="800" fill="#ffffff">'+escapeXml(opts.siteLabel)+'</text>'+
     '</svg>'
   );
 }
@@ -835,21 +844,26 @@ function campaignDesktopOverlay(format, opts) {
   const w=format.width,h=format.height,x=Math.round(w*.055);
   const brand=opts.brandLabel || 'ARIANA';
   const special='ESPECIAL '+brand;
-  const headline=opts.couponText ? 'USE O CUPOM' : opts.headline;
-  const campaignMain=opts.couponText || opts.headline;
-  const bottomY=Math.round(h*.82),pillH=Math.round(h*.11),gap=Math.round(w*.010);
-  const pillW=Math.round(w*.17);
+  const useCoupon=Boolean(opts.couponText);
+  const topLine=useCoupon ? 'USE O CUPOM' : opts.headline;
+  const main=useCoupon ? opts.couponText : opts.badge;
+  const offerY=Math.round(h*.395),offerH=Math.round(h*.132);
+  const bottomY=Math.round(h*.820),pillH=Math.round(h*.108),gap=Math.round(w*.010);
+  const pillW=Math.round(w*.165);
+
   return Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-    '<text x="'+x+'" y="'+Math.round(h*.205)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.046)+'" font-weight="900" letter-spacing="3" fill="#ffffff">'+escapeXml(special)+'</text>'+
-    '<text x="'+x+'" y="'+Math.round(h*.345)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.105)+'" font-weight="950" fill="#ffffff">'+escapeXml(headline)+'</text>'+
-    '<rect x="'+x+'" y="'+Math.round(h*.385)+'" width="'+Math.round(w*.26)+'" height="'+Math.round(h*.145)+'" rx="'+Math.round(h*.035)+'" fill="#FFD51B"/>'+
-    '<text x="'+(x+Math.round(w*.13))+'" y="'+Math.round(h*.485)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*(opts.couponText?.length>14?.065:.082))+'" font-weight="950" fill="#08285A">'+escapeXml(campaignMain)+'</text>'+
-    '<text x="'+x+'" y="'+Math.round(h*.610)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.039)+'" font-weight="700" fill="#ffffff">'+escapeXml(opts.subtitle)+'</text>'+
-    (opts.showPrice?'<text x="'+x+'" y="'+Math.round(h*.725)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.080)+'" font-weight="950" fill="#FFD51B">'+escapeXml(money(opts.cashPrice))+'</text>':'')+
-    pillSvg({x,y:bottomY,w:pillW,h:pillH,fill:'#071D49',text:opts.installmentCount+'x no cartão',textFill:'#ffffff',fs:Math.round(h*.030),icon:'▣'})+
-    pillSvg({x:x+pillW+gap,y:bottomY,w:pillW,h:pillH,fill:'#FFD51B',text:opts.promoText,textFill:'#08285A',fs:Math.round(h*.027),icon:'◷'})+
-    pillSvg({x:x+pillW*2+gap*2,y:bottomY,w:Math.round(w*.135),h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(h*.030)})+
+    '<text x="'+x+'" y="'+Math.round(h*.220)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.038)+'" font-weight="900" letter-spacing="3" fill="#ffffff">'+escapeXml(special)+'</text>'+
+    '<text x="'+x+'" y="'+Math.round(h*.335)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.075)+'" font-weight="950" fill="#ffffff">'+escapeXml(topLine)+'</text>'+
+    '<rect x="'+x+'" y="'+offerY+'" width="'+Math.round(w*.255)+'" height="'+offerH+'" rx="'+Math.round(h*.030)+'" fill="#FFD51B"/>'+
+    '<text x="'+(x+Math.round(w*.1275))+'" y="'+(offerY+Math.round(offerH*.68))+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*(main.length>15?.054:.067))+'" font-weight="950" fill="#08285A">'+escapeXml(main)+'</text>'+
+    '<text x="'+x+'" y="'+Math.round(h*.615)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.034)+'" font-weight="700" fill="#ffffff">'+escapeXml(opts.subtitle)+'</text>'+
+    (opts.showPrice
+      ? '<text x="'+x+'" y="'+Math.round(h*.735)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.076)+'" font-weight="950" fill="#FFD51B">'+escapeXml(money(opts.cashPrice))+'</text>'
+      : '')+
+    pillSvg({x,y:bottomY,w:pillW,h:pillH,fill:'#071D49',text:opts.installmentCount+'x no cartão',textFill:'#ffffff',fs:Math.round(h*.028),icon:'▣'})+
+    pillSvg({x:x+pillW+gap,y:bottomY,w:pillW,h:pillH,fill:'#FFD51B',text:opts.promoText,textFill:'#08285A',fs:Math.round(h*.025),icon:'◷'})+
+    pillSvg({x:x+pillW*2+gap*2,y:bottomY,w:Math.round(w*.130),h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(h*.028)})+
     '</svg>'
   );
 }
@@ -862,50 +876,58 @@ function overlayDesktop(format, opts) {
 
 function marketplaceMobileOverlay(format, opts) {
   const w=format.width,h=format.height,c=Math.round(w/2);
-  const headlineFs=Math.round(w*(opts.headline.length>27?.050:.058));
-  const headlineLines=wrap(opts.headline,21,2);
-  const bottomY=Math.round(h*.845),pillH=Math.round(h*.060),gap=Math.round(w*.012);
-  const pillW=Math.round(w*.28);
-  let middle='';
+  const badgeY=Math.round(h*.105),badgeH=Math.round(h*.046);
+  const headlineFs=Math.round(w*(opts.headline.length>27?.044:.052));
+  const headlineLines=wrap(opts.headline,20,2);
+  const headlineY=Math.round(h*.205);
+  const subtitleY=Math.round(h*.300);
+  const bottomY=Math.round(h*.875),pillH=Math.round(h*.056),gap=Math.round(w*.010);
+  const pillW=Math.round(w*.285);
+
+  let lower='';
   if(opts.showPrice){
-    middle='<text x="'+c+'" y="'+Math.round(h*.755)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.025)+'" font-weight="900" fill="#ffffff">À VISTA NO PIX</text>'+
-      '<text x="'+c+'" y="'+Math.round(h*.815)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.070)+'" font-weight="950" fill="#FFD51B">'+escapeXml(money(opts.cashPrice))+'</text>';
+    lower=
+      '<text x="'+c+'" y="'+Math.round(h*.785)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.022)+'" font-weight="900" fill="#ffffff">À VISTA NO PIX</text>'+
+      '<text x="'+c+'" y="'+Math.round(h*.842)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.061)+'" font-weight="950" fill="#FFD51B">'+escapeXml(money(opts.cashPrice))+'</text>';
   } else {
-    middle=linesSvg(wrap(opts.benefit,34,2),{x:c,y:Math.round(h*.755),size:Math.round(w*.030),lineHeight:Math.round(w*.038),fill:'#ffffff',weight:700,anchor:'middle'});
+    lower=linesSvg(wrap(opts.benefit,32,2),{x:c,y:Math.round(h*.790),size:Math.round(w*.027),lineHeight:Math.round(w*.035),fill:'#ffffff',weight:700,anchor:'middle'});
   }
+
   return Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-    '<rect x="'+Math.round(w*.34)+'" y="'+Math.round(h*.100)+'" width="'+Math.round(w*.32)+'" height="'+Math.round(h*.045)+'" rx="'+Math.round(h*.022)+'" fill="#FFD51B"/>'+
-    '<text x="'+c+'" y="'+Math.round(h*.131)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.025)+'" font-weight="950" fill="#06306A">'+escapeXml(opts.badge)+'</text>'+
-    linesSvg(headlineLines,{x:c,y:Math.round(h*.190),size:headlineFs,lineHeight:headlineFs*1.03,fill:'#ffffff',weight:950,anchor:'middle'})+
-    '<text x="'+c+'" y="'+Math.round(h*.295)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.029)+'" font-weight="650" fill="#ffffff" opacity=".92">'+escapeXml(opts.subtitle)+'</text>'+
-    middle+
-    pillSvg({x:Math.round(w*.06),y:bottomY,w:pillW,h:pillH,fill:'#071D49',text:opts.installmentCount+'x cartão',textFill:'#ffffff',fs:Math.round(w*.022),icon:'▣'})+
-    pillSvg({x:Math.round(w*.06)+pillW+gap,y:bottomY,w:pillW,h:pillH,fill:'#FFD51B',text:'TEMPO LIMITADO',textFill:'#08285A',fs:Math.round(w*.020),icon:'◷'})+
-    pillSvg({x:Math.round(w*.06)+(pillW+gap)*2,y:bottomY,w:Math.round(w*.26),h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(w*.021)})+
+    '<rect x="'+Math.round(w*.34)+'" y="'+badgeY+'" width="'+Math.round(w*.32)+'" height="'+badgeH+'" rx="'+Math.round(badgeH*.5)+'" fill="#FFD51B"/>'+
+    '<text x="'+c+'" y="'+(badgeY+Math.round(badgeH*.68))+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.022)+'" font-weight="950" fill="#06306A">'+escapeXml(opts.badge)+'</text>'+
+    linesSvg(headlineLines,{x:c,y:headlineY,size:headlineFs,lineHeight:headlineFs*1.03,fill:'#ffffff',weight:950,anchor:'middle'})+
+    '<text x="'+c+'" y="'+subtitleY+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.026)+'" font-weight="650" fill="#ffffff" opacity=".92">'+escapeXml(opts.subtitle)+'</text>'+
+    lower+
+    pillSvg({x:Math.round(w*.055),y:bottomY,w:pillW,h:pillH,fill:'#071D49',text:opts.installmentCount+'x cartão',textFill:'#ffffff',fs:Math.round(w*.019),icon:'▣'})+
+    pillSvg({x:Math.round(w*.055)+pillW+gap,y:bottomY,w:pillW,h:pillH,fill:'#FFD51B',text:'TEMPO LIMITADO',textFill:'#08285A',fs:Math.round(w*.018),icon:'◷'})+
+    pillSvg({x:Math.round(w*.055)+(pillW+gap)*2,y:bottomY,w:Math.round(w*.265),h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(w*.019)})+
     '</svg>'
   );
 }
 
 function premiumMobileOverlay(format, opts) {
   const w=format.width,h=format.height,c=Math.round(w/2);
-  const lines=wrap(opts.headline,22,2);
+  const lines=wrap(opts.headline,21,2);
   const brand=opts.brandLabel ? opts.brandLabel+' • ' : '';
   let lower='';
   if(opts.showPrice){
-    lower='<text x="'+c+'" y="'+Math.round(h*.790)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.026)+'" font-weight="800" fill="#F0CA6A">NO PIX</text>'+
-      '<text x="'+c+'" y="'+Math.round(h*.850)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.066)+'" font-weight="950" fill="#F0CA6A">'+escapeXml(money(opts.cashPrice))+'</text>';
+    lower=
+      '<text x="'+c+'" y="'+Math.round(h*.800)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.023)+'" font-weight="800" fill="#F0CA6A">NO PIX</text>'+
+      '<text x="'+c+'" y="'+Math.round(h*.855)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.060)+'" font-weight="950" fill="#F0CA6A">'+escapeXml(money(opts.cashPrice))+'</text>';
   } else {
-    lower=linesSvg(wrap(opts.benefit,34,2),{x:c,y:Math.round(h*.785),size:Math.round(w*.030),lineHeight:Math.round(w*.038),fill:'#ffffff',weight:650,anchor:'middle'});
+    lower=linesSvg(wrap(opts.benefit,32,2),{x:c,y:Math.round(h*.800),size:Math.round(w*.027),lineHeight:Math.round(w*.035),fill:'#ffffff',weight:650,anchor:'middle'});
   }
+
   return Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-    '<text x="'+c+'" y="'+Math.round(h*.135)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.024)+'" font-weight="900" letter-spacing="2" fill="#F0CA6A">'+escapeXml(brand+'SELEÇÃO ESPECIAL')+'</text>'+
-    linesSvg(lines,{x:c,y:Math.round(h*.205),size:Math.round(w*.052),lineHeight:Math.round(w*.057),fill:'#ffffff',weight:900,anchor:'middle'})+
-    '<text x="'+c+'" y="'+Math.round(h*.315)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.028)+'" font-weight="650" fill="#ffffff" opacity=".88">'+escapeXml(opts.subtitle)+'</text>'+
+    '<text x="'+c+'" y="'+Math.round(h*.145)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.021)+'" font-weight="900" letter-spacing="2" fill="#F0CA6A">'+escapeXml(brand+'SELEÇÃO ESPECIAL')+'</text>'+
+    linesSvg(lines,{x:c,y:Math.round(h*.215),size:Math.round(w*.047),lineHeight:Math.round(w*.052),fill:'#ffffff',weight:900,anchor:'middle'})+
+    '<text x="'+c+'" y="'+Math.round(h*.310)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.025)+'" font-weight="650" fill="#ffffff" opacity=".88">'+escapeXml(opts.subtitle)+'</text>'+
     lower+
-    '<rect x="'+Math.round(w*.22)+'" y="'+Math.round(h*.900)+'" width="'+Math.round(w*.56)+'" height="'+Math.round(h*.060)+'" rx="'+Math.round(h*.030)+'" fill="#F0CA6A"/>'+
-    '<text x="'+c+'" y="'+Math.round(h*.940)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.025)+'" font-weight="950" fill="#071B3B">'+escapeXml(opts.cta)+'</text>'+
+    '<rect x="'+Math.round(w*.23)+'" y="'+Math.round(h*.915)+'" width="'+Math.round(w*.54)+'" height="'+Math.round(h*.055)+'" rx="'+Math.round(h*.0275)+'" fill="#F0CA6A"/>'+
+    '<text x="'+c+'" y="'+Math.round(h*.952)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.023)+'" font-weight="950" fill="#071B3B">'+escapeXml(opts.cta)+'</text>'+
     '</svg>'
   );
 }
@@ -913,19 +935,22 @@ function premiumMobileOverlay(format, opts) {
 function campaignMobileOverlay(format, opts) {
   const w=format.width,h=format.height,c=Math.round(w/2);
   const brand=opts.brandLabel || 'ARIANA';
-  const special='ESPECIAL '+brand;
-  const main=opts.couponText || opts.headline;
-  const top=opts.couponText ? 'USE O CUPOM' : 'CAMPANHA ESPECIAL';
+  const main=opts.couponText || opts.badge;
+  const top=opts.couponText ? 'USE O CUPOM' : opts.headline;
+
   return Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-    '<text x="'+c+'" y="'+Math.round(h*.135)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.030)+'" font-weight="900" letter-spacing="3" fill="#ffffff">'+escapeXml(special)+'</text>'+
-    '<text x="'+c+'" y="'+Math.round(h*.195)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.044)+'" font-weight="950" fill="#ffffff">'+escapeXml(top)+'</text>'+
-    '<rect x="'+Math.round(w*.22)+'" y="'+Math.round(h*.215)+'" width="'+Math.round(w*.56)+'" height="'+Math.round(h*.078)+'" rx="'+Math.round(h*.039)+'" fill="#FFD51B"/>'+
-    '<text x="'+c+'" y="'+Math.round(h*.268)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*(main.length>16?.037:.047))+'" font-weight="950" fill="#08285A">'+escapeXml(main)+'</text>'+
-    '<text x="'+c+'" y="'+Math.round(h*.330)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.027)+'" font-weight="650" fill="#ffffff">'+escapeXml(opts.subtitle)+'</text>'+
-    pillSvg({x:Math.round(w*.08),y:Math.round(h*.855),w:Math.round(w*.26),h:Math.round(h*.060),fill:'#071D49',text:opts.installmentCount+'x cartão',textFill:'#ffffff',fs:Math.round(w*.020),icon:'▣'})+
-    pillSvg({x:Math.round(w*.37),y:Math.round(h*.855),w:Math.round(w*.26),h:Math.round(h*.060),fill:'#FFD51B',text:'TEMPO LIMITADO',textFill:'#08285A',fs:Math.round(w*.019),icon:'◷'})+
-    pillSvg({x:Math.round(w*.66),y:Math.round(h*.855),w:Math.round(w*.26),h:Math.round(h*.060),fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(w*.020)})+
+    '<text x="'+c+'" y="'+Math.round(h*.142)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.026)+'" font-weight="900" letter-spacing="2.5" fill="#ffffff">'+escapeXml('ESPECIAL '+brand)+'</text>'+
+    '<text x="'+c+'" y="'+Math.round(h*.200)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.038)+'" font-weight="950" fill="#ffffff">'+escapeXml(top)+'</text>'+
+    '<rect x="'+Math.round(w*.22)+'" y="'+Math.round(h*.220)+'" width="'+Math.round(w*.56)+'" height="'+Math.round(h*.074)+'" rx="'+Math.round(h*.037)+'" fill="#FFD51B"/>'+
+    '<text x="'+c+'" y="'+Math.round(h*.270)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*(main.length>16?.033:.043))+'" font-weight="950" fill="#08285A">'+escapeXml(main)+'</text>'+
+    '<text x="'+c+'" y="'+Math.round(h*.325)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.024)+'" font-weight="650" fill="#ffffff">'+escapeXml(opts.subtitle)+'</text>'+
+    (opts.showPrice
+      ? '<text x="'+c+'" y="'+Math.round(h*.820)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.058)+'" font-weight="950" fill="#FFD51B">'+escapeXml(money(opts.cashPrice))+'</text>'
+      : '')+
+    pillSvg({x:Math.round(w*.055),y:Math.round(h*.875),w:Math.round(w*.285),h:Math.round(h*.056),fill:'#071D49',text:opts.installmentCount+'x cartão',textFill:'#ffffff',fs:Math.round(w*.019),icon:'▣'})+
+    pillSvg({x:Math.round(w*.357),y:Math.round(h*.875),w:Math.round(w*.285),h:Math.round(h*.056),fill:'#FFD51B',text:'TEMPO LIMITADO',textFill:'#08285A',fs:Math.round(w*.018),icon:'◷'})+
+    pillSvg({x:Math.round(w*.660),y:Math.round(h*.875),w:Math.round(w*.285),h:Math.round(h*.056),fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(w*.019)})+
     '</svg>'
   );
 }
