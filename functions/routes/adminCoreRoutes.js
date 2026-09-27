@@ -1,6 +1,12 @@
 import { releaseStockReservation, syncStockReservationForPayment } from '../services/stockReservationService.js';
 import { generateCreativeBannerBuffer, resolveCreativeBannerFormat } from '../creative-banner-generator.js';
-import { generateCreativeBannerPro, analyzeCreativeBannerPro, resolveProFormat } from '../creative-banner-pro-generator.js';
+import {
+  generateCreativeBannerPro,
+  analyzeCreativeBannerPro,
+  generateCreativeBannerProMulti,
+  analyzeCreativeBannerProMulti,
+  resolveProFormat
+} from '../creative-banner-pro-generator.js';
 
 // ============================================================
 // ROTAS ADMIN CORE / UPLOAD / POSTERS / CRUD GENÉRICO
@@ -955,7 +961,12 @@ app.post('/api/admin/posters/professional-banner', adminRequired, async (req, re
 app.post('/api/admin/creative-studio/pro/analyze', adminRequired, async (req, res) => {
   try {
     const { product, options } = professionalCreativeInput(req.body || {});
-    const analysis = await analyzeCreativeBannerPro(product, options);
+    const products = Array.isArray(req.body?.products)
+      ? req.body.products.filter(Boolean).slice(0, 5)
+      : [];
+    const analysis = products.length >= 2
+      ? await analyzeCreativeBannerProMulti(products, options)
+      : await analyzeCreativeBannerPro(product, options);
     return res.json(analysis);
   } catch (error) {
     console.error('[creative-studio-pro] erro ao analisar imagem:', error);
@@ -966,13 +977,19 @@ app.post('/api/admin/creative-studio/pro/analyze', adminRequired, async (req, re
 app.post('/api/admin/creative-studio/pro/preview', adminRequired, async (req, res) => {
   try {
     const { product, options } = professionalCreativeInput(req.body || {});
-    const result = await generateCreativeBannerPro(product, options);
+    const products = Array.isArray(req.body?.products)
+      ? req.body.products.filter(Boolean).slice(0, 5)
+      : [];
+    const result = products.length >= 2
+      ? await generateCreativeBannerProMulti(products, options)
+      : await generateCreativeBannerPro(product, options);
     const format = result.meta?.format || resolveProFormat(options.outputFormat);
     res.set({
       'Content-Type': 'image/png',
       'Content-Disposition': 'inline; filename="previa-creative-studio-pro.png"',
       'Cache-Control': 'no-store, max-age=0',
       'X-Creative-Pro': '1',
+      'X-Creative-Multi': result.meta?.multiProduct ? '1' : '0',
       'X-Creative-Format': format.id,
       'X-Creative-Width': String(format.width),
       'X-Creative-Height': String(format.height),
@@ -991,25 +1008,34 @@ app.post('/api/admin/creative-studio/pro/preview', adminRequired, async (req, re
 app.post('/api/admin/creative-studio/pro/render', adminRequired, async (req, res) => {
   try {
     const { product, options } = professionalCreativeInput(req.body || {});
-    const result = await generateCreativeBannerPro(product, options);
+    const products = Array.isArray(req.body?.products)
+      ? req.body.products.filter(Boolean).slice(0, 5)
+      : [];
+    const result = products.length >= 2
+      ? await generateCreativeBannerProMulti(products, options)
+      : await generateCreativeBannerPro(product, options);
     if (result.meta?.quality?.blockSave) {
       return res.status(422).json({
         ok: false,
         error: 'creative_quality_blocked',
         message: 'A arte final foi bloqueada porque a imagem não atingiu a qualidade mínima.',
         quality: result.meta.quality,
-        product: result.meta.product,
+        product: result.meta.product || null,
+        products: result.meta.products || [],
         brand: result.meta.brand
       });
     }
     const format = result.meta?.format || resolveProFormat(options.outputFormat);
-    const productName = String(product.name || product.title || 'banner-ariana-pro');
+    const productName = result.meta?.multiProduct
+      ? String(options.brandLabel || 'campanha-ariana')
+      : String(product.name || product.title || 'banner-ariana-pro');
     const safeName = sanitizeIdPart(productName) || 'banner-ariana-pro';
     res.set({
       'Content-Type': 'image/png',
       'Content-Disposition': `attachment; filename="${safeName}-${format.id}-pro.png"`,
       'Cache-Control': 'no-store, max-age=0',
       'X-Creative-Pro': '1',
+      'X-Creative-Multi': result.meta?.multiProduct ? '1' : '0',
       'X-Creative-Format': format.id,
       'X-Creative-Width': String(format.width),
       'X-Creative-Height': String(format.height),
