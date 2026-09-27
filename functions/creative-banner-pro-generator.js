@@ -906,8 +906,8 @@ function backgroundSvg(format, template) {
       '</defs>' +
       '<rect width="100%" height="100%" fill="url(#bg)"/>' +
       '<rect width="100%" height="100%" fill="url(#heroGlow)"/>' +
-      '<path d="M' + Math.round(w*(mobile?.74:.69)) + ' -' + Math.round(h*.18) + ' L' + Math.round(w*(mobile?.92:.80)) + ' -' + Math.round(h*.18) + ' L' + Math.round(w*(mobile?.68:.64)) + ' ' + Math.round(h*1.18) + ' L' + Math.round(w*(mobile?.55:.55)) + ' ' + Math.round(h*1.18) + ' Z" fill="url(#goldBeam)" opacity=".98"/>' +
-      '<path d="M' + Math.round(w*(mobile?.80:.76)) + ' -' + Math.round(h*.18) + ' L' + Math.round(w*(mobile?.98:.88)) + ' -' + Math.round(h*.18) + ' L' + Math.round(w*(mobile?.80:.73)) + ' ' + Math.round(h*1.18) + ' L' + Math.round(w*(mobile?.69:.66)) + ' ' + Math.round(h*1.18) + ' Z" fill="#ffffff" opacity=".08"/>' +
+      '<path d="M' + Math.round(w*(mobile?.86:.69)) + ' -' + Math.round(h*.18) + ' L' + Math.round(w*(mobile?1.03:.80)) + ' -' + Math.round(h*.18) + ' L' + Math.round(w*(mobile?.78:.64)) + ' ' + Math.round(h*1.18) + ' L' + Math.round(w*(mobile?.66:.55)) + ' ' + Math.round(h*1.18) + ' Z" fill="url(#goldBeam)" opacity=".98"/>' +
+      '<path d="M' + Math.round(w*(mobile?.91:.76)) + ' -' + Math.round(h*.18) + ' L' + Math.round(w*(mobile?1.10:.88)) + ' -' + Math.round(h*.18) + ' L' + Math.round(w*(mobile?.88:.73)) + ' ' + Math.round(h*1.18) + ' L' + Math.round(w*(mobile?.76:.66)) + ' ' + Math.round(h*1.18) + ' Z" fill="#ffffff" opacity=".08"/>' +
       '<path d="M0 ' + Math.round(h*.96) + ' C' + Math.round(w*.25) + ' ' + Math.round(h*.88) + ' ' + Math.round(w*.62) + ' ' + Math.round(h*1.04) + ' ' + w + ' ' + Math.round(h*.92) + ' V' + h + ' H0 Z" fill="#021638" opacity=".35"/>' +
       '<ellipse cx="' + Math.round(w*(mobile?.50:.79)) + '" cy="' + Math.round(h*(mobile?.66:.60)) + '" rx="' + Math.round(w*(mobile?.33:.24)) + '" ry="' + Math.round(h*(mobile?.22:.42)) + '" fill="#35A8FF" opacity=".16" filter="url(#softGlow)"/>' +
       '<g fill="#ffffff" opacity=".20">' + dots + '</g>' +
