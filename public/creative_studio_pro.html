@@ -6,7 +6,7 @@
   <title>Ariana Creative Studio Pro</title>
   <meta name="theme-color" content="#0047AB">
   <meta name="robots" content="noindex,nofollow">
-  <link rel="stylesheet" href="./css/creative_studio_pro.css?v=20260926-2">
+  <link rel="stylesheet" href="./css/creative_studio_pro.css?v=20260927-3">
 </head>
 <body>
   <header class="topbar">
@@ -45,6 +45,7 @@
           <button type="button" class="active" data-mode="with_price">Com preço</button>
           <button type="button" data-mode="no_price">Sem preço</button>
           <button type="button" data-mode="institutional">Institucional</button>
+          <button type="button" data-mode="multi_product">Multi-produto</button>
         </div>
       </section>
 
@@ -79,9 +80,12 @@
           <input id="product-search" autocomplete="off" placeholder="Digite nome, marca ou código">
         </label>
         <div id="product-results" class="product-results hidden"></div>
+        <div id="multi-product-hint" class="hint multi-product-hint hidden">
+          Selecione de <b>2 a 5 produtos</b>. O Studio vai montar uma única campanha, com composição de vitrine, e validar o recorte de cada item.
+        </div>
         <div id="selected-product" class="selected-product hidden"></div>
 
-        <div class="fields">
+        <div class="fields" id="single-product-fields">
           <label class="field full"><span>Nome do produto</span><input id="product-name" maxlength="110" placeholder="Ex.: Smart TV 55 polegadas"></label>
           <label class="field full"><span>Imagem do produto</span><input id="image-url" type="url" placeholder="https://..."></label>
           <label class="upload full" for="image-file">
@@ -164,6 +168,6 @@
     </section>
   </main>
 
-  <script src="./js/creative_studio_pro.js?v=20260926-2"></script>
+  <script src="./js/creative_studio_pro.js?v=20260927-3"></script>
 </body>
 </html>
