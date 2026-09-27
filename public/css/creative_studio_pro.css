@@ -34,10 +34,8 @@ button,a{touch-action:manipulation}
   backdrop-filter:blur(16px);
 }
 .brand{display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--ink)}
-.brand-mark{
-  display:grid;place-items:center;width:44px;height:44px;border-radius:14px;
-  background:linear-gradient(145deg,var(--blue),var(--blue-dark));
-  color:var(--yellow);font-size:24px;font-weight:950;box-shadow:0 10px 24px #0047ab30;
+.brand-logo{
+  display:block;width:150px;height:48px;object-fit:contain;object-position:left center;
 }
 .brand span:last-child{display:flex;flex-direction:column;gap:2px}
 .brand strong{font-size:15px}
@@ -232,4 +230,8 @@ button,a{touch-action:manipulation}
   .selected-product img{width:58px;height:58px}.selected-product button{grid-column:1/-1}
   .editor-actions{grid-template-columns:1fr}
   .preview-stage{min-height:320px;padding:8px}
+}
+
+@media(max-width:700px){
+  .brand-logo{width:125px;height:40px}
 }
