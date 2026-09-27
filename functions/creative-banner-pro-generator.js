@@ -327,7 +327,101 @@ function colorStats(raw, info) {
   };
 }
 
-async function removeConnectedBackground(buffer, enabled = true) {
+
+function alphaShapeStats(raw, info) {
+  const { width, height, channels } = info;
+  const total = width * height;
+  const opaque = new Uint8Array(total);
+  let opaquePixels = 0;
+
+  for (let i = 0; i < total; i += 1) {
+    if (raw[i * channels + 3] >= 48) {
+      opaque[i] = 1;
+      opaquePixels += 1;
+    }
+  }
+
+  if (!opaquePixels) {
+    return {
+      opaqueRatio: 0,
+      majorComponents: 0,
+      largestShare: 0,
+      components: []
+    };
+  }
+
+  const seen = new Uint8Array(total);
+  const queue = new Int32Array(total);
+  const components = [];
+
+  for (let start = 0; start < total; start += 1) {
+    if (!opaque[start] || seen[start]) continue;
+    let head = 0;
+    let tail = 0;
+    let count = 0;
+    queue[tail++] = start;
+    seen[start] = 1;
+
+    while (head < tail) {
+      const index = queue[head++];
+      count += 1;
+      const x = index % width;
+      const y = Math.floor(index / width);
+
+      const neighbors = [];
+      if (x > 0) neighbors.push(index - 1);
+      if (x + 1 < width) neighbors.push(index + 1);
+      if (y > 0) neighbors.push(index - width);
+      if (y + 1 < height) neighbors.push(index + width);
+
+      for (const next of neighbors) {
+        if (opaque[next] && !seen[next]) {
+          seen[next] = 1;
+          queue[tail++] = next;
+        }
+      }
+    }
+
+    components.push(count);
+  }
+
+  components.sort((a, b) => b - a);
+  const largest = components[0] || 0;
+  const majorThreshold = Math.max(120, Math.round(opaquePixels * .018));
+  const majorComponents = components.filter(value => value >= majorThreshold).length;
+
+  return {
+    opaqueRatio: opaquePixels / Math.max(1, total),
+    majorComponents,
+    largestShare: largest / Math.max(1, opaquePixels),
+    components: components.slice(0, 12)
+  };
+}
+
+function cutoutSafety(stats = {}, removedRatio = 0, productText = '') {
+  const text = String(productText || '').toLowerCase();
+  const kitLike = /(kit|conjunto|combo|antena|parabol|receptor|acess[oó]rio|cabo|jogo)/i.test(text);
+  const tooThin = Number(stats.opaqueRatio || 0) < .055;
+  const tooFragmented = !kitLike && (
+    Number(stats.majorComponents || 0) > 3 ||
+    (Number(stats.majorComponents || 0) > 1 && Number(stats.largestShare || 0) < .78)
+  );
+  const suspiciousWhiteLeak =
+    !kitLike &&
+    removedRatio > .67 &&
+    Number(stats.opaqueRatio || 0) < .19 &&
+    Number(stats.largestShare || 0) < .90;
+
+  const safe = !tooThin && !tooFragmented && !suspiciousWhiteLeak;
+  let reason = 'ok';
+  if (tooThin) reason = 'opaque_area_too_small';
+  else if (tooFragmented) reason = 'foreground_fragmented';
+  else if (suspiciousWhiteLeak) reason = 'possible_white_product_overcut';
+
+  return { safe, reason, kitLike };
+}
+
+async function removeConnectedBackground(buffer, enabled = true, productText = '') {
   const source = sharp(buffer)
     .rotate()
     .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
@@ -354,16 +448,25 @@ async function removeConnectedBackground(buffer, enabled = true) {
       .png()
       .toBuffer();
     const meta = await sharp(trimmed).metadata();
+    const shape = alphaShapeStats(data, info);
+    const safety = initialTransparentRatio > 0.03
+      ? cutoutSafety(shape, initialTransparentRatio, productText)
+      : { safe: false, reason: 'background_removal_disabled', kitLike: false };
     return {
       buffer: trimmed,
       sourceWidth: sourceMeta.width || width,
       sourceHeight: sourceMeta.height || height,
       width: meta.width || width,
       height: meta.height || height,
-      backgroundRemoved: initialTransparentRatio > 0.03,
-      removalMode: initialTransparentRatio > 0.03 ? 'existing_alpha' : 'disabled',
+      backgroundRemoved: initialTransparentRatio > 0.03 && safety.safe,
+      removalMode: initialTransparentRatio > 0.03
+        ? (safety.safe ? 'existing_alpha' : 'unsafe_existing_alpha')
+        : 'disabled',
       removedRatio: initialTransparentRatio,
-      confidence: initialTransparentRatio > 0.03 ? 1 : 0
+      confidence: initialTransparentRatio > 0.03 && safety.safe ? 1 : 0,
+      cutoutSafe: Boolean(safety.safe),
+      cutoutReason: safety.reason,
+      shape
     };
   }
 
@@ -382,7 +485,10 @@ async function removeConnectedBackground(buffer, enabled = true) {
       backgroundRemoved: false,
       removalMode: 'complex_background',
       removedRatio: 0,
-      confidence: 0.15
+      confidence: 0.15,
+      cutoutSafe: false,
+      cutoutReason: 'complex_background',
+      shape: alphaShapeStats(data, info)
     };
   }
 
@@ -444,7 +550,10 @@ async function removeConnectedBackground(buffer, enabled = true) {
       backgroundRemoved: false,
       removalMode: removedRatio > 0.94 ? 'unsafe_overremove_blocked' : 'no_background_detected',
       removedRatio,
-      confidence: removedRatio > 0.94 ? 0 : 0.3
+      confidence: removedRatio > 0.94 ? 0 : 0.3,
+      cutoutSafe: false,
+      cutoutReason: removedRatio > 0.94 ? 'overremove_ratio' : 'no_background_detected',
+      shape: alphaShapeStats(data, info)
     };
   }
 
@@ -475,13 +584,36 @@ async function removeConnectedBackground(buffer, enabled = true) {
     .toBuffer();
   const meta = await sharp(trimmed).metadata();
 
-  const confidence = clamp(
-    (uniformEdge ? 0.45 : 0.2) +
-    (lightEdge ? 0.25 : 0.1) +
-    Math.min(0.25, removedRatio * 0.35),
-    0,
-    0.98
-  );
+  const shape = alphaShapeStats(data, info);
+  const safety = cutoutSafety(shape, removedRatio, productText);
+  const confidence = safety.safe
+    ? clamp(
+        (uniformEdge ? 0.45 : 0.2) +
+        (lightEdge ? 0.25 : 0.1) +
+        Math.min(0.25, removedRatio * 0.35),
+        0,
+        0.98
+      )
+    : 0;
+
+  if (!safety.safe) {
+    const original = await source.png().toBuffer();
+    const originalMeta = await sharp(original).metadata();
+    return {
+      buffer: original,
+      sourceWidth: sourceMeta.width || width,
+      sourceHeight: sourceMeta.height || height,
+      width: originalMeta.width || width,
+      height: originalMeta.height || height,
+      backgroundRemoved: false,
+      removalMode: 'unsafe_cutout_blocked',
+      removedRatio,
+      confidence: 0,
+      cutoutSafe: false,
+      cutoutReason: safety.reason,
+      shape
+    };
+  }
 
   return {
     buffer: trimmed,
@@ -492,7 +624,10 @@ async function removeConnectedBackground(buffer, enabled = true) {
     backgroundRemoved: true,
     removalMode: lightEdge ? 'connected_light_background' : 'connected_uniform_background',
     removedRatio,
-    confidence
+    confidence,
+    cutoutSafe: true,
+    cutoutReason: 'ok',
+    shape
   };
 }
 
@@ -892,7 +1027,11 @@ export async function prepareProProductAsset(product = {}, options = {}) {
   if (!source) throw new Error('product_image_required');
   const raw = await loadImage(source);
   if (!raw) throw new Error('product_image_unavailable');
-  return removeConnectedBackground(raw, options.removeBackground !== false && options.removeLightBackground !== false);
+  return removeConnectedBackground(
+    raw,
+    options.removeBackground !== false && options.removeLightBackground !== false,
+    productCategoryText(product)
+  );
 }
 
 export async function analyzeCreativeBannerPro(product = {}, options = {}) {
