@@ -15,7 +15,8 @@
   let qualityAllowsSave = false;
   let autoHeroActive = false;
   let catalogReadyPromise = null;
-  let copyTouched = false;
+  const copyTouchedFields = new Set();
+  let lastCopyResearchSignature = '';
   let deferredInstallPrompt = null;
 
   const FORMATS = Object.freeze({
@@ -123,12 +124,17 @@
     els.previewStage.dataset.format = selectedFormat();
   }
 
+  function copyFieldIsLocked(key) {
+    const input = els[key];
+    return copyTouchedFields.has(key) && Boolean(input?.value?.trim());
+  }
+
   function setCopyValues(values = {}, { force = false } = {}) {
-    if (copyTouched && !force) return;
-    if (values.badge !== undefined) els.badge.value = values.badge;
-    if (values.headline !== undefined) els.headline.value = values.headline;
-    if (values.subtitle !== undefined) els.subtitle.value = values.subtitle;
-    if (values.cta !== undefined) els.cta.value = values.cta;
+    for (const key of ['badge','headline','subtitle','cta']) {
+      if (values[key] === undefined) continue;
+      if (!force && copyFieldIsLocked(key)) continue;
+      els[key].value = values[key];
+    }
     els.benefit.value = '';
   }
 
@@ -476,6 +482,83 @@
         : 'Produtos e fabricantes que combinam com a sua casa.',
       cta: 'CONHEÇA A SELEÇÃO'
     });
+  }
+
+  function campaignResearchProducts() {
+    const rows = contentMode === 'multi_product'
+      ? (selectedProducts.length ? selectedProducts : heroSlotProducts())
+      : (selectedProduct ? [selectedProduct] : []);
+
+    if (rows.length) {
+      return rows.slice(0,5).map(item => ({
+        id: String(item.id || item._id || ''),
+        name: item.name || item.title || '',
+        brand: item.brand || item.brandName || '',
+        category: item.category || item.categoryName || ''
+      }));
+    }
+
+    const manualName = els.productName?.value?.trim();
+    if (!manualName) return [];
+
+    return [{
+      id: '',
+      name: manualName,
+      brand: els.brandLabel?.value?.trim() || '',
+      category: ''
+    }];
+  }
+
+  function copyResearchSignature(rows = []) {
+    return rows
+      .map(item => [item.id,item.name,item.brand,item.category].map(normalize).join(':'))
+      .join('|');
+  }
+
+  async function applyInternetCampaignCopy() {
+    const locked = ['badge','headline','subtitle','cta'].filter(copyFieldIsLocked);
+    if (locked.length === 4) return { applied:false, reason:'manual_copy_locked' };
+
+    const rows = campaignResearchProducts();
+    if (!rows.length) return { applied:false, reason:'no_products' };
+
+    const signature = copyResearchSignature(rows);
+    if (signature && signature === lastCopyResearchSignature) {
+      return { applied:false, reason:'same_context' };
+    }
+
+    status('Pesquisando campanhas atuais para criar uma legenda original da Ariana...', '');
+
+    try {
+      const result = await api('/admin/creative-studio/pro/research-copy', {
+        method:'POST',
+        body:JSON.stringify({ products: rows })
+      });
+      if (!result?.copy) return { applied:false, reason:'no_copy' };
+
+      setCopyValues(result.copy);
+      lastCopyResearchSignature = signature;
+
+      const count = Number(result.sourceCount || 0);
+      console.info('[Creative Studio] pesquisa de campanha', {
+        researched:Boolean(result.researched),
+        sourceCount:count,
+        theme:result.theme,
+        sources:result.sources || []
+      });
+
+      status(
+        count > 0
+          ? 'Pesquisa online concluída em ' + count + ' referência(s). A legenda original da Ariana foi aplicada.'
+          : 'Não encontrei referências online utilizáveis agora. A legenda segura da Ariana foi aplicada.',
+        'ok'
+      );
+
+      return { applied:true, result };
+    } catch (error) {
+      console.warn('[Creative Studio] pesquisa de campanha indisponível:', error);
+      return { applied:false, reason:'research_failed' };
+    }
   }
 
   async function buildProfessionalHero() {
@@ -1007,15 +1090,19 @@
   }
 
   async function generatePreview() {
+    setBusy(true);
+
+    await applyInternetCampaignCopy();
+
     let payload;
     try {
       payload = buildPayload();
     } catch (error) {
       status(error.message,'error');
+      setBusy(false);
       return;
     }
 
-    setBusy(true);
     status('Analisando recorte, resolução e composição...', '');
     try {
       let analysis = null;
@@ -1173,9 +1260,14 @@
     els.imageFile.addEventListener('change',event => uploadImage(event.target.files?.[0]));
     els.brandLogoFile.addEventListener('change',event => uploadBrandLogo(event.target.files?.[0]));
 
-    [els.badge, els.headline, els.subtitle, els.cta].forEach(input => {
+    [
+      ['badge', els.badge],
+      ['headline', els.headline],
+      ['subtitle', els.subtitle],
+      ['cta', els.cta]
+    ].forEach(([key,input]) => {
       input.addEventListener('input', () => {
-        copyTouched = true;
+        copyTouchedFields.add(key);
         qualityAllowsSave = false;
         els.saveButton.disabled = true;
       });
