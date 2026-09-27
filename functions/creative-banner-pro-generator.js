@@ -802,8 +802,8 @@ function marketplaceDesktopOverlay(format, opts) {
     linesSvg(headlineLines,{x,y:headlineY,size:headlineFs,lineHeight:headlineFs*.98,fill:'#ffffff',weight:950})+
     '<text x="'+x+'" y="'+subtitleY+'" font-family="Arial,Helvetica,sans-serif" font-size="'+subtitleFs+'" font-weight="650" fill="#ffffff" opacity=".94">'+escapeXml(opts.subtitle)+'</text>'+
     center+
-    pillSvg({x,y:bottomY,w:pill1W,h:pillH,fill:'#071D49',text:pill1Text,textFill:'#ffffff',fs:Math.round(h*.029),icon:'▣'})+
-    pillSvg({x:x+pill1W+gap,y:bottomY,w:pill2W,h:pillH,fill:'#FFD51B',text:opts.promoText,textFill:'#08285A',fs:Math.round(h*.026),icon:'◷'})+
+    pillSvg({x,y:bottomY,w:pill1W,h:pillH,fill:'#071D49',text:pill1Text,textFill:'#ffffff',fs:Math.round(h*.029)})+
+    pillSvg({x:x+pill1W+gap,y:bottomY,w:pill2W,h:pillH,fill:'#FFD51B',text:opts.promoText,textFill:'#08285A',fs:Math.round(h*.026)})+
     pillSvg({x:x+pill1W+pill2W+gap*2,y:bottomY,w:pill3W,h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(h*.029)})+
     '</svg>'
   );
@@ -861,8 +861,8 @@ function campaignDesktopOverlay(format, opts) {
     (opts.showPrice
       ? '<text x="'+x+'" y="'+Math.round(h*.735)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.076)+'" font-weight="950" fill="#FFD51B">'+escapeXml(money(opts.cashPrice))+'</text>'
       : '')+
-    pillSvg({x,y:bottomY,w:pillW,h:pillH,fill:'#071D49',text:opts.installmentCount+'x no cartão',textFill:'#ffffff',fs:Math.round(h*.028),icon:'▣'})+
-    pillSvg({x:x+pillW+gap,y:bottomY,w:pillW,h:pillH,fill:'#FFD51B',text:opts.promoText,textFill:'#08285A',fs:Math.round(h*.025),icon:'◷'})+
+    pillSvg({x,y:bottomY,w:pillW,h:pillH,fill:'#071D49',text:opts.installmentCount+'x no cartão',textFill:'#ffffff',fs:Math.round(h*.028)})+
+    pillSvg({x:x+pillW+gap,y:bottomY,w:pillW,h:pillH,fill:'#FFD51B',text:opts.promoText,textFill:'#08285A',fs:Math.round(h*.025)})+
     pillSvg({x:x+pillW*2+gap*2,y:bottomY,w:Math.round(w*.130),h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(h*.028)})+
     '</svg>'
   );
@@ -900,8 +900,8 @@ function marketplaceMobileOverlay(format, opts) {
     linesSvg(headlineLines,{x:c,y:headlineY,size:headlineFs,lineHeight:headlineFs*1.03,fill:'#ffffff',weight:950,anchor:'middle'})+
     '<text x="'+c+'" y="'+subtitleY+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.026)+'" font-weight="650" fill="#ffffff" opacity=".92">'+escapeXml(opts.subtitle)+'</text>'+
     lower+
-    pillSvg({x:Math.round(w*.055),y:bottomY,w:pillW,h:pillH,fill:'#071D49',text:opts.installmentCount+'x cartão',textFill:'#ffffff',fs:Math.round(w*.019),icon:'▣'})+
-    pillSvg({x:Math.round(w*.055)+pillW+gap,y:bottomY,w:pillW,h:pillH,fill:'#FFD51B',text:'TEMPO LIMITADO',textFill:'#08285A',fs:Math.round(w*.018),icon:'◷'})+
+    pillSvg({x:Math.round(w*.055),y:bottomY,w:pillW,h:pillH,fill:'#071D49',text:opts.installmentCount+'x cartão',textFill:'#ffffff',fs:Math.round(w*.019)})+
+    pillSvg({x:Math.round(w*.055)+pillW+gap,y:bottomY,w:pillW,h:pillH,fill:'#FFD51B',text:'TEMPO LIMITADO',textFill:'#08285A',fs:Math.round(w*.018)})+
     pillSvg({x:Math.round(w*.055)+(pillW+gap)*2,y:bottomY,w:Math.round(w*.265),h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(w*.019)})+
     '</svg>'
   );
@@ -948,8 +948,8 @@ function campaignMobileOverlay(format, opts) {
     (opts.showPrice
       ? '<text x="'+c+'" y="'+Math.round(h*.820)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.058)+'" font-weight="950" fill="#FFD51B">'+escapeXml(money(opts.cashPrice))+'</text>'
       : '')+
-    pillSvg({x:Math.round(w*.055),y:Math.round(h*.875),w:Math.round(w*.285),h:Math.round(h*.056),fill:'#071D49',text:opts.installmentCount+'x cartão',textFill:'#ffffff',fs:Math.round(w*.019),icon:'▣'})+
-    pillSvg({x:Math.round(w*.357),y:Math.round(h*.875),w:Math.round(w*.285),h:Math.round(h*.056),fill:'#FFD51B',text:'TEMPO LIMITADO',textFill:'#08285A',fs:Math.round(w*.018),icon:'◷'})+
+    pillSvg({x:Math.round(w*.055),y:Math.round(h*.875),w:Math.round(w*.285),h:Math.round(h*.056),fill:'#071D49',text:opts.installmentCount+'x cartão',textFill:'#ffffff',fs:Math.round(w*.019)})+
+    pillSvg({x:Math.round(w*.357),y:Math.round(h*.875),w:Math.round(w*.285),h:Math.round(h*.056),fill:'#FFD51B',text:'TEMPO LIMITADO',textFill:'#08285A',fs:Math.round(w*.018)})+
     pillSvg({x:Math.round(w*.660),y:Math.round(h*.875),w:Math.round(w*.285),h:Math.round(h*.056),fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(w*.019)})+
     '</svg>'
   );
@@ -1275,8 +1275,8 @@ function multiCampaignOverlay(format, opts, count = 2) {
       '<text x="'+c+'" y="'+Math.round(h*.275)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+mainFs+'" font-weight="950" fill="#08285A">'+escapeXml(main)+'</text>'+
       '<text x="'+c+'" y="'+Math.round(h*.325)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.023)+'" font-weight="650" fill="#ffffff">'+escapeXml(opts.subtitle)+'</text>'+
       '<text x="'+c+'" y="'+Math.round(h*.795)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.021)+'" font-weight="800" fill="#ffffff" opacity=".9">'+count+' PRODUTOS EM DESTAQUE</text>'+
-      pillSvg({x:Math.round(w*.055),y:footerY,w:Math.round(w*.285),h:pillH,fill:'#071D49',text:opts.installmentCount+'x no cartão',textFill:'#ffffff',fs:Math.round(w*.019),icon:'▣'})+
-      pillSvg({x:Math.round(w*.357),y:footerY,w:Math.round(w*.285),h:pillH,fill:'#FFD51B',text:opts.promoText,textFill:'#08285A',fs:Math.round(w*.017),icon:'◷'})+
+      pillSvg({x:Math.round(w*.055),y:footerY,w:Math.round(w*.285),h:pillH,fill:'#071D49',text:opts.installmentCount+'x no cartão',textFill:'#ffffff',fs:Math.round(w*.019)})+
+      pillSvg({x:Math.round(w*.357),y:footerY,w:Math.round(w*.285),h:pillH,fill:'#FFD51B',text:'TEMPO LIMITADO',textFill:'#08285A',fs:Math.round(w*.018)})+
       pillSvg({x:Math.round(w*.660),y:footerY,w:Math.round(w*.285),h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(w*.019)})+
       '</svg>'
     );
@@ -1294,8 +1294,8 @@ function multiCampaignOverlay(format, opts, count = 2) {
     '<text x="'+(x+Math.round(w*.1275))+'" y="'+(boxY+Math.round(boxH*.68))+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*(main.length>15?.052:.066))+'" font-weight="950" fill="#08285A">'+escapeXml(main)+'</text>'+
     '<text x="'+x+'" y="'+Math.round(h*.615)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.034)+'" font-weight="700" fill="#ffffff">'+escapeXml(opts.subtitle)+'</text>'+
     '<text x="'+x+'" y="'+Math.round(h*.705)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.027)+'" font-weight="850" fill="#ffffff" opacity=".9">'+count+' PRODUTOS EM DESTAQUE</text>'+
-    pillSvg({x,y:footerY,w:pillW,h:pillH,fill:'#071D49',text:opts.installmentCount+'x no cartão',textFill:'#ffffff',fs:Math.round(h*.028),icon:'▣'})+
-    pillSvg({x:x+pillW+gap,y:footerY,w:pillW,h:pillH,fill:'#FFD51B',text:opts.promoText,textFill:'#08285A',fs:Math.round(h*.024),icon:'◷'})+
+    pillSvg({x,y:footerY,w:pillW,h:pillH,fill:'#071D49',text:opts.installmentCount+'x no cartão',textFill:'#ffffff',fs:Math.round(h*.028)})+
+    pillSvg({x:x+pillW+gap,y:footerY,w:pillW,h:pillH,fill:'#FFD51B',text:opts.promoText,textFill:'#08285A',fs:Math.round(h*.024)})+
     pillSvg({x:x+pillW*2+gap*2,y:footerY,w:Math.round(w*.130),h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(h*.028)})+
     '</svg>'
   );
