@@ -1010,7 +1010,7 @@ function campaignDesktopOverlay(format, opts) {
 
   return Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-    '<text x="'+x+'" y="'+Math.round(h*.220)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.038)+'" font-weight="900" letter-spacing="3" fill="#ffffff">'+escapeXml(special)+'</text>'+
+    (opts.hasBrandLogo ? '' : '<text x="'+x+'" y="'+Math.round(h*.220)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.038)+'" font-weight="900" letter-spacing="3" fill="#ffffff">'+escapeXml(special)+'</text>')+
     '<text x="'+x+'" y="'+Math.round(h*.335)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.075)+'" font-weight="950" fill="#ffffff">'+escapeXml(topLine)+'</text>'+
     '<rect x="'+x+'" y="'+offerY+'" width="'+Math.round(w*.255)+'" height="'+offerH+'" rx="'+Math.round(h*.030)+'" fill="#FFD51B"/>'+
     '<text x="'+(x+Math.round(w*.1275))+'" y="'+(offerY+Math.round(offerH*.68))+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*(main.length>15?.054:.067))+'" font-weight="950" fill="#08285A">'+escapeXml(main)+'</text>'+
@@ -1097,7 +1097,7 @@ function campaignMobileOverlay(format, opts) {
 
   return Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-    '<text x="'+c+'" y="'+Math.round(h*.142)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.026)+'" font-weight="900" letter-spacing="2.5" fill="#ffffff">'+escapeXml('ESPECIAL '+brand)+'</text>'+
+    (opts.hasBrandLogo ? '' : '<text x="'+c+'" y="'+Math.round(h*.142)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.026)+'" font-weight="900" letter-spacing="2.5" fill="#ffffff">'+escapeXml('ESPECIAL '+brand)+'</text>')+
     '<text x="'+c+'" y="'+Math.round(h*.200)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.038)+'" font-weight="950" fill="#ffffff">'+escapeXml(top)+'</text>'+
     '<rect x="'+Math.round(w*.22)+'" y="'+Math.round(h*.220)+'" width="'+Math.round(w*.56)+'" height="'+Math.round(h*.074)+'" rx="'+Math.round(h*.037)+'" fill="#FFD51B"/>'+
     '<text x="'+c+'" y="'+Math.round(h*.270)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*(main.length>16?.033:.043))+'" font-weight="950" fill="#08285A">'+escapeXml(main)+'</text>'+
@@ -1172,10 +1172,12 @@ function fallbackPanelSvg(format, comp, template) {
   );
 }
 
-function quality(asset, opts, format, brandAsset = null) {
+function quality(asset, opts, format, brandAsset = null, campaignBrandAsset = null) {
   const cutoutOk = Boolean(asset.backgroundRemoved && asset.cutoutSafe !== false);
   const resolutionOk = Math.max(asset.sourceWidth, asset.sourceHeight) >= 700;
   const brandOk = Boolean(brandAsset?.backgroundRemoved && brandAsset?.transparentRatio >= .02);
+  const manufacturerLogoRequested = Boolean(opts.brandLogoUrl);
+  const manufacturerLogoOk = !manufacturerLogoRequested || Boolean(campaignBrandAsset?.backgroundRemoved);
 
   const checks = [
     {
@@ -1186,6 +1188,17 @@ function quality(asset, opts, format, brandAsset = null) {
       detail: brandOk
         ? 'A identidade oficial será usada sem caixa preta.'
         : 'O banner final fica bloqueado até a logo oficial estar transparente.'
+    },
+    {
+      id: 'manufacturer_logo',
+      critical: true,
+      ok: manufacturerLogoOk,
+      label: manufacturerLogoRequested
+        ? (manufacturerLogoOk ? 'Logo do fabricante tratada' : 'Logo do fabricante reprovada')
+        : 'Logo do fabricante opcional',
+      detail: manufacturerLogoRequested
+        ? (manufacturerLogoOk ? 'A marca do fabricante será usada sem caixa de fundo.' : 'Envie PNG transparente ou uma logo com fundo simples.')
+        : 'Nenhuma logo de fabricante foi informada.'
     },
     {
       id: 'cutout',
@@ -1426,7 +1439,7 @@ function multiCampaignOverlay(format, opts, count = 2) {
     const footerY=Math.round(h*.865), pillH=Math.round(h*.058);
     return Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-      '<text x="'+c+'" y="'+Math.round(h*.145)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.026)+'" font-weight="900" letter-spacing="2.5" fill="#ffffff">'+escapeXml('ESPECIAL '+brand)+'</text>'+
+      (opts.hasBrandLogo ? '' : '<text x="'+c+'" y="'+Math.round(h*.145)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.026)+'" font-weight="900" letter-spacing="2.5" fill="#ffffff">'+escapeXml('ESPECIAL '+brand)+'</text>')+
       '<text x="'+c+'" y="'+Math.round(h*.205)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.037)+'" font-weight="950" fill="#ffffff">'+escapeXml(opts.couponText ? 'USE O CUPOM' : opts.headline)+'</text>'+
       '<rect x="'+Math.round(w*.20)+'" y="'+Math.round(h*.225)+'" width="'+Math.round(w*.60)+'" height="'+Math.round(h*.073)+'" rx="'+Math.round(h*.036)+'" fill="#FFD51B"/>'+
       '<text x="'+c+'" y="'+Math.round(h*.275)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+mainFs+'" font-weight="950" fill="#08285A">'+escapeXml(main)+'</text>'+
@@ -1445,7 +1458,7 @@ function multiCampaignOverlay(format, opts, count = 2) {
   const pillW=Math.round(w*.165);
   return Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-    '<text x="'+x+'" y="'+Math.round(h*.220)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.040)+'" font-weight="900" letter-spacing="3" fill="#ffffff">'+escapeXml('ESPECIAL '+brand)+'</text>'+
+    (opts.hasBrandLogo ? '' : '<text x="'+x+'" y="'+Math.round(h*.220)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.040)+'" font-weight="900" letter-spacing="3" fill="#ffffff">'+escapeXml('ESPECIAL '+brand)+'</text>')+
     '<text x="'+x+'" y="'+Math.round(h*.335)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.075)+'" font-weight="950" fill="#ffffff">'+escapeXml(opts.couponText ? 'USE O CUPOM' : opts.headline)+'</text>'+
     '<rect x="'+x+'" y="'+boxY+'" width="'+Math.round(w*.255)+'" height="'+boxH+'" rx="'+Math.round(h*.030)+'" fill="#FFD51B"/>'+
     '<text x="'+(x+Math.round(w*.1275))+'" y="'+(boxY+Math.round(boxH*.68))+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*(main.length>15?.052:.066))+'" font-weight="950" fill="#08285A">'+escapeXml(main)+'</text>'+
@@ -1458,8 +1471,10 @@ function multiCampaignOverlay(format, opts, count = 2) {
   );
 }
 
-function multiQuality(assets = [], brandAsset = null, format = {}) {
+function multiQuality(assets = [], brandAsset = null, format = {}, opts = {}, campaignBrandAsset = null) {
   const brandOk = Boolean(brandAsset?.backgroundRemoved && brandAsset?.transparentRatio >= .02);
+  const manufacturerLogoRequested = Boolean(opts.brandLogoUrl);
+  const manufacturerLogoOk = !manufacturerLogoRequested || Boolean(campaignBrandAsset?.backgroundRemoved);
   const badCutouts = assets
     .map((asset,index)=>({asset,index}))
     .filter(({asset}) => !(asset.backgroundRemoved && asset.cutoutSafe !== false));
@@ -1474,6 +1489,17 @@ function multiQuality(assets = [], brandAsset = null, format = {}) {
       ok:brandOk,
       label:brandOk ? 'Logo oficial Ariana com fundo transparente' : 'Logo oficial precisa de correção',
       detail:brandOk ? 'Identidade oficial aprovada.' : 'A campanha final fica bloqueada.'
+    },
+    {
+      id:'manufacturer_logo',
+      critical:true,
+      ok:manufacturerLogoOk,
+      label:manufacturerLogoRequested
+        ? (manufacturerLogoOk ? 'Logo do fabricante tratada' : 'Logo do fabricante reprovada')
+        : 'Logo do fabricante opcional',
+      detail:manufacturerLogoRequested
+        ? (manufacturerLogoOk ? 'Marca pronta para a campanha.' : 'Use PNG transparente ou fundo simples.')
+        : 'Nenhuma logo de fabricante informada.'
     },
     {
       id:'multi_cutout',
