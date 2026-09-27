@@ -159,8 +159,8 @@ async function logoLayer(format) {
   const file = logoPath();
   if (!file) throw new Error('official_ariana_logo_missing');
   const mobile = format.device === 'mobile';
-  const width = mobile ? Math.round(format.width * .22) : Math.round(format.height * .40);
-  const height = mobile ? Math.round(format.height * .062) : Math.round(format.height * .105);
+  const width = mobile ? Math.round(format.width * .32) : Math.round(format.height * .60);
+  const height = mobile ? Math.round(format.height * .090) : Math.round(format.height * .140);
   const buffer = await sharp(file)
     .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 5 })
     .resize(width, height, {
@@ -175,7 +175,7 @@ async function logoLayer(format) {
     left: mobile
       ? Math.round((format.width - Number(meta.width || width)) / 2)
       : Math.round(format.width * .055),
-    top: mobile ? Math.round(format.height * .022) : Math.round(format.height * .025)
+    top: mobile ? Math.round(format.height * .018) : Math.round(format.height * .020)
   };
 }
 
@@ -435,6 +435,9 @@ function normalizedOptions(product = {}, options = {}) {
     template === 'campaign' ? 'CAMPANHA ESPECIAL' :
     'OFERTA ARIANA'
   ), 42).toUpperCase();
+  const brandLabel = clean(options.brandLabel || options.brand || product.brand || product.brandName || '', 34).toUpperCase();
+  const couponText = clean(options.couponText || options.coupon || '', 26).toUpperCase();
+  const promoText = clean(options.promoText || (showPrice ? 'OFERTA POR TEMPO LIMITADO' : 'CONDIÇÕES ESPECIAIS'), 46).toUpperCase();
 
   return {
     format,
@@ -450,6 +453,9 @@ function normalizedOptions(product = {}, options = {}) {
     benefit,
     cta,
     badge,
+    brandLabel,
+    couponText,
+    promoText,
     siteLabel: clean(options.siteLabel || 'arianamoveis.com.br', 45),
     removeBackground: options.removeBackground !== false && options.removeLightBackground !== false
   };
@@ -532,99 +538,187 @@ function backgroundSvg(format, template) {
   );
 }
 
-function overlayDesktop(format, opts) {
-  const w = format.width;
-  const h = format.height;
-  const x = Math.round(w * .055);
-  const textW = Math.round(w * .48);
-  const badgeFs = Math.round(h * .042);
-  const headlineFs = Math.round(h * (opts.headline.length > 32 ? .092 : .115));
-  const subtitleFs = Math.round(h * .048);
-  const nameFs = Math.round(h * .046);
-  const ctaH = Math.round(h * .095);
-  const ctaY = h - Math.round(h * .13);
-  const headlineLines = wrap(opts.headline, Math.max(18, Math.floor(textW/(headlineFs*.57))), 2);
-  const nameLines = wrap(opts.productName, Math.max(26, Math.floor(textW/(nameFs*.54))), 2);
-  const accent = opts.template === 'premium' ? '#F0CA6A' : '#FFD51B';
-  const ink = '#FFFFFF';
-  const dark = opts.template === 'premium' ? '#071B3B' : '#003B8F';
 
-  const badgeY = Math.round(h*.13);
-  const headlineY = badgeY + Math.round(h*.12);
-  const subtitleY = headlineY + headlineLines.length * headlineFs * 1.02 + Math.round(h*.025);
-  const nameY = subtitleY + Math.round(h*.085);
+function pillSvg({ x, y, w, h, fill = '#ffffff', text = '', textFill = '#0047AB', fs = 18, icon = '' }) {
+  const radius = Math.round(h / 2);
+  const iconPart = icon
+    ? '<text x="' + (x + Math.round(h*.52)) + '" y="' + (y + Math.round(h*.67)) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + Math.round(fs*1.05) + '" font-weight="900" fill="' + textFill + '">' + escapeXml(icon) + '</text>'
+    : '';
+  const textX = icon ? x + Math.round(h*.98) : x + Math.round(w/2);
+  const anchor = icon ? 'start' : 'middle';
+  return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="' + radius + '" fill="' + fill + '"/>' +
+    iconPart +
+    '<text x="' + textX + '" y="' + (y + Math.round(h*.66)) + '" text-anchor="' + anchor + '" font-family="Arial,Helvetica,sans-serif" font-size="' + fs + '" font-weight="900" fill="' + textFill + '">' + escapeXml(text) + '</text>';
+}
 
-  let bottom = '';
-  if (opts.showPrice) {
-    const priceFs = Math.round(h*.135);
-    const labelFs = Math.round(h*.032);
-    const installmentFs = Math.round(h*.040);
-    const priceY = ctaY - Math.round(h*.10);
-    bottom =
-      '<text x="' + x + '" y="' + (priceY - Math.round(priceFs*.70)) + '" font-family="Arial,Helvetica,sans-serif" font-size="' + labelFs + '" font-weight="900" fill="' + ink + '" opacity=".88">À VISTA NO PIX</text>' +
-      '<text x="' + x + '" y="' + priceY + '" font-family="Arial,Helvetica,sans-serif" font-size="' + priceFs + '" font-weight="950" fill="' + accent + '">' + escapeXml(money(opts.cashPrice)) + '</text>' +
-      '<text x="' + x + '" y="' + (priceY + Math.round(h*.052)) + '" font-family="Arial,Helvetica,sans-serif" font-size="' + installmentFs + '" font-weight="850" fill="' + ink + '">ou ' + opts.installmentCount + 'x de ' + escapeXml(money(opts.installmentPrice)) + ' no cartão</text>';
+function marketplaceDesktopOverlay(format, opts) {
+  const w=format.width, h=format.height, x=Math.round(w*.055);
+  const textW=Math.round(w*.47);
+  const headlineFs=Math.round(h*(opts.headline.length>30?.095:.112));
+  const headlineLines=wrap(opts.headline, Math.max(18,Math.floor(textW/(headlineFs*.56))),2);
+  const badgeFs=Math.round(h*.036);
+  const subtitleFs=Math.round(h*.041);
+  const priceFs=Math.round(h*.125);
+  const productNameFs=Math.round(h*.038);
+  const bottomY=Math.round(h*.835), pillH=Math.round(h*.105);
+  const gap=Math.round(w*.010);
+  const pill1W=Math.round(w*.165), pill2W=Math.round(w*.175), pill3W=Math.round(w*.135);
+  const pill1Text=opts.showPrice ? (opts.installmentCount+'x de '+money(opts.installmentPrice)) : 'CONDIÇÕES ESPECIAIS';
+  const pill2Text=opts.promoText;
+  const headlineY=Math.round(h*.235);
+  const subtitleY=headlineY+headlineLines.length*headlineFs*1.00+Math.round(h*.025);
+  let price='';
+  if(opts.showPrice){
+    price='<text x="'+x+'" y="'+Math.round(h*.585)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.027)+'" font-weight="900" fill="#ffffff" opacity=".86">À VISTA NO PIX</text>'+
+      '<text x="'+x+'" y="'+Math.round(h*.715)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+priceFs+'" font-weight="950" fill="#FFD51B">'+escapeXml(money(opts.cashPrice))+'</text>';
   } else {
-    const benefitFs = Math.round(h*.042);
-    const benefitLines = wrap(opts.benefit, 52, 2);
-    bottom =
-      '<rect x="' + x + '" y="' + Math.round(h*.64) + '" width="' + Math.round(textW*.86) + '" height="' + Math.round(h*.14) + '" rx="' + Math.round(h*.035) + '" fill="#ffffff" opacity=".10"/>' +
-      linesSvg(benefitLines, { x:x+Math.round(h*.035), y:Math.round(h*.70), size:benefitFs, lineHeight:benefitFs*1.15, fill:ink, weight:750 });
+    const b=wrap(opts.benefit,44,2);
+    price=linesSvg(b,{x,y:Math.round(h*.615),size:Math.round(h*.040),lineHeight:Math.round(h*.050),fill:'#ffffff',weight:700});
   }
-
   return Buffer.from(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '">' +
-    '<rect x="' + x + '" y="' + (badgeY-badgeFs) + '" width="' + Math.round(Math.max(h*.32,opts.badge.length*badgeFs*.62)) + '" height="' + Math.round(badgeFs*1.55) + '" rx="' + Math.round(badgeFs*.77) + '" fill="' + accent + '"/>' +
-    '<text x="' + (x+Math.round(badgeFs*.68)) + '" y="' + badgeY + '" font-family="Arial,Helvetica,sans-serif" font-size="' + badgeFs + '" font-weight="950" fill="' + dark + '">' + escapeXml(opts.badge) + '</text>' +
-    linesSvg(headlineLines,{x,y:headlineY,size:headlineFs,lineHeight:headlineFs*1.00,fill:ink,weight:950}) +
-    '<text x="' + x + '" y="' + subtitleY + '" font-family="Arial,Helvetica,sans-serif" font-size="' + subtitleFs + '" font-weight="650" fill="' + ink + '" opacity=".92">' + escapeXml(opts.subtitle) + '</text>' +
-    linesSvg(nameLines,{x,y:nameY,size:nameFs,lineHeight:nameFs*1.08,fill:ink,weight:800}) +
-    bottom +
-    '<rect x="' + x + '" y="' + ctaY + '" width="' + Math.round(textW*.34) + '" height="' + ctaH + '" rx="' + Math.round(ctaH*.5) + '" fill="#ffffff"/>' +
-    '<text x="' + (x+Math.round(textW*.17)) + '" y="' + (ctaY+Math.round(ctaH*.66)) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + Math.round(h*.038) + '" font-weight="950" fill="#0047AB">' + escapeXml(opts.cta) + '</text>' +
-    '<text x="' + (x+Math.round(textW*.37)) + '" y="' + (ctaY+Math.round(ctaH*.66)) + '" font-family="Arial,Helvetica,sans-serif" font-size="' + Math.round(h*.031) + '" font-weight="850" fill="' + ink + '">' + escapeXml(opts.siteLabel) + '</text>' +
+    '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+    '<rect x="'+x+'" y="'+Math.round(h*.145)+'" width="'+Math.round(Math.max(h*.30,opts.badge.length*badgeFs*.65))+'" height="'+Math.round(h*.064)+'" rx="'+Math.round(h*.032)+'" fill="#FFD51B"/>'+
+    '<text x="'+(x+Math.round(h*.035))+'" y="'+Math.round(h*.188)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+badgeFs+'" font-weight="950" fill="#06306A">'+escapeXml(opts.badge)+'</text>'+
+    linesSvg(headlineLines,{x,y:headlineY,size:headlineFs,lineHeight:headlineFs*.98,fill:'#ffffff',weight:950})+
+    '<text x="'+x+'" y="'+subtitleY+'" font-family="Arial,Helvetica,sans-serif" font-size="'+subtitleFs+'" font-weight="650" fill="#ffffff" opacity=".94">'+escapeXml(opts.subtitle)+'</text>'+
+    '<text x="'+x+'" y="'+Math.round(h*.515)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+productNameFs+'" font-weight="800" fill="#ffffff" opacity=".95">'+escapeXml(opts.productName)+'</text>'+
+    price+
+    pillSvg({x,y:bottomY,w:pill1W,h:pillH,fill:'#071D49',text:pill1Text,textFill:'#ffffff',fs:Math.round(h*.031),icon:'▣'})+
+    pillSvg({x:x+pill1W+gap,y:bottomY,w:pill2W,h:pillH,fill:'#FFD51B',text:pill2Text,textFill:'#08285A',fs:Math.round(h*.029),icon:'◷'})+
+    pillSvg({x:x+pill1W+pill2W+gap*2,y:bottomY,w:pill3W,h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(h*.031)})+
+    '</svg>'
+  );
+}
+
+function premiumDesktopOverlay(format, opts) {
+  const w=format.width,h=format.height,x=Math.round(w*.055), textW=Math.round(w*.43);
+  const headlineFs=Math.round(h*(opts.headline.length>30?.085:.105));
+  const headlineLines=wrap(opts.headline,Math.max(18,Math.floor(textW/(headlineFs*.56))),2);
+  const brand=opts.brandLabel ? opts.brandLabel+' • ' : '';
+  const kicker=brand+'SELEÇÃO ESPECIAL';
+  const body=wrap(opts.benefit,46,2);
+  const ctaY=Math.round(h*.78),ctaH=Math.round(h*.095);
+  let pricing='';
+  if(opts.showPrice){
+    pricing='<text x="'+x+'" y="'+Math.round(h*.635)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.030)+'" font-weight="800" fill="#F0CA6A">NO PIX</text>'+
+      '<text x="'+x+'" y="'+Math.round(h*.750)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.110)+'" font-weight="950" fill="#F0CA6A">'+escapeXml(money(opts.cashPrice))+'</text>';
+  }
+  return Buffer.from(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+    '<text x="'+x+'" y="'+Math.round(h*.22)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.035)+'" font-weight="900" letter-spacing="2" fill="#F0CA6A">'+escapeXml(kicker)+'</text>'+
+    linesSvg(headlineLines,{x,y:Math.round(h*.34),size:headlineFs,lineHeight:headlineFs*1.00,fill:'#ffffff',weight:900})+
+    '<text x="'+x+'" y="'+Math.round(h*.55)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.040)+'" font-weight="650" fill="#ffffff" opacity=".86">'+escapeXml(opts.productName)+'</text>'+
+    (opts.showPrice?pricing:linesSvg(body,{x,y:Math.round(h*.66),size:Math.round(h*.038),lineHeight:Math.round(h*.050),fill:'#ffffff',weight:650}))+
+    '<rect x="'+x+'" y="'+ctaY+'" width="'+Math.round(textW*.42)+'" height="'+ctaH+'" rx="'+Math.round(ctaH*.5)+'" fill="#F0CA6A"/>'+
+    '<text x="'+(x+Math.round(textW*.21))+'" y="'+(ctaY+Math.round(ctaH*.66))+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.033)+'" font-weight="950" fill="#071B3B">'+escapeXml(opts.cta)+'</text>'+
+    '<text x="'+(x+Math.round(textW*.47))+'" y="'+(ctaY+Math.round(ctaH*.66))+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.030)+'" font-weight="800" fill="#ffffff">'+escapeXml(opts.siteLabel)+'</text>'+
+    '</svg>'
+  );
+}
+
+function campaignDesktopOverlay(format, opts) {
+  const w=format.width,h=format.height,x=Math.round(w*.055);
+  const brand=opts.brandLabel || 'ARIANA';
+  const special='ESPECIAL '+brand;
+  const headline=opts.couponText ? 'USE O CUPOM' : opts.headline;
+  const campaignMain=opts.couponText || opts.headline;
+  const bottomY=Math.round(h*.82),pillH=Math.round(h*.11),gap=Math.round(w*.010);
+  const pillW=Math.round(w*.17);
+  return Buffer.from(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+    '<text x="'+x+'" y="'+Math.round(h*.205)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.046)+'" font-weight="900" letter-spacing="3" fill="#ffffff">'+escapeXml(special)+'</text>'+
+    '<text x="'+x+'" y="'+Math.round(h*.345)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.105)+'" font-weight="950" fill="#ffffff">'+escapeXml(headline)+'</text>'+
+    '<rect x="'+x+'" y="'+Math.round(h*.385)+'" width="'+Math.round(w*.26)+'" height="'+Math.round(h*.145)+'" rx="'+Math.round(h*.035)+'" fill="#FFD51B"/>'+
+    '<text x="'+(x+Math.round(w*.13))+'" y="'+Math.round(h*.485)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*(opts.couponText?.length>14?.065:.082))+'" font-weight="950" fill="#08285A">'+escapeXml(campaignMain)+'</text>'+
+    '<text x="'+x+'" y="'+Math.round(h*.610)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.039)+'" font-weight="700" fill="#ffffff">'+escapeXml(opts.subtitle)+'</text>'+
+    (opts.showPrice?'<text x="'+x+'" y="'+Math.round(h*.725)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.080)+'" font-weight="950" fill="#FFD51B">'+escapeXml(money(opts.cashPrice))+'</text>':'')+
+    pillSvg({x,y:bottomY,w:pillW,h:pillH,fill:'#071D49',text:opts.installmentCount+'x no cartão',textFill:'#ffffff',fs:Math.round(h*.030),icon:'▣'})+
+    pillSvg({x:x+pillW+gap,y:bottomY,w:pillW,h:pillH,fill:'#FFD51B',text:opts.promoText,textFill:'#08285A',fs:Math.round(h*.027),icon:'◷'})+
+    pillSvg({x:x+pillW*2+gap*2,y:bottomY,w:Math.round(w*.135),h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(h*.030)})+
+    '</svg>'
+  );
+}
+
+function overlayDesktop(format, opts) {
+  if (opts.template === 'premium') return premiumDesktopOverlay(format, opts);
+  if (opts.template === 'campaign') return campaignDesktopOverlay(format, opts);
+  return marketplaceDesktopOverlay(format, opts);
+}
+
+function marketplaceMobileOverlay(format, opts) {
+  const w=format.width,h=format.height,c=Math.round(w/2);
+  const headlineFs=Math.round(w*(opts.headline.length>27?.050:.058));
+  const headlineLines=wrap(opts.headline,21,2);
+  const bottomY=Math.round(h*.845),pillH=Math.round(h*.060),gap=Math.round(w*.012);
+  const pillW=Math.round(w*.28);
+  let middle='';
+  if(opts.showPrice){
+    middle='<text x="'+c+'" y="'+Math.round(h*.755)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.025)+'" font-weight="900" fill="#ffffff">À VISTA NO PIX</text>'+
+      '<text x="'+c+'" y="'+Math.round(h*.815)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.070)+'" font-weight="950" fill="#FFD51B">'+escapeXml(money(opts.cashPrice))+'</text>';
+  } else {
+    middle=linesSvg(wrap(opts.benefit,34,2),{x:c,y:Math.round(h*.755),size:Math.round(w*.030),lineHeight:Math.round(w*.038),fill:'#ffffff',weight:700,anchor:'middle'});
+  }
+  return Buffer.from(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+    '<rect x="'+Math.round(w*.34)+'" y="'+Math.round(h*.100)+'" width="'+Math.round(w*.32)+'" height="'+Math.round(h*.045)+'" rx="'+Math.round(h*.022)+'" fill="#FFD51B"/>'+
+    '<text x="'+c+'" y="'+Math.round(h*.131)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.025)+'" font-weight="950" fill="#06306A">'+escapeXml(opts.badge)+'</text>'+
+    linesSvg(headlineLines,{x:c,y:Math.round(h*.190),size:headlineFs,lineHeight:headlineFs*1.03,fill:'#ffffff',weight:950,anchor:'middle'})+
+    '<text x="'+c+'" y="'+Math.round(h*.295)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.029)+'" font-weight="650" fill="#ffffff" opacity=".92">'+escapeXml(opts.subtitle)+'</text>'+
+    middle+
+    pillSvg({x:Math.round(w*.06),y:bottomY,w:pillW,h:pillH,fill:'#071D49',text:opts.installmentCount+'x cartão',textFill:'#ffffff',fs:Math.round(w*.022),icon:'▣'})+
+    pillSvg({x:Math.round(w*.06)+pillW+gap,y:bottomY,w:pillW,h:pillH,fill:'#FFD51B',text:'TEMPO LIMITADO',textFill:'#08285A',fs:Math.round(w*.020),icon:'◷'})+
+    pillSvg({x:Math.round(w*.06)+(pillW+gap)*2,y:bottomY,w:Math.round(w*.26),h:pillH,fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(w*.021)})+
+    '</svg>'
+  );
+}
+
+function premiumMobileOverlay(format, opts) {
+  const w=format.width,h=format.height,c=Math.round(w/2);
+  const lines=wrap(opts.headline,22,2);
+  const brand=opts.brandLabel ? opts.brandLabel+' • ' : '';
+  let lower='';
+  if(opts.showPrice){
+    lower='<text x="'+c+'" y="'+Math.round(h*.790)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.026)+'" font-weight="800" fill="#F0CA6A">NO PIX</text>'+
+      '<text x="'+c+'" y="'+Math.round(h*.850)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.066)+'" font-weight="950" fill="#F0CA6A">'+escapeXml(money(opts.cashPrice))+'</text>';
+  } else {
+    lower=linesSvg(wrap(opts.benefit,34,2),{x:c,y:Math.round(h*.785),size:Math.round(w*.030),lineHeight:Math.round(w*.038),fill:'#ffffff',weight:650,anchor:'middle'});
+  }
+  return Buffer.from(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+    '<text x="'+c+'" y="'+Math.round(h*.135)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.024)+'" font-weight="900" letter-spacing="2" fill="#F0CA6A">'+escapeXml(brand+'SELEÇÃO ESPECIAL')+'</text>'+
+    linesSvg(lines,{x:c,y:Math.round(h*.205),size:Math.round(w*.052),lineHeight:Math.round(w*.057),fill:'#ffffff',weight:900,anchor:'middle'})+
+    '<text x="'+c+'" y="'+Math.round(h*.315)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.028)+'" font-weight="650" fill="#ffffff" opacity=".88">'+escapeXml(opts.subtitle)+'</text>'+
+    lower+
+    '<rect x="'+Math.round(w*.22)+'" y="'+Math.round(h*.900)+'" width="'+Math.round(w*.56)+'" height="'+Math.round(h*.060)+'" rx="'+Math.round(h*.030)+'" fill="#F0CA6A"/>'+
+    '<text x="'+c+'" y="'+Math.round(h*.940)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.025)+'" font-weight="950" fill="#071B3B">'+escapeXml(opts.cta)+'</text>'+
+    '</svg>'
+  );
+}
+
+function campaignMobileOverlay(format, opts) {
+  const w=format.width,h=format.height,c=Math.round(w/2);
+  const brand=opts.brandLabel || 'ARIANA';
+  const special='ESPECIAL '+brand;
+  const main=opts.couponText || opts.headline;
+  const top=opts.couponText ? 'USE O CUPOM' : 'CAMPANHA ESPECIAL';
+  return Buffer.from(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+    '<text x="'+c+'" y="'+Math.round(h*.135)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.030)+'" font-weight="900" letter-spacing="3" fill="#ffffff">'+escapeXml(special)+'</text>'+
+    '<text x="'+c+'" y="'+Math.round(h*.195)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.044)+'" font-weight="950" fill="#ffffff">'+escapeXml(top)+'</text>'+
+    '<rect x="'+Math.round(w*.22)+'" y="'+Math.round(h*.215)+'" width="'+Math.round(w*.56)+'" height="'+Math.round(h*.078)+'" rx="'+Math.round(h*.039)+'" fill="#FFD51B"/>'+
+    '<text x="'+c+'" y="'+Math.round(h*.268)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*(main.length>16?.037:.047))+'" font-weight="950" fill="#08285A">'+escapeXml(main)+'</text>'+
+    '<text x="'+c+'" y="'+Math.round(h*.330)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.027)+'" font-weight="650" fill="#ffffff">'+escapeXml(opts.subtitle)+'</text>'+
+    pillSvg({x:Math.round(w*.08),y:Math.round(h*.855),w:Math.round(w*.26),h:Math.round(h*.060),fill:'#071D49',text:opts.installmentCount+'x cartão',textFill:'#ffffff',fs:Math.round(w*.020),icon:'▣'})+
+    pillSvg({x:Math.round(w*.37),y:Math.round(h*.855),w:Math.round(w*.26),h:Math.round(h*.060),fill:'#FFD51B',text:'TEMPO LIMITADO',textFill:'#08285A',fs:Math.round(w*.019),icon:'◷'})+
+    pillSvg({x:Math.round(w*.66),y:Math.round(h*.855),w:Math.round(w*.26),h:Math.round(h*.060),fill:'#ffffff',text:opts.cta,textFill:'#0047AB',fs:Math.round(w*.020)})+
     '</svg>'
   );
 }
 
 function overlayMobile(format, opts) {
-  const w = format.width;
-  const h = format.height;
-  const center = Math.round(w/2);
-  const accent = opts.template === 'premium' ? '#F0CA6A' : '#FFD51B';
-  const dark = opts.template === 'premium' ? '#071B3B' : '#003B8F';
-  const badgeFs = Math.round(w*.025);
-  const headlineFs = Math.round(w*(opts.headline.length>26?.050:.057));
-  const subtitleFs = Math.round(w*.029);
-  const headlineLines = wrap(opts.headline, 20, 2);
-  const ctaH = Math.round(h*.063);
-  const ctaY = h - Math.round(h*.095);
-  const priceY = ctaY - Math.round(h*.095);
-
-  let footer = '';
-  if (opts.showPrice) {
-    footer =
-      '<text x="' + center + '" y="' + (priceY-Math.round(w*.050)) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + Math.round(w*.023) + '" font-weight="900" fill="#ffffff" opacity=".88">À VISTA NO PIX</text>' +
-      '<text x="' + center + '" y="' + priceY + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + Math.round(w*.070) + '" font-weight="950" fill="' + accent + '">' + escapeXml(money(opts.cashPrice)) + '</text>' +
-      '<text x="' + center + '" y="' + (priceY+Math.round(h*.046)) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + Math.round(w*.028) + '" font-weight="850" fill="#ffffff">ou ' + opts.installmentCount + 'x de ' + escapeXml(money(opts.installmentPrice)) + ' no cartão</text>';
-  } else {
-    const benefitLines = wrap(opts.benefit, 39, 2);
-    footer =
-      '<rect x="' + Math.round(w*.10) + '" y="' + Math.round(h*.74) + '" width="' + Math.round(w*.80) + '" height="' + Math.round(h*.105) + '" rx="' + Math.round(w*.025) + '" fill="#ffffff" opacity=".10"/>' +
-      linesSvg(benefitLines,{x:center,y:Math.round(h*.785),size:Math.round(w*.031),lineHeight:Math.round(w*.038),fill:'#ffffff',weight:750,anchor:'middle'});
-  }
-
-  return Buffer.from(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '">' +
-    '<rect x="' + Math.round(w*.34) + '" y="' + Math.round(h*.092) + '" width="' + Math.round(w*.32) + '" height="' + Math.round(h*.046) + '" rx="' + Math.round(h*.023) + '" fill="' + accent + '"/>' +
-    '<text x="' + center + '" y="' + Math.round(h*.123) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + badgeFs + '" font-weight="950" fill="' + dark + '">' + escapeXml(opts.badge) + '</text>' +
-    linesSvg(headlineLines,{x:center,y:Math.round(h*.184),size:headlineFs,lineHeight:headlineFs*1.03,fill:'#ffffff',weight:950,anchor:'middle'}) +
-    '<text x="' + center + '" y="' + Math.round(h*.300) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + subtitleFs + '" font-weight="650" fill="#ffffff" opacity=".92">' + escapeXml(opts.subtitle) + '</text>' +
-    footer +
-    '<rect x="' + Math.round(w*.20) + '" y="' + ctaY + '" width="' + Math.round(w*.60) + '" height="' + ctaH + '" rx="' + Math.round(ctaH*.5) + '" fill="#ffffff"/>' +
-    '<text x="' + center + '" y="' + (ctaY+Math.round(ctaH*.66)) + '" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + Math.round(w*.028) + '" font-weight="950" fill="#0047AB">' + escapeXml(opts.cta) + ' • ' + escapeXml(opts.siteLabel) + '</text>' +
-    '</svg>'
-  );
+  if (opts.template === 'premium') return premiumMobileOverlay(format, opts);
+  if (opts.template === 'campaign') return campaignMobileOverlay(format, opts);
+  return marketplaceMobileOverlay(format, opts);
 }
 
 async function productComposite(asset, format, comp) {
