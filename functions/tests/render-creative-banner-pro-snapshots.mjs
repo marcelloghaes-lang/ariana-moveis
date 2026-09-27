@@ -6,6 +6,15 @@ function svgData(svg) {
   return 'data:image/svg+xml;base64,' + Buffer.from(svg).toString('base64');
 }
 
+const manufacturerLogo = svgData(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="900" height="360">' +
+  '<rect width="900" height="360" fill="#ffffff"/>' +
+  '<circle cx="180" cy="180" r="112" fill="none" stroke="#e11d48" stroke-width="30"/>' +
+  '<path d="M140 180 C175 120 215 120 250 180" fill="none" stroke="#e11d48" stroke-width="25" stroke-linecap="round"/>' +
+  '<text x="335" y="225" font-family="Arial" font-size="150" font-weight="900" fill="#0b3b87">MIDEA</text>' +
+  '</svg>'
+);
+
 const outDir = path.resolve('../artifacts/creative-studio-pro');
 fs.mkdirSync(outDir, { recursive: true });
 
@@ -108,7 +117,7 @@ const cases = [
   ['campaign-desktop', speaker, {
     outputFormat:'hero_desktop', templatePro:'campaign', showPrice:true,
     headline:'SOM PARA TODO MOMENTO', subtitle:'Potência e diversão com condição especial',
-    brandLabel:'AMVOX', couponText:'SOM10', promoText:'OFERTA POR TEMPO LIMITADO',
+    brandLabel:'AMVOX', brandLogoUrl:manufacturerLogo, couponText:'SOM10', promoText:'OFERTA POR TEMPO LIMITADO',
     installmentCount:12, installmentPrice:29.08, cashPrice:289, fullPrice:349,
     cta:'APROVEITE'
   }],
@@ -142,6 +151,7 @@ for (const format of ['hero_desktop','hero_mobile']) {
   const result = await generateCreativeBannerProMulti(multiProducts, {
     outputFormat: format,
     brandLabel: 'MIDEA',
+    brandLogoUrl: manufacturerLogo,
     couponText: 'PROMOMIDEA',
     headline: 'ESPECIAL MIDEA',
     subtitle: 'Tecnologia para sua casa com condições especiais',
