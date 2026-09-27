@@ -314,6 +314,7 @@
     els.productName.value = compact.name;
     els.imageUrl.value = compact.imageUrl;
     if (compact.brand && !els.brandLabel.value.trim()) els.brandLabel.value = compact.brand;
+    if (product.brandLogoUrl && !els.brandLogoUrl.value.trim()) els.brandLogoUrl.value = product.brandLogoUrl;
     if (compact.cashPrice) els.cashPrice.value = moneyInput(compact.cashPrice);
     if (compact.fullPrice) els.fullPrice.value = moneyInput(compact.fullPrice);
     if (compact.fullPrice) els.installmentPrice.value = moneyInput(compact.installmentPrice);
@@ -368,6 +369,35 @@
     }
   }
 
+  async function uploadBrandLogo(file) {
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      els.brandLogoStatus.textContent = 'A logo ultrapassa 10 MB.';
+      els.brandLogoStatus.className = 'inline-status full error';
+      return;
+    }
+
+    els.brandLogoStatus.textContent = 'Enviando logo do fabricante...';
+    els.brandLogoStatus.className = 'inline-status full';
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('folder', 'marketing/creative-studio-pro/marcas');
+      const data = await api('/admin/uploads', { method:'POST', body:form });
+      const uploaded = Array.isArray(data?.files) ? data.files[0] : (data?.file || data);
+      const url = uploaded?.url || uploaded?.secure_url || uploaded?.imageUrl || data?.url;
+      if (!url) throw new Error('O servidor não devolveu a URL da logo.');
+      els.brandLogoUrl.value = url;
+      els.brandLogoStatus.textContent = 'Logo enviada. O Studio vai remover fundo simples e validar antes de salvar.';
+      els.brandLogoStatus.className = 'inline-status full ok';
+      qualityAllowsSave = false;
+      els.saveButton.disabled = true;
+    } catch (error) {
+      els.brandLogoStatus.textContent = error.message;
+      els.brandLogoStatus.className = 'inline-status full error';
+    }
+  }
+
   function buildPayload() {
     const multi = contentMode === 'multi_product';
 
@@ -390,6 +420,7 @@
           badge: els.badge.value.trim(),
           cta: els.cta.value.trim(),
           brandLabel: els.brandLabel.value.trim() || first.brand || '',
+          brandLogoUrl: els.brandLogoUrl.value.trim(),
           couponText: els.couponText.value.trim(),
           promoText: els.promoText.value.trim(),
           installmentCount: Number(els.installments.value || 12),
@@ -434,6 +465,7 @@
         badge: els.badge.value.trim(),
         cta: els.cta.value.trim(),
         brandLabel: els.brandLabel.value.trim() || selectedProduct?.brand || '',
+        brandLogoUrl: els.brandLogoUrl.value.trim(),
         couponText: els.couponText.value.trim(),
         promoText: els.promoText.value.trim(),
         productName: name,
@@ -566,6 +598,7 @@
   function bind() {
     els.productSearch.addEventListener('input',event => renderProductResults(event.target.value));
     els.imageFile.addEventListener('change',event => uploadImage(event.target.files?.[0]));
+    els.brandLogoFile.addEventListener('change',event => uploadBrandLogo(event.target.files?.[0]));
 
     document.querySelectorAll('input[name="format"]').forEach(input => input.addEventListener('change',updateChoiceCards));
     document.querySelectorAll('input[name="template-pro"]').forEach(input => input.addEventListener('change',updateChoiceCards));
@@ -603,6 +636,9 @@
       subtitle:byId('subtitle'),
       benefit:byId('benefit'),
       brandLabel:byId('brand-label'),
+      brandLogoUrl:byId('brand-logo-url'),
+      brandLogoFile:byId('brand-logo-file'),
+      brandLogoStatus:byId('brand-logo-status'),
       couponText:byId('coupon-text'),
       promoText:byId('promo-text'),
       pricingStep:byId('pricing-step'),
