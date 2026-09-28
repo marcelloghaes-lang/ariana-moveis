@@ -1575,38 +1575,39 @@ function multiCampaignOverlay(format, opts, count = 2) {
   const w = format.width;
   const h = format.height;
 
-  // Bloco tipográfico inspirado em headers de grandes varejistas:
-  // largura controlada, respiro entre níveis e nenhuma cápsula/botão.
-  const x = Math.round(w*.062);
-  const textW = Math.round(w*.355);
-  const topY = Math.round(h*.225);
+  // Hierarquia editorial de marketplace: título dominante, apoio legível
+  // e CTA integrado ao grid, sem cápsulas ou botões desenhados.
+  const x = Math.round(w*.055);
+  const textW = Math.round(w*.385);
+  const topY = Math.round(h*.205);
   const headlineFs = Math.round(h * (
-    headline.length > 48 ? .080 :
-    headline.length > 34 ? .092 :
-    .108
+    headline.length > 54 ? .082 :
+    headline.length > 42 ? .092 :
+    headline.length > 30 ? .104 :
+    .116
   ));
   const headlineChars = clamp(
-    Math.floor(textW / Math.max(1, headlineFs * .55)),
-    19,
-    29
+    Math.floor(textW / Math.max(1, headlineFs * .54)),
+    22,
+    31
   );
   const headlineLines = wrap(headline, headlineChars, 2);
-  const headlineLineHeight = Math.round(headlineFs * 1.02);
-  const titleY = topLabel ? Math.round(h*.365) : Math.round(h*.305);
-  const supportFs = Math.round(h*.038);
+  const headlineLineHeight = Math.round(headlineFs * 1.01);
+  const titleY = topLabel ? Math.round(h*.340) : Math.round(h*.285);
+  const supportFs = Math.round(h*.040);
   const supportChars = clamp(
-    Math.floor(textW / Math.max(1, supportFs * .52)),
-    34,
-    54
+    Math.floor(textW / Math.max(1, supportFs * .51)),
+    40,
+    64
   );
   const supportLines = wrap(support, supportChars, 2);
   const supportY = Math.round(
     titleY +
     Math.max(0, headlineLines.length - 1) * headlineLineHeight +
-    h*.105
+    h*.078
   );
-  const supportLineHeight = Math.round(supportFs * 1.30);
-  const infoY = Math.round(h*.835);
+  const supportLineHeight = Math.round(supportFs * 1.32);
+  const infoY = Math.round(h*.845);
 
   let footer = '';
   if (showCommercialInfo) {
@@ -1620,18 +1621,18 @@ function multiCampaignOverlay(format, opts, count = 2) {
         '<text x="'+Math.round(w*.412)+'" y="'+Math.round(infoY+h*.010)+'" font-size="'+Math.round(h*.025)+'" font-weight="900" fill="#ffffff">'+escapeXml(cta)+' →</text>'+
       '</g>';
   } else {
-    const ruleEnd = Math.round(x + textW*.68);
+    const ruleEnd = Math.round(x + textW*.72);
     footer =
       '<g font-family="Arial,Helvetica,sans-serif">'+
         '<line x1="'+x+'" y1="'+Math.round(infoY-h*.038)+'" x2="'+ruleEnd+'" y2="'+Math.round(infoY-h*.038)+'" stroke="#FFD51B" stroke-opacity=".72" stroke-width="'+Math.max(2,Math.round(h*.005))+'"/>'+
-        '<text x="'+x+'" y="'+Math.round(infoY+h*.025)+'" font-size="'+Math.round(h*.032)+'" font-weight="900" letter-spacing="1.2" fill="#ffffff">'+escapeXml(cta)+' →</text>'+
+        '<text x="'+x+'" y="'+Math.round(infoY+h*.025)+'" font-size="'+Math.round(h*.034)+'" font-weight="900" letter-spacing="1.1" fill="#ffffff">'+escapeXml(cta)+' →</text>'+
       '</g>';
   }
 
   return Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
     (topLabel
-      ? '<text x="'+x+'" y="'+topY+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.032)+'" font-weight="900" letter-spacing="2.2" fill="#FFD51B">'+escapeXml(topLabel)+'</text>'
+      ? '<text x="'+x+'" y="'+topY+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.031)+'" font-weight="900" letter-spacing="2.6" fill="#FFD51B">'+escapeXml(topLabel)+'</text>'
       : '')+
     linesSvg(headlineLines,{
       x,
@@ -1640,7 +1641,7 @@ function multiCampaignOverlay(format, opts, count = 2) {
       lineHeight:headlineLineHeight,
       fill:'#ffffff',
       weight:950,
-      letterSpacing:-0.5
+      letterSpacing:-0.8
     })+
     linesSvg(supportLines,{
       x,
@@ -1648,7 +1649,7 @@ function multiCampaignOverlay(format, opts, count = 2) {
       size:supportFs,
       lineHeight:supportLineHeight,
       fill:'#ffffff',
-      weight:650,
+      weight:700,
       letterSpacing:0
     })+
     (coupon
