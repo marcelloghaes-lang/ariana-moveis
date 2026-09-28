@@ -9488,3 +9488,38 @@ test('regressão Osvaldo: descrição do perfil não vira nome de tratamento', (
   assert.equal(bot.personalizedGreeting('Boa tarde', 'mangá larga'), 'Boa tarde!');
   assert.equal(bot.customerFirstName('Osvaldo Lucas'), 'Osvaldo');
 });
+
+
+test('regressão Jéssica: áudio pedindo celular barato cancela finance_cpf antigo e segue venda', async () => {
+  const phone = '553199999876';
+  bot.conversation(phone).pendingAction = 'finance_cpf';
+  catalogRows = [
+    product('cel-1', 'Celular Básico 128GB', { category: 'Celular', stock: 3, price: 699 }),
+    product('cel-2', 'Celular Intermediário 128GB', { category: 'Celular', stock: 2, price: 899 })
+  ];
+
+  await bot.handleMessage({
+    phone,
+    text: 'Estou aqui a comprar um telefone para o meu menino, telefone normal. Qual é que está mais barato aí, mais em conta? Manda aqui.',
+    pushName: 'Jéssica',
+    source: 'audio',
+    semanticIntent: { intent: 'product_search', category: 'celular' },
+    semanticIntentTried: true
+  });
+
+  const body = sentTexts.map((item) => String(item?.text || item || '')).join(' ');
+  assert.doesNotMatch(body, /CPF do titular|11 números/i);
+  assert.equal(bot.conversation(phone).pendingAction, '');
+  assert.equal(bot.conversation(phone).lastIntent, 'produto');
+});
+
+test('finance_cpf continua protegido quando mensagem não é nova intenção de produto', async () => {
+  const phone = '553199999875';
+  bot.conversation(phone).pendingAction = 'finance_cpf';
+
+  await bot.handleMessage({ phone, text: 'Ainda quero saber o valor da minha parcela', pushName: 'Cliente' });
+
+  const body = sentTexts.map((item) => String(item?.text || item || '')).join(' ');
+  assert.match(body, /CPF do titular|11 números/i);
+  assert.equal(bot.conversation(phone).pendingAction, 'finance_cpf');
+});
