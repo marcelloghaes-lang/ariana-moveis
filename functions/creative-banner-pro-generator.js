@@ -1509,9 +1509,15 @@ function quality(asset, opts, format, brandAsset = null, campaignBrandAsset = nu
 }
 
 export async function prepareProProductAsset(product = {}, options = {}) {
+  const directBuffer =
+    Buffer.isBuffer(product?.originalBuffer)
+      ? product.originalBuffer
+      : Buffer.isBuffer(options?.originalBuffer)
+        ? options.originalBuffer
+        : null;
   const source = productImage(product, options);
-  if (!source) throw new Error('product_image_required');
-  const raw = await loadImage(source);
+  if (!directBuffer && !source) throw new Error('product_image_required');
+  const raw = directBuffer || await loadImage(source);
   if (!raw) throw new Error('product_image_unavailable');
   const productText = productCategoryText(product);
   const baseAsset = await removeConnectedBackground(
@@ -1522,9 +1528,11 @@ export async function prepareProProductAsset(product = {}, options = {}) {
   const repaired = await repairCreativeProductCutout(baseAsset, productText, raw, source);
   return {
     ...repaired,
-    sourceType: product.originalSourcePath
-      ? 'direct_original_upload'
-      : String(product.sourceType || 'remote_or_catalog'),
+    sourceType: directBuffer
+      ? String(product.sourceType || 'creative_cutout_bank_original')
+      : product.originalSourcePath
+        ? 'direct_original_upload'
+        : String(product.sourceType || 'remote_or_catalog'),
     sourceOriginalName: String(product.originalSourceName || ''),
     sourceOriginalMimeType: String(product.originalSourceMimeType || ''),
     sourceOriginalBytes: Number(product.originalSourceBytes || raw.length || 0)
