@@ -418,29 +418,57 @@ export function createErpCarneCoraService(context = {}) {
 
   async function saveContact(targetId, payload = {}, actor = {}) {
     const id = clean(targetId, 300);
-    if (!id.startsWith('order:')) {
-      throw fail('O e-mail pode ser atualizado por esta tela somente em vendas do Ariana ERP.', 409, 'ERP_CARNE_CORA_CONTACT_ORDER_REQUIRED');
-    }
-    if (!Order) throw fail('Modelo de vendas do Ariana ERP não está disponível.', 503, 'ERP_CARNE_CORA_ORDER_MODEL_UNAVAILABLE');
-    const orderId = id.split(':')[1];
-    if (!mongoose.isValidObjectId(orderId)) throw fail('Venda inválida para atualização de contato.', 404, 'ERP_CARNE_CORA_ORDER_INVALID');
     const email = clean(payload.email, 320).toLowerCase();
     if (!emailIsValid(email)) throw fail('Informe um e-mail válido do cliente para emitir o carnê Cora.', 400, 'ERP_CARNE_CORA_EMAIL_INVALID');
 
-    const order = await Order.findById(orderId).lean();
-    if (!order || order.origin !== 'erp_ariana') throw fail('Venda do Ariana ERP não encontrada.', 404, 'ERP_CARNE_CORA_ORDER_NOT_FOUND');
-    await Order.collection.updateOne(
-      { _id: new mongoose.Types.ObjectId(orderId), origin: 'erp_ariana' },
-      { $set: { customerEmail: email, updatedAt: new Date() } }
-    );
+    if (id.startsWith('order:')) {
+      if (!Order) throw fail('Modelo de vendas do Ariana ERP não está disponível.', 503, 'ERP_CARNE_CORA_ORDER_MODEL_UNAVAILABLE');
+      const orderId = id.split(':')[1];
+      if (!mongoose.isValidObjectId(orderId)) throw fail('Venda inválida para atualização de contato.', 404, 'ERP_CARNE_CORA_ORDER_INVALID');
+      const order = await Order.findById(orderId).lean();
+      if (!order || order.origin !== 'erp_ariana') throw fail('Venda do Ariana ERP não encontrada.', 404, 'ERP_CARNE_CORA_ORDER_NOT_FOUND');
+      await Order.collection.updateOne(
+        { _id: new mongoose.Types.ObjectId(orderId), origin: 'erp_ariana' },
+        { $set: { customerEmail: email, updatedAt: new Date() } }
+      );
+      const Person = mongoose.models.ErpPerson;
+      const document = digits(order.customerCpf || order.customerDocument || '');
+      if (Person && document) {
+        await Person.updateOne(
+          { document, active: { $ne: false } },
+          { $set: { email, updatedAt: new Date() } }
+        ).catch(error => console.warn('[erp-carne-cora][contato]', error?.message || error));
+      }
+    } else if (id.startsWith('entry:')) {
+      const Entry = mongoose.models.ErpFinancialEntry;
+      const entryId = id.slice(6);
+      if (!Entry) throw fail('Livro financeiro do Ariana ERP não está disponível.', 503, 'ERP_LEDGER_UNAVAILABLE');
+      if (!mongoose.isValidObjectId(entryId)) throw fail('Parcela financeira inválida.', 404, 'ERP_CARNE_TARGET_NOT_FOUND');
+      const selected = await Entry.collection.findOne({ _id: new mongoose.Types.ObjectId(entryId), direction: 'receivable' });
+      if (!selected) throw fail('Compra financeira não encontrada.', 404, 'ERP_CARNE_TARGET_NOT_FOUND');
 
-    const Person = mongoose.models.ErpPerson;
-    const document = digits(order.customerCpf || order.customerDocument || '');
-    if (Person && document) {
-      await Person.updateOne(
-        { document, active: { $ne: false } },
-        { $set: { email, updatedAt: new Date() } }
-      ).catch(error => console.warn('[erp-carne-cora][contato]', error?.message || error));
+      const groupQuery = { direction: 'receivable', status: { $ne: 'cancelled' } };
+      const sourceSaleId = clean(selected?.migration?.sourceSaleId, 180);
+      if (clean(selected.orderId, 120)) groupQuery.orderId = clean(selected.orderId, 120);
+      else if (sourceSaleId) groupQuery['migration.sourceSaleId'] = sourceSaleId;
+      else if (clean(selected.documentNumber, 120)) {
+        groupQuery.documentNumber = clean(selected.documentNumber, 120);
+        if (clean(selected.personDocument, 60)) groupQuery.personDocument = clean(selected.personDocument, 60);
+      } else groupQuery._id = selected._id;
+
+      // Apenas dado de contato: não altera valor, vencimento, status, saldo ou pagamentos.
+      await Entry.collection.updateMany(groupQuery, { $set: { personEmail: email, updatedAt: new Date() } });
+
+      const Person = mongoose.models.ErpPerson;
+      const document = digits(selected.personDocument || '');
+      if (Person && document) {
+        await Person.updateOne(
+          { document, active: { $ne: false } },
+          { $set: { email, updatedAt: new Date() } }
+        ).catch(error => console.warn('[erp-carne-cora][contato-historico]', error?.message || error));
+      }
+    } else {
+      throw fail('Compra inválida para atualização de contato.', 404, 'ERP_CARNE_CORA_CONTACT_TARGET_INVALID');
     }
 
     const refreshed = await preview(targetId, payload.via || 'primeira');
@@ -449,36 +477,27 @@ export function createErpCarneCoraService(context = {}) {
 
   async function emit(targetId, payload = {}, actor = {}) {
     const baseData = await base.preview(targetId, 'primeira');
-    if (!clean(baseData.orderId, 160)) {
-      throw fail('A emissão bancária Cora está disponível para vendas do Ariana ERP vinculadas a uma compra.', 409, 'ERP_CARNE_CORA_ORDER_REQUIRED');
-    }
 
     const existing = await findLinkedCharge(baseData);
     if (existing) {
       const data = mergeProvider(baseData, providerView(existing));
-      return { reused: true, created: false, ...data };
+      return { reused: true, created: false, coraEligibility: coraEligibility(baseData), ...data };
     }
 
-    const items = arr(baseData.items).slice().sort((a, b) => Number(a.number || 0) - Number(b.number || 0));
-    if (items.length < 2 || items.length > 24) {
-      throw fail('O carnê Cora deve possuir entre 2 e 24 parcelas.', 409, 'ERP_CARNE_CORA_INSTALLMENTS_INVALID');
+    const eligibility = coraEligibility(baseData);
+    if (!eligibility.eligible) {
+      throw fail(eligibility.reasons.join(' '), 409, 'ERP_CARNE_CORA_NOT_ELIGIBLE');
     }
 
-    const dueDates = items.map(item => isoDay(item.dueAt));
-    if (dueDates.some(value => !value)) {
-      throw fail('Todas as parcelas precisam ter vencimento definido antes da emissão Cora.', 409, 'ERP_CARNE_CORA_DUE_DATE_REQUIRED');
-    }
-    const today = new Date().toISOString().slice(0, 10);
-    if (dueDates.some(value => value < today)) {
-      throw fail('Há parcela com vencimento anterior a hoje. A Cora não permite criar um novo carnê com vencimentos retroativos.', 409, 'ERP_CARNE_CORA_PAST_DUE');
-    }
-
-    const totalAmount = money(items.reduce((sum, item) => sum + Number(item.original || 0), 0));
-    if (totalAmount <= 0) throw fail('O valor da compra é inválido para emissão Cora.', 409, 'ERP_CARNE_CORA_AMOUNT_INVALID');
+    const items = eligibility.items;
+    const dueDates = eligibility.dueDates;
+    const totalAmount = eligibility.openAmount;
+    if (totalAmount <= 0) throw fail('O saldo da compra é inválido para emissão Cora.', 409, 'ERP_CARNE_CORA_AMOUNT_INVALID');
 
     const contact = baseData.contact || {};
+    const stableKey = clean(baseData.purchaseKey || baseData.orderId || baseData.targetId, 220);
     const input = {
-      code: clean(baseData.reference || `ARIANA-${baseData.orderId}`, 120),
+      code: clean(baseData.reference || stableKey || 'ARIANA-CARNE', 120),
       totalAmount,
       installments: items.length,
       dueDates,
@@ -498,31 +517,32 @@ export function createErpCarneCoraService(context = {}) {
 
     const requestPayload = buildCoraInstallmentPayload(input);
     const cfg = getCoraConfig();
-    // A Cora exige que o header Idempotency-Key seja um UUID válido.
-    // Mantemos o UUID persistido no registro da cobrança para que novas tentativas
-    // da mesma emissão sejam idempotentes sem reutilizar uma chave textual inválida.
     const crypto = await import('crypto');
-    const legacyIdempotencyKey = `erp-carne:${baseData.orderId}:cora:v1`;
-    let charge = await CoraCharge.findOne({
-      $or: [
-        { orderId: clean(baseData.orderId, 160), kind: 'INSTALLMENT_BOOK' },
-        { idempotencyKey: legacyIdempotencyKey }
-      ]
-    }).sort({ createdAt: -1 });
+    const legacyIdempotencyKey = `erp-carne:${stableKey}:cora:v1`;
+    const clauses = [
+      ...(clean(baseData.orderId, 160) ? [{ orderId: clean(baseData.orderId, 160), kind: 'INSTALLMENT_BOOK' }] : []),
+      ...(stableKey ? [{ purchaseKey: stableKey, kind: 'INSTALLMENT_BOOK' }, { internalReference: stableKey, kind: 'INSTALLMENT_BOOK' }] : []),
+      { idempotencyKey: legacyIdempotencyKey }
+    ];
+    let charge = await CoraCharge.findOne({ $or: clauses }).sort({ createdAt: -1 });
     const storedKey = clean(charge?.idempotencyKey, 120);
     const idempotencyKey = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(storedKey)
       ? storedKey
       : crypto.randomUUID();
+
     if (charge && isChargeUsable(charge)) {
       const data = mergeProvider(baseData, providerView(charge.toObject ? charge.toObject() : charge));
-      return { reused: true, created: false, ...data };
+      return { reused: true, created: false, coraEligibility: eligibility, ...data };
     }
 
+    const source = baseData.source === 'historico_sige' ? 'ERP_CARNE_HISTORICO' : 'ERP_CARNE';
     if (!charge) {
       charge = await CoraCharge.create({
         orderId: clean(baseData.orderId, 160),
-        source: 'ERP_CARNE',
-        internalReference: clean(baseData.reference, 180),
+        purchaseKey: stableKey,
+        targetId: clean(baseData.targetId, 300),
+        source,
+        internalReference: stableKey,
         code: requestPayload.code,
         environment: cfg.environment,
         idempotencyKey,
@@ -534,9 +554,12 @@ export function createErpCarneCoraService(context = {}) {
         createdBy: actorName(actor)
       });
     } else {
+      charge.orderId = clean(baseData.orderId, 160);
+      charge.purchaseKey = stableKey;
+      charge.targetId = clean(baseData.targetId, 300);
       charge.idempotencyKey = idempotencyKey;
-      charge.source = 'ERP_CARNE';
-      charge.internalReference = clean(baseData.reference, 180);
+      charge.source = source;
+      charge.internalReference = stableKey;
       charge.code = requestPayload.code;
       charge.environment = cfg.environment;
       charge.status = 'PROCESSING';
