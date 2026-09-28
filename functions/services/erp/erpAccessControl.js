@@ -54,6 +54,10 @@ export function resolveErpRequirement(req={}){
 
   if(path==='/erp/finance-panel/clientes'&&read)return requirement(['customers:read','finance:read','payments:read'],'consultar clientes no painel financeiro');
   if(/^\/erp\/finance-panel\/(lancamentos|inadimplentes|dashboard)$/.test(path)&&read)return requirement(['finance:read','payments:read'],'consultar o painel financeiro');
+  if(/^\/erp\/finance-panel\/carne\/(compras|preview|pdf)$/.test(path)&&read)return requirement(['finance:read','payments:read'],'consultar e gerar carnês');
+  if(path==='/erp/finance-panel/carne/enviar'&&method==='POST')return requirement(['finance:read','payments:receive'],'enviar carnê');
+  if(path==='/erp/finance-panel/carne/contato'&&method==='POST')return requirement(['customers:update','payments:receive'],'atualizar contato para carnê');
+  if(path==='/erp/finance-panel/carne/cora/emitir'&&method==='POST')return requirement(['payments:receive'],'emitir carnê Cora');
   if(/^\/erp\/finance-panel\/lancamentos\/[^/]+\/[^/]+\/pagamentos$/.test(path)&&method==='POST')return requirement(['payments:receive'],'registrar pagamentos pelo painel financeiro');
 
   if(/^\/erp\/orders\/[^/]+\/receivables\/[^/]+\/receive$/.test(path)&&method==='POST')return requirement(['payments:receive'],'receber parcelas');
