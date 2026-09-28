@@ -6,7 +6,6 @@ import {
   generateCreativeBannerPro,
   analyzeCreativeBannerProMulti,
   generateCreativeBannerProMulti,
-  prepareProProductAsset,
   prepareOfficialLogoAsset,
   resolveProFormat,
   resolveProTemplate,
@@ -67,22 +66,6 @@ const LIGHT_SHELL_SPEAKER = svgData(
   '<circle cx="450" cy="390" r="72" fill="#2563eb"/>' +
   '<circle cx="450" cy="650" r="92" fill="#111827"/>' +
   '<circle cx="450" cy="650" r="52" fill="#ef4444"/>' +
-  '</svg>'
-);
-
-const FAN_WITH_INTERNAL_WHITE_BG = svgData(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="900" height="900">' +
-  '<rect width="900" height="900" fill="#ffffff"/>' +
-  '<circle cx="450" cy="300" r="220" fill="#ffffff" stroke="#334155" stroke-width="18"/>' +
-  '<line x1="450" y1="80" x2="450" y2="520" stroke="#334155" stroke-width="14"/>' +
-  '<line x1="230" y1="300" x2="670" y2="300" stroke="#334155" stroke-width="14"/>' +
-  '<line x1="295" y1="145" x2="605" y2="455" stroke="#334155" stroke-width="14"/>' +
-  '<line x1="605" y1="145" x2="295" y2="455" stroke="#334155" stroke-width="14"/>' +
-  '<path d="M450 300 C500 215 585 220 590 282 C540 300 505 320 470 355 Z" fill="#94a3b8"/>' +
-  '<path d="M450 300 C365 270 315 330 350 380 C400 350 425 335 450 300 Z" fill="#64748b"/>' +
-  '<circle cx="450" cy="300" r="48" fill="#1f2937"/>' +
-  '<rect x="430" y="520" width="40" height="220" rx="18" fill="#334155"/>' +
-  '<rect x="300" y="740" width="300" height="48" rx="24" fill="#334155"/>' +
   '</svg>'
 );
 
@@ -267,53 +250,6 @@ test('segunda tentativa conservadora preserva produto claro em fundo branco', as
   assert.equal(analysis.product.cutoutSafe, true);
   assert.equal(analysis.product.removalMode, 'connected_light_background_conservative');
   assert.equal(analysis.quality.blockSave, false);
-});
-
-test('Recorte Inteligente Pro limpa fundo entre grade e pé sem destruir ventilador', async () => {
-  const fanProduct = {
-    ...product,
-    id: 'fan-cutout-pro',
-    name: 'Ventilador de Coluna com Grade',
-    category: 'Ventiladores',
-    imageUrl: FAN_WITH_INTERNAL_WHITE_BG
-  };
-
-  const asset = await prepareProProductAsset(fanProduct, {
-    removeBackground: true
-  });
-
-  assert.equal(asset.backgroundRemoved, true, JSON.stringify(asset.repairMetrics));
-  assert.equal(asset.cutoutSafe, true, JSON.stringify(asset.repairMetrics));
-  assert.match(asset.removalMode, /internal_repair|repair_verified/);
-  assert.equal(asset.repairMetrics?.attempted, true);
-  assert.equal(asset.repairMetrics?.difficultProduct, true);
-  assert.ok(asset.repairMetrics?.internalCandidateCount >= 3);
-  assert.ok(asset.repairMetrics?.internalRemovedPixels > 500);
-  assert.ok(asset.repairMetrics?.structuralLossRatio < 0.86);
-  assert.ok(asset.repairMetrics?.foregroundOpaqueRatioAfter >= 0.035);
-  assert.equal(asset.repairMetrics?.internalBackgroundOk, true);
-  assert.equal(asset.repairMetrics?.whiteHaloOk, true);
-
-  for (const outputFormat of [
-    'hero_desktop',
-    'hero_mobile',
-    'secondary_desktop',
-    'secondary_mobile',
-    'square'
-  ]) {
-    const analysis = await analyzeCreativeBannerPro(fanProduct, {
-      outputFormat,
-      templatePro: 'marketplace',
-      removeBackground: true
-    });
-
-    const internalCheck = analysis.quality.checks.find(item => item.id === 'internal_background');
-    const haloCheck = analysis.quality.checks.find(item => item.id === 'white_halo');
-    assert.equal(internalCheck?.ok, true, outputFormat + ' precisa aprovar fundo interno');
-    assert.equal(haloCheck?.ok, true, outputFormat + ' precisa aprovar halo');
-    assert.equal(analysis.quality.blockSave, false, outputFormat + ' não pode ser bloqueado');
-    assert.equal(analysis.product.repair?.safe, true);
-  }
 });
 
 test('recorte fragmentado de produto branco é bloqueado em vez de gerar produto mastigado', async () => {

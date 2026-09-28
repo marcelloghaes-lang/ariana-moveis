@@ -6,11 +6,8 @@ on:
       - 'functions/creative-banner-pro-generator.js'
       - 'functions/routes/adminCoreRoutes.js'
       - 'functions/services/creativeCampaignResearchService.js'
-      - 'functions/services/creativeProductCutoutRepairService.js'
-      - 'functions/services/creativeProductRebuildService.js'
       - 'functions/services/creativeCampaignAiDirectorService.js'
       - 'functions/tests/creative-banner-pro-generator.test.mjs'
-      - 'functions/tests/creative-product-rebuild-service.test.mjs'
       - 'functions/tests/creative-campaign-ai-director-service.test.mjs'
       - 'functions/tests/creative-campaign-research-service.test.mjs'
       - 'functions/tests/render-creative-banner-pro-snapshots.mjs'
@@ -23,11 +20,8 @@ on:
       - 'functions/creative-banner-pro-generator.js'
       - 'functions/routes/adminCoreRoutes.js'
       - 'functions/services/creativeCampaignResearchService.js'
-      - 'functions/services/creativeProductCutoutRepairService.js'
-      - 'functions/services/creativeProductRebuildService.js'
       - 'functions/services/creativeCampaignAiDirectorService.js'
       - 'functions/tests/creative-banner-pro-generator.test.mjs'
-      - 'functions/tests/creative-product-rebuild-service.test.mjs'
       - 'functions/tests/creative-campaign-ai-director-service.test.mjs'
       - 'functions/tests/creative-campaign-research-service.test.mjs'
       - 'functions/tests/render-creative-banner-pro-snapshots.mjs'
@@ -54,12 +48,10 @@ jobs:
           node --check creative-banner-pro-generator.js
           node --check routes/adminCoreRoutes.js
           node --check services/creativeCampaignResearchService.js
-          node --check services/creativeProductCutoutRepairService.js
-          node --check services/creativeProductRebuildService.js
           node --check services/creativeCampaignAiDirectorService.js
           node --check ../public/js/creative_studio_pro.js
       - name: Creative Studio Pro regressions
-        run: node --test tests/creative-banner-pro-generator.test.mjs tests/creative-product-rebuild-service.test.mjs tests/creative-campaign-research-service.test.mjs tests/creative-campaign-ai-director-service.test.mjs
+        run: node --test tests/creative-banner-pro-generator.test.mjs tests/creative-campaign-research-service.test.mjs tests/creative-campaign-ai-director-service.test.mjs
 
       - name: Render visual snapshots
         run: node tests/render-creative-banner-pro-snapshots.mjs

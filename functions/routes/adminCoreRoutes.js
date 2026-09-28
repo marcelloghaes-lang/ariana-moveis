@@ -9,7 +9,6 @@ import {
   getProTemplateManifest
 } from '../creative-banner-pro-generator.js';
 import { researchCreativeCampaignWithAi } from '../services/creativeCampaignAiDirectorService.js';
-import { getCreativeProductRebuildStatus, probeCreativeProductRebuildProvider } from '../services/creativeProductRebuildService.js';
 
 // ============================================================
 // ROTAS ADMIN CORE / UPLOAD / POSTERS / CRUD GENÉRICO
@@ -961,24 +960,13 @@ app.post('/api/admin/posters/professional-banner', adminRequired, async (req, re
   }
 });
 
-app.get('/api/creative-studio/pro/ai-status', async (_req, res) => {
-  const productRebuild = getCreativeProductRebuildStatus();
-  const productRebuildProvider = await probeCreativeProductRebuildProvider().catch(error => ({
-    ok: false,
-    configured: productRebuild.configured,
-    model: productRebuild.imageModel,
-    reason: String(error?.message || 'provider_probe_failed').slice(0, 180)
-  }));
+app.get('/api/creative-studio/pro/ai-status', (_req, res) => {
   return res.json({
     ok: true,
     configured: Boolean(String(process.env.OPENAI_API_KEY || '').trim()),
     model: String(process.env.CREATIVE_AI_MODEL || 'gpt-5.6-luna').trim(),
     engine: 'ai_vision_web',
-    fallback: 'rules_fallback',
-    productRebuild: {
-      ...productRebuild,
-      provider: productRebuildProvider
-    }
+    fallback: 'rules_fallback'
   });
 });
 
@@ -1045,43 +1033,6 @@ app.post('/api/admin/creative-studio/pro/preview', adminRequired, async (req, re
     const result = products.length >= 2
       ? await generateCreativeBannerProMulti(products, options)
       : await generateCreativeBannerPro(product, options);
-    const criticalFailures = Array.isArray(result.meta?.quality?.criticalFailures)
-      ? result.meta.quality.criticalFailures
-      : [];
-    const rebuildBlocked = criticalFailures.includes('ai_rebuild') || criticalFailures.includes('multi_ai_rebuild');
-    if (rebuildBlocked) {
-      const rows = Array.isArray(result.meta?.products) ? result.meta.products : [];
-      const failedRebuilds = rows.length
-        ? rows.filter(item => item?.rebuild?.required && item?.rebuild?.safe !== true)
-        : (result.meta?.product?.rebuild?.required && result.meta?.product?.rebuild?.safe !== true
-            ? [result.meta.product]
-            : []);
-      const timeoutFailure = failedRebuilds.some(item =>
-        /timeout|aborted/i.test(String(item?.rebuild?.error || item?.rebuild?.reason || ''))
-      );
-      const providerFailure = failedRebuilds.some(item => {
-        const reason = String(item?.rebuild?.reason || '');
-        const error = String(item?.rebuild?.error || '');
-        return reason === 'ai_rebuild_failed' || /creative_rebuild_http_|openai_key|provider/i.test(error);
-      });
-      const statusCode = timeoutFailure ? 504 : (providerFailure ? 502 : 422);
-      const code = timeoutFailure
-        ? 'creative_ai_rebuild_timeout'
-        : (providerFailure ? 'creative_ai_rebuild_provider_failed' : 'creative_ai_rebuild_blocked');
-      const error = timeoutFailure
-        ? 'A reconstrução por IA demorou além do limite. Tente gerar novamente; o Studio não usou o recorte defeituoso.'
-        : (providerFailure
-            ? 'O serviço de reconstrução por IA não conseguiu processar a imagem. O Studio bloqueou a arte sem usar um recorte defeituoso.'
-            : 'A reconstrução por IA não atingiu fidelidade suficiente. O Studio bloqueou o produto em vez de usar uma imagem deformada.');
-      return res.status(statusCode).json({
-        ok: false,
-        code,
-        error,
-        quality: result.meta?.quality || null,
-        product: result.meta?.product || null,
-        products: result.meta?.products || []
-      });
-    }
     const format = result.meta?.format || resolveProFormat(options.outputFormat);
     res.set({
       'Content-Type': 'image/png',
