@@ -11,11 +11,12 @@ const DEFAULT_VALIDATION_MODEL = String(
 ).trim();
 const CACHE_TTL_MS = Number(process.env.CREATIVE_REBUILD_CACHE_TTL_MS || 6 * 60 * 60 * 1000);
 const CACHE_LIMIT = Number(process.env.CREATIVE_REBUILD_CACHE_LIMIT || 40);
-const PROMPT_VERSION = 'ariana-product-rebuild/v3-master-cutout';
+const PROMPT_VERSION = 'ariana-product-rebuild/v4-fan-master-hq';
 const DEFAULT_IMAGE_QUALITY = String(process.env.CREATIVE_REBUILD_QUALITY || 'medium').trim();
 
 export const DIFFICULT_PRODUCT_PATTERN =
   /(ventilador|fan\b|cadeira|banqueta|cesto|fruteira|grade|grelha|ripa|ripado|aramad|treli[cç]a|tela\b|estrutura\s+vazada|vazad[oa])/i;
+export const FAN_PRODUCT_PATTERN = /(ventilador|fan\b)/i;
 
 const cache = new Map();
 const inflight = new Map();
@@ -36,6 +37,10 @@ function clamp(value, min, max) {
 
 export function isDifficultCreativeProduct(productText = '') {
   return DIFFICULT_PRODUCT_PATTERN.test(String(productText || '').toLowerCase());
+}
+
+export function isFanCreativeProduct(productText = '') {
+  return FAN_PRODUCT_PATTERN.test(String(productText || '').toLowerCase());
 }
 
 export function shouldRebuildCreativeProduct(asset = {}, productText = '') {
@@ -96,19 +101,20 @@ function cacheSet(key, value) {
   }
 }
 
-async function prepareReferencePng(buffer) {
+async function prepareReferencePng(buffer, { fanMaster = false } = {}) {
   const source = sharp(buffer, { failOn: 'none' }).rotate();
   const meta = await source.metadata();
   const width = Number(meta.width || 0);
   const height = Number(meta.height || 0);
-  // Saída quadrada reduz latência e custo; o produto é aparado depois,
-  // então a proporção final continua vindo do próprio produto.
-  const outputSize = '1024x1024';
+  const outputSize = fanMaster
+    ? (height >= width ? '1024x1536' : '1536x1024')
+    : '1024x1024';
 
+  const maxReferenceEdge = fanMaster ? 2048 : 1536;
   const png = await source
     .resize({
-      width: 1536,
-      height: 1536,
+      width: maxReferenceEdge,
+      height: maxReferenceEdge,
       fit: 'inside',
       withoutEnlargement: true
     })
@@ -119,11 +125,12 @@ async function prepareReferencePng(buffer) {
     buffer: png,
     sourceWidth: width,
     sourceHeight: height,
-    outputSize
+    outputSize,
+    fanMaster
   };
 }
 
-export function buildProductRebuildPrompt(productText = '', { masterRepair = false } = {}) {
+export function buildProductRebuildPrompt(productText = '', { masterRepair = false, fanMaster = false } = {}) {
   const label = clean(productText, 180) || 'produto';
   const lines = [
     'Use a imagem enviada como referência visual obrigatória do mesmo produto: ' + label + '.',
@@ -149,6 +156,18 @@ export function buildProductRebuildPrompt(productText = '', { masterRepair = fal
     );
   }
 
+  if (fanMaster) {
+    lines.push(
+      'MODO VENTILADOR MASTER: reconstrua o ventilador inteiro a partir da fotografia original; não repare nem reaproveite uma máscara defeituosa.',
+      'Preserve rigorosamente quantidade e geometria das pás, desenho da grade frontal e traseira, aro, miolo, marca, haste, regulagens, coluna, pé e base.',
+      'Todos os vazados reais entre os arames da grade devem ficar transparentes, sem branco, cinza, névoa ou halo.',
+      'Não simplifique a grade e não transforme vários arames em uma superfície sólida.',
+      'O ventilador deve ocupar aproximadamente 88% a 94% da altura útil da imagem, centralizado e completamente visível, para maximizar a resolução real do produto.',
+      'Priorize nitidez de catálogo: arames, bordas, logotipo, botões e encaixes devem ficar definidos, sem aparência borrada ou pintura digital.',
+      'A imagem final precisa ser adequada como arquivo mestre para publicidade e banners, não apenas como prévia.'
+    );
+  }
+
   lines.push('Resultado final: packshot fotográfico realista do MESMO produto em PNG transparente.');
   return lines.join('\n');
 }
@@ -159,13 +178,14 @@ async function callImageEdit(reference, productText, {
   imageModel = DEFAULT_IMAGE_MODEL,
   imageQuality = DEFAULT_IMAGE_QUALITY,
   masterRepair = false,
+  fanMaster = false,
   timeoutMs = Number(process.env.CREATIVE_REBUILD_TIMEOUT_MS || 85000)
 } = {}) {
   if (!apiKey) throw new Error('creative_rebuild_openai_key_missing');
 
   const form = new FormData();
   form.append('model', imageModel);
-  form.append('prompt', buildProductRebuildPrompt(productText, { masterRepair }));
+  form.append('prompt', buildProductRebuildPrompt(productText, { masterRepair, fanMaster }));
   form.append('background', 'transparent');
   form.append('output_format', 'png');
   form.append('quality', imageQuality);
@@ -418,6 +438,7 @@ export async function rebuildCreativeProductFromReference({
   force = false
 } = {}) {
   const detectedEligibility = shouldRebuildCreativeProduct(asset, productText);
+  const fanMaster = force && isFanCreativeProduct(productText);
   const eligibility = force
     ? {
         required: true,
@@ -491,7 +512,7 @@ export async function rebuildCreativeProductFromReference({
     return failedAsset(asset, eligibility, true, 'ai_rebuild_reference_missing');
   }
 
-  const reference = await prepareReferencePng(referenceBuffer);
+  const reference = await prepareReferencePng(referenceBuffer, { fanMaster });
   const key = crypto
     .createHash('sha256')
     .update(PROMPT_VERSION)
@@ -499,6 +520,8 @@ export async function rebuildCreativeProductFromReference({
     .update(validationModel)
     .update(productText)
     .update(force ? 'forced-master-repair' : 'automatic-rebuild')
+    .update(fanMaster ? 'fan-master-hq' : 'standard-master')
+    .update(reference.outputSize)
     .update(reference.buffer)
     .digest('hex');
 
@@ -521,8 +544,9 @@ export async function rebuildCreativeProductFromReference({
         fetchImpl,
         apiKey,
         imageModel,
-        imageQuality: DEFAULT_IMAGE_QUALITY,
-        masterRepair: force
+        imageQuality: fanMaster ? 'high' : DEFAULT_IMAGE_QUALITY,
+        masterRepair: force,
+        fanMaster
       });
       const output = await inspectTransparentOutput(generated.buffer);
       if (!output.safe) {
@@ -532,6 +556,21 @@ export async function rebuildCreativeProductFromReference({
           transparentRatio: output.transparentRatio,
           opaqueRatio: output.opaqueRatio,
           partialRatio: output.partialRatio
+        });
+      }
+
+      const masterResolutionOk = !fanMaster || (
+        Math.max(output.width, output.height) >= 1300 &&
+        Math.min(output.width, output.height) >= 480
+      );
+      if (!masterResolutionOk) {
+        return failedAsset(asset, eligibility, true, 'ai_rebuild_master_resolution_too_low', {
+          attempted: true,
+          model: generated.model,
+          width: output.width,
+          height: output.height,
+          outputSize: reference.outputSize,
+          fanMaster: true
         });
       }
 
@@ -581,7 +620,8 @@ export async function rebuildCreativeProductFromReference({
           whiteHaloOk: true,
           thinStructureDamageOk: true,
           safe: true,
-          reason: 'ok'
+          reason: 'ok',
+          masterResolutionOk
         },
         rebuildMetrics: {
           enabled: true,
@@ -593,7 +633,10 @@ export async function rebuildCreativeProductFromReference({
           reason: 'ok',
           model: generated.model,
           validationModel: validation.model,
-          imageQuality: DEFAULT_IMAGE_QUALITY,
+          imageQuality: fanMaster ? 'high' : DEFAULT_IMAGE_QUALITY,
+          fanMaster,
+          requestedOutputSize: reference.outputSize,
+          masterResolutionOk,
           validation,
           transparentRatio: output.transparentRatio,
           opaqueRatio: output.opaqueRatio,
