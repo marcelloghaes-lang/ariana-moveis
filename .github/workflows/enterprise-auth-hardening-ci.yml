@@ -1,10 +1,18 @@
 name: Ariana Enterprise Auth Hardening CI
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'functions/routes/enterprise/**'
+      - 'functions/routes/enterpriseRoutes.js'
+      - 'functions/routes/legacyRoutes.js'
+      - '.github/workflows/enterprise-auth-hardening-ci.yml'
   pull_request:
     branches: [main]
     paths:
       - 'functions/routes/enterprise/**'
+      - 'functions/routes/enterpriseRoutes.js'
       - 'functions/routes/legacyRoutes.js'
       - '.github/workflows/enterprise-auth-hardening-ci.yml'
   workflow_dispatch:
@@ -30,14 +38,55 @@ jobs:
         run: |
           set -euo pipefail
           node --check functions/routes/legacyRoutes.js
-          node --check functions/routes/enterprise/shared/auth.js
-          node --check functions/routes/enterprise/shared/order.js
-          node --check functions/routes/enterprise/shared/partner.js
-          node --check functions/routes/enterprise/partnerAuthRoutes.js
-          node --check functions/routes/enterprise/shared/billing.js
-          node --check functions/routes/enterprise/invoiceRoutes.js
-          node --check functions/routes/enterprise/enterpriseOrderRoutes.js
-          node --check functions/routes/enterprise/versionRoutes.js
+          node --check functions/routes/enterpriseRoutes.js
+          find functions/routes/enterprise -type f -name '*.js' ! -name '*.BACKUP*' -print0 | while IFS= read -r -d '' file; do
+            node --check "$file"
+          done
+
+      - name: Check undefined identifiers in Enterprise modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes eslint@8.57.1             functions/routes/enterprise/*.js             functions/routes/enterprise/shared/*.js             functions/routes/enterpriseRoutes.js             --no-eslintrc             --env node,es2022             --parser-options '{"sourceType":"module","ecmaVersion":2022}'             --rule 'no-undef:error'
+
+      - name: Reject duplicate Enterprise routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'fs';
+          import path from 'path';
+
+          const dir = 'functions/routes/enterprise';
+          const files = fs.readdirSync(dir)
+            .filter((name) => name.endsWith('.js') && !name.includes('.BACKUP'))
+            .map((name) => path.join(dir, name));
+
+          const routes = new Map();
+          const routeRe = /\b(?:app|router)\.(get|post|put|patch|delete)\(\s*(['"`])([^'"`\n]+?)\2/gi;
+
+          for (const file of files) {
+            let source = fs.readFileSync(file, 'utf8')
+              .replace(/\/\*[\s\S]*?\*\//g, '')
+              .replace(/^\s*\/\/.*$/gm, '');
+
+            for (const match of source.matchAll(routeRe)) {
+              const key = `${match[1].toUpperCase()} ${match[3]}`;
+              const list = routes.get(key) || [];
+              list.push(file);
+              routes.set(key, list);
+            }
+          }
+
+          const duplicates = [...routes.entries()].filter(([, files]) => files.length > 1);
+          if (duplicates.length) {
+            for (const [route, files] of duplicates) {
+              console.error(`Duplicate route: ${route} -> ${files.join(', ')}`);
+            }
+            process.exit(1);
+          }
+          console.log('No duplicate active Enterprise routes.');
+          NODE
 
       - name: Verify hardening guards
         shell: bash
