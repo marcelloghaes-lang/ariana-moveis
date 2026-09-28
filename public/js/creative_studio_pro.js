@@ -19,6 +19,8 @@
   let lastCopyResearchSignature = '';
   let lastCreativeDirection = null;
   let deferredInstallPrompt = null;
+  let localProductImageDataUrl = '';
+  let localBrandLogoDataUrl = '';
 
   const FORMATS = Object.freeze({
     hero_desktop: { label: 'PRÉVIA • HERO DESKTOP', size: '1920 × 480 pixels' },
@@ -106,6 +108,67 @@
   function status(message = '', type = '') {
     els.globalStatus.textContent = message;
     els.globalStatus.className = 'global-status ' + type;
+  }
+
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('Não foi possível ler a imagem selecionada.'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function loadLocalImage(file) {
+    return new Promise((resolve, reject) => {
+      const objectUrl = URL.createObjectURL(file);
+      const image = new Image();
+      const finish = () => URL.revokeObjectURL(objectUrl);
+      image.onload = () => {
+        finish();
+        resolve(image);
+      };
+      image.onerror = () => {
+        finish();
+        reject(new Error('Formato de imagem não reconhecido pelo navegador.'));
+      };
+      image.src = objectUrl;
+    });
+  }
+
+  async function prepareCreativeLocalImage(file, maxDimension = 1800) {
+    if (!file) throw new Error('Selecione uma imagem.');
+    if (file.size > 20 * 1024 * 1024) throw new Error('A imagem ultrapassa 20 MB.');
+    if (file.type && !String(file.type).startsWith('image/')) {
+      throw new Error('Selecione um arquivo de imagem.');
+    }
+
+    try {
+      const image = await loadLocalImage(file);
+      const width = Number(image.naturalWidth || image.width || 0);
+      const height = Number(image.naturalHeight || image.height || 0);
+      if (!width || !height) throw new Error('Imagem sem dimensões válidas.');
+
+      const scale = Math.min(1, maxDimension / Math.max(width, height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(width * scale));
+      canvas.height = Math.max(1, Math.round(height * scale));
+      const ctx = canvas.getContext('2d', { alpha: true });
+      if (!ctx) throw new Error('Não foi possível preparar a imagem.');
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+      const webp = canvas.toDataURL('image/webp', 0.92);
+      if (webp.startsWith('data:image/webp')) return webp;
+      return canvas.toDataURL('image/png');
+    } catch (_error) {
+      const original = await readFileAsDataUrl(file);
+      if (!original.startsWith('data:image/')) {
+        throw new Error('Não foi possível preparar a imagem selecionada.');
+      }
+      return original;
+    }
   }
 
   function selectedFormat() {
@@ -312,13 +375,7 @@
     status('Enviando imagem do ' + (slot === 0 ? 'produto principal' : 'produto de apoio ' + slot) + '...', '');
 
     try {
-      const form = new FormData();
-      form.append('file', file);
-      form.append('folder', 'marketing/creative-studio-pro/hero-produtos');
-      const data = await api('/admin/uploads', { method:'POST', body:form });
-      const uploaded = Array.isArray(data?.files) ? data.files[0] : (data?.file || data);
-      const url = uploaded?.url || uploaded?.secure_url || uploaded?.imageUrl || data?.url;
-      if (!url) throw new Error('O servidor não devolveu a URL da imagem.');
+      const url = await prepareCreativeLocalImage(file);
 
       const cleanName = String(file.name || 'Produto')
         .replace(/\.[a-z0-9]+$/i,'')
@@ -332,7 +389,7 @@
         category: 'Campanha',
         __heroUploaded: true
       });
-      status('Imagem adicionada. ' + heroSlotProducts().length + ' de 3 produtos preenchidos.', 'ok');
+      status('Imagem adicionada ao Studio. ' + heroSlotProducts().length + ' de 3 produtos preenchidos.', 'ok');
     } catch (error) {
       status('Falha ao enviar imagem: ' + error.message, 'error');
     } finally {
@@ -883,6 +940,7 @@
     }
 
     selectedProduct = product;
+    localProductImageDataUrl = '';
     const compact = compactCatalogProduct(product);
     els.productName.value = compact.name;
     els.imageUrl.value = compact.imageUrl;
@@ -955,19 +1013,15 @@
       return;
     }
 
-    els.uploadStatus.textContent = 'Enviando imagem...';
+    els.uploadStatus.textContent = 'Preparando imagem no Studio...';
     els.uploadStatus.className = 'inline-status full';
     try {
-      const form = new FormData();
-      form.append('file',file);
-      form.append('folder','marketing/creative-studio-pro/produtos');
-      const data = await api('/admin/uploads',{method:'POST',body:form});
-      const uploaded = Array.isArray(data?.files) ? data.files[0] : (data?.file || data);
-      const url = uploaded?.url || uploaded?.secure_url || uploaded?.imageUrl || data?.url;
-      if (!url) throw new Error('O servidor não devolveu a URL da imagem.');
-      els.imageUrl.value = url;
-      els.uploadStatus.textContent = 'Imagem enviada. O recorte será analisado na prévia.';
+      localProductImageDataUrl = await prepareCreativeLocalImage(file);
+      els.imageUrl.value = '';
+      els.uploadStatus.textContent = 'Imagem carregada. O recorte será analisado na prévia.';
       els.uploadStatus.className = 'inline-status full ok';
+      qualityAllowsSave = false;
+      els.saveButton.disabled = true;
     } catch (error) {
       els.uploadStatus.textContent = error.message;
       els.uploadStatus.className = 'inline-status full error';
@@ -982,18 +1036,12 @@
       return;
     }
 
-    els.brandLogoStatus.textContent = 'Enviando logo do fabricante...';
+    els.brandLogoStatus.textContent = 'Preparando logo no Studio...';
     els.brandLogoStatus.className = 'inline-status full';
     try {
-      const form = new FormData();
-      form.append('file', file);
-      form.append('folder', 'marketing/creative-studio-pro/marcas');
-      const data = await api('/admin/uploads', { method:'POST', body:form });
-      const uploaded = Array.isArray(data?.files) ? data.files[0] : (data?.file || data);
-      const url = uploaded?.url || uploaded?.secure_url || uploaded?.imageUrl || data?.url;
-      if (!url) throw new Error('O servidor não devolveu a URL da logo.');
-      els.brandLogoUrl.value = url;
-      els.brandLogoStatus.textContent = 'Logo enviada. O Studio vai remover fundo simples e validar antes de salvar.';
+      localBrandLogoDataUrl = await prepareCreativeLocalImage(file, 1400);
+      els.brandLogoUrl.value = '';
+      els.brandLogoStatus.textContent = 'Logo carregada. O Studio vai remover fundo simples e validar antes de salvar.';
       els.brandLogoStatus.className = 'inline-status full ok';
       qualityAllowsSave = false;
       els.saveButton.disabled = true;
@@ -1037,7 +1085,7 @@
           manualCopy,
           copyAuthority: 'editor',
           brandLabel: els.brandLabel.value.trim(),
-          brandLogoUrl: els.brandLogoUrl.value.trim(),
+          brandLogoUrl: localBrandLogoDataUrl || els.brandLogoUrl.value.trim(),
           couponText: els.couponText.value.trim(),
           promoText: els.promoText.value.trim(),
           showCommercialInfo: false,
@@ -1048,7 +1096,7 @@
     }
 
     const name = els.productName.value.trim();
-    const imageUrl = els.imageUrl.value.trim();
+    const imageUrl = localProductImageDataUrl || els.imageUrl.value.trim();
     if (!name) throw new Error('Informe o nome do produto.');
     if (!imageUrl) throw new Error('Selecione ou envie a imagem do produto.');
 
@@ -1084,7 +1132,7 @@
         manualCopy,
         copyAuthority: 'editor',
         brandLabel: els.brandLabel.value.trim() || selectedProduct?.brand || '',
-        brandLogoUrl: els.brandLogoUrl.value.trim(),
+        brandLogoUrl: localBrandLogoDataUrl || els.brandLogoUrl.value.trim(),
         couponText: els.couponText.value.trim(),
         promoText: els.promoText.value.trim(),
         productName: name,
@@ -1383,13 +1431,26 @@
       button.addEventListener('click', () => chooseCatalogForHeroSlot(button.dataset.heroCatalogSlot));
     });
     document.querySelectorAll('[data-hero-upload-slot]').forEach(input => {
-      input.addEventListener('change', event => uploadHeroSlot(event.target.files?.[0], input.dataset.heroUploadSlot));
+      input.addEventListener('change', event => {
+        uploadHeroSlot(event.target.files?.[0], input.dataset.heroUploadSlot)
+          .finally(() => { event.target.value = ''; });
+      });
     });
     document.querySelectorAll('[data-hero-clear-slot]').forEach(button => {
       button.addEventListener('click', () => clearHeroSlot(button.dataset.heroClearSlot));
     });
-    els.imageFile.addEventListener('change',event => uploadImage(event.target.files?.[0]));
-    els.brandLogoFile.addEventListener('change',event => uploadBrandLogo(event.target.files?.[0]));
+    els.imageFile.addEventListener('change',event => {
+      uploadImage(event.target.files?.[0]).finally(() => { event.target.value = ''; });
+    });
+    els.brandLogoFile.addEventListener('change',event => {
+      uploadBrandLogo(event.target.files?.[0]).finally(() => { event.target.value = ''; });
+    });
+    els.imageUrl.addEventListener('input', () => {
+      if (els.imageUrl.value.trim()) localProductImageDataUrl = '';
+    });
+    els.brandLogoUrl.addEventListener('input', () => {
+      if (els.brandLogoUrl.value.trim()) localBrandLogoDataUrl = '';
+    });
 
     [
       ['badge', els.badge],
