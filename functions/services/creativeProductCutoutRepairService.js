@@ -2,6 +2,7 @@ import sharp from 'sharp';
 
 const DIFFICULT_PRODUCT_PATTERN =
   /(ventilador|fan\b|cadeira|banqueta|cesto|fruteira|grade|grelha|ripa|ripado|aramad|treli[cç]a|tela\b|estrutura\s+vazada|vazad[oa])/i;
+const FAN_PRODUCT_PATTERN = /(ventilador|fan\b)/i;
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -9,6 +10,10 @@ function clamp(value, min, max) {
 
 function isDifficultProduct(productText = '') {
   return DIFFICULT_PRODUCT_PATTERN.test(String(productText || '').toLowerCase());
+}
+
+function isFanProduct(productText = '') {
+  return FAN_PRODUCT_PATTERN.test(String(productText || '').toLowerCase());
 }
 
 function rgbDistance(data, pixelOffset, background) {
@@ -268,6 +273,329 @@ function semiTransparentBackgroundRatio(data, info, background) {
   }
 
   return contaminated / Math.max(1, visible);
+}
+
+
+function fanCutoutThresholds(background = {}) {
+  const brightness = Number(background.brightness || 0);
+  const variance = Math.max(0, Number(background.variance || 0));
+  const spread = Math.max(0, Number(background.spread || 0));
+  const sigma = Math.sqrt(variance);
+
+  return {
+    eligible: brightness >= 196 && variance <= 1800,
+    strictDistance: clamp(15 + sigma * 0.18, 15, 28),
+    softDistance: clamp(34 + sigma * 0.20, 34, 50),
+    strictBrightness: clamp(brightness - 22, 202, 248),
+    softBrightness: clamp(brightness - 42, 178, 236),
+    strictSpread: clamp(spread + 18, 22, 58),
+    softSpread: clamp(spread + 34, 34, 88)
+  };
+}
+
+function fanStrongForegroundCount(data, info, background, limits) {
+  const total = info.width * info.height;
+  let count = 0;
+  for (let i = 0; i < total; i += 1) {
+    const p = i * info.channels;
+    if (data[p + 3] < 40) continue;
+    const distance = rgbDistance(data, p, background);
+    const brightness = pixelBrightness(data, p);
+    const spread = pixelSpread(data, p);
+    if (
+      distance > limits.softDistance + 12 ||
+      brightness < limits.softBrightness - 14 ||
+      spread > limits.softSpread + 16
+    ) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function fanResidualBackgroundRatio(data, info, background, limits) {
+  const total = info.width * info.height;
+  let visible = 0;
+  let residual = 0;
+  for (let i = 0; i < total; i += 1) {
+    const p = i * info.channels;
+    const alpha = data[p + 3];
+    if (alpha < 48) continue;
+    visible += 1;
+
+    const distance = rgbDistance(data, p, background);
+    const brightness = pixelBrightness(data, p);
+    const spread = pixelSpread(data, p);
+    if (
+      distance <= limits.strictDistance + 5 &&
+      brightness >= limits.strictBrightness - 5 &&
+      spread <= limits.strictSpread + 8
+    ) {
+      residual += 1;
+    }
+  }
+  return residual / Math.max(1, visible);
+}
+
+function fanPartialBackgroundRatio(data, info, background, limits) {
+  const total = info.width * info.height;
+  let visible = 0;
+  let partial = 0;
+  for (let i = 0; i < total; i += 1) {
+    const p = i * info.channels;
+    const alpha = data[p + 3];
+    if (alpha < 40) continue;
+    visible += 1;
+    if (alpha >= 224) continue;
+
+    const distance = rgbDistance(data, p, background);
+    const brightness = pixelBrightness(data, p);
+    const spread = pixelSpread(data, p);
+    if (
+      distance <= limits.softDistance &&
+      brightness >= limits.softBrightness &&
+      spread <= limits.softSpread
+    ) {
+      partial += 1;
+    }
+  }
+  return partial / Math.max(1, visible);
+}
+
+function nearestFanForegroundColor(data, info, index, background, limits) {
+  const { width, height, channels } = info;
+  const x = index % width;
+  const y = Math.floor(index / width);
+  let best = null;
+  let bestDistance = -1;
+
+  for (let dy = -2; dy <= 2; dy += 1) {
+    for (let dx = -2; dx <= 2; dx += 1) {
+      if (!dx && !dy) continue;
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+      const next = ny * width + nx;
+      const p = next * channels;
+      if (data[p + 3] < 80) continue;
+      const distance = rgbDistance(data, p, background);
+      if (distance <= limits.softDistance + 8) continue;
+      if (distance > bestDistance) {
+        bestDistance = distance;
+        best = [data[p], data[p + 1], data[p + 2]];
+      }
+    }
+  }
+  return best;
+}
+
+async function repairFanProductFromReference(asset, referenceBuffer) {
+  if (!referenceBuffer) return null;
+
+  let source;
+  try {
+    source = sharp(referenceBuffer, { failOn: 'none' })
+      .rotate()
+      .resize({
+        width: 2000,
+        height: 2000,
+        fit: 'inside',
+        withoutEnlargement: true,
+        kernel: sharp.kernel.lanczos3
+      })
+      .ensureAlpha();
+  } catch {
+    return null;
+  }
+
+  const { data: raw, info } = await source.raw().toBuffer({ resolveWithObject: true });
+  const background = estimateLightBackground(raw, info);
+  const limits = fanCutoutThresholds(background);
+  if (!limits.eligible) return null;
+
+  const { width, height, channels } = info;
+  const total = width * height;
+  const data = Buffer.from(raw);
+  const removed = new Uint8Array(total);
+  const foregroundSignalBefore = fanStrongForegroundCount(raw, info, background, limits);
+
+  let removedPixels = 0;
+
+  // Primeiro passe: remove somente pixels realmente compatíveis com o fundo original.
+  // A remoção é global, não apenas conectada às bordas, por isso limpa fundo preso
+  // dentro da grade, entre haste/base e em outros vazados do ventilador.
+  for (let i = 0; i < total; i += 1) {
+    const p = i * channels;
+    const alpha = data[p + 3];
+    if (alpha < 24) {
+      removed[i] = 1;
+      data[p + 3] = 0;
+      continue;
+    }
+
+    const distance = rgbDistance(data, p, background);
+    const brightness = pixelBrightness(data, p);
+    const spread = pixelSpread(data, p);
+    const strictBackground =
+      distance <= limits.strictDistance &&
+      brightness >= limits.strictBrightness &&
+      spread <= limits.strictSpread;
+    const nearPureBackground =
+      distance <= limits.softDistance &&
+      brightness >= Math.max(limits.strictBrightness + 10, background.brightness - 9) &&
+      spread <= limits.strictSpread + 8;
+
+    if (strictBackground || nearPureBackground) {
+      removed[i] = 1;
+      data[p + 3] = 0;
+      removedPixels += 1;
+    }
+  }
+
+  // Segundo passe: trata apenas a borda anti-aliased ao redor das áreas já transparentes.
+  // Não desfoca nem reconstrói o produto; mantém o RGB original e decontamina somente
+  // pixels de borda que carregam branco do fundo.
+  for (let pass = 0; pass < 2; pass += 1) {
+    const alphaSnapshot = new Uint8Array(total);
+    for (let i = 0; i < total; i += 1) alphaSnapshot[i] = data[i * channels + 3];
+
+    for (let i = 0; i < total; i += 1) {
+      const p = i * channels;
+      const alpha = alphaSnapshot[i];
+      if (alpha < 40) continue;
+
+      const x = i % width;
+      const y = Math.floor(i / width);
+      const touchesTransparent =
+        (x > 0 && alphaSnapshot[i - 1] < 40) ||
+        (x + 1 < width && alphaSnapshot[i + 1] < 40) ||
+        (y > 0 && alphaSnapshot[i - width] < 40) ||
+        (y + 1 < height && alphaSnapshot[i + width] < 40);
+      if (!touchesTransparent) continue;
+
+      const distance = rgbDistance(data, p, background);
+      const brightness = pixelBrightness(data, p);
+      const spread = pixelSpread(data, p);
+      const softBackground =
+        distance <= limits.softDistance &&
+        brightness >= limits.softBrightness &&
+        spread <= limits.softSpread;
+      if (!softBackground) continue;
+
+      const normalized = clamp(
+        (distance - limits.strictDistance) /
+          Math.max(1, limits.softDistance - limits.strictDistance),
+        0,
+        1
+      );
+      const nextAlpha = Math.round(255 * Math.pow(normalized, 0.82));
+
+      if (nextAlpha < 24) {
+        data[p + 3] = 0;
+        removed[i] = 1;
+        removedPixels += 1;
+        continue;
+      }
+
+      if (nextAlpha < alpha) data[p + 3] = nextAlpha;
+
+      const foregroundColor = nearestFanForegroundColor(data, info, i, background, limits);
+      if (foregroundColor) {
+        // Remove contaminação branca sem aplicar blur ao produto.
+        const mix = clamp(1 - nextAlpha / 255, 0.18, 0.72);
+        data[p] = Math.round(data[p] * (1 - mix) + foregroundColor[0] * mix);
+        data[p + 1] = Math.round(data[p + 1] * (1 - mix) + foregroundColor[1] * mix);
+        data[p + 2] = Math.round(data[p + 2] * (1 - mix) + foregroundColor[2] * mix);
+      }
+    }
+  }
+
+  const afterOpaque = opaqueCount(data, info);
+  const foregroundOpaqueRatioAfter = afterOpaque / Math.max(1, total);
+  const foregroundSignalAfter = fanStrongForegroundCount(data, info, background, limits);
+  const foregroundSignalRetention =
+    foregroundSignalBefore > 0
+      ? foregroundSignalAfter / foregroundSignalBefore
+      : 1;
+
+  const internalBackgroundContaminationRatio =
+    fanResidualBackgroundRatio(data, info, background, limits);
+  const semiTransparentContaminationRatio =
+    fanPartialBackgroundRatio(data, info, background, limits);
+  const whiteHaloResidualRatio = haloResidualRatio(data, info, background);
+  const removedRatio = transparentRatio(data, info);
+  const afterStructure = alphaStructureStats(data, info);
+
+  const internalBackgroundOk =
+    internalBackgroundContaminationRatio <= 0.0035 &&
+    semiTransparentContaminationRatio <= 0.012;
+  const whiteHaloOk = whiteHaloResidualRatio <= 0.035;
+  const thinStructureDamageOk =
+    foregroundSignalRetention >= 0.992 &&
+    foregroundOpaqueRatioAfter >= 0.035 &&
+    afterStructure.largestShare >= 0.30;
+  const safe =
+    removedRatio >= 0.025 &&
+    removedRatio <= 0.95 &&
+    internalBackgroundOk &&
+    whiteHaloOk &&
+    thinStructureDamageOk;
+
+  let reason = 'ok';
+  if (!thinStructureDamageOk) reason = 'thin_structure_damage';
+  else if (!internalBackgroundOk) reason = 'internal_background_contamination';
+  else if (!whiteHaloOk) reason = 'white_halo_residual';
+  else if (removedRatio < 0.025 || removedRatio > 0.95) reason = 'fan_cutout_ratio_unsafe';
+
+  const png = await sharp(data, { raw: info })
+    .png({ compressionLevel: 9, adaptiveFiltering: true })
+    .toBuffer();
+  const trimmed = await sharp(png)
+    .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 6 })
+    .png({ compressionLevel: 9, adaptiveFiltering: true })
+    .toBuffer();
+  const meta = await sharp(trimmed).metadata();
+
+  return {
+    ...asset,
+    buffer: trimmed,
+    width: Number(meta.width || info.width),
+    height: Number(meta.height || info.height),
+    backgroundRemoved: safe,
+    removalMode: safe ? 'fan_original_pixel_cutout' : 'unsafe_fan_original_pixel_cutout',
+    removedRatio,
+    confidence: safe ? 0.96 : 0,
+    cutoutSafe: safe,
+    cutoutReason: safe ? 'ok' : reason,
+    repairMetrics: {
+      attempted: true,
+      difficultProduct: true,
+      fanOriginalPixelRepair: true,
+      autoDetectedPorousStructure: true,
+      recoveredOuterCutout: true,
+      internalCandidateCount: 0,
+      internalRemovedPixels: removedPixels,
+      internalRemovedRatio: removedPixels / Math.max(1, total),
+      internalBackgroundContaminationRatio,
+      outerBackgroundResidualRatio: internalBackgroundContaminationRatio,
+      semiTransparentContaminationRatio,
+      whiteHaloResidualRatio,
+      structuralLossRatio: 0,
+      thinStructureDamageRatio: Math.max(0, 1 - foregroundSignalRetention),
+      foregroundSignalBefore,
+      foregroundSignalAfter,
+      foregroundSignalRetention,
+      foregroundOpaqueRatioAfter,
+      reconstructionApplied: false,
+      reconstructionRemovedPixels: 0,
+      afterStructure,
+      internalBackgroundOk,
+      whiteHaloOk,
+      thinStructureDamageOk,
+      safe,
+      reason
+    }
+  };
 }
 
 function reconstructNeutralBackground(data, info, background) {
@@ -682,6 +1010,14 @@ export async function repairCreativeProductCutout(asset = {}, productText = '', 
   if (!asset?.buffer) return asset;
 
   const difficultProduct = isDifficultProduct(productText);
+
+  // Ventiladores usam sempre os pixels da foto original. Nada de reconstrução
+  // generativa: isso preserva nitidez, marca, pás, grade, haste e base reais.
+  if (isFanProduct(productText) && referenceBuffer) {
+    const fanRepair = await repairFanProductFromReference(asset, referenceBuffer);
+    if (fanRepair) return fanRepair;
+  }
+
   if (!asset.backgroundRemoved && !difficultProduct) {
     return resultWithoutRepair(asset, false, 'base_cutout_not_eligible');
   }
