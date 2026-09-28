@@ -237,6 +237,8 @@ export function createErpCarneCoraService(context = {}) {
   async function findLinkedCharge(data = {}) {
     const clauses = [];
     if (clean(data.orderId, 160)) clauses.push({ orderId: clean(data.orderId, 160) });
+    if (clean(data.purchaseKey, 220)) clauses.push({ purchaseKey: clean(data.purchaseKey, 220) });
+    if (clean(data.targetId, 300)) clauses.push({ targetId: clean(data.targetId, 300) });
     if (clean(data.reference, 180)) {
       const reference = clean(data.reference, 180);
       clauses.push({ internalReference: reference }, { code: reference });
@@ -247,6 +249,32 @@ export function createErpCarneCoraService(context = {}) {
       $or: clauses
     }).sort({ createdAt: -1 }).lean();
     return charge && isChargeUsable(charge) ? charge : null;
+  }
+
+  function coraEligibility(data = {}) {
+    const today = new Date().toISOString().slice(0, 10);
+    const openItems = arr(data.items)
+      .filter(item => !item?.settled && Number(item?.open || 0) > 0.009)
+      .sort((a, b) => Number(a.number || 0) - Number(b.number || 0));
+    const reasons = [];
+    if (openItems.length < 2) reasons.push('A Cora exige pelo menos 2 parcelas em aberto para emitir um carnê.');
+    if (openItems.length > 24) reasons.push('A Cora aceita no máximo 24 parcelas por carnê.');
+    const dueDates = openItems.map(item => isoDay(item.dueAt));
+    if (dueDates.some(value => !value)) reasons.push('Há parcela sem vencimento válido.');
+    if (dueDates.some(value => value && value < today)) reasons.push('Há parcela vencida. A Cora não cria um novo carnê com vencimento retroativo; use o carnê da loja ou formalize uma renegociação com novos vencimentos.');
+    const amounts = openItems.map(item => money(item.open));
+    if (amounts.length > 1 && Math.max(...amounts) - Math.min(...amounts) > 0.01) {
+      reasons.push('As parcelas em aberto possuem valores diferentes; a emissão em carnê Cora precisa manter parcelas uniformes.');
+    }
+    return {
+      eligible: reasons.length === 0,
+      reasons,
+      openInstallments: openItems.length,
+      dueDates,
+      openAmount: money(openItems.reduce((sum, item) => sum + Number(item.open || 0), 0)),
+      firstOriginalNumber: Number(openItems[0]?.number || 0),
+      items: openItems
+    };
   }
 
   function providerView(charge = null) {
@@ -301,7 +329,8 @@ export function createErpCarneCoraService(context = {}) {
   async function preview(targetId, via = '') {
     const baseData = await base.preview(targetId, via);
     const charge = await findLinkedCharge(baseData);
-    return mergeProvider(baseData, providerView(charge));
+    const merged = mergeProvider(baseData, providerView(charge));
+    return { ...merged, coraEligibility: coraEligibility(baseData) };
   }
 
   async function logProviderDocument(data, action, extra = {}) {
