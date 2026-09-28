@@ -192,6 +192,98 @@ function resolveCreativeDirectSources(products = []) {
   return products.map(item => resolveCreativeDirectSource(item));
 }
 
+
+function inferCreativeCategoryFromText(value = '') {
+  const text = String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+  const rules = [
+    ['ventilador', 'Ventiladores'],
+    ['climatizador', 'Climatização'],
+    ['ar condicionado', 'Climatização'],
+    ['geladeira', 'Geladeiras'],
+    ['refrigerador', 'Geladeiras'],
+    ['lavadora', 'Lavadoras'],
+    ['lava e seca', 'Lavadoras'],
+    ['maquina de lavar', 'Lavadoras'],
+    ['fogao', 'Fogões'],
+    ['cooktop', 'Fogões e Cooktops'],
+    ['micro ondas', 'Micro-ondas'],
+    ['microondas', 'Micro-ondas'],
+    ['air fryer', 'Air Fryer'],
+    ['fritadeira', 'Air Fryer'],
+    ['smart tv', 'TVs'],
+    ['televisor', 'TVs'],
+    ['guarda roupa', 'Móveis'],
+    ['roupeiro', 'Móveis'],
+    ['sofa', 'Móveis'],
+    ['colchao', 'Móveis']
+  ];
+  for (const [needle, category] of rules) {
+    if (text.includes(needle)) return category;
+  }
+  return '';
+}
+
+async function creativeVisionDataUrl(sourcePath = '') {
+  if (!sourcePath || !fs.existsSync(sourcePath)) return '';
+  try {
+    const { default: sharp } = await import('sharp');
+    const preview = await sharp(sourcePath, { failOn: 'none' })
+      .rotate()
+      .resize({
+        width: 1024,
+        height: 1024,
+        fit: 'inside',
+        withoutEnlargement: true,
+        kernel: sharp.kernel.lanczos3
+      })
+      .flatten({ background: '#ffffff' })
+      .jpeg({ quality: 86, mozjpeg: true })
+      .toBuffer();
+
+    return 'data:image/jpeg;base64,' + preview.toString('base64');
+  } catch (error) {
+    console.warn('[creative-studio-pro] não foi possível preparar visão temporária:', error?.message || error);
+    return '';
+  }
+}
+
+async function resolveCreativeResearchProducts(products = []) {
+  const output = [];
+  for (const raw of (Array.isArray(products) ? products : []).filter(Boolean).slice(0, 5)) {
+    const product = resolveCreativeDirectSource(raw);
+    const category =
+      product.category ||
+      product.categoryName ||
+      inferCreativeCategoryFromText(
+        [product.name, product.title, product.originalSourceName].filter(Boolean).join(' ')
+      );
+
+    let imageUrl =
+      product.imageUrl ||
+      product.mainImageUrl ||
+      product.image ||
+      product.imagem ||
+      '';
+
+    if (product.originalSourcePath) {
+      const visionDataUrl = await creativeVisionDataUrl(product.originalSourcePath);
+      if (visionDataUrl) imageUrl = visionDataUrl;
+    }
+
+    output.push({
+      ...product,
+      category,
+      categoryName: product.categoryName || category,
+      imageUrl
+    });
+  }
+  return output;
+}
+
 async function recordLoginEvent(payload = {}) {
   if (!AdminLoginEvent) return;
   await AdminLoginEvent.create(payload).catch(() => null);
@@ -1126,9 +1218,10 @@ app.post(
 
 app.post('/api/admin/creative-studio/pro/research-copy', adminRequired, async (req, res) => {
   try {
-    const products = Array.isArray(req.body?.products)
+    const rawProducts = Array.isArray(req.body?.products)
       ? req.body.products.filter(Boolean).slice(0, 5)
       : (req.body?.product ? [req.body.product] : []);
+    const products = await resolveCreativeResearchProducts(rawProducts);
     const context = {
       format: req.body?.context?.format,
       template: req.body?.context?.template,

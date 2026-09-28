@@ -336,7 +336,10 @@ export function buildAiDirectorRequest(products = [], now = new Date(), creative
   const rows = safeProducts(products);
   const context = safeCreativeContext(creativeContext);
   const images = rows
-    .filter(item => /^https?:\/\//i.test(item.imageUrl))
+    .filter(item =>
+      /^https?:\/\//i.test(item.imageUrl) ||
+      /^data:image\/(?:jpeg|jpg|png|webp);base64,/i.test(item.imageUrl)
+    )
     .slice(0, 3)
     .map(item => ({
       type: 'input_image',
