@@ -9788,6 +9788,16 @@ async function handleMessage({
   const n = normalize(text);
   const mentionedProduct = findConversationProductByText(conv, text);
 
+  const rawSelfName = String(text || '').trim();
+  if (/^[\\p{L}][\\p{L}'’-]{1,29}$/u.test(rawSelfName)) {
+    const normalizedSelfName = normalize(rawSelfName);
+    const blockedSelfNames = new Set(['oi','ola','oie','sim','nao','ok','marcelo','gustavo','obrigado','obrigada']);
+    if (!blockedSelfNames.has(normalizedSelfName)) {
+      conv.customerName = rawSelfName.charAt(0).toLocaleUpperCase('pt-BR') + rawSelfName.slice(1).toLocaleLowerCase('pt-BR');
+      saveStateSoon();
+    }
+  }
+
   if (conv.humanUntil && Date.now() < Number(conv.humanUntil)) {
     return;
   }
@@ -10029,8 +10039,13 @@ async function handleMessage({
 
   if (isCourtesyGreeting(text)) {
     const greeting = courtesyGreetingLabel(text);
-    const firstName = customerFirstName(pushName);
+    const firstName = customerFirstName(conv.customerName || '') || customerFirstName(pushName);
     const askedWellbeing = asksBotWellbeingQuestion(text);
+    if (hasCourtesyGreetingContext(conv)) {
+      await sendText(phone, 'Oi 😊 Estou por aqui. Pode falar.');
+      return;
+    }
+
     clearTransientCommercialPromptOnGreeting(conv);
     startCourtesyGreetingContext(conv);
 
