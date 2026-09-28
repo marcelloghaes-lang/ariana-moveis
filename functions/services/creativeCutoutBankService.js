@@ -137,6 +137,8 @@ function publicAsset(doc = {}) {
     processed: doc.processed || null,
     quality: doc.quality || null,
     ai: doc.ai || null,
+    processing: doc.processing || null,
+    lastProcessingError: doc.lastProcessingError || null,
     createdAt: doc.createdAt || null,
     updatedAt: doc.updatedAt || null,
     approvedAt: doc.approvedAt || null,
@@ -347,60 +349,127 @@ export async function reprocessCreativeCutoutAsset({
 
   const bucket = bucketFor(mongoose);
   const collection = collectionFor(mongoose);
-  const originalBuffer = await readBuffer(bucket, mongoose, doc.originalFileId);
   const safeMode = mode === 'ai_repair' ? 'ai_repair' : 'standard';
-  const result = await processBuffer({
-    originalBuffer,
-    name: doc.name,
-    category: doc.category,
-    mode: safeMode
-  });
+  const startedAt = now();
+  const expiresAt = new Date(startedAt.getTime() + 4 * 60 * 1000);
 
-  const nextVersion = Number(doc.version || 1) + 1;
-  const nextFileId = await putBuffer(
-    bucket,
-    result.buffer,
-    safeFilename(doc.name || 'produto') + '-recorte-v' + nextVersion + '.png',
-    'image/png',
-    {
-      assetId: String(doc._id),
-      kind: 'cutout',
-      version: nextVersion,
-      mode: safeMode
-    }
-  );
-
-  const previousProcessedFileId = doc.processedFileId;
-  const approvedFileId = doc.approvedFileId;
-  const updatedAt = now();
+  const activeUntil = doc.processing?.expiresAt
+    ? new Date(doc.processing.expiresAt).getTime()
+    : 0;
+  if (activeUntil > Date.now()) {
+    const error = new Error('creative_cutout_already_processing');
+    error.code = 'creative_cutout_already_processing';
+    error.processing = doc.processing;
+    throw error;
+  }
 
   await collection.updateOne(
     { _id: doc._id },
     {
       $set: {
-        processedFileId: nextFileId,
-        processed: result.processed,
-        quality: result.quality,
-        ai: result.ai,
-        processMode: safeMode,
-        status: 'pending',
-        version: nextVersion,
-        updatedAt,
-        rejectedAt: null
+        processing: {
+          mode: safeMode,
+          startedAt,
+          expiresAt
+        },
+        updatedAt: startedAt
+      },
+      $unset: {
+        lastProcessingError: ''
       }
     }
   );
 
-  if (
-    previousProcessedFileId &&
-    String(previousProcessedFileId) !== String(approvedFileId || '') &&
-    String(previousProcessedFileId) !== String(nextFileId)
-  ) {
-    await deleteGridFile(bucket, mongoose, previousProcessedFileId);
-  }
+  let nextFileId = null;
+  try {
+    const originalBuffer = await readBuffer(bucket, mongoose, doc.originalFileId);
+    const result = await processBuffer({
+      originalBuffer,
+      name: doc.name,
+      category: doc.category,
+      mode: safeMode
+    });
 
-  const updated = await collection.findOne({ _id: doc._id });
-  return publicAsset(updated);
+    const nextVersion = Number(doc.version || 1) + 1;
+    nextFileId = await putBuffer(
+      bucket,
+      result.buffer,
+      safeFilename(doc.name || 'produto') + '-recorte-v' + nextVersion + '.png',
+      'image/png',
+      {
+        assetId: String(doc._id),
+        kind: 'cutout',
+        version: nextVersion,
+        mode: safeMode
+      }
+    );
+
+    const previousProcessedFileId = doc.processedFileId;
+    const approvedFileId = doc.approvedFileId;
+    const updatedAt = now();
+
+    await collection.updateOne(
+      { _id: doc._id },
+      {
+        $set: {
+          processedFileId: nextFileId,
+          processed: result.processed,
+          quality: result.quality,
+          ai: result.ai,
+          processMode: safeMode,
+          status: 'pending',
+          version: nextVersion,
+          updatedAt,
+          rejectedAt: null
+        },
+        $unset: {
+          processing: '',
+          lastProcessingError: ''
+        }
+      }
+    );
+
+    if (
+      previousProcessedFileId &&
+      String(previousProcessedFileId) !== String(approvedFileId || '') &&
+      String(previousProcessedFileId) !== String(nextFileId)
+    ) {
+      await deleteGridFile(bucket, mongoose, previousProcessedFileId);
+    }
+
+    const updated = await collection.findOne({ _id: doc._id });
+    return publicAsset(updated);
+  } catch (error) {
+    if (nextFileId) {
+      await deleteGridFile(bucket, mongoose, nextFileId).catch(() => {});
+    }
+
+    const failedAt = now();
+    await collection.updateOne(
+      { _id: doc._id },
+      {
+        $set: {
+          updatedAt: failedAt,
+          lastProcessingError: {
+            mode: safeMode,
+            failedAt,
+            reason: cleanText(
+              error?.aiReason ||
+              error?.code ||
+              error?.message ||
+              'creative_cutout_processing_failed',
+              220
+            )
+          }
+        },
+        $unset: {
+          processing: ''
+        }
+      }
+    ).catch(() => {});
+
+    throw error;
+  }
 }
 
 export async function approveCreativeCutoutAsset({ mongoose, id }) {
