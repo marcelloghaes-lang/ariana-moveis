@@ -1484,24 +1484,24 @@ function multiProductSlots(format, count = 2) {
 function multiShowcaseStageSvg(format, count = 3) {
   const w=format.width,h=format.height;
   const mobile=format.device==='mobile';
+
+  // Base propositalmente discreta: nada de aro, elipse ou palco amarelo.
+  // Apenas uma sombra suave para assentar visualmente os produtos no fundo.
   if(mobile){
     return Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-      '<defs><linearGradient id="stage" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0B4AA7"/><stop offset="1" stop-color="#021B49"/></linearGradient><filter id="sg"><feGaussianBlur stdDeviation="'+Math.round(h*.018)+'"/></filter></defs>'+
-      '<ellipse cx="'+Math.round(w*.50)+'" cy="'+Math.round(h*.705)+'" rx="'+Math.round(w*.405)+'" ry="'+Math.round(h*.055)+'" fill="#FFD51B" opacity=".52" filter="url(#sg)"/>'+
-      '<ellipse cx="'+Math.round(w*.50)+'" cy="'+Math.round(h*.690)+'" rx="'+Math.round(w*.39)+'" ry="'+Math.round(h*.052)+'" fill="#FFD51B"/>'+
-      '<rect x="'+Math.round(w*.11)+'" y="'+Math.round(h*.655)+'" width="'+Math.round(w*.78)+'" height="'+Math.round(h*.052)+'" rx="'+Math.round(h*.026)+'" fill="url(#stage)"/>'+
-      '<ellipse cx="'+Math.round(w*.50)+'" cy="'+Math.round(h*.655)+'" rx="'+Math.round(w*.39)+'" ry="'+Math.round(h*.048)+'" fill="#0E5BC6" stroke="#FFD51B" stroke-width="'+Math.max(3,Math.round(h*.006))+'"/>'+
+      '<defs><filter id="sg" x="-30%" y="-200%" width="160%" height="500%"><feGaussianBlur stdDeviation="'+Math.max(8,Math.round(h*.020))+'"/></filter></defs>'+
+      '<ellipse cx="'+Math.round(w*.50)+'" cy="'+Math.round(h*.690)+'" rx="'+Math.round(w*.34)+'" ry="'+Math.round(h*.025)+'" fill="#001B4D" opacity=".34" filter="url(#sg)"/>'+
+      '<ellipse cx="'+Math.round(w*.50)+'" cy="'+Math.round(h*.682)+'" rx="'+Math.round(w*.28)+'" ry="'+Math.round(h*.012)+'" fill="#ffffff" opacity=".08"/>'+
       '</svg>'
     );
   }
+
   return Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-    '<defs><linearGradient id="stage" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0D5FCB"/><stop offset=".55" stop-color="#073C91"/><stop offset="1" stop-color="#021A48"/></linearGradient><filter id="sg"><feGaussianBlur stdDeviation="'+Math.round(h*.020)+'"/></filter></defs>'+
-    '<ellipse cx="'+Math.round(w*.79)+'" cy="'+Math.round(h*.865)+'" rx="'+Math.round(w*.235)+'" ry="'+Math.round(h*.075)+'" fill="#FFD51B" opacity=".44" filter="url(#sg)"/>'+
-    '<ellipse cx="'+Math.round(w*.79)+'" cy="'+Math.round(h*.845)+'" rx="'+Math.round(w*.225)+'" ry="'+Math.round(h*.065)+'" fill="#FFD51B"/>'+
-    '<rect x="'+Math.round(w*.565)+'" y="'+Math.round(h*.790)+'" width="'+Math.round(w*.45)+'" height="'+Math.round(h*.078)+'" rx="'+Math.round(h*.039)+'" fill="url(#stage)"/>'+
-    '<ellipse cx="'+Math.round(w*.79)+'" cy="'+Math.round(h*.790)+'" rx="'+Math.round(w*.225)+'" ry="'+Math.round(h*.063)+'" fill="#0E5BC6" stroke="#FFD51B" stroke-width="'+Math.max(3,Math.round(h*.008))+'"/>'+
+    '<defs><filter id="sg" x="-30%" y="-220%" width="160%" height="540%"><feGaussianBlur stdDeviation="'+Math.max(8,Math.round(h*.018))+'"/></filter></defs>'+
+    '<ellipse cx="'+Math.round(w*.79)+'" cy="'+Math.round(h*.835)+'" rx="'+Math.round(w*.205)+'" ry="'+Math.round(h*.030)+'" fill="#00163D" opacity=".38" filter="url(#sg)"/>'+
+    '<ellipse cx="'+Math.round(w*.79)+'" cy="'+Math.round(h*.826)+'" rx="'+Math.round(w*.165)+'" ry="'+Math.round(h*.012)+'" fill="#ffffff" opacity=".07"/>'+
     '</svg>'
   );
 }
