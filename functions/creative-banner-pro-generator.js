@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import sharp from 'sharp';
 import { repairCreativeProductCutout } from './services/creativeProductCutoutRepairService.js';
+import { rebuildCreativeProductFromReference } from './services/creativeProductRebuildService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1389,8 +1390,10 @@ function quality(asset, opts, format, brandAsset = null, campaignBrandAsset = nu
   const manufacturerLogoRequested = Boolean(opts.brandLogoUrl);
   const manufacturerLogoOk = !manufacturerLogoRequested || Boolean(campaignBrandAsset?.backgroundRemoved);
   const repair = asset.repairMetrics || {};
+  const rebuild = asset.rebuildMetrics || {};
   const internalBackgroundOk = repair.internalBackgroundOk !== false;
   const whiteHaloOk = repair.whiteHaloOk !== false;
+  const rebuildOk = !(rebuild.enabled && rebuild.required) || rebuild.safe === true;
 
   const checks = [
     {
@@ -1451,6 +1454,19 @@ function quality(asset, opts, format, brandAsset = null, campaignBrandAsset = nu
         : 'O contorno ainda apresenta branco residual acima do limite seguro. A arte final foi bloqueada.'
     },
     {
+      id: 'ai_rebuild',
+      critical: true,
+      ok: rebuildOk,
+      label: !rebuild.required
+        ? 'Reconstrução por IA não necessária'
+        : (rebuildOk ? 'Produto reconstruído e validado por IA' : 'Reconstrução por IA reprovada'),
+      detail: !rebuild.required
+        ? 'O recorte comum atingiu qualidade suficiente.'
+        : (rebuildOk
+            ? 'A referência original foi preservada e o PNG transparente passou pela validação visual.'
+            : 'A ferramenta bloqueou a arte para não usar um produto reconstruído com baixa fidelidade.')
+    },
+    {
       id: 'resolution',
       critical: true,
       ok: resolutionOk,
@@ -1494,7 +1510,12 @@ export async function prepareProProductAsset(product = {}, options = {}) {
     options.removeBackground !== false && options.removeLightBackground !== false,
     productText
   );
-  return repairCreativeProductCutout(baseAsset, productText);
+  const repairedAsset = await repairCreativeProductCutout(baseAsset, productText);
+  return rebuildCreativeProductFromReference({
+    referenceBuffer: raw,
+    asset: repairedAsset,
+    productText
+  });
 }
 
 export async function analyzeCreativeBannerPro(product = {}, options = {}) {
@@ -1522,7 +1543,8 @@ export async function analyzeCreativeBannerPro(product = {}, options = {}) {
       cutoutSafe: Boolean(asset.cutoutSafe),
       cutoutReason: asset.cutoutReason || '',
       shape: asset.shape || null,
-      repair: asset.repairMetrics || null
+      repair: asset.repairMetrics || null,
+      rebuild: asset.rebuildMetrics || null
     },
     brand: {
       backgroundRemoved: Boolean(brandAsset.backgroundRemoved),
@@ -1613,7 +1635,8 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
         cutoutSafe: Boolean(asset.cutoutSafe),
         cutoutReason: asset.cutoutReason || '',
         shape: asset.shape || null,
-        repair: asset.repairMetrics || null
+        repair: asset.repairMetrics || null,
+        rebuild: asset.rebuildMetrics || null
       },
       brand: {
         backgroundRemoved: Boolean(brandAsset.backgroundRemoved),
@@ -1949,6 +1972,9 @@ function multiQuality(assets = [], brandAsset = null, format = {}, opts = {}, ca
   const whiteHaloFailures = assets
     .map((asset,index)=>({asset,index}))
     .filter(({asset}) => asset.repairMetrics?.whiteHaloOk === false);
+  const rebuildFailures = assets
+    .map((asset,index)=>({asset,index}))
+    .filter(({asset}) => asset.rebuildMetrics?.enabled && asset.rebuildMetrics?.required && asset.rebuildMetrics?.safe !== true);
 
   const checks = [
     {
@@ -1999,6 +2025,17 @@ function multiQuality(assets = [], brandAsset = null, format = {}, opts = {}, ca
       detail:whiteHaloFailures.length===0
         ? 'As bordas dos produtos foram validadas.'
         : 'A campanha final foi bloqueada até limpar os halos residuais.'
+    },
+    {
+      id:'multi_ai_rebuild',
+      critical:true,
+      ok:rebuildFailures.length===0,
+      label:rebuildFailures.length===0
+        ? 'Reconstruções por IA aprovadas'
+        : rebuildFailures.length+' produto(s) com reconstrução por IA reprovada',
+      detail:rebuildFailures.length===0
+        ? 'Produtos difíceis foram reconstruídos somente quando necessário.'
+        : 'A campanha foi bloqueada para não usar produto reconstruído com baixa fidelidade.'
     },
     {
       id:'multi_resolution',
@@ -2058,7 +2095,8 @@ export async function analyzeCreativeBannerProMulti(products = [], options = {})
       cutoutReason:asset.cutoutReason||'',
       removalMode:asset.removalMode,
       removedRatio:Number(asset.removedRatio.toFixed(4)),
-      repair:asset.repairMetrics || null
+      repair:asset.repairMetrics || null,
+      rebuild:asset.rebuildMetrics || null
     })),
     brand:{
       backgroundRemoved:Boolean(brandAsset.backgroundRemoved),
@@ -2159,7 +2197,8 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
         cutoutSafe:Boolean(asset.cutoutSafe),
         cutoutReason:asset.cutoutReason||'',
         removalMode:asset.removalMode,
-        repair:asset.repairMetrics || null
+        repair:asset.repairMetrics || null,
+        rebuild:asset.rebuildMetrics || null
       })),
       brand:{
         backgroundRemoved:Boolean(brandAsset.backgroundRemoved),
