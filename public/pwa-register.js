@@ -114,13 +114,25 @@
     }));
   }
 
-  window.addEventListener('load', async () => {
+  let registrationStarted = false;
+
+  async function registerIsolatedPwa() {
+    if (registrationStarted) return;
+    registrationStarted = true;
     try {
       await removeLegacySharedWorkers();
-      await navigator.serviceWorker.register(swUrl, { scope });
+      const registration = await navigator.serviceWorker.register(swUrl, { scope });
+      await navigator.serviceWorker.ready.catch(() => registration);
       console.info('[Ariana PWA] Aplicativo isolado registrado:', { swUrl, scope });
+      window.dispatchEvent(new CustomEvent('ariana-pwa-ready'));
     } catch (error) {
+      registrationStarted = false;
       console.error('[Ariana PWA] Falha ao registrar aplicativo isolado:', error);
     }
-  });
+  }
+
+  // O script fica no fim da página; registrar imediatamente evita que o usuário
+  // clique em "Instalar app" antes de o navegador reconhecer o PWA.
+  registerIsolatedPwa();
+  window.addEventListener('load', registerIsolatedPwa, { once: true });
 })();
