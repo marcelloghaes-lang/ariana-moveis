@@ -108,27 +108,42 @@ app.get('/api/enterprise/certification/overview', adminRequired, async (req, res
   catch (error) { console.error('certification overview error', error); return res.status(500).json({ ok:false, error:'Erro ao gerar Central de Certificação' }); }
 });
 app.get('/api/enterprise/certification/certificates', adminRequired, async (req, res) => {
-  const data = await buildEnterpriseCertificationOverview(req.query.period || '30d');
-  return res.json({ ok:true, generatedAt:data.generatedAt, certificates:data.certificates });
+  try {
+    const data = await buildEnterpriseCertificationOverview(req.query.period || '30d');
+    return res.json({ ok:true, generatedAt:data.generatedAt, certificates:data.certificates });
+  } catch (error) {
+    console.error('certification certificates error', error);
+    return res.status(500).json({ ok:false, error:'Erro ao listar certificados Enterprise' });
+  }
 });
 app.get('/api/enterprise/certification/certificates/:id', async (req, res) => {
-  const data = await buildEnterpriseCertificationOverview('365d');
-  const id = String(req.params.id || '').toLowerCase();
-  const cert = data.certificates.find(c => String(c.id).toLowerCase() === id || String(c.certificateId).toLowerCase() === id);
-  if (!cert || cert.status !== 'certified') return res.status(404).json({ ok:false, error:'Certificado não encontrado' });
-  return res.json({ ok:true, certificate:enterprisePublicCertificate(cert) });
+  try {
+    const data = await buildEnterpriseCertificationOverview('365d');
+    const id = String(req.params.id || '').toLowerCase();
+    const cert = data.certificates.find(c => String(c.id).toLowerCase() === id || String(c.certificateId).toLowerCase() === id);
+    if (!cert || cert.status !== 'certified') return res.status(404).json({ ok:false, error:'Certificado não encontrado' });
+    return res.json({ ok:true, certificate:enterprisePublicCertificate(cert) });
+  } catch (error) {
+    console.error('certification public certificate error', error);
+    return res.status(500).json({ ok:false, error:'Erro ao consultar certificado Enterprise' });
+  }
 });
 app.get('/api/enterprise/certification/export', adminRequired, async (req, res) => {
-  const data = await buildEnterpriseCertificationOverview(req.query.period || '30d');
-  const format = String(req.query.format || 'json').toLowerCase();
-  if (format === 'csv') {
-    const rows = [['fabricante','status','nivel','score','sucesso','homologacao','producao','certificado']].concat(data.certificates.map(c => [c.manufacturer,c.status,c.level,c.score,c.successRate,c.homologation,c.production,c.certificateId]));
-    res.setHeader('Content-Type','text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition','attachment; filename="ariana-enterprise-certificacoes.csv"');
-    return res.send(rows.map(r => r.map(v => '"'+String(v ?? '').replace(/"/g,'""')+'"').join(',')).join('\n'));
+  try {
+    const data = await buildEnterpriseCertificationOverview(req.query.period || '30d');
+    const format = String(req.query.format || 'json').toLowerCase();
+    if (format === 'csv') {
+      const rows = [['fabricante','status','nivel','score','sucesso','homologacao','producao','certificado']].concat(data.certificates.map(c => [c.manufacturer,c.status,c.level,c.score,c.successRate,c.homologation,c.production,c.certificateId]));
+      res.setHeader('Content-Type','text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition','attachment; filename="ariana-enterprise-certificacoes.csv"');
+      return res.send(rows.map(r => r.map(v => '"'+String(v ?? '').replace(/"/g,'""')+'"').join(',')).join('\n'));
+    }
+    res.setHeader('Content-Disposition','attachment; filename="ariana-enterprise-certificacoes.json"');
+    return res.json(data);
+  } catch (error) {
+    console.error('certification export error', error);
+    return res.status(500).json({ ok:false, error:'Erro ao exportar certificações Enterprise' });
   }
-  res.setHeader('Content-Disposition','attachment; filename="ariana-enterprise-certificacoes.json"');
-  return res.json(data);
 });
 
 

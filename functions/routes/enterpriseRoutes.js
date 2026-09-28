@@ -859,7 +859,8 @@ registerEnterpriseCertificationRoutes(app, {
   ...context,
   FRONTEND_URL,
   IntegrationAuditLog,
-  EnterprisePartner: context.EnterprisePartner,
+  EnterprisePartner: EnterpriseHomologationRequestCompat,
+  adminRequired,
   sanitizeIdPart,
   now
 });
