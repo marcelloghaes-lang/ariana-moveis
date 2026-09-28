@@ -389,11 +389,22 @@
         message.textContent = action === 'ai'
           ? 'A IA está reconstruindo e validando o mesmo produto. Isso pode levar alguns segundos...'
           : 'Reprocessando o arquivo original...';
-        await api('/admin/creative-cutout-studio/assets/' + asset.id + '/reprocess', {
+        const result = await api('/admin/creative-cutout-studio/assets/' + asset.id + '/reprocess', {
           method:'POST',
           body:JSON.stringify({ mode: action === 'ai' ? 'ai_repair' : 'standard' })
         });
-        message.textContent = 'Novo recorte criado.';
+        if (action === 'ai') {
+          const rebuilt = result?.asset;
+          if (
+            rebuilt?.processMode !== 'ai_repair' ||
+            rebuilt?.ai?.safe !== true
+          ) {
+            throw new Error('A IA não confirmou uma reconstrução segura. O recorte anterior foi mantido.');
+          }
+          message.textContent = 'Nova imagem reconstruída pela IA e validada. Compare antes de aprovar.';
+        } else {
+          message.textContent = 'Novo recorte criado a partir do original.';
+        }
         message.className = 'asset-message ok';
       } else if (action === 'approve') {
         await api('/admin/creative-cutout-studio/assets/' + asset.id + '/approve', {
