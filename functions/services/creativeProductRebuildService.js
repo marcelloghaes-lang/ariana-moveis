@@ -156,7 +156,11 @@ async function callImageEdit(reference, productText, {
   form.append('background', 'transparent');
   form.append('output_format', 'png');
   form.append('quality', imageQuality);
-  form.append('input_fidelity', 'high');
+  // gpt-image-2 já processa referências em alta fidelidade e rejeita
+  // input_fidelity quando enviado explicitamente.
+  if (!/^gpt-image-2(?:$|[-.])/i.test(imageModel)) {
+    form.append('input_fidelity', 'high');
+  }
   form.append('size', reference.outputSize);
   form.append(
     'image[]',
@@ -174,8 +178,8 @@ async function callImageEdit(reference, productText, {
   });
 
   if (!response.ok) {
-    const body = await response.text().catch(() => '');
-    throw new Error('creative_rebuild_http_' + response.status + ':' + body.slice(0, 180));
+    const body = clean(await response.text().catch(() => ''), 260);
+    throw new Error('creative_rebuild_http_' + response.status + ':' + body);
   }
 
   const data = await response.json();
