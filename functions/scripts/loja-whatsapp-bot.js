@@ -180,10 +180,6 @@ const CREDIT_PLAN_FOLLOWUP_TTL_MS = Math.max(
   30,
   Number(process.env.LOJA_CREDIT_PLAN_FOLLOWUP_MINUTES || 120)
 ) * 60 * 1000;
-const PURCHASE_NEGOTIATION_TTL_MS = Math.max(
-  30,
-  Number(process.env.LOJA_PURCHASE_NEGOTIATION_MINUTES || 180)
-) * 60 * 1000;
 const SHORT_CONTEXT_MAX_TURNS = Math.max(3, Math.min(8, Number(process.env.LOJA_SHORT_CONTEXT_TURNS || 6)));
 const LIST_CLARIFICATION_TTL_MS = Math.max(
   3,
@@ -962,11 +958,6 @@ function conversation(phone) {
       manualHumanUntil: 0,
       customerName: '',
       lastCreditPlan: null,
-      purchaseSelections: [],
-      purchaseSelectionsUpdatedAt: 0,
-      preferredPurchasePayment: '',
-      desiredMonthlyPayment: 0,
-      pendingCreditBundle: null,
       creditContextUntil: 0,
       pixContextUntil: 0,
       pendingImageIntent: '',
@@ -1060,11 +1051,6 @@ function conversation(phone) {
   if (!Array.isArray(conv.recentTurns)) conv.recentTurns = [];
   if (!Array.isArray(conv.lastComparedProducts)) conv.lastComparedProducts = [];
   if (!Number.isFinite(Number(conv.lastComparisonAt))) conv.lastComparisonAt = 0;
-  if (!Array.isArray(conv.purchaseSelections)) conv.purchaseSelections = [];
-  if (!Number.isFinite(Number(conv.purchaseSelectionsUpdatedAt))) conv.purchaseSelectionsUpdatedAt = 0;
-  if (typeof conv.preferredPurchasePayment !== 'string') conv.preferredPurchasePayment = '';
-  if (!Number.isFinite(Number(conv.desiredMonthlyPayment))) conv.desiredMonthlyPayment = 0;
-  if (conv.pendingCreditBundle && typeof conv.pendingCreditBundle !== 'object') conv.pendingCreditBundle = null;
   if (conv.recommendationContext && typeof conv.recommendationContext !== 'object') conv.recommendationContext = null;
   if (!conv.sentProductImages || typeof conv.sentProductImages !== 'object' || Array.isArray(conv.sentProductImages)) conv.sentProductImages = {};
   if (!Array.isArray(conv.lastColorVariants)) conv.lastColorVariants = [];
@@ -1251,247 +1237,6 @@ function compactProduct(product = {}) {
     isRecommended: product.isRecommended === true,
     imageUrl: productPrimaryImage(product)
   };
-}
-
-
-function purchaseSelectionCategory(product = {}) {
-  return detectCategory([
-    product?.category,
-    product?.categoryName,
-    product?.name
-  ].filter(Boolean).join(' ')) || String(product?.category || '').trim();
-}
-
-function activePurchaseSelections(conv = {}, now = Date.now()) {
-  const updatedAt = Number(conv?.purchaseSelectionsUpdatedAt || 0);
-  if (
-    updatedAt > 0 &&
-    now - updatedAt > PURCHASE_NEGOTIATION_TTL_MS
-  ) {
-    conv.purchaseSelections = [];
-    conv.purchaseSelectionsUpdatedAt = 0;
-    conv.preferredPurchasePayment = '';
-    conv.desiredMonthlyPayment = 0;
-    conv.pendingCreditBundle = null;
-    return [];
-  }
-
-  const rows = Array.isArray(conv?.purchaseSelections)
-    ? conv.purchaseSelections.filter((product) => product && productId(product))
-    : [];
-  conv.purchaseSelections = rows;
-  return rows;
-}
-
-function rememberPurchaseSelection(conv = {}, product = {}, source = 'selection') {
-  const compact = compactProduct(product);
-  const id = productId(compact);
-  if (!id) return null;
-
-  const category = normalize(purchaseSelectionCategory(compact));
-  const current = activePurchaseSelections(conv);
-  const next = current.filter((item) => {
-    const sameId = productId(item) === id;
-    const itemCategory = normalize(purchaseSelectionCategory(item));
-    const sameCategory = category && itemCategory && category === itemCategory;
-    return !sameId && !sameCategory;
-  });
-
-  next.push(compact);
-  conv.purchaseSelections = next.slice(-4);
-  conv.purchaseSelectionsUpdatedAt = Date.now();
-
-  if (
-    conv.pendingCreditBundle &&
-    Array.isArray(conv.pendingCreditBundle.products)
-  ) {
-    const selectedIds = new Set(conv.purchaseSelections.map((item) => productId(item)));
-    const bundleIds = conv.pendingCreditBundle.products.map((item) => productId(item));
-    if (!bundleIds.every((bundleId) => selectedIds.has(bundleId))) {
-      conv.pendingCreditBundle = null;
-    }
-  }
-
-  saveStateSoon();
-  return compact;
-}
-
-function setPurchasePaymentPreference(conv = {}, method = '') {
-  const value = String(method || '').trim().toLowerCase();
-  if (!['pix', 'card', 'credit'].includes(value)) return '';
-  conv.preferredPurchasePayment = value;
-  conv.purchaseSelectionsUpdatedAt = Date.now();
-  saveStateSoon();
-  return value;
-}
-
-function purchaseSelectionMatchesText(product = {}, text = '') {
-  const n = normalize(text);
-  const category = purchaseSelectionCategory(product);
-  const aliases = categoryAliases(category).map((value) => normalize(value)).filter(Boolean);
-
-  if (
-    aliases.some((alias) => {
-      if (alias.length <= 2) {
-        const safeAlias = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        return new RegExp(`(?:^|\\s)${safeAlias}(?=\\s|$)`).test(n);
-      }
-      return n.includes(alias);
-    })
-  ) {
-    return true;
-  }
-
-  const productName = normalize(product?.name || '');
-  const meaningful = productName
-    .split(/\s+/)
-    .filter((token) => token.length >= 4)
-    .slice(0, 5);
-
-  return meaningful.length >= 2 && meaningful.filter((token) => n.includes(token)).length >= 2;
-}
-
-function purchaseBundleProductsFromText(conv = {}, text = '') {
-  const rows = activePurchaseSelections(conv);
-  if (rows.length < 2) return [];
-
-  const n = normalize(text);
-  const matched = rows.filter((product) => purchaseSelectionMatchesText(product, text));
-  if (matched.length >= 2) return matched;
-
-  const explicitTogether =
-    /\b(soma|somar|junta|juntar|junto|juntos|as duas|os dois|ambos|duas coisas|dois produtos)\b/.test(n) ||
-    /\b(total|quanto fica)\b.{0,35}\b(os dois|as duas|ambos)\b/.test(n);
-
-  if (explicitTogether && rows.length === 2) return rows;
-  return [];
-}
-
-function asksPurchaseBundleTotal(conv = {}, text = '') {
-  const products = purchaseBundleProductsFromText(conv, text);
-  if (products.length < 2) return false;
-  const n = normalize(text);
-  return (
-    /\b(soma|somar|junta|juntar|junto|juntos|total)\b/.test(n) ||
-    /\bquanto fica\b/.test(n) ||
-    /\b(os dois|as duas|ambos)\b/.test(n)
-  );
-}
-
-function extractDesiredMonthlyPayment(text = '') {
-  const n = normalize(text)
-    .replace(/[!?;:]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  if (!/\b(parcela|parcelas|prestacao|prestacoes|por mes|mensal|mensalidade)\b/.test(n)) return 0;
-
-  const patterns = [
-    /(?:parcelas|parcela|prestacoes|prestacao).{0,35}?(?:aproximad[ao]s?|perto de|em torno de|de)?\s*(?:r\$\s*)?(\d{2,5}(?:[.,]\d{1,2})?)/,
-    /(?:r\$\s*)?(\d{2,5}(?:[.,]\d{1,2})?).{0,20}?(?:por mes|mensal|de parcela|de prestacao)/,
-    /(?:aproximad[ao]s?|perto de|em torno de).{0,20}?(?:r\$\s*)?(\d{2,5}(?:[.,]\d{1,2})?)/
-  ];
-
-  for (const pattern of patterns) {
-    const match = n.match(pattern);
-    if (!match) continue;
-    const amount = parseCommercialMoneyValue(match[1]);
-    if (amount > 0) return amount;
-  }
-
-  return 0;
-}
-
-function creditBundlePlan(products = [], count = 0) {
-  const rows = (Array.isArray(products) ? products : []).filter(Boolean);
-  const base = Math.round(rows.reduce((sum, product) => sum + productCashPrice(product), 0) * 100) / 100;
-  const max = CREDIT_MAX_INSTALLMENTS;
-  if (!count) return { base, max, divisor: 0, total: 0, installment: 0, invalid: false };
-  if (count < 1 || count > max) return { base, max, divisor: 0, total: 0, installment: 0, invalid: true };
-  const divisor = creditDivisor(count);
-  if (!divisor) return { base, max, divisor: 0, total: 0, installment: 0, invalid: true };
-  const total = Math.round((base / divisor) * 100) / 100;
-  const installment = Math.round((total / count) * 100) / 100;
-  return { base, max, divisor, total, installment, invalid: false };
-}
-
-function closestCreditBundleCount(products = [], target = 0) {
-  const wanted = Number(target || 0);
-  if (!wanted) return 0;
-
-  let best = null;
-  for (let count = 1; count <= CREDIT_MAX_INSTALLMENTS; count += 1) {
-    const plan = creditBundlePlan(products, count);
-    if (plan.invalid) continue;
-    const diff = Math.abs(plan.installment - wanted);
-    if (!best || diff < best.diff) best = { count, diff, plan };
-  }
-  return best?.count || 0;
-}
-
-function rememberCreditBundlePlan(conv = {}, products = [], count = 0, plan = null) {
-  const rows = (Array.isArray(products) ? products : [])
-    .map((product) => compactProduct(product))
-    .filter((product) => productId(product));
-
-  if (rows.length < 2) {
-    conv.pendingCreditBundle = null;
-    return null;
-  }
-
-  const resolved = plan || creditBundlePlan(rows, count);
-  conv.pendingCreditBundle = {
-    products: rows,
-    count: Number(count || 0),
-    divisor: Number(resolved?.divisor || 0),
-    base: Number(resolved?.base || 0),
-    total: Number(resolved?.total || 0),
-    installment: Number(resolved?.installment || 0),
-    desiredMonthlyPayment: Number(conv.desiredMonthlyPayment || 0),
-    updatedAt: Date.now()
-  };
-  conv.purchaseSelectionsUpdatedAt = Date.now();
-  setPurchasePaymentPreference(conv, 'credit');
-  markCreditContext(conv);
-  saveStateSoon();
-  return conv.pendingCreditBundle;
-}
-
-function activeCreditBundle(conv = {}, now = Date.now()) {
-  const bundle = conv?.pendingCreditBundle;
-  if (!bundle || !Array.isArray(bundle.products) || bundle.products.length < 2) return null;
-  const updatedAt = Number(bundle.updatedAt || conv.purchaseSelectionsUpdatedAt || 0);
-  if (!updatedAt || now - updatedAt > PURCHASE_NEGOTIATION_TTL_MS) {
-    conv.pendingCreditBundle = null;
-    return null;
-  }
-  return bundle;
-}
-
-function bundleDescription(products = []) {
-  return (Array.isArray(products) ? products : [])
-    .map((product) => String(product?.name || '').trim())
-    .filter(Boolean)
-    .join(' + ');
-}
-
-function asksMarceloCreditPurchase(text = '') {
-  const n = normalize(text)
-    .replace(/[!?.,;:]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  const addressedToMarcelo =
-    asksMarceloOrCallback(text) ||
-    /^(?:o\s+)?(?:marcelo|macelo|marcello)\b/.test(n) ||
-    /\b(?:marcelo|macelo|marcello)\b.{0,55}\b(?:queria|quero|preciso|to precisando|estou precisando)\b/.test(n);
-
-  if (!addressedToMarcelo) return false;
-
-  return (
-    /\b(pagar por mes|por mes|abrir.{0,35}conta|abrir.{0,35}credito|crediario|carne|parcelado|parcelas|prestacoes)\b/.test(n) ||
-    /\b(comprar|pegar)\b.{0,80}\b(pagar|pagando)\b.{0,35}\bmes\b/.test(n)
-  );
 }
 
 async function fetchProductSafeDetails(product = {}) {
@@ -2878,7 +2623,7 @@ async function handleGeneralIntent({
     saveStateSoon();
     await sendText(
       phone,
-      'Certo 😊 Vou deixar sua mensagem sinalizada para o Marcelo. Assim que ele puder, continua com você por aqui.'
+      'O Marcelo está em outro atendimento no momento. Assim que ele terminar, ele retorna seu contato 😊\n\nEnquanto você aguarda, posso te mostrar produtos, preços e condições de pagamento.'
     );
     await syncTicket(phone, {
       status: 'Aguardando retorno do Marcelo',
@@ -3050,7 +2795,6 @@ async function handleGeneralIntent({
       return true;
     }
     conv.selectedProduct = product;
-    rememberPurchaseSelection(conv, product, 'semantic_credit_quote');
     saveStateSoon();
     const count = Math.max(0, Number(classification.installments || 0));
     const plan = creditPlan(product, count);
@@ -3466,11 +3210,10 @@ function customerFirstName(pushName = '') {
 
   const firstToken = raw.split(/\s+/)[0] || '';
 
-  // WhatsApp/push names are display labels, not verified customer names.
-  // Never turn handles, glued identifiers, numbers or emoji-decorated labels
-  // into a personal greeting.
-  if (/\d/u.test(raw) || /[^\p{L}\p{M}'’\-\s]/u.test(raw)) return '';
-  if (raw === raw.toLocaleLowerCase('pt-BR') && raw.length > 14 && !/\s/u.test(raw)) return '';
+  // Reject only clearly untrustworthy WhatsApp handles/labels.
+  // Keep ordinary human names and ignore notes after the first token as before.
+  if (/\d/u.test(firstToken) || /[^\p{L}\p{M}'’-]/u.test(firstToken)) return '';
+  if (firstToken === firstToken.toLocaleLowerCase('pt-BR') && firstToken.length > 14) return '';
 
   const match = firstToken.match(/^[\p{L}][\p{L}\p{M}'’-]*$/u);
   if (!match) return '';
@@ -5169,11 +4912,6 @@ function asksHowToBuyCredit(text) {
 
 function markCreditContext(conv) {
   conv.creditContextUntil = Date.now() + CREDIT_PLAN_FOLLOWUP_TTL_MS;
-  conv.preferredPurchasePayment = 'credit';
-  conv.purchaseSelectionsUpdatedAt = Math.max(
-    Number(conv.purchaseSelectionsUpdatedAt || 0),
-    Date.now()
-  );
   saveStateSoon();
 }
 
@@ -8187,45 +7925,8 @@ async function showMoreAdvancedAlternatives(phone, conv, baselineProduct, pushNa
   return true;
 }
 
-function isPayBeforeShoppingDeferral(text = '') {
-  const n = normalize(text)
-    .replace(/[!?.,;:]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  if (!n) return false;
-
-  return (
-    /\b(?:deixa|deixe)\b.{0,55}\b(?:pagar|quitar)\b.{0,35}\b(?:primeiro|primeira)\b/.test(n) ||
-    /\b(?:terminar|acabar)\b.{0,35}\b(?:pagar|quitar)\b.{0,35}\b(?:primeiro|primeira)\b/.test(n) ||
-    /\b(?:pagar|quitar)\b.{0,18}\btudo\b.{0,25}\b(?:primeiro|primeira)\b/.test(n)
-  );
-}
-
-function deferredFutureProductCategory(text = '') {
-  const n = normalize(text)
-    .replace(/[!?.,;:]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  const category = detectCategory(text);
-  if (!category) return '';
-
-  const futureCue =
-    /\b(?:depois|mais\s+(?:pra|para|pr)\s+frente|mais adiante|mais tarde|outra hora)\b/.test(n);
-
-  const futureShopping =
-    /\b(?:vou|quero|pretendo|penso em)\b.{0,35}\b(?:olhar|ver|comprar|pegar|escolher)\b/.test(n) ||
-    /\b(?:quando|assim que)\b.{0,45}\b(?:terminar|acabar|quitar|pagar)\b.{0,45}\b(?:olhar|ver|comprar|pegar|escolher)\b/.test(n);
-
-  return (futureCue && futureShopping) || isPayBeforeShoppingDeferral(text)
-    ? category
-    : '';
-}
-
 function asksPausePurchaseDecision(text = '') {
   const n = normalize(text);
-  if (deferredFutureProductCategory(text) || isPayBeforeShoppingDeferral(text)) return true;
   return /\b(vou pensar|vou dar uma pensada|vou pensar um pouco|depois eu vejo|vou ver e te falo|mais tarde eu vejo|so estou olhando|so olhando)\b/.test(n);
 }
 
@@ -8386,29 +8087,15 @@ function rememberCreditPlan(conv, product, count, plan) {
 }
 
 function ordinalIndex(text) {
-  const n = normalize(text)
-    .replace(/[!?.,;:]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  if (!n) return -1;
-
-  // "primeiro" também é usado como advérbio de ordem temporal:
-  // "deixa eu te pagar primeiro", "vou quitar tudo primeiro" etc.
-  // Nesses casos não existe seleção de produto.
-  const temporalFirst =
-    /\b(?:pagar|pagando|pague|pago|quitar|quitando|terminei|terminar|acabar|resolver|acertar)\b.{0,50}\b(?:primeiro|primeira)\b/.test(n);
-
-  if (temporalFirst) return -1;
-
+  const n = normalize(text);
   const entries = [
-    [0, /(?:^|\b)(?:primeiro|primeira|1º|1o)(?:\b|$)/],
-    [1, /(?:^|\b)(?:segundo|segunda|2º|2o)(?:\b|$)/],
-    [2, /(?:^|\b)(?:terceiro|terceira|3º|3o)(?:\b|$)/],
-    [3, /(?:^|\b)(?:quarto|quarta|4º|4o)(?:\b|$)/]
+    [0, ['primeiro', 'primeira', '1º', '1o']],
+    [1, ['segundo', 'segunda', '2º', '2o']],
+    [2, ['terceiro', 'terceira', '3º', '3o']],
+    [3, ['quarto', 'quarta', '4º', '4o']]
   ];
-  for (const [idx, pattern] of entries) {
-    if (pattern.test(n)) return idx;
+  for (const [idx, words] of entries) {
+    if (words.some((w) => n.includes(w))) return idx;
   }
   return -1;
 }
@@ -9548,7 +9235,6 @@ async function handleCreditPlanFollowup({ phone, text, pushName = '', conv }) {
 
   conv.selectedProduct = compactProduct(product);
   conv.lastIntent = 'produto';
-  rememberPurchaseSelection(conv, product, 'credit_followup');
   rememberCreditPlan(conv, product, count, plan);
   clearPendingCreditInstallments(conv);
   saveStateSoon();
@@ -9577,26 +9263,17 @@ async function handleCreditPlanFollowup({ phone, text, pushName = '', conv }) {
 
 async function startCreditApplication(phone, conv) {
   markCreditContext(conv);
-
-  const bundle = activeCreditBundle(conv);
-  const bundleProducts = bundle?.products || [];
-  const product = bundleProducts.length >= 2
-    ? null
-    : (conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null));
-  const purchaseLabel = bundleProducts.length >= 2
-    ? bundleDescription(bundleProducts)
-    : String(product?.name || '').trim();
+  const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
 
   await markConversationStatus(
     phone,
     conv,
     'Crediário / análise',
-    purchaseLabel
-      ? `Cliente iniciou solicitação de crediário para: ${purchaseLabel}`
+    product
+      ? `Cliente iniciou solicitação de crediário para: ${product.name}`
       : 'Cliente iniciou solicitação de crediário.'
   );
-
-  if (!purchaseLabel) {
+  if (!product) {
     conv.pendingAction = 'crediario_product';
     saveStateSoon();
     await sendText(phone, 'Claro 😊 Primeiro me diga qual produto você quer comprar no carnê, para eu abrir a solicitação com o valor correto.');
@@ -9606,35 +9283,22 @@ async function startCreditApplication(phone, conv) {
   if (!conv.customerName || conv.customerName.split(/\s+/).filter(Boolean).length < 2) {
     conv.pendingAction = 'crediario_name';
     saveStateSoon();
-    await sendText(
-      phone,
-      bundleProducts.length >= 2
-        ? `Certo 😊 Vou abrir a solicitação considerando *${purchaseLabel}*. Me informe seu *nome completo*, por favor.`
-        : `Certo 😊 Vou abrir a solicitação para *${purchaseLabel}*. Me informe seu *nome completo*, por favor.`
-    );
+    await sendText(phone, `Certo 😊 Vou abrir a solicitação para *${product.name}*. Me informe seu *nome completo*, por favor.`);
     return;
   }
 
-  const plan = bundleProducts.length >= 2
-    ? bundle
-    : (conv.lastCreditPlan || null);
-  const baseAmount = bundleProducts.length >= 2
-    ? Number(bundle.base || bundleProducts.reduce((sum, item) => sum + productCashPrice(item), 0))
-    : productCashPrice(product);
-
+  const plan = conv.lastCreditPlan || null;
   const result = await backend('/api/bot/crediario/analises/loja', {
     method: 'POST',
     botAuth: true,
     body: {
       customerName: conv.customerName,
       phone: digits(phone),
-      baseAmountCents: Math.round(baseAmount * 100),
-      purchaseDescription: purchaseLabel,
-      parcelas: Number(plan?.count || 0),
-      divisor: Number(plan?.divisor || 0),
-      storeReference: bundleProducts.length >= 2
-        ? 'whatsapp_principal_combo'
-        : 'whatsapp_principal'
+      baseAmountCents: Math.round(productCashPrice(product) * 100),
+      purchaseDescription: product.name,
+      parcelas: plan?.count || 0,
+      divisor: plan?.divisor || 0,
+      storeReference: 'whatsapp_principal'
     }
   });
 
@@ -9653,188 +9317,6 @@ async function startCreditApplication(phone, conv) {
     phone,
     `${creditMessage}\n\n${creditNextStep}`
   );
-}
-
-async function handleDesiredMonthlyCreditPreference({ phone, text, pushName = '', conv }) {
-  const amount = extractDesiredMonthlyPayment(text);
-  if (!amount) return false;
-
-  const creditChosen =
-    conv.preferredPurchasePayment === 'credit' ||
-    isCreditContext(conv, text);
-
-  if (!creditChosen) return false;
-
-  conv.desiredMonthlyPayment = amount;
-  conv.preferredPurchasePayment = 'credit';
-  conv.pendingAction = '';
-  conv.purchaseSelectionsUpdatedAt = Date.now();
-  markCreditContext(conv);
-
-  const product = conv.selectedProduct || (
-    Array.isArray(conv.lastProducts) && conv.lastProducts.length === 1
-      ? conv.lastProducts[0]
-      : null
-  );
-
-  if (product) {
-    rememberPurchaseSelection(conv, product, 'desired_monthly_payment');
-    setPendingCreditInstallments(conv, product);
-    await sendText(
-      phone,
-      `Entendi 😊 No *carnê*, você quer parcelas próximas de *${money(amount)}*. Como você já escolheu o crediário, não vou te perguntar cartão de novo. Em quantas vezes você quer que eu calcule *${product.name}*?`
-    );
-  } else {
-    await sendText(
-      phone,
-      `Entendi 😊 Vou considerar no *carnê* parcelas próximas de *${money(amount)}*. Quando os produtos estiverem definidos, eu calculo a combinação usando essa referência.`
-    );
-  }
-
-  await markConversationStatus(
-    phone,
-    conv,
-    'Venda em andamento',
-    `Cliente informou preferência de parcela mensal próxima de ${money(amount)} no crediário.`,
-    pushName,
-    {
-      paymentMode: 'crediario',
-      desiredMonthlyPayment: amount,
-      rememberedPaymentMethod: true
-    }
-  );
-
-  return true;
-}
-
-async function handlePurchaseBundleRequest({ phone, text, pushName = '', conv }) {
-  if (!asksPurchaseBundleTotal(conv, text)) return false;
-
-  const products = purchaseBundleProductsFromText(conv, text);
-  if (products.length < 2) return false;
-
-  const creditChosen =
-    conv.preferredPurchasePayment === 'credit' ||
-    isCreditContext(conv, text);
-
-  if (creditChosen) {
-    markCreditContext(conv);
-
-    const previousBundle = activeCreditBundle(conv);
-    const desired = Number(conv.desiredMonthlyPayment || 0);
-    let count =
-      parseInstallments(text) ||
-      Number(previousBundle?.count || 0) ||
-      Number(conv.lastCreditPlan?.count || 0);
-
-    if (!count && desired > 0) {
-      count = closestCreditBundleCount(products, desired);
-    }
-
-    if (!count) {
-      rememberCreditBundlePlan(conv, products, 0, creditBundlePlan(products, 0));
-      await sendText(
-        phone,
-        `Perfeito 😊 Vou manter *os dois produtos juntos* no carnê:\n• ${products[0].name}\n• ${products[1].name}\n\nEm quantas vezes você quer que eu calcule o conjunto? Posso calcular em até *${CREDIT_MAX_INSTALLMENTS}x*.`
-      );
-      return true;
-    }
-
-    const plan = creditBundlePlan(products, count);
-    if (plan.invalid) {
-      await sendText(phone, `Para o conjunto, o máximo no crediário é *${plan.max}x*.`);
-      return true;
-    }
-
-    rememberCreditBundlePlan(conv, products, count, plan);
-    const desiredNote = desired > 0
-      ? `\n\nVocê tinha pedido parcelas perto de *${money(desired)}*; essa simulação fica em *${money(plan.installment)} por mês*.`
-      : '';
-
-    await sendText(
-      phone,
-      `Perfeito 😊 Vou considerar os dois juntos no carnê:\n• ${products[0].name}\n• ${products[1].name}\n\nEm *${count}x*, o conjunto fica aproximadamente *${count}x de ${money(plan.installment)}*, total de *${money(plan.total)}*. A compra continua sujeita à análise de crédito.${desiredNote}`
-    );
-
-    await markConversationStatus(
-      phone,
-      conv,
-      'Venda em andamento',
-      `Cliente pediu os produtos juntos no crediário: ${bundleDescription(products)}.`,
-      pushName,
-      {
-        paymentMode: 'crediario',
-        productIds: products.map((product) => productId(product)),
-        bundlePurchase: true,
-        installments: count,
-        combinedBaseAmount: plan.base,
-        combinedCreditTotal: plan.total,
-        desiredMonthlyPayment: desired
-      }
-    );
-    return true;
-  }
-
-  const cashTotal = Math.round(products.reduce((sum, product) => sum + productCashPrice(product), 0) * 100) / 100;
-  const cardTotal = Math.round(products.reduce((sum, product) => sum + productFullPrice(product), 0) * 100) / 100;
-
-  await sendText(
-    phone,
-    `Perfeito 😊 Mantive os dois produtos que você escolheu:\n• ${products[0].name}\n• ${products[1].name}\n\nJuntos ficam *${money(cashTotal)} no PIX* ou *${money(cardTotal)} no preço cheio do cartão*. Se quiser no carnê, eu calculo os dois juntos também.`
-  );
-  return true;
-}
-
-async function handleMarceloCreditPurchaseRequest({ phone, text, pushName = '', conv }) {
-  if (!asksMarceloCreditPurchase(text)) return false;
-
-  const products = activePurchaseSelections(conv);
-  conv.pendingAction = '';
-  conv.marceloCallbackRequested = true;
-  conv.marceloCallbackRequestedAt = Date.now();
-  setPurchasePaymentPreference(conv, 'credit');
-  markCreditContext(conv);
-
-  let bundle = activeCreditBundle(conv);
-  if (!bundle && products.length >= 2) {
-    const desired = Number(conv.desiredMonthlyPayment || 0);
-    const count =
-      Number(conv.lastCreditPlan?.count || 0) ||
-      closestCreditBundleCount(products, desired);
-    bundle = rememberCreditBundlePlan(
-      conv,
-      products,
-      count,
-      creditBundlePlan(products, count)
-    );
-  }
-
-  const selectedText = products.length >= 2
-    ? ` Mantive os produtos que você já escolheu: *${products.map((product) => product.name).join(' + ')}*.`
-    : '';
-
-  await sendText(
-    phone,
-    `Claro 😊 Vou deixar sinalizado para o Marcelo que você quer fazer a compra no *crediário/carnê para pagar por mês*.${selectedText} Ele continua com você por aqui para a análise; não vou reiniciar a busca dos produtos.`
-  );
-
-  await syncTicket(phone, {
-    status: 'Aguardando Marcelo - crediário/compra',
-    message: text,
-    name: pushName,
-    metadata: {
-      assunto: 'compra_crediario_falar_com_marcelo',
-      paymentMode: 'crediario',
-      productIds: products.map((product) => productId(product)),
-      products: products.map((product) => product.name),
-      bundlePurchase: products.length >= 2,
-      installments: Number(bundle?.count || conv.lastCreditPlan?.count || 0),
-      desiredMonthlyPayment: Number(conv.desiredMonthlyPayment || 0),
-      naoReiniciarCatalogo: true
-    }
-  });
-
-  return true;
 }
 
 function parseFullName(text) {
@@ -10216,7 +9698,6 @@ Se quiser, também posso conferir a entrega com você.`
     }
 
     conv.selectedProduct = product;
-    rememberPurchaseSelection(conv, product, 'credit_installments');
     rememberCreditPlan(conv, product, count, plan);
     clearPendingCreditInstallments(conv);
 
@@ -10573,36 +10054,6 @@ async function handleMessage({
     return;
   }
 
-  {
-    const deferredCategory = deferredFutureProductCategory(text);
-    const payBeforeShopping = isPayBeforeShoppingDeferral(text);
-
-    if (deferredCategory || payBeforeShopping) {
-      clearActiveCommercialContext(conv);
-      saveStateSoon();
-
-      await sendText(
-        phone,
-        deferredCategory
-          ? `Combinado 😊 Sem problema. Vamos resolver essa parte primeiro. Quando você quiser olhar *${deferredCategory}* mais pra frente, é só me chamar que eu te mostro as opções.`
-          : 'Combinado 😊 Sem problema. Vamos resolver essa parte primeiro. Quando você quiser voltar a olhar produtos, é só me chamar.'
-      );
-      return;
-    }
-  }
-
-  if (await handleMarceloCreditPurchaseRequest({ phone, text, pushName, conv })) {
-    return;
-  }
-
-  if (await handlePurchaseBundleRequest({ phone, text, pushName, conv })) {
-    return;
-  }
-
-  if (await handleDesiredMonthlyCreditPreference({ phone, text, pushName, conv })) {
-    return;
-  }
-
   if (await handlePendingListClarificationChoice({ phone, text, pushName, conv })) {
     return;
   }
@@ -10652,7 +10103,6 @@ async function handleMessage({
     if (listReference.status === 'single' && listReference.product) {
       conv.selectedProduct = listReference.product;
       conv.lastIntent = 'produto';
-      rememberPurchaseSelection(conv, listReference.product, 'list_selection');
       saveStateSoon();
 
       if (
@@ -11098,7 +10548,7 @@ async function handleMessage({
 
     await sendText(
       phone,
-      `${greetingPrefix}Certo 😊 Vou deixar sua mensagem sinalizada para o Marcelo. Assim que ele puder, continua com você por aqui.`
+      `${greetingPrefix}O Marcelo está em outro atendimento no momento. Assim que ele terminar, ele retorna seu contato 😊\n\nEnquanto você aguarda, gostaria de dar uma olhada em alguma coisa? Posso te mostrar fotos de produtos, preços e condições de pagamento.`
     );
 
     await syncTicket(phone, {
@@ -11823,7 +11273,6 @@ ${productCaption(product)}`
 
   if (ord >= 0 && Array.isArray(conv.lastProducts) && conv.lastProducts[ord]) {
     conv.selectedProduct = conv.lastProducts[ord];
-    rememberPurchaseSelection(conv, conv.selectedProduct, 'ordinal_selection');
     saveStateSoon();
     await sendText(phone, `Perfeito 😊 Você escolheu *${conv.selectedProduct.name}*. O que você gostaria de saber dele: cartão, PIX, carnê, entrega ou quer comprar?`);
     await markConversationStatus(
@@ -11860,7 +11309,6 @@ ${productCaption(product)}`
 
   if (mentionedProduct) {
     conv.selectedProduct = mentionedProduct;
-    rememberPurchaseSelection(conv, mentionedProduct, 'named_selection');
     saveStateSoon();
     await sendText(
       phone,
@@ -12801,8 +12249,6 @@ export const __test = {
   technicalFeatureWeight,
   technicalFeatureScore,
   showMoreAdvancedAlternatives,
-  isPayBeforeShoppingDeferral,
-  deferredFutureProductCategory,
   asksPausePurchaseDecision,
   asksPurchaseClosing,
   correctedPaymentMethod,
@@ -12834,22 +12280,6 @@ export const __test = {
   isPaymentHandoffNotice,
   asksPaymentPromiseUpdate,
   asksHowToBuyCredit,
-  purchaseSelectionCategory,
-  activePurchaseSelections,
-  rememberPurchaseSelection,
-  setPurchasePaymentPreference,
-  purchaseBundleProductsFromText,
-  asksPurchaseBundleTotal,
-  extractDesiredMonthlyPayment,
-  creditBundlePlan,
-  closestCreditBundleCount,
-  rememberCreditBundlePlan,
-  activeCreditBundle,
-  bundleDescription,
-  asksMarceloCreditPurchase,
-  handleDesiredMonthlyCreditPreference,
-  handlePurchaseBundleRequest,
-  handleMarceloCreditPurchaseRequest,
   asksToWriteOnCredit,
   asksMoreProducts,
   asksCreditQuote,
