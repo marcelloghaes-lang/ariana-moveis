@@ -365,3 +365,32 @@ for (const item of upscaleFanSources) {
     bytes: buffer.length
   }));
 }
+
+
+const realFanBannerUserOrder = await generateCreativeBannerProMulti(
+  [realFanProducts[1], realFanProducts[0], realFanProducts[2]],
+  {
+    outputFormat: 'square',
+    templatePro: 'campaign',
+    showPrice: false,
+    showCommercialInfo: false,
+    removeBackground: true,
+    brandLabel: '',
+    brandLogoUrl: '',
+    badge: 'VENTILAÇÃO',
+    headline: 'Mais vento. Mais conforto.',
+    subtitle: 'ATENDIMENTO PELO WHATSAPP 31985147119',
+    benefit: '',
+    promoText: '',
+    couponText: '',
+    cta: 'Confira os modelos'
+  }
+);
+fs.writeFileSync(
+  path.join(outDir, 'real-fans-user-order-square.png'),
+  realFanBannerUserOrder.buffer
+);
+console.log(
+  'REAL_FAN_USER_ORDER_QUALITY',
+  JSON.stringify(realFanBannerUserOrder.meta?.quality || null)
+);
