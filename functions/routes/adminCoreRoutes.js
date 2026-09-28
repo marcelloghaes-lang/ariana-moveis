@@ -1059,12 +1059,24 @@ app.post('/api/admin/creative-studio/pro/preview', adminRequired, async (req, re
       const timeoutFailure = failedRebuilds.some(item =>
         /timeout|aborted/i.test(String(item?.rebuild?.error || item?.rebuild?.reason || ''))
       );
-      return res.status(timeoutFailure ? 504 : 422).json({
+      const providerFailure = failedRebuilds.some(item => {
+        const reason = String(item?.rebuild?.reason || '');
+        const error = String(item?.rebuild?.error || '');
+        return reason === 'ai_rebuild_failed' || /creative_rebuild_http_|openai_key|provider/i.test(error);
+      });
+      const statusCode = timeoutFailure ? 504 : (providerFailure ? 502 : 422);
+      const code = timeoutFailure
+        ? 'creative_ai_rebuild_timeout'
+        : (providerFailure ? 'creative_ai_rebuild_provider_failed' : 'creative_ai_rebuild_blocked');
+      const error = timeoutFailure
+        ? 'A reconstrução por IA demorou além do limite. Tente gerar novamente; o Studio não usou o recorte defeituoso.'
+        : (providerFailure
+            ? 'O serviço de reconstrução por IA não conseguiu processar a imagem. O Studio bloqueou a arte sem usar um recorte defeituoso.'
+            : 'A reconstrução por IA não atingiu fidelidade suficiente. O Studio bloqueou o produto em vez de usar uma imagem deformada.');
+      return res.status(statusCode).json({
         ok: false,
-        code: timeoutFailure ? 'creative_ai_rebuild_timeout' : 'creative_ai_rebuild_blocked',
-        error: timeoutFailure
-          ? 'A reconstrução por IA demorou além do limite. Tente gerar novamente; o Studio não usou o recorte defeituoso.'
-          : 'A reconstrução por IA não atingiu fidelidade suficiente. O Studio bloqueou o produto em vez de usar uma imagem deformada.',
+        code,
+        error,
         quality: result.meta?.quality || null,
         product: result.meta?.product || null,
         products: result.meta?.products || []
