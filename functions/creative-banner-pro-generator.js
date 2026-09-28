@@ -1384,16 +1384,21 @@ function fallbackPanelSvg(format, comp, template) {
 }
 
 function quality(asset, opts, format, brandAsset = null, campaignBrandAsset = null) {
-  const cutoutOk = Boolean(asset.backgroundRemoved && asset.cutoutSafe !== false);
-  const resolutionOk = Math.max(asset.sourceWidth, asset.sourceHeight) >= 700;
+  const repair = asset.repairMetrics || {};
+  const rebuild = asset.rebuildMetrics || {};
+  const rebuildPending = rebuild.pending === true;
+  const rebuildSafe = rebuild.safe === true && asset.removalMode === 'ai_reference_rebuild';
+  const cutoutOk = rebuildPending || Boolean(asset.backgroundRemoved && asset.cutoutSafe !== false);
+  const effectiveLongEdge = rebuildSafe
+    ? Math.max(Number(asset.width || 0), Number(asset.height || 0))
+    : Math.max(Number(asset.sourceWidth || 0), Number(asset.sourceHeight || 0));
+  const resolutionOk = rebuildPending || effectiveLongEdge >= 700;
   const brandOk = Boolean(brandAsset?.backgroundRemoved && brandAsset?.transparentRatio >= .02);
   const manufacturerLogoRequested = Boolean(opts.brandLogoUrl);
   const manufacturerLogoOk = !manufacturerLogoRequested || Boolean(campaignBrandAsset?.backgroundRemoved);
-  const repair = asset.repairMetrics || {};
-  const rebuild = asset.rebuildMetrics || {};
-  const internalBackgroundOk = repair.internalBackgroundOk !== false;
-  const whiteHaloOk = repair.whiteHaloOk !== false;
-  const rebuildOk = !(rebuild.enabled && rebuild.required) || rebuild.safe === true;
+  const internalBackgroundOk = rebuildPending || repair.internalBackgroundOk !== false;
+  const whiteHaloOk = rebuildPending || repair.whiteHaloOk !== false;
+  const rebuildOk = rebuildPending || !(rebuild.enabled && rebuild.required) || rebuild.safe === true;
 
   const checks = [
     {
@@ -1420,9 +1425,13 @@ function quality(asset, opts, format, brandAsset = null, campaignBrandAsset = nu
       id: 'cutout',
       critical: true,
       ok: cutoutOk,
-      label: cutoutOk ? 'Recorte do produto aprovado' : 'Recorte do produto reprovado',
-      detail: cutoutOk
-        ? asset.removalMode
+      label: rebuildPending
+        ? 'Produto será reconstruído por IA'
+        : (cutoutOk ? 'Recorte do produto aprovado' : 'Recorte do produto reprovado'),
+      detail: rebuildPending
+        ? 'O recorte comum não será usado; a prévia fará uma reconstrução fiel do produto.'
+        : cutoutOk
+          ? asset.removalMode
         : (
             asset.cutoutReason === 'possible_white_product_overcut'
               ? 'O fundo branco está invadindo áreas claras do produto. Envie PNG transparente ou outra foto.'
@@ -1459,19 +1468,27 @@ function quality(asset, opts, format, brandAsset = null, campaignBrandAsset = nu
       ok: rebuildOk,
       label: !rebuild.required
         ? 'Reconstrução por IA não necessária'
-        : (rebuildOk ? 'Produto reconstruído e validado por IA' : 'Reconstrução por IA reprovada'),
+        : (rebuildPending
+            ? 'Reconstrução por IA preparada'
+            : (rebuildOk ? 'Produto reconstruído e validado por IA' : 'Reconstrução por IA reprovada')),
       detail: !rebuild.required
         ? 'O recorte comum atingiu qualidade suficiente.'
-        : (rebuildOk
-            ? 'A referência original foi preservada e o PNG transparente passou pela validação visual.'
-            : 'A ferramenta bloqueou a arte para não usar um produto reconstruído com baixa fidelidade.')
+        : (rebuildPending
+            ? 'A reconstrução será executada somente na geração da prévia, sem travar a análise.'
+            : (rebuildOk
+                ? 'A referência original foi preservada e o PNG transparente passou pela validação visual.'
+                : 'A ferramenta bloqueou a arte para não usar um produto reconstruído com baixa fidelidade.'))
     },
     {
       id: 'resolution',
       critical: true,
       ok: resolutionOk,
-      label: resolutionOk ? 'Resolução adequada' : 'Imagem de origem pequena',
-      detail: asset.sourceWidth + '×' + asset.sourceHeight + ' px'
+      label: rebuildPending
+        ? 'Resolução será normalizada na reconstrução'
+        : (resolutionOk ? 'Resolução adequada' : 'Imagem de origem pequena'),
+      detail: rebuildSafe
+        ? asset.width + '×' + asset.height + ' px após reconstrução'
+        : asset.sourceWidth + '×' + asset.sourceHeight + ' px'
     },
     {
       id: 'pricing',
@@ -1514,13 +1531,14 @@ export async function prepareProProductAsset(product = {}, options = {}) {
   return rebuildCreativeProductFromReference({
     referenceBuffer: raw,
     asset: repairedAsset,
-    productText
+    productText,
+    perform: options.performAiRebuild !== false
   });
 }
 
 export async function analyzeCreativeBannerPro(product = {}, options = {}) {
   const opts = normalizedOptions(product, options);
-  const asset = await prepareProProductAsset(product, opts);
+  const asset = await prepareProProductAsset(product, { ...opts, performAiRebuild: false });
   const brandAsset = await prepareOfficialLogoAsset();
   const campaignBrandAsset = opts.brandLogoUrl ? await prepareCampaignBrandLogo(opts.brandLogoUrl) : null;
   opts.hasBrandLogo = Boolean(campaignBrandAsset?.backgroundRemoved);
@@ -1962,19 +1980,30 @@ function multiQuality(assets = [], brandAsset = null, format = {}, opts = {}, ca
   const manufacturerLogoOk = !manufacturerLogoRequested || Boolean(campaignBrandAsset?.backgroundRemoved);
   const badCutouts = assets
     .map((asset,index)=>({asset,index}))
-    .filter(({asset}) => !(asset.backgroundRemoved && asset.cutoutSafe !== false));
+    .filter(({asset}) => asset.rebuildMetrics?.pending !== true && !(asset.backgroundRemoved && asset.cutoutSafe !== false));
   const lowResolution = assets
     .map((asset,index)=>({asset,index}))
-    .filter(({asset}) => Math.max(asset.sourceWidth, asset.sourceHeight) < 700);
+    .filter(({asset}) => {
+      if (asset.rebuildMetrics?.pending === true) return false;
+      if (asset.rebuildMetrics?.safe === true && asset.removalMode === 'ai_reference_rebuild') {
+        return Math.max(Number(asset.width || 0), Number(asset.height || 0)) < 700;
+      }
+      return Math.max(Number(asset.sourceWidth || 0), Number(asset.sourceHeight || 0)) < 700;
+    });
   const internalBackgroundFailures = assets
     .map((asset,index)=>({asset,index}))
-    .filter(({asset}) => asset.repairMetrics?.internalBackgroundOk === false);
+    .filter(({asset}) => asset.rebuildMetrics?.pending !== true && asset.repairMetrics?.internalBackgroundOk === false);
   const whiteHaloFailures = assets
     .map((asset,index)=>({asset,index}))
-    .filter(({asset}) => asset.repairMetrics?.whiteHaloOk === false);
+    .filter(({asset}) => asset.rebuildMetrics?.pending !== true && asset.repairMetrics?.whiteHaloOk === false);
   const rebuildFailures = assets
     .map((asset,index)=>({asset,index}))
-    .filter(({asset}) => asset.rebuildMetrics?.enabled && asset.rebuildMetrics?.required && asset.rebuildMetrics?.safe !== true);
+    .filter(({asset}) =>
+      asset.rebuildMetrics?.enabled &&
+      asset.rebuildMetrics?.required &&
+      asset.rebuildMetrics?.pending !== true &&
+      asset.rebuildMetrics?.safe !== true
+    );
 
   const checks = [
     {
@@ -2031,10 +2060,14 @@ function multiQuality(assets = [], brandAsset = null, format = {}, opts = {}, ca
       critical:true,
       ok:rebuildFailures.length===0,
       label:rebuildFailures.length===0
-        ? 'Reconstruções por IA aprovadas'
+        ? (assets.some(asset => asset.rebuildMetrics?.pending === true)
+            ? 'Reconstruções por IA preparadas'
+            : 'Reconstruções por IA aprovadas')
         : rebuildFailures.length+' produto(s) com reconstrução por IA reprovada',
       detail:rebuildFailures.length===0
-        ? 'Produtos difíceis foram reconstruídos somente quando necessário.'
+        ? (assets.some(asset => asset.rebuildMetrics?.pending === true)
+            ? 'A reconstrução será executada somente na geração da prévia.'
+            : 'Produtos difíceis foram reconstruídos somente quando necessário.')
         : 'A campanha foi bloqueada para não usar produto reconstruído com baixa fidelidade.'
     },
     {
@@ -2077,7 +2110,9 @@ export async function analyzeCreativeBannerProMulti(products = [], options = {})
   const campaignBrandAsset=opts.brandLogoUrl ? await prepareCampaignBrandLogo(opts.brandLogoUrl) : null;
   opts.hasBrandLogo=Boolean(campaignBrandAsset?.backgroundRemoved);
   const assets=[];
-  for(const product of rows) assets.push(await prepareProProductAsset(product,opts));
+  for(const product of rows) {
+    assets.push(await prepareProProductAsset(product,{ ...opts, performAiRebuild:false }));
+  }
 
   return {
     ok:true,
@@ -2124,8 +2159,9 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
   const brandAsset=await prepareOfficialLogoAsset();
   const campaignBrandAsset=opts.brandLogoUrl ? await prepareCampaignBrandLogo(opts.brandLogoUrl) : null;
   opts.hasBrandLogo=Boolean(campaignBrandAsset?.backgroundRemoved);
-  const assets=[];
-  for(const product of rows) assets.push(await prepareProProductAsset(product,opts));
+  const assets = await Promise.all(
+    rows.map(product => prepareProProductAsset(product, opts))
+  );
   const qualityResult=multiQuality(assets,brandAsset,format,opts,campaignBrandAsset);
   const slots=multiProductSlots(format,rows.length);
 

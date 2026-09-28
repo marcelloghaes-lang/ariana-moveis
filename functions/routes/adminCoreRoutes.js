@@ -1045,6 +1045,31 @@ app.post('/api/admin/creative-studio/pro/preview', adminRequired, async (req, re
     const result = products.length >= 2
       ? await generateCreativeBannerProMulti(products, options)
       : await generateCreativeBannerPro(product, options);
+    const criticalFailures = Array.isArray(result.meta?.quality?.criticalFailures)
+      ? result.meta.quality.criticalFailures
+      : [];
+    const rebuildBlocked = criticalFailures.includes('ai_rebuild') || criticalFailures.includes('multi_ai_rebuild');
+    if (rebuildBlocked) {
+      const rows = Array.isArray(result.meta?.products) ? result.meta.products : [];
+      const failedRebuilds = rows.length
+        ? rows.filter(item => item?.rebuild?.required && item?.rebuild?.safe !== true)
+        : (result.meta?.product?.rebuild?.required && result.meta?.product?.rebuild?.safe !== true
+            ? [result.meta.product]
+            : []);
+      const timeoutFailure = failedRebuilds.some(item =>
+        /timeout|aborted/i.test(String(item?.rebuild?.error || item?.rebuild?.reason || ''))
+      );
+      return res.status(timeoutFailure ? 504 : 422).json({
+        ok: false,
+        code: timeoutFailure ? 'creative_ai_rebuild_timeout' : 'creative_ai_rebuild_blocked',
+        error: timeoutFailure
+          ? 'A reconstrução por IA demorou além do limite. Tente gerar novamente; o Studio não usou o recorte defeituoso.'
+          : 'A reconstrução por IA não atingiu fidelidade suficiente. O Studio bloqueou o produto em vez de usar uma imagem deformada.',
+        quality: result.meta?.quality || null,
+        product: result.meta?.product || null,
+        products: result.meta?.products || []
+      });
+    }
     const format = result.meta?.format || resolveProFormat(options.outputFormat);
     res.set({
       'Content-Type': 'image/png',

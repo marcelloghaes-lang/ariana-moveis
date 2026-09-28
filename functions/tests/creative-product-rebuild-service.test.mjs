@@ -76,7 +76,9 @@ function fakeFetchFactory({ validationSafe = true } = {}) {
         assert.equal(init.body.get('model'), 'gpt-image-2');
         assert.equal(init.body.get('background'), 'transparent');
         assert.equal(init.body.get('output_format'), 'png');
-        assert.equal(init.body.get('quality'), 'high');
+        assert.equal(init.body.get('quality'), 'medium');
+        assert.equal(init.body.get('input_fidelity'), 'high');
+        assert.equal(init.body.get('size'), '1024x1024');
         assert.match(String(init.body.get('prompt')), /mesmo produto/i);
         assert.match(String(init.body.get('prompt')), /fundo realmente transparente/i);
         const generated = await rebuiltPng();
@@ -157,6 +159,28 @@ test('prompt obriga fidelidade e transparência nos vazados', () => {
   assert.match(prompt, /não redesenhe/i);
   assert.match(prompt, /espaços entre grades/i);
   assert.match(prompt, /fundo realmente transparente/i);
+});
+
+test('análise prepara reconstrução sem chamar geração de imagem', async () => {
+  let calls = 0;
+  const result = await rebuildCreativeProductFromReference({
+    referenceBuffer: await referencePng(),
+    asset: baseAsset(),
+    productText: 'Ventilador de coluna com grade',
+    enabled: true,
+    perform: false,
+    fetchImpl: async () => {
+      calls += 1;
+      throw new Error('não deveria chamar a API');
+    },
+    apiKey: 'test-key'
+  });
+
+  assert.equal(calls, 0);
+  assert.equal(result.rebuildMetrics?.required, true);
+  assert.equal(result.rebuildMetrics?.pending, true);
+  assert.equal(result.rebuildMetrics?.attempted, false);
+  assert.equal(result.rebuildMetrics?.reason, 'ai_rebuild_pending');
 });
 
 test('reconstrução IA aceita produto somente depois de validação visual', async () => {
