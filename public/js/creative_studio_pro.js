@@ -44,6 +44,67 @@
     }
   }
 
+  function clearCreativeAdminToken() {
+    for (const storage of [localStorage, sessionStorage]) {
+      for (const key of ['adminToken','admin_token','authToken','token']) {
+        try { storage.removeItem(key); } catch (_error) {}
+      }
+    }
+  }
+
+  function adminLoginReturnUrl() {
+    const returnTarget = 'creative_studio_pro.html' + (window.location.search || '');
+    return './admin_login.html?return=' + encodeURIComponent(returnTarget);
+  }
+
+  function redirectToAdminLogin(reason = 'creative-studio-session') {
+    if (window.__ARIANA_CREATIVE_LOGIN_REDIRECT__) return;
+    window.__ARIANA_CREATIVE_LOGIN_REDIRECT__ = true;
+    clearCreativeAdminToken();
+    const url = new URL(adminLoginReturnUrl(), window.location.href);
+    url.searchParams.set('reason', reason);
+    window.location.replace(url.toString());
+  }
+
+  async function validateAdminSession() {
+    const auth = token();
+    if (!auth) {
+      redirectToAdminLogin('creative-studio-login-required');
+      return false;
+    }
+
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+      let response;
+      try {
+        response = await fetch(API + '/admin/me', {
+          headers: { Authorization: 'Bearer ' + auth },
+          cache: 'no-store',
+          signal: controller.signal
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+
+      if (response.status === 401 || response.status === 403) {
+        redirectToAdminLogin('creative-studio-session-expired');
+        return false;
+      }
+
+      if (!response.ok) {
+        // Se o backend estiver temporariamente indisponível, não força logout.
+        // A chamada real mostrará o erro sem apagar uma sessão potencialmente válida.
+        return true;
+      }
+
+      return true;
+    } catch (_error) {
+      // Falha de rede não equivale a sessão inválida.
+      return true;
+    }
+  }
+
   function escapeHtml(value = '') {
     return String(value).replace(/[&<>"']/g, char => ({
       '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -97,7 +158,10 @@
       }
     });
 
-    if (response.status === 401) throw new Error('Sua sessão expirou. Faça login novamente.');
+    if (response.status === 401 || response.status === 403) {
+      redirectToAdminLogin('creative-studio-session-expired');
+      throw new Error('Sua sessão expirou. Redirecionando para o login administrativo.');
+    }
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
       throw new Error(payload.message || payload.error || 'Falha na operação (' + response.status + ').');
@@ -1497,7 +1561,10 @@
     els.downloadTemplateButton?.addEventListener('click',downloadSelectedTemplate);
   }
 
-  function start() {
+  async function start() {
+    const sessionOk = await validateAdminSession();
+    if (!sessionOk) return;
+
     Object.assign(els,{
       installAppButton:byId('install-app-button'),
       downloadTemplateButton:byId('download-template-button'),
