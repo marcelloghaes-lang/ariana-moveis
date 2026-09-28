@@ -421,7 +421,18 @@ export async function rebuildCreativeProductFromReference({
   }
 
   if (!enabled) {
-    return failedAsset(asset, eligibility, false, 'ai_rebuild_disabled');
+    return {
+      ...asset,
+      rebuildMetrics: {
+        enabled: false,
+        required: true,
+        difficultProduct: eligibility.difficult,
+        eligibilityReason: eligibility.reason,
+        attempted: false,
+        safe: asset.cutoutSafe !== false && Boolean(asset.backgroundRemoved),
+        reason: 'ai_rebuild_disabled'
+      }
+    };
   }
 
   if (!apiKey) {
