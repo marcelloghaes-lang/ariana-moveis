@@ -1514,7 +1514,7 @@ export async function prepareProProductAsset(product = {}, options = {}) {
     options.removeBackground !== false && options.removeLightBackground !== false,
     productText
   );
-  return repairCreativeProductCutout(baseAsset, productText, raw);
+  return repairCreativeProductCutout(baseAsset, productText, raw, source);
 }
 
 export async function analyzeCreativeBannerPro(product = {}, options = {}) {

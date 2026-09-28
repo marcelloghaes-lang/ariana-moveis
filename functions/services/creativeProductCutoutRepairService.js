@@ -476,8 +476,298 @@ function fanResidualMatteRatio(original, repaired, info, background) {
   return residual / Math.max(1, visible);
 }
 
-async function repairFanProductFromReference(asset, referenceBuffer) {
+
+const cloudinaryFanMaskCache = new Map();
+
+function cloudinaryBackgroundRemovalUrl(source = '') {
+  const value = String(source || '').trim();
+  if (!value) return '';
+  try {
+    const url = new URL(value);
+    if (url.hostname !== 'res.cloudinary.com') return '';
+    const marker = '/image/upload/';
+    if (!url.pathname.includes(marker)) return '';
+    if (url.pathname.includes('/e_background_removal')) return url.toString();
+    url.pathname = url.pathname.replace(
+      marker,
+      marker + 'e_background_removal:fineedges_y/f_png/'
+    );
+    return url.toString();
+  } catch {
+    return '';
+  }
+}
+
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function fetchCloudinaryFanMask(source = '') {
+  const transformed = cloudinaryBackgroundRemovalUrl(source);
+  if (!transformed) return null;
+  if (cloudinaryFanMaskCache.has(transformed)) {
+    return cloudinaryFanMaskCache.get(transformed);
+  }
+
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      const response = await fetch(transformed, {
+        headers: { accept: 'image/png,image/*' },
+        signal: AbortSignal.timeout(25000)
+      });
+
+      if (response.ok) {
+        const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+        if (!contentType.startsWith('image/')) return null;
+        const bytes = await response.arrayBuffer();
+        if (!bytes.byteLength || bytes.byteLength > 20 * 1024 * 1024) return null;
+        const buffer = Buffer.from(bytes);
+        cloudinaryFanMaskCache.set(transformed, buffer);
+        if (cloudinaryFanMaskCache.size > 24) {
+          const oldestKey = cloudinaryFanMaskCache.keys().next().value;
+          if (oldestKey) cloudinaryFanMaskCache.delete(oldestKey);
+        }
+        return buffer;
+      }
+
+      if (![420, 423, 429].includes(response.status)) return null;
+    } catch {
+      if (attempt >= 5) return null;
+    }
+
+    await wait(1200 + attempt * 900);
+  }
+
+  return null;
+}
+
+async function finalizeFanCutout({
+  asset,
+  data,
+  info,
+  background,
+  limits,
+  removalMode,
+  provider = '',
+  removedPixels = 0,
+  partialPixels = 0
+}) {
+  const total = info.width * info.height;
+  const foregroundSignalBefore = fanStrongForegroundCount(
+    data,
+    info,
+    background,
+    limits
+  );
+
+  const afterOpaque = opaqueCount(data, info);
+  const foregroundOpaqueRatioAfter = afterOpaque / Math.max(1, total);
+  const foregroundSignalAfter = fanStrongForegroundCount(data, info, background, limits);
+  const foregroundSignalRetention =
+    foregroundSignalBefore > 0
+      ? foregroundSignalAfter / foregroundSignalBefore
+      : 1;
+  const removedRatio = transparentRatio(data, info);
+  const afterStructure = alphaStructureStats(data, info);
+
+  const thinStructureDamageOk =
+    foregroundSignalRetention >= 0.975 &&
+    foregroundOpaqueRatioAfter >= 0.028 &&
+    afterStructure.largestShare >= 0.24;
+  const internalBackgroundOk =
+    removedRatio >= 0.025 &&
+    removedRatio <= 0.965;
+  const whiteHaloResidualRatio = haloResidualRatio(data, info, background);
+  const whiteHaloOk = provider
+    ? whiteHaloResidualRatio <= 0.12
+    : whiteHaloResidualRatio <= 0.028;
+
+  const safe =
+    internalBackgroundOk &&
+    whiteHaloOk &&
+    thinStructureDamageOk;
+
+  let reason = 'ok';
+  if (!thinStructureDamageOk) reason = 'thin_structure_damage';
+  else if (!internalBackgroundOk) reason = 'internal_background_contamination';
+  else if (!whiteHaloOk) reason = 'white_halo_residual';
+
+  const png = await sharp(data, { raw: info })
+    .png({ compressionLevel: 9, adaptiveFiltering: true })
+    .toBuffer();
+  const trimmed = await sharp(png)
+    .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 5 })
+    .png({ compressionLevel: 9, adaptiveFiltering: true })
+    .toBuffer();
+  const meta = await sharp(trimmed).metadata();
+
+  const sourceLongEdge = Math.max(
+    Number(asset.sourceWidth || info.width),
+    Number(asset.sourceHeight || info.height)
+  );
+  const baseWidth = Number(meta.width || info.width);
+  const baseHeight = Number(meta.height || info.height);
+  const shouldEnhanceResolution = sourceLongEdge < 900;
+  let outputBuffer = trimmed;
+  let outputWidth = baseWidth;
+  let outputHeight = baseHeight;
+  let resolutionEnhanced = false;
+
+  if (shouldEnhanceResolution) {
+    const scale = clamp(1100 / Math.max(1, sourceLongEdge), 1, 3.5);
+    const targetWidth = Math.max(baseWidth, Math.round(baseWidth * scale));
+    const targetHeight = Math.max(baseHeight, Math.round(baseHeight * scale));
+    outputBuffer = await sharp(trimmed)
+      .resize(targetWidth, targetHeight, {
+        fit: 'fill',
+        kernel: sharp.kernel.lanczos3
+      })
+      .sharpen(0.55)
+      .png({ compressionLevel: 9, adaptiveFiltering: true })
+      .toBuffer();
+    const enhancedMeta = await sharp(outputBuffer).metadata();
+    outputWidth = Number(enhancedMeta.width || targetWidth);
+    outputHeight = Number(enhancedMeta.height || targetHeight);
+    resolutionEnhanced = true;
+  }
+
+  return {
+    ...asset,
+    buffer: outputBuffer,
+    width: outputWidth,
+    height: outputHeight,
+    qualityWidth: outputWidth,
+    qualityHeight: outputHeight,
+    backgroundRemoved: safe,
+    removalMode: safe ? removalMode : 'unsafe_' + removalMode,
+    removedRatio,
+    confidence: safe ? (provider ? 0.985 : 0.97) : 0,
+    cutoutSafe: safe,
+    cutoutReason: safe ? 'ok' : reason,
+    repairMetrics: {
+      attempted: true,
+      difficultProduct: true,
+      fanOriginalPixelRepair: true,
+      segmentationMask: Boolean(provider),
+      segmentationProvider: provider || null,
+      colorToAlphaRepair: !provider,
+      autoDetectedPorousStructure: true,
+      recoveredOuterCutout: true,
+      internalCandidateCount: 0,
+      internalRemovedPixels: removedPixels,
+      partialPixels,
+      internalRemovedRatio: removedPixels / Math.max(1, total),
+      internalBackgroundContaminationRatio: 0,
+      outerBackgroundResidualRatio: 0,
+      semiTransparentContaminationRatio: 0,
+      whiteHaloResidualRatio,
+      structuralLossRatio: 0,
+      thinStructureDamageRatio: Math.max(0, 1 - foregroundSignalRetention),
+      foregroundSignalBefore,
+      foregroundSignalAfter,
+      foregroundSignalRetention,
+      foregroundOpaqueRatioAfter,
+      reconstructionApplied: false,
+      reconstructionRemovedPixels: 0,
+      resolutionEnhanced,
+      originalSourceWidth: Number(asset.sourceWidth || info.width),
+      originalSourceHeight: Number(asset.sourceHeight || info.height),
+      qualityWidth: outputWidth,
+      qualityHeight: outputHeight,
+      afterStructure,
+      internalBackgroundOk,
+      whiteHaloOk,
+      thinStructureDamageOk,
+      safe,
+      reason
+    }
+  };
+}
+
+async function repairFanProductWithSegmentationMask(
+  asset,
+  referenceBuffer,
+  referenceSource = ''
+) {
+  if (!referenceBuffer || !referenceSource) return null;
+
+  const maskBuffer = await fetchCloudinaryFanMask(referenceSource);
+  if (!maskBuffer) return null;
+
+  try {
+    const original = sharp(referenceBuffer, { failOn: 'none' })
+      .rotate()
+      .ensureAlpha();
+    const { data: raw, info } = await original.raw().toBuffer({ resolveWithObject: true });
+    const background = estimateLightBackground(raw, info);
+    const limits = fanCutoutThresholds(background);
+    if (!limits.eligible) return null;
+
+    const maskImage = sharp(maskBuffer, { failOn: 'none' })
+      .rotate()
+      .resize(info.width, info.height, {
+        fit: 'fill',
+        kernel: sharp.kernel.nearest
+      })
+      .ensureAlpha();
+    const { data: mask, info: maskInfo } =
+      await maskImage.raw().toBuffer({ resolveWithObject: true });
+
+    if (
+      maskInfo.width !== info.width ||
+      maskInfo.height !== info.height
+    ) return null;
+
+    const total = info.width * info.height;
+    const data = Buffer.from(raw);
+    let removedPixels = 0;
+    let partialPixels = 0;
+
+    for (let i = 0; i < total; i += 1) {
+      const p = i * info.channels;
+      const mp = i * maskInfo.channels;
+      const sourceAlpha = raw[p + 3];
+      let alpha = Math.min(sourceAlpha, mask[mp + 3]);
+
+      if (alpha <= 14) alpha = 0;
+      else if (alpha >= 244) alpha = 255;
+
+      if (alpha < 24 && sourceAlpha >= 24) removedPixels += 1;
+      else if (alpha < 224 && sourceAlpha >= 224) partialPixels += 1;
+
+      data[p + 3] = alpha;
+      if (alpha >= 24 && alpha < 248) {
+        unmatteFanPixel(data, p, background, alpha);
+      }
+    }
+
+    const result = await finalizeFanCutout({
+      asset,
+      data,
+      info,
+      background,
+      limits,
+      removalMode: 'fan_cloudinary_segmentation_mask',
+      provider: 'cloudinary_background_removal',
+      removedPixels,
+      partialPixels
+    });
+
+    return result.cutoutSafe ? result : null;
+  } catch {
+    return null;
+  }
+}
+
+async function repairFanProductFromReference(asset, referenceBuffer, referenceSource = '') {
   if (!referenceBuffer) return null;
+
+  const segmented = await repairFanProductWithSegmentationMask(
+    asset,
+    referenceBuffer,
+    referenceSource
+  );
+  if (segmented) return segmented;
 
   let source;
   try {
@@ -1095,7 +1385,12 @@ function resultWithoutRepair(asset, difficultProduct, reason = 'not_required') {
   };
 }
 
-export async function repairCreativeProductCutout(asset = {}, productText = '', referenceBuffer = null) {
+export async function repairCreativeProductCutout(
+  asset = {},
+  productText = '',
+  referenceBuffer = null,
+  referenceSource = ''
+) {
   if (!asset?.buffer) return asset;
 
   const difficultProduct = isDifficultProduct(productText);
@@ -1103,7 +1398,11 @@ export async function repairCreativeProductCutout(asset = {}, productText = '', 
   // Ventiladores usam sempre os pixels da foto original. Nada de reconstrução
   // generativa: isso preserva nitidez, marca, pás, grade, haste e base reais.
   if (isFanProduct(productText) && referenceBuffer) {
-    const fanRepair = await repairFanProductFromReference(asset, referenceBuffer);
+    const fanRepair = await repairFanProductFromReference(
+      asset,
+      referenceBuffer,
+      referenceSource
+    );
     if (fanRepair) return fanRepair;
   }
 
