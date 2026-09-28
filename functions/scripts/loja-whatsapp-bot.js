@@ -11779,9 +11779,9 @@ async function handleWebhook(payload) {
         name: incoming.pushName,
         metadata: {
           assunto: 'vencimento_do_dia',
-          contextoCobranca: false,
+          contextoCobranca: true,
           lembreteAutomatico: true,
-          lembreteStateless: true,
+          lembreteStateless: false,
           gustavoRespondePelaMensagemAtual: true
         }
       });
@@ -11790,8 +11790,8 @@ async function handleWebhook(payload) {
         ok: true,
         dailyDueReminder: true,
         skipLegacy: true,
-        stateless: true,
-        contextHours: 0
+        stateless: false,
+        contextHours: Math.round(DAILY_DUE_CONTEXT_TTL_MS / 3600000)
       };
     }
 
@@ -11836,9 +11836,11 @@ async function handleWebhook(payload) {
     return { ignored: 'manual_human_mode' };
   }
 
-  // O lembrete de vencimento não cria memória. Cada mensagem é roteada
-  // pelo conteúdo atual: financeiro, produto, saudação, comprovante etc.
-  clearDailyDueCollectionContext(conv);
+  // Mantém o contexto do lembrete recente. O próprio fluxo financeiro
+  // libera o contexto quando o cliente inicia claramente outro assunto.
+  if (conv.dailyDueContextUntil && Date.now() >= Number(conv.dailyDueContextUntil)) {
+    clearDailyDueCollectionContext(conv);
+  }
 
   const supplierInbound = await handleSupplierInbound(incoming, conv);
   if (supplierInbound.handled) {
