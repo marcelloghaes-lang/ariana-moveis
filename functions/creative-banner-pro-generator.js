@@ -1605,6 +1605,31 @@ function multiProductSlots(format, count = 2) {
   const mobile = format.device === 'mobile';
 
   if (mobile) {
+    if (format.id === 'square') {
+      if (n === 2) return [
+        { x:.22, y:.43, w:.32, h:.34 },
+        { x:.52, y:.43, w:.32, h:.34 }
+      ];
+      if (n === 3) return [
+        { x:.35, y:.39, w:.31, h:.39 },
+        { x:.11, y:.49, w:.25, h:.28 },
+        { x:.66, y:.50, w:.23, h:.27 }
+      ];
+      if (n === 4) return [
+        { x:.07, y:.50, w:.22, h:.26 },
+        { x:.26, y:.42, w:.25, h:.34 },
+        { x:.49, y:.42, w:.25, h:.34 },
+        { x:.71, y:.50, w:.22, h:.26 }
+      ];
+      return [
+        { x:.05, y:.52, w:.19, h:.24 },
+        { x:.20, y:.46, w:.22, h:.30 },
+        { x:.39, y:.40, w:.25, h:.36 },
+        { x:.61, y:.46, w:.22, h:.30 },
+        { x:.77, y:.52, w:.18, h:.24 }
+      ];
+    }
+
     if (n === 2) return [
       { x:.16, y:.38, w:.34, h:.36 },
       { x:.50, y:.38, w:.34, h:.36 }
@@ -1698,6 +1723,45 @@ function multiCampaignOverlay(format, opts, count = 2) {
   const installment = clamp(Number(opts.installmentCount || 12), 1, 24);
   const coupon = clean(opts.couponText || '', 26);
   const showCommercialInfo = opts.showCommercialInfo === true;
+
+  if (mobile && format.id === 'square') {
+    const w = format.width;
+    const h = format.height;
+    const x = Math.round(w*.075);
+    const textW = Math.round(w*.62);
+    const titleFs = Math.round(w * (headline.length > 42 ? .044 : headline.length > 30 ? .049 : .054));
+    const titleLines = wrap(headline, Math.max(19, Math.floor(textW / Math.max(1,titleFs*.54))), 2);
+    const titleY = Math.round(h*.195);
+    const titleLineHeight = Math.round(titleFs*1.03);
+    const supportFs = Math.round(w*.022);
+    const supportY = titleY + Math.max(0,titleLines.length-1)*titleLineHeight + Math.round(h*.068);
+    const infoY = Math.round(h*.842);
+
+    return Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+      (topLabel
+        ? '<text x="'+x+'" y="'+Math.round(h*.135)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.020)+'" font-weight="900" letter-spacing="2.2" fill="'+accent+'">'+escapeXml(topLabel)+'</text>'
+        : '')+
+      linesSvg(titleLines,{
+        x,
+        y:titleY,
+        size:titleFs,
+        lineHeight:titleLineHeight,
+        fill:'#ffffff',
+        weight:950,
+        anchor:'start',
+        letterSpacing:-0.4
+      })+
+      '<text x="'+x+'" y="'+supportY+'" font-family="Arial,Helvetica,sans-serif" font-size="'+supportFs+'" font-weight="700" fill="#ffffff" opacity="'+supportOpacity+'">'+escapeXml(support)+'</text>'+
+      (coupon
+        ? '<text x="'+x+'" y="'+Math.round(h*.335)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.019)+'" font-weight="850" fill="#ffffff">USE O CUPOM</text>'+
+          '<text x="'+x+'" y="'+Math.round(h*.380)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.034)+'" font-weight="950" fill="'+accent+'">'+escapeXml(coupon)+'</text>'
+        : '')+
+      '<line x1="'+x+'" y1="'+Math.round(infoY-h*.020)+'" x2="'+Math.round(x+textW*.72)+'" y2="'+Math.round(infoY-h*.020)+'" stroke="'+accent+'" stroke-opacity=".72" stroke-width="2"/>'+
+      '<text x="'+x+'" y="'+Math.round(infoY+h*.025)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.020)+'" font-weight="900" letter-spacing="1.0" fill="#ffffff">'+escapeXml(cta)+' →</text>'+
+      '</svg>'
+    );
+  }
 
   if (mobile) {
     const w = format.width;
