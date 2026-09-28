@@ -11,7 +11,8 @@ const DEFAULT_VALIDATION_MODEL = String(
 ).trim();
 const CACHE_TTL_MS = Number(process.env.CREATIVE_REBUILD_CACHE_TTL_MS || 6 * 60 * 60 * 1000);
 const CACHE_LIMIT = Number(process.env.CREATIVE_REBUILD_CACHE_LIMIT || 40);
-const PROMPT_VERSION = 'ariana-product-rebuild/v1';
+const PROMPT_VERSION = 'ariana-product-rebuild/v2';
+const DEFAULT_IMAGE_QUALITY = String(process.env.CREATIVE_REBUILD_QUALITY || 'medium').trim();
 
 export const DIFFICULT_PRODUCT_PATTERN =
   /(ventilador|fan\b|cadeira|banqueta|cesto|fruteira|grade|grelha|ripa|ripado|aramad|treli[cç]a|tela\b|estrutura\s+vazada|vazad[oa])/i;
@@ -100,12 +101,9 @@ async function prepareReferencePng(buffer) {
   const meta = await source.metadata();
   const width = Number(meta.width || 0);
   const height = Number(meta.height || 0);
-  const outputSize =
-    height > width * 1.22
-      ? '1024x1536'
-      : width > height * 1.22
-        ? '1536x1024'
-        : '1024x1024';
+  // Saída quadrada reduz latência e custo; o produto é aparado depois,
+  // então a proporção final continua vindo do próprio produto.
+  const outputSize = '1024x1024';
 
   const png = await source
     .resize({
@@ -147,7 +145,8 @@ async function callImageEdit(reference, productText, {
   fetchImpl = fetch,
   apiKey = String(process.env.OPENAI_API_KEY || '').trim(),
   imageModel = DEFAULT_IMAGE_MODEL,
-  timeoutMs = Number(process.env.CREATIVE_REBUILD_TIMEOUT_MS || 115000)
+  imageQuality = DEFAULT_IMAGE_QUALITY,
+  timeoutMs = Number(process.env.CREATIVE_REBUILD_TIMEOUT_MS || 85000)
 } = {}) {
   if (!apiKey) throw new Error('creative_rebuild_openai_key_missing');
 
@@ -156,7 +155,8 @@ async function callImageEdit(reference, productText, {
   form.append('prompt', buildProductRebuildPrompt(productText));
   form.append('background', 'transparent');
   form.append('output_format', 'png');
-  form.append('quality', 'high');
+  form.append('quality', imageQuality);
+  form.append('input_fidelity', 'high');
   form.append('size', reference.outputSize);
   form.append(
     'image[]',
@@ -396,7 +396,8 @@ export async function rebuildCreativeProductFromReference({
   fetchImpl = fetch,
   apiKey = String(process.env.OPENAI_API_KEY || '').trim(),
   imageModel = DEFAULT_IMAGE_MODEL,
-  validationModel = DEFAULT_VALIDATION_MODEL
+  validationModel = DEFAULT_VALIDATION_MODEL,
+  perform = true
 } = {}) {
   const eligibility = shouldRebuildCreativeProduct(asset, productText);
 
@@ -434,6 +435,22 @@ export async function rebuildCreativeProductFromReference({
     return failedAsset(asset, eligibility, true, 'ai_rebuild_not_configured');
   }
 
+  if (!perform) {
+    return {
+      ...asset,
+      rebuildMetrics: {
+        enabled: true,
+        required: true,
+        pending: true,
+        difficultProduct: eligibility.difficult,
+        eligibilityReason: eligibility.reason,
+        attempted: false,
+        safe: false,
+        reason: 'ai_rebuild_pending'
+      }
+    };
+  }
+
   if (!referenceBuffer) {
     return failedAsset(asset, eligibility, true, 'ai_rebuild_reference_missing');
   }
@@ -466,7 +483,8 @@ export async function rebuildCreativeProductFromReference({
       const generated = await callImageEdit(reference, productText, {
         fetchImpl,
         apiKey,
-        imageModel
+        imageModel,
+        imageQuality: DEFAULT_IMAGE_QUALITY
       });
       const output = await inspectTransparentOutput(generated.buffer);
       if (!output.safe) {
@@ -522,6 +540,7 @@ export async function rebuildCreativeProductFromReference({
           reason: 'ok',
           model: generated.model,
           validationModel: validation.model,
+          imageQuality: DEFAULT_IMAGE_QUALITY,
           validation,
           transparentRatio: output.transparentRatio,
           opaqueRatio: output.opaqueRatio,
@@ -609,6 +628,7 @@ export function getCreativeProductRebuildStatus() {
     enabled: enabledFromEnv(),
     imageModel: DEFAULT_IMAGE_MODEL,
     validationModel: DEFAULT_VALIDATION_MODEL,
+    imageQuality: DEFAULT_IMAGE_QUALITY,
     configured: Boolean(String(process.env.OPENAI_API_KEY || '').trim()),
     cacheSize: cache.size,
     promptVersion: PROMPT_VERSION
