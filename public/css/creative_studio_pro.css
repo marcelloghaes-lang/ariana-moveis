@@ -121,6 +121,14 @@ button,a{touch-action:manipulation}
 .template-preview.campaign i:nth-child(1){position:absolute;width:38%;height:10%;left:7%;top:19%;border-radius:6px;background:#fff}
 .template-preview.campaign i:nth-child(2){position:absolute;width:48%;height:20%;left:7%;top:39%;border-radius:5px;background:#ffffffcc}
 .template-preview.campaign i:nth-child(3){position:absolute;width:23%;height:15%;left:7%;bottom:8%;border-radius:999px;background:#ffd51b}
+.template-tools{margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.template-tools small{flex:1;min-width:220px;color:#6d7c90;font-size:10px;line-height:1.45}
+.template-download-button{
+  border:1px solid #bcd0e9;background:#f7fbff;color:#0a356d;border-radius:12px;padding:11px 14px;
+  font-weight:900;font-size:11px;cursor:pointer;box-shadow:0 4px 12px #1028440d;
+}
+.template-download-button:hover{background:#eef6ff;border-color:#8fb5e3}
+.template-download-button:disabled{opacity:.55;cursor:not-allowed}
 .fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .field{display:flex;flex-direction:column;gap:6px}
 .field.full,.upload.full,.inline-status.full{grid-column:1/-1}

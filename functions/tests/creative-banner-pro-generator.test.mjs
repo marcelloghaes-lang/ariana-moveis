@@ -8,7 +8,8 @@ import {
   generateCreativeBannerProMulti,
   prepareOfficialLogoAsset,
   resolveProFormat,
-  resolveProTemplate
+  resolveProTemplate,
+  getProTemplateManifest
 } from '../creative-banner-pro-generator.js';
 
 function svgData(svg) {
@@ -82,6 +83,19 @@ test('resolve formatos e templates com fallback seguro', () => {
   assert.equal(resolveProFormat('inexistente').id, 'hero_desktop');
   assert.equal(resolveProTemplate('premium'), 'premium');
   assert.equal(resolveProTemplate('inexistente'), 'marketplace');
+});
+
+test('manifesto de template mantém regras obrigatórias para novos modelos', () => {
+  const manifest = getProTemplateManifest('premium');
+  assert.equal(manifest.schemaVersion, 'ariana-creative-template/v1');
+  assert.equal(manifest.id, 'premium');
+  assert.equal(manifest.renderer, 'premium');
+  assert.equal(manifest.rules.manualCopyAuthority, 'editor_nonempty_wins');
+  assert.equal(manifest.rules.aiCreativeDirection, true);
+  assert.deepEqual(manifest.rules.copyFields, ['badge','headline','subtitle','cta']);
+  assert.equal(manifest.rules.commerce.autoPrice, false);
+  assert.equal(manifest.rules.qualityGate.blockFinalSaveOnCriticalFailure, true);
+  assert.ok(manifest.supportedFormats.some(item => item.id === 'square'));
 });
 
 test('remove fundo branco conectado sem apagar branco interno do produto', async () => {
@@ -367,6 +381,51 @@ test('campanha multi-produto analisa 4 itens e libera quando todos estão ínteg
   assert.equal(analysis.productCount, 4);
   assert.equal(analysis.quality.blockSave, false);
   assert.equal(analysis.products.every(item => item.cutoutSafe), true);
+});
+
+test('multi-produto respeita os três templates e gera composições diferentes', async () => {
+  const buffers = [];
+  for (const template of ['marketplace','premium','campaign']) {
+    const result = await generateCreativeBannerProMulti(
+      [MULTI_TV, MULTI_FRIDGE, MULTI_WASHER],
+      {
+        outputFormat: 'hero_desktop',
+        templatePro: template,
+        headline: 'SELEÇÃO ESPECIAL',
+        subtitle: 'Escolhas para diferentes momentos.',
+        badge: 'ARIANA',
+        cta: 'CONFIRA'
+      }
+    );
+    assert.equal(result.meta.template, template);
+    buffers.push(result.buffer);
+  }
+
+  assert.notDeepEqual(buffers[0], buffers[1]);
+  assert.notDeepEqual(buffers[1], buffers[2]);
+  assert.notDeepEqual(buffers[0], buffers[2]);
+});
+
+test('Hero Mobile e Card Quadrado usam composições multi-produto diferentes', async () => {
+  const base = {
+    templatePro: 'campaign',
+    headline: 'SELEÇÃO ESPECIAL',
+    subtitle: 'Escolhas para diferentes momentos.',
+    badge: 'ARIANA',
+    cta: 'CONFIRA'
+  };
+  const hero = await generateCreativeBannerProMulti(
+    [MULTI_TV, MULTI_FRIDGE, MULTI_WASHER],
+    { ...base, outputFormat:'hero_mobile' }
+  );
+  const square = await generateCreativeBannerProMulti(
+    [MULTI_TV, MULTI_FRIDGE, MULTI_WASHER],
+    { ...base, outputFormat:'square' }
+  );
+
+  assert.equal(hero.meta.format.id, 'hero_mobile');
+  assert.equal(square.meta.format.id, 'square');
+  assert.notDeepEqual(hero.buffer, square.buffer);
 });
 
 test('campanha multi-produto gera desktop e mobile nas dimensões oficiais', async () => {

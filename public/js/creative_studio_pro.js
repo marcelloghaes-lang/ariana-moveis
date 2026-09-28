@@ -153,11 +153,6 @@
     els.singleProductFields?.classList.toggle('hidden', multi);
 
     if (multi) {
-      const campaign = document.querySelector('input[name="template-pro"][value="campaign"]');
-      if (campaign) {
-        campaign.checked = true;
-        updateChoiceCards();
-      }
       setCopyValues({
         badge:'SELEÇÃO ARIANA',
         headline:'GRANDES MARCAS PARA SUA CASA',
@@ -513,9 +508,15 @@
   }
 
   function copyResearchSignature(rows = []) {
-    return rows
+    const productSignature = rows
       .map(item => [item.id,item.name,item.brand,item.category,item.imageUrl].map(normalize).join(':'))
       .join('|');
+    const creativeContext = [
+      selectedFormat(),
+      selectedTemplate(),
+      contentMode
+    ].map(normalize).join(':');
+    return creativeContext + '::' + productSignature;
   }
 
   async function applyInternetCampaignCopy() {
@@ -535,7 +536,14 @@
     try {
       const result = await api('/admin/creative-studio/pro/research-copy', {
         method:'POST',
-        body:JSON.stringify({ products: rows })
+        body:JSON.stringify({
+          products: rows,
+          context: {
+            format: selectedFormat(),
+            template: selectedTemplate(),
+            contentMode
+          }
+        })
       });
       if (!result?.copy) return { applied:false, reason:'no_copy' };
 
@@ -639,8 +647,6 @@
       applyMode('multi_product');
       configureAutoHeroCopy(selectedProducts);
 
-      const campaign = document.querySelector('input[name="template-pro"][value="campaign"]');
-      if (campaign) campaign.checked = true;
       updateChoiceCards();
       renderHeroSlots();
 
@@ -1020,7 +1026,7 @@
         product: first,
         options: {
           outputFormat: selectedFormat(),
-          templatePro: 'campaign',
+          templatePro: selectedTemplate(),
           contentMode: 'multi_product',
           showPrice: false,
           headline: manualCopy.headline,
@@ -1224,6 +1230,41 @@
     }
   }
 
+  async function downloadSelectedTemplate() {
+    const button = els.downloadTemplateButton;
+    const templateId = selectedTemplate();
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Preparando template...';
+    }
+
+    try {
+      const manifest = await api('/admin/creative-studio/pro/templates/' + encodeURIComponent(templateId));
+      const exported = {
+        ...manifest,
+        exportedAt: new Date().toISOString(),
+        source: 'Ariana Creative Studio Pro'
+      };
+      const blob = new Blob([JSON.stringify(exported, null, 2)], { type:'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'ariana-template-' + templateId + '.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      status('Template "' + (manifest.label || templateId) + '" baixado com as regras do Creative Studio.', 'ok');
+    } catch (error) {
+      status('Falha ao baixar o template: ' + error.message, 'error');
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = 'Baixar template selecionado';
+      }
+    }
+  }
+
   function isInstalledApp() {
     return window.matchMedia?.('(display-mode: standalone)')?.matches === true
       || window.navigator.standalone === true;
@@ -1314,8 +1355,20 @@
       });
     });
 
-    document.querySelectorAll('input[name="format"]').forEach(input => input.addEventListener('change',updateChoiceCards));
-    document.querySelectorAll('input[name="template-pro"]').forEach(input => input.addEventListener('change',updateChoiceCards));
+    document.querySelectorAll('input[name="format"]').forEach(input => input.addEventListener('change',() => {
+      updateChoiceCards();
+      lastCopyResearchSignature = '';
+      qualityAllowsSave = false;
+      els.saveButton.disabled = true;
+      status('Formato alterado. A IA vai recalcular a direção e os textos na próxima prévia.', 'ok');
+    }));
+    document.querySelectorAll('input[name="template-pro"]').forEach(input => input.addEventListener('change',() => {
+      updateChoiceCards();
+      lastCopyResearchSignature = '';
+      qualityAllowsSave = false;
+      els.saveButton.disabled = true;
+      status('Template alterado. A próxima prévia usará este modelo e a IA vai adaptar a campanha.', 'ok');
+    }));
     document.querySelectorAll('#content-mode button').forEach(button => button.addEventListener('click',() => applyMode(button.dataset.mode)));
 
     els.fullPrice.addEventListener('input',() => {
@@ -1331,11 +1384,13 @@
 
     els.previewButton.addEventListener('click',generatePreview);
     els.saveButton.addEventListener('click',saveHighResolution);
+    els.downloadTemplateButton?.addEventListener('click',downloadSelectedTemplate);
   }
 
   function start() {
     Object.assign(els,{
       installAppButton:byId('install-app-button'),
+      downloadTemplateButton:byId('download-template-button'),
       autoHeroButton:byId('auto-hero-button'),
       productSearch:byId('product-search'),
       productSearchLabel:byId('product-search-label'),

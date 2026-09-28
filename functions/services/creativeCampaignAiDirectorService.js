@@ -43,6 +43,37 @@ function safeProducts(products = []) {
     }));
 }
 
+function safeCreativeContext(input = {}) {
+  const formats = new Set(['hero_desktop','hero_mobile','secondary_desktop','secondary_mobile','square']);
+  const templates = new Set(['marketplace','premium','campaign']);
+  const modes = new Set(['with_price','no_price','institutional','multi_product']);
+  const format = formats.has(String(input?.format || '').trim()) ? String(input.format).trim() : 'hero_desktop';
+  const template = templates.has(String(input?.template || '').trim()) ? String(input.template).trim() : 'marketplace';
+  const contentMode = modes.has(String(input?.contentMode || '').trim()) ? String(input.contentMode).trim() : 'multi_product';
+
+  const formatLabels = {
+    hero_desktop: 'Hero Desktop 1920x480',
+    hero_mobile: 'Hero Mobile 1080x1080',
+    secondary_desktop: 'Secundário Desktop 1600x400',
+    secondary_mobile: 'Secundário Mobile 1080x720',
+    square: 'Card Quadrado 1080x1080'
+  };
+
+  const templateLabels = {
+    marketplace: 'Marketplace Impacto',
+    premium: 'Premium Ariana',
+    campaign: 'Campanha Forte'
+  };
+
+  return {
+    format,
+    formatLabel: formatLabels[format],
+    template,
+    templateLabel: templateLabels[template],
+    contentMode
+  };
+}
+
 function containsForbiddenCommerce(value = '') {
   return /(?:\br\$|\bpix\b|\b\d{1,2}x\b|\b\d{1,2}\s*%|sem\s+juros|frete\s+gr[aá]tis|desconto\s+de\s+\d)/i.test(String(value || ''));
 }
@@ -301,8 +332,9 @@ const DIRECTION_SCHEMA = {
   }
 };
 
-export function buildAiDirectorRequest(products = [], now = new Date()) {
+export function buildAiDirectorRequest(products = [], now = new Date(), creativeContext = {}) {
   const rows = safeProducts(products);
+  const context = safeCreativeContext(creativeContext);
   const images = rows
     .filter(item => /^https?:\/\//i.test(item.imageUrl))
     .slice(0, 3)
@@ -328,6 +360,9 @@ export function buildAiDirectorRequest(products = [], now = new Date()) {
     'A saída deve ser original para Ariana Móveis.',
     'Nunca invente nem inclua preço, percentual, PIX, parcelamento, frete ou desconto se isso não estiver explicitamente autorizado.',
     'O banner terá texto à esquerda e produtos à direita. Escolha qual produto deve ser o herói visual pelo impacto da foto.',
+    'A composição alvo desta chamada é: ' + context.formatLabel + ', usando o template ' + context.templateLabel + ' e o modo ' + context.contentMode + '.',
+    'Adapte o tamanho e a concisão da copy ao formato: telas quadradas/mobile aceitam título curto e legível; faixas desktop devem ser ainda mais diretas.',
+    'O template escolhido deve influenciar o tom: Marketplace Impacto = varejo direto; Premium Ariana = linguagem elegante e sóbria; Campanha Forte = energia promocional sem inventar condições comerciais.',
     'Evite frases genéricas quebradas como "Campanha escolhidos para sua casa". Escreva português natural, comercial e curto.',
     'A categoria visual reconhecida nas fotos é a referência principal para a copy. Se as imagens mostram claramente uma categoria, não use copy institucional genérica.',
     'Quando a categoria for áudio/som/caixas de som, use vocabulário específico como som, potência, música, conectividade, entretenimento, energia e momentos.',
@@ -340,6 +375,9 @@ export function buildAiDirectorRequest(products = [], now = new Date()) {
   const userText = [
     'Analise os produtos abaixo e as imagens anexadas.',
     'Depois pesquise como banners hero atuais dessa categoria estão sendo construídos e proponha uma direção original para a Ariana.',
+    'Formato alvo: ' + context.formatLabel + '.',
+    'Template alvo: ' + context.templateLabel + '.',
+    'Modo: ' + context.contentMode + '.',
     'Catálogo:',
     JSON.stringify(catalog)
   ].join('\n');
@@ -375,7 +413,7 @@ export function buildAiDirectorRequest(products = [], now = new Date()) {
   };
 }
 
-async function callCreativeAi(products = []) {
+async function callCreativeAi(products = [], creativeContext = {}) {
   const key = String(process.env.OPENAI_API_KEY || '').trim();
   if (!key) return null;
 
@@ -385,7 +423,7 @@ async function callCreativeAi(products = []) {
       'Authorization': 'Bearer ' + key,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(buildAiDirectorRequest(products)),
+    body: JSON.stringify(buildAiDirectorRequest(products, new Date(), creativeContext)),
     signal: AbortSignal.timeout(Number(process.env.CREATIVE_AI_TIMEOUT_MS || 20000))
   });
 
@@ -421,8 +459,9 @@ export function categorySpecificFallback(fallback = {}, rows = []) {
   };
 }
 
-export async function researchCreativeCampaignWithAi(products = []) {
+export async function researchCreativeCampaignWithAi(products = [], creativeContext = {}) {
   const rows = safeProducts(products);
+  const context = safeCreativeContext(creativeContext);
 
   if (!String(process.env.OPENAI_API_KEY || '').trim()) {
     const rawFallback = await researchCreativeCampaignCopy(rows);
@@ -438,12 +477,13 @@ export async function researchCreativeCampaignWithAi(products = []) {
         heroProductIndex: 0,
         textSide: 'left'
       },
+      creativeContext: context,
       referenceDomains: (fallback.sources || []).map(item => item.domain).filter(Boolean)
     };
   }
 
   try {
-    const ai = await callCreativeAi(rows);
+    const ai = await callCreativeAi(rows, context);
     if (!ai) throw new Error('creative_ai_not_configured');
 
     const safe = sanitizeAiCreativeDirection(ai.parsed, rows, {});
@@ -457,6 +497,7 @@ export async function researchCreativeCampaignWithAi(products = []) {
       engine: 'ai_vision_web',
       aiConfigured: true,
       model: ai.model,
+      creativeContext: context,
       ...safe
     };
   } catch (error) {
@@ -468,6 +509,7 @@ export async function researchCreativeCampaignWithAi(products = []) {
       engine: 'rules_fallback',
       aiConfigured: true,
       aiFallbackReason: String(error?.message || 'creative_ai_failed').slice(0, 120),
+      creativeContext: context,
       direction: {
         preset: 'category',
         mood: 'institutional',
