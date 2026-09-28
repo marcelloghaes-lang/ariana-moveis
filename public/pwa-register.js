@@ -106,7 +106,7 @@
 
       const isLegacySharedWorker =
         scopePath === '/' &&
-        ['service-worker.js', 'sw.js'].includes(workerName);
+        ['service-worker.js', 'sw.js', 'erp-sw.js'].includes(workerName);
 
       if (isLegacySharedWorker) {
         await registration.unregister();
