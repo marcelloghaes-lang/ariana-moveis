@@ -11,7 +11,7 @@ const DEFAULT_VALIDATION_MODEL = String(
 ).trim();
 const CACHE_TTL_MS = Number(process.env.CREATIVE_REBUILD_CACHE_TTL_MS || 6 * 60 * 60 * 1000);
 const CACHE_LIMIT = Number(process.env.CREATIVE_REBUILD_CACHE_LIMIT || 40);
-const PROMPT_VERSION = 'ariana-product-rebuild/v2';
+const PROMPT_VERSION = 'ariana-product-rebuild/v3-master-cutout';
 const DEFAULT_IMAGE_QUALITY = String(process.env.CREATIVE_REBUILD_QUALITY || 'medium').trim();
 
 export const DIFFICULT_PRODUCT_PATTERN =
@@ -123,9 +123,9 @@ async function prepareReferencePng(buffer) {
   };
 }
 
-export function buildProductRebuildPrompt(productText = '') {
+export function buildProductRebuildPrompt(productText = '', { masterRepair = false } = {}) {
   const label = clean(productText, 180) || 'produto';
-  return [
+  const lines = [
     'Use a imagem enviada como referência visual obrigatória do mesmo produto: ' + label + '.',
     'Reconstrua uma fotografia de catálogo extremamente fiel ao produto real da referência.',
     'Mantenha exatamente a silhueta, proporções, cor, quantidade e posição das partes, formato da base, pés, hastes, grades, ripas, pás, cestos, braços e demais elementos visíveis.',
@@ -136,9 +136,21 @@ export function buildProductRebuildPrompt(productText = '') {
     'Toda área fisicamente vazada deve ficar transparente: espaços entre grades, arames, ripas, pernas, pés, base e haste.',
     'Não deixe branco, cinza ou qualquer preenchimento preso dentro dos vazados.',
     'Bordas limpas e naturais, sem halo branco, sem serrilhado e sem aparência de recorte.',
-    'Não adicione chão, sombra projetada, pedestal extra, texto publicitário, moldura ou cenário.',
-    'Resultado final: packshot fotográfico realista do MESMO produto em PNG transparente.'
-  ].join('\n');
+    'Não adicione chão, sombra projetada, pedestal extra, texto publicitário, moldura ou cenário.'
+  ];
+
+  if (masterRepair) {
+    lines.push(
+      'Esta reconstrução será usada como IMAGEM MESTRE de catálogo e precisa substituir um recorte automático defeituoso.',
+      'Se o produto real for branco, prata, cinza-claro ou tiver superfícies claras, essas superfícies pertencentes ao produto devem permanecer totalmente sólidas e opacas.',
+      'Não transforme superfícies claras do produto em transparência e não abra buracos no corpo de lavadoras, geladeiras, fogões, freezers, móveis ou eletrodomésticos.',
+      'Só deve existir transparência fora da silhueta física do produto ou em vazados reais que existem de verdade no objeto.',
+      'Recupere bordas, painéis e superfícies que tenham sido confundidos com o fundo, usando a própria geometria visível da referência, sem inventar um modelo diferente.'
+    );
+  }
+
+  lines.push('Resultado final: packshot fotográfico realista do MESMO produto em PNG transparente.');
+  return lines.join('\n');
 }
 
 async function callImageEdit(reference, productText, {
@@ -146,13 +158,14 @@ async function callImageEdit(reference, productText, {
   apiKey = String(process.env.OPENAI_API_KEY || '').trim(),
   imageModel = DEFAULT_IMAGE_MODEL,
   imageQuality = DEFAULT_IMAGE_QUALITY,
+  masterRepair = false,
   timeoutMs = Number(process.env.CREATIVE_REBUILD_TIMEOUT_MS || 85000)
 } = {}) {
   if (!apiKey) throw new Error('creative_rebuild_openai_key_missing');
 
   const form = new FormData();
   form.append('model', imageModel);
-  form.append('prompt', buildProductRebuildPrompt(productText));
+  form.append('prompt', buildProductRebuildPrompt(productText, { masterRepair }));
   form.append('background', 'transparent');
   form.append('output_format', 'png');
   form.append('quality', imageQuality);
@@ -401,9 +414,17 @@ export async function rebuildCreativeProductFromReference({
   apiKey = String(process.env.OPENAI_API_KEY || '').trim(),
   imageModel = DEFAULT_IMAGE_MODEL,
   validationModel = DEFAULT_VALIDATION_MODEL,
-  perform = true
+  perform = true,
+  force = false
 } = {}) {
-  const eligibility = shouldRebuildCreativeProduct(asset, productText);
+  const detectedEligibility = shouldRebuildCreativeProduct(asset, productText);
+  const eligibility = force
+    ? {
+        required: true,
+        difficult: detectedEligibility.difficult,
+        reason: 'forced_master_repair'
+      }
+    : detectedEligibility;
 
   if (!eligibility.required) {
     return {
@@ -477,6 +498,7 @@ export async function rebuildCreativeProductFromReference({
     .update(imageModel)
     .update(validationModel)
     .update(productText)
+    .update(force ? 'forced-master-repair' : 'automatic-rebuild')
     .update(reference.buffer)
     .digest('hex');
 
@@ -499,7 +521,8 @@ export async function rebuildCreativeProductFromReference({
         fetchImpl,
         apiKey,
         imageModel,
-        imageQuality: DEFAULT_IMAGE_QUALITY
+        imageQuality: DEFAULT_IMAGE_QUALITY,
+        masterRepair: force
       });
       const output = await inspectTransparentOutput(generated.buffer);
       if (!output.safe) {
