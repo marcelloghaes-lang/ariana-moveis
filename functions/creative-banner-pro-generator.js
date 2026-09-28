@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import sharp from 'sharp';
 import { repairCreativeProductCutout } from './services/creativeProductCutoutRepairService.js';
+// Recorte Pro: máscara/qualidade permanecem isoladas no serviço de recorte.
 // Recorte Pro: a implementação fica isolada no serviço; o renderer apenas consome o PNG validado.
 
 const __filename = fileURLToPath(import.meta.url);
