@@ -5,7 +5,8 @@ import {
   analyzeCreativeBannerPro,
   generateCreativeBannerProMulti,
   analyzeCreativeBannerProMulti,
-  resolveProFormat
+  resolveProFormat,
+  getProTemplateManifest
 } from '../creative-banner-pro-generator.js';
 import { researchCreativeCampaignWithAi } from '../services/creativeCampaignAiDirectorService.js';
 
@@ -969,12 +970,34 @@ app.get('/api/creative-studio/pro/ai-status', (_req, res) => {
   });
 });
 
+app.get('/api/admin/creative-studio/pro/templates/:templateId', adminRequired, (req, res) => {
+  try {
+    const manifest = getProTemplateManifest(req.params?.templateId || '');
+    res.set({
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store, max-age=0',
+      'Content-Disposition': `attachment; filename="ariana-template-${manifest.id}.json"`
+    });
+    return res.json(manifest);
+  } catch (error) {
+    return res.status(400).json({
+      ok: false,
+      error: error.message || 'creative_template_export_failed'
+    });
+  }
+});
+
 app.post('/api/admin/creative-studio/pro/research-copy', adminRequired, async (req, res) => {
   try {
     const products = Array.isArray(req.body?.products)
       ? req.body.products.filter(Boolean).slice(0, 5)
       : (req.body?.product ? [req.body.product] : []);
-    const result = await researchCreativeCampaignWithAi(products);
+    const context = {
+      format: req.body?.context?.format,
+      template: req.body?.context?.template,
+      contentMode: req.body?.context?.contentMode
+    };
+    const result = await researchCreativeCampaignWithAi(products, context);
     return res.json(result);
   } catch (error) {
     console.error('[creative-studio-pro] erro ao pesquisar campanha:', error);
