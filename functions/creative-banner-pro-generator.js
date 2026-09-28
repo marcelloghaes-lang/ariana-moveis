@@ -1386,7 +1386,13 @@ function fallbackPanelSvg(format, comp, template) {
 
 function quality(asset, opts, format, brandAsset = null, campaignBrandAsset = null) {
   const cutoutOk = Boolean(asset.backgroundRemoved && asset.cutoutSafe !== false);
-  const resolutionOk = Math.max(asset.sourceWidth, asset.sourceHeight) >= 700;
+  const resolutionLongEdge = asset.repairMetrics?.resolutionEnhanced
+    ? Math.max(
+        Number(asset.qualityWidth || asset.width || 0),
+        Number(asset.qualityHeight || asset.height || 0)
+      )
+    : Math.max(asset.sourceWidth, asset.sourceHeight);
+  const resolutionOk = resolutionLongEdge >= 700;
   const brandOk = Boolean(brandAsset?.backgroundRemoved && brandAsset?.transparentRatio >= .02);
   const manufacturerLogoRequested = Boolean(opts.brandLogoUrl);
   const manufacturerLogoOk = !manufacturerLogoRequested || Boolean(campaignBrandAsset?.backgroundRemoved);
@@ -1467,7 +1473,9 @@ function quality(asset, opts, format, brandAsset = null, campaignBrandAsset = nu
       critical: true,
       ok: resolutionOk,
       label: resolutionOk ? 'Resolução adequada' : 'Imagem de origem pequena',
-      detail: asset.sourceWidth + '×' + asset.sourceHeight + ' px'
+      detail: asset.repairMetrics?.resolutionEnhanced
+        ? asset.sourceWidth + '×' + asset.sourceHeight + ' px • recorte tratado em ' + asset.width + '×' + asset.height
+        : asset.sourceWidth + '×' + asset.sourceHeight + ' px'
     },
     {
       id: 'pricing',
@@ -1534,7 +1542,9 @@ export async function analyzeCreativeBannerPro(product = {}, options = {}) {
       cutoutSafe: Boolean(asset.cutoutSafe),
       cutoutReason: asset.cutoutReason || '',
       shape: asset.shape || null,
-      repair: asset.repairMetrics || null
+      repair: asset.repairMetrics || null,
+      qualityWidth: Number(asset.qualityWidth || asset.width || 0),
+      qualityHeight: Number(asset.qualityHeight || asset.height || 0)
     },
     brand: {
       backgroundRemoved: Boolean(brandAsset.backgroundRemoved),
@@ -1954,7 +1964,15 @@ function multiQuality(assets = [], brandAsset = null, format = {}, opts = {}, ca
     .filter(({asset}) => !(asset.backgroundRemoved && asset.cutoutSafe !== false));
   const lowResolution = assets
     .map((asset,index)=>({asset,index}))
-    .filter(({asset}) => Math.max(asset.sourceWidth, asset.sourceHeight) < 700);
+    .filter(({asset}) => {
+      const longEdge = asset.repairMetrics?.resolutionEnhanced
+        ? Math.max(
+            Number(asset.qualityWidth || asset.width || 0),
+            Number(asset.qualityHeight || asset.height || 0)
+          )
+        : Math.max(asset.sourceWidth, asset.sourceHeight);
+      return longEdge < 700;
+    });
   const internalBackgroundFailures = assets
     .map((asset,index)=>({asset,index}))
     .filter(({asset}) => asset.repairMetrics?.internalBackgroundOk === false);
@@ -2086,7 +2104,9 @@ export async function analyzeCreativeBannerProMulti(products = [], options = {})
       cutoutReason:asset.cutoutReason||'',
       removalMode:asset.removalMode,
       removedRatio:Number(asset.removedRatio.toFixed(4)),
-      repair:asset.repairMetrics || null
+      repair:asset.repairMetrics || null,
+      qualityWidth:Number(asset.qualityWidth || asset.width || 0),
+      qualityHeight:Number(asset.qualityHeight || asset.height || 0)
     })),
     brand:{
       backgroundRemoved:Boolean(brandAsset.backgroundRemoved),

@@ -430,24 +430,20 @@ function fanLocalContrast(data, info, index) {
   return maxDelta;
 }
 
-function fanComputedAlpha(score, contrast, originalAlpha) {
+function fanComputedAlpha(score, _contrast, originalAlpha) {
   if (originalAlpha < 24) return 0;
 
-  // Fundo puro ou quase uniforme deve desaparecer por completo, inclusive
-  // dentro de células fechadas pela grade.
-  if (score <= 0.050 && contrast <= 0.10) return 0;
-  if (score <= 0.085 && contrast <= 0.055) return 0;
+  // Em ventiladores o fundo branco pode estar cercado por fios da grade.
+  // Por isso o contraste local não pode "salvar" um pixel cuja cor continua
+  // praticamente igual ao fundo original.
+  if (score <= 0.060) return 0;
 
-  // A faixa intermediária vira alpha matemático em vez de um "cinza lavado".
-  // Contraste local preserva fios, aros e detalhes finos.
-  const low = contrast >= 0.12 ? 0.040 : 0.055;
-  const high = contrast >= 0.16 ? 0.180 : 0.245;
-  const normalized = clamp((score - low) / Math.max(0.001, high - low), 0, 1);
-  let alpha = Math.round(255 * Math.pow(normalized, contrast >= 0.12 ? 0.58 : 0.92));
+  const low = 0.060;
+  const high = 0.250;
+  const normalized = clamp((score - low) / (high - low), 0, 1);
+  let alpha = Math.round(255 * Math.pow(normalized, 0.92));
 
-  if (contrast >= 0.18 && score >= 0.085) alpha = Math.max(alpha, 188);
   if (score >= 0.285) alpha = 255;
-
   return Math.min(originalAlpha, alpha);
 }
 
@@ -474,8 +470,7 @@ function fanResidualMatteRatio(original, repaired, info, background) {
     visible += 1;
 
     const score = fanMatteScore(original, p, background);
-    const contrast = fanLocalContrast(original, info, i);
-    if (score <= 0.105 && contrast <= 0.075) residual += 1;
+    if (score <= 0.115) residual += 1;
   }
 
   return residual / Math.max(1, visible);
@@ -531,8 +526,7 @@ async function repairFanProductFromReference(asset, referenceBuffer) {
 
       const p = i * channels;
       const score = fanMatteScore(raw, p, background);
-      const contrast = fanLocalContrast(raw, info, i);
-      if (score > 0.16 || contrast > 0.095) continue;
+      if (score > 0.18) continue;
 
       const x = i % width;
       const y = Math.floor(i / width);
@@ -612,11 +606,43 @@ async function repairFanProductFromReference(asset, referenceBuffer) {
     .toBuffer();
   const meta = await sharp(trimmed).metadata();
 
+  const sourceLongEdge = Math.max(
+    Number(asset.sourceWidth || info.width),
+    Number(asset.sourceHeight || info.height)
+  );
+  const baseWidth = Number(meta.width || info.width);
+  const baseHeight = Number(meta.height || info.height);
+  const shouldEnhanceResolution = sourceLongEdge < 900;
+  let outputBuffer = trimmed;
+  let outputWidth = baseWidth;
+  let outputHeight = baseHeight;
+  let resolutionEnhanced = false;
+
+  if (shouldEnhanceResolution) {
+    const scale = clamp(1100 / Math.max(1, sourceLongEdge), 1, 3.5);
+    const targetWidth = Math.max(baseWidth, Math.round(baseWidth * scale));
+    const targetHeight = Math.max(baseHeight, Math.round(baseHeight * scale));
+    outputBuffer = await sharp(trimmed)
+      .resize(targetWidth, targetHeight, {
+        fit: 'fill',
+        kernel: sharp.kernel.lanczos3
+      })
+      .sharpen(0.55)
+      .png({ compressionLevel: 9, adaptiveFiltering: true })
+      .toBuffer();
+    const enhancedMeta = await sharp(outputBuffer).metadata();
+    outputWidth = Number(enhancedMeta.width || targetWidth);
+    outputHeight = Number(enhancedMeta.height || targetHeight);
+    resolutionEnhanced = true;
+  }
+
   return {
     ...asset,
-    buffer: trimmed,
-    width: Number(meta.width || info.width),
-    height: Number(meta.height || info.height),
+    buffer: outputBuffer,
+    width: outputWidth,
+    height: outputHeight,
+    qualityWidth: outputWidth,
+    qualityHeight: outputHeight,
     backgroundRemoved: safe,
     removalMode: safe ? 'fan_original_color_to_alpha' : 'unsafe_fan_original_color_to_alpha',
     removedRatio,
@@ -646,6 +672,11 @@ async function repairFanProductFromReference(asset, referenceBuffer) {
       foregroundOpaqueRatioAfter,
       reconstructionApplied: false,
       reconstructionRemovedPixels: 0,
+      resolutionEnhanced,
+      originalSourceWidth: Number(asset.sourceWidth || info.width),
+      originalSourceHeight: Number(asset.sourceHeight || info.height),
+      qualityWidth: outputWidth,
+      qualityHeight: outputHeight,
       afterStructure,
       internalBackgroundOk,
       whiteHaloOk,
