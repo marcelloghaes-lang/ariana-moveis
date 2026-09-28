@@ -8642,8 +8642,17 @@ async function showProductsFromVision(phone, conv, classification = {}) {
   let products = [];
   let usedQuery = '';
 
-  for (const query of [...new Set(queries)]) {
-    products = await searchProducts(query, query);
+  // Se a visão reconheceu uma família, ela é a autoridade da busca. Marca/modelo
+  // servem para refinar, nunca para permitir que outra categoria seja enviada.
+  const visionQueries = visualCategory
+    ? [visualCategory, ...queries]
+    : queries;
+
+  for (const query of [...new Set(visionQueries)]) {
+    const found = await searchProducts(query, query);
+    products = visualCategory
+      ? found.filter((product) => matchesRequestedProductType(product, visualCategory))
+      : found;
     if (products.length) {
       usedQuery = query;
       break;
