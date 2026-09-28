@@ -91,7 +91,7 @@
     </nav>
     <section>
       <div class="card" id="inicio"><span class="pill">v1 estável</span> <span class="pill warn">v2 preview</span><h2>Comece por aqui</h2><p class="muted">A integração pode ser feita por API Key, OAuth 2.0 Client Credentials, SDK oficial ou chamadas HTTP diretas. Para produção, o fabricante precisa concluir a homologação real no Sandbox: o Ariana Enterprise valida evidências das chamadas executadas de verdade antes de permitir a liberação no Admin Enterprise.</p><div class="grid"><div><b>Sandbox</b><p class="muted">Coleções fisicamente separadas de produtos e pedidos. Testes não aparecem na operação real.</p></div><div><b>Produção</b><p class="muted">Operação real após aprovação.</p></div><div><b>SDK</b><p class="muted">Bibliotecas JavaScript, Node.js, PHP, Python e Java prontas para ERP.</p></div></div></div>
-      <div class="card" id="autenticacao"><h2>Autenticação</h2><p>Use <span class="kbd">x-ariana-key</span> ou <span class="kbd">Authorization: Bearer</span>.</p><div class="code">curl -H "x-ariana-key: ari_live_xxxxx" \
+      <div class="card" id="autenticacao"><h2>Autenticação</h2><p>Use <span class="kbd">x-ariana-key</span> ou <span class="kbd">Authorization: Bearer</span>.</p><div class="code">curl -H "x-ariana-key: ari_sbx_xxxxx" \
   https://ariana-backend.onrender.com/api/v1/enterprise/health</div><h3>OAuth 2.0</h3><div class="code">POST /api/v1/enterprise/oauth/token
 {
   "grant_type":"client_credentials",
@@ -130,17 +130,17 @@ Retry automático:
 1 min → 5 min → 15 min → 1 h → 3 h → 6 h</div></div>
       <div class="card" id="tester"><h2>Testador rápido</h2><div class="tester"><div><label>Endpoint</label><select id="testEndpoint" class="select"><option value="/v1/enterprise/health">GET /v1/health</option><option value="/v2/enterprise/health">GET /v2/health</option><option value="/enterprise/versions">GET /versions</option><option value="/enterprise/sdk/manifest">GET /sdk/manifest</option><option value="/enterprise/sdk/php/manifest">GET /sdk/php/manifest</option><option value="/enterprise/sdk/python/manifest">GET /sdk/python/manifest</option><option value="/enterprise/developer/manifest">GET /developer/manifest</option></select><label>API Key opcional</label><input id="apiKey" class="input" placeholder="ari_sbx_... ou ari_live_..."><div style="margin-top:12px"><button class="btn" onclick="runTest()">Executar</button> <button class="btn light" onclick="copyCurl()">Copiar cURL</button></div></div><pre id="result" class="result">Clique em Executar para testar.</pre></div></div>
       <div class="card" id="sdkphp"><h2>SDK PHP</h2><p class="muted">Baixe o pacote ZIP oficial e adicione o SDK ao seu projeto. A publicação em registry público deve ser considerada disponível somente quando indicada oficialmente pela Ariana Enterprise.</p><pre>use ArianaEnterprise\\Client;
-$api = new Client(['apiKey' => 'ari_live_xxxxx', 'environment' => 'production']);
+$api = new Client(['apiKey' => 'ari_sbx_xxxxx', 'environment' => 'sandbox']);
 $api->catalog()->push([['sku'=>'ARI-0001','name'=>'Produto Teste','price'=>2299,'stock'=>10]]);</pre><p><a class="btn" href="/sdk/php/ariana-enterprise-php-sdk.zip">Baixar SDK PHP</a> <a class="btn" href="https://ariana-backend.onrender.com/api/enterprise/sdk/php/manifest" target="_blank">Manifest PHP</a></p></div>
 
       <div class="card" id="sdkpython"><h2>SDK Python</h2><p class="muted">Baixe o pacote ZIP oficial e adicione o SDK ao seu projeto Python. A publicação em PyPI será informada oficialmente quando estiver disponível.</p><pre>from ariana_enterprise import ArianaEnterpriseClient
 
-api = ArianaEnterpriseClient(api_key='ari_live_xxxxx', environment='production')
+api = ArianaEnterpriseClient(api_key='ari_sbx_xxxxx', environment='sandbox')
 api.catalog.push([{'sku':'ARI-0001','name':'Produto Teste','price':2299,'stock':10}])</pre><p><a class="btn" href="/sdk/python/ariana-enterprise-python-sdk.zip">Baixar SDK Python</a> <a class="btn" href="https://ariana-backend.onrender.com/api/enterprise/sdk/python/manifest" target="_blank">Manifest Python</a></p></div>
       
       <div class="card" id="sdkjava"><h2>SDK Java</h2><p class="muted">Baixe o ZIP oficial para integrar ERPs corporativos, Spring Boot, Jakarta EE e aplicações JVM. A publicação em Maven Central será informada oficialmente quando estiver disponível.</p><div class="code">ArianaEnterpriseClient ariana = ArianaEnterpriseClient.builder()
-    .apiKey("ari_live_xxxxx")
-    .environment("production")
+    .apiKey("ari_sbx_xxxxx")
+    .environment("sandbox")
     .build();
 
 ariana.catalog().push(List.of(
@@ -150,8 +150,8 @@ ariana.catalog().push(List.of(
       <div class="card" id="sdkdotnet"><h2>SDK .NET</h2><p class="muted">Baixe o ZIP oficial para integrações C#, ASP.NET Core, Windows Service e ERPs corporativos Microsoft. A publicação em NuGet será informada oficialmente quando estiver disponível.</p><div class="code">using ArianaEnterprise;
 
 var ariana = new ArianaEnterpriseClient(new ArianaEnterpriseOptions {
-  ApiKey = "ari_live_xxxxx",
-  Environment = "production"
+  ApiKey = "ari_sbx_xxxxx",
+  Environment = "sandbox"
 });
 
 await ariana.Catalog.PushAsync(products);</div><p><a class="btn" href="/sdk/dotnet/ariana-enterprise-dotnet-sdk.zip" download>Baixar SDK .NET</a> <a class="btn light" href="https://ariana-backend.onrender.com/api/enterprise/sdk/dotnet/manifest" target="_blank">Manifest .NET</a></p></div>

@@ -57,8 +57,8 @@ p,li,.muted,.endpoint-line,.code{overflow-wrap:anywhere}.btn{max-width:100%;whit
       <div id="node" class="tab active"><pre class="pre">const { ArianaEnterpriseClient } = require('./ariana-enterprise-sdk');
 
 const ariana = new ArianaEnterpriseClient({
-  apiKey: 'ari_live_xxxxx',
-  environment: 'production'
+  apiKey: 'ari_sbx_xxxxx',
+  environment: 'sandbox'
 });
 
 await ariana.catalog.push([
@@ -81,8 +81,8 @@ ariana.health().then(console.log);
 use ArianaEnterprise\Client;
 
 $ariana = new Client([
-  'apiKey' => 'ari_live_xxxxx',
-  'environment' => 'production'
+  'apiKey' => 'ari_sbx_xxxxx',
+  'environment' => 'sandbox'
 ]);
 
 $ariana->catalog()->push([
@@ -94,8 +94,8 @@ $ariana->products()->updatePrice('ARI-0001', 2199);</pre></div>
       <div id="python" class="tab"><pre class="pre">from ariana_enterprise import ArianaEnterpriseClient
 
 ariana = ArianaEnterpriseClient(
-    api_key='ari_live_xxxxx',
-    environment='production'
+    api_key='ari_sbx_xxxxx',
+    environment='sandbox'
 )
 
 ariana.catalog.push([
@@ -109,8 +109,8 @@ import java.util.List;
 import java.util.Map;
 
 ArianaEnterpriseClient ariana = ArianaEnterpriseClient.builder()
-    .apiKey("ari_live_xxxxx")
-    .environment("production")
+    .apiKey("ari_sbx_xxxxx")
+    .environment("sandbox")
     .build();
 
 ariana.catalog().push(List.of(
@@ -124,8 +124,8 @@ ariana.products().updatePrice("ARI-0001", 2199);</pre></div>
 
 var ariana = new ArianaEnterpriseClient(new ArianaEnterpriseOptions
 {
-    ApiKey = "ari_live_xxxxx",
-    Environment = "production"
+    ApiKey = "ari_sbx_xxxxx",
+    Environment = "sandbox"
 });
 
 await ariana.Catalog.PushAsync(new []
@@ -137,7 +137,7 @@ await ariana.Products.UpdateStockAsync("ARI-0001", 8);
 await ariana.Products.UpdatePriceAsync("ARI-0001", 2199);</pre></div>
       <div id="curl" class="tab"><pre class="pre">curl -X POST https://ariana-backend.onrender.com/api/v1/enterprise/catalog/push \
   -H "Content-Type: application/json" \
-  -H "x-ariana-key: ari_live_xxxxx" \
+  -H "x-ariana-key: ari_sbx_xxxxx" \
   -d '{"manufacturer":"ariana_moveis","products":[{"sku":"ARI-0001","name":"Produto Teste","price":2299,"stock":10}]}'</pre></div>
     </section>
 
