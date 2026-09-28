@@ -119,9 +119,26 @@
   }
 
 
-  function isInstalledApp() {
+  const CUTOUT_PWA_SOURCE = 'pwa-cutout-studio';
+  const CUTOUT_PWA_SESSION_KEY = 'ariana-own-pwa';
+
+  function isStandaloneDisplay() {
     return window.matchMedia?.('(display-mode: standalone)')?.matches ||
       window.navigator.standalone === true;
+  }
+
+  function isInstalledApp() {
+    const source = new URLSearchParams(window.location.search).get('source') || '';
+    if (source === CUTOUT_PWA_SOURCE) {
+      try { sessionStorage.setItem(CUTOUT_PWA_SESSION_KEY, CUTOUT_PWA_SOURCE); } catch {}
+    }
+    let ownSession = '';
+    try { ownSession = sessionStorage.getItem(CUTOUT_PWA_SESSION_KEY) || ''; } catch {}
+    return isStandaloneDisplay() && ownSession === CUTOUT_PWA_SOURCE;
+  }
+
+  function isForeignStandaloneHost() {
+    return isStandaloneDisplay() && !isInstalledApp();
   }
 
   function syncInstallButton() {
@@ -140,6 +157,19 @@
 
     if (isInstalledApp()) {
       els.installApp.classList.add('hidden');
+      return;
+    }
+
+    if (isForeignStandaloneHost()) {
+      const target = new URL(window.location.href);
+      target.searchParams.delete('source');
+      target.searchParams.set('install', 'cutout-studio');
+      setStatus(
+        els.bankStatus,
+        'Abrindo o Cutout Studio no navegador para instalar como aplicativo separado do Ariana ERP...',
+        'ok'
+      );
+      window.open(target.toString(), '_blank', 'noopener');
       return;
     }
 
@@ -194,8 +224,9 @@
 
   window.addEventListener('appinstalled', () => {
     deferredInstallPrompt = null;
+    try { sessionStorage.setItem(CUTOUT_PWA_SESSION_KEY, CUTOUT_PWA_SOURCE); } catch {}
     syncInstallButton();
-    setStatus(els.bankStatus, 'Ariana Cutout Studio instalado como aplicativo.', 'ok');
+    setStatus(els.bankStatus, 'Ariana Cutout Studio instalado como aplicativo independente.', 'ok');
   });
 
   function revokeAllBlobUrls() {
