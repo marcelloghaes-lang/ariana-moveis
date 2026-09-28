@@ -5,6 +5,8 @@ on:
     paths:
       - 'functions/creative-banner-pro-generator.js'
       - 'functions/routes/adminCoreRoutes.js'
+      - 'functions/routes/creativeCutoutStudioRoutes.js'
+      - 'functions/services/creativeCutoutBankService.js'
       - 'functions/services/creativeCampaignResearchService.js'
       - 'functions/services/creativeCampaignAiDirectorService.js'
       - 'functions/tests/creative-banner-pro-generator.test.mjs'
@@ -13,6 +15,9 @@ on:
       - 'functions/tests/render-creative-banner-pro-snapshots.mjs'
       - 'public/js/creative_studio_pro.js'
       - 'public/creative_studio_pro.html'
+      - 'public/js/creative_cutout_studio.js'
+      - 'public/creative_cutout_studio.html'
+      - 'public/css/creative_cutout_studio.css'
       - '.github/workflows/creative-studio-pro-quality.yml'
   push:
     branches: [main]
@@ -47,9 +52,12 @@ jobs:
         run: |
           node --check creative-banner-pro-generator.js
           node --check routes/adminCoreRoutes.js
+          node --check routes/creativeCutoutStudioRoutes.js
+          node --check services/creativeCutoutBankService.js
           node --check services/creativeCampaignResearchService.js
           node --check services/creativeCampaignAiDirectorService.js
           node --check ../public/js/creative_studio_pro.js
+          node --check ../public/js/creative_cutout_studio.js
       - name: Creative Studio Pro regressions
         run: node --test tests/creative-banner-pro-generator.test.mjs tests/creative-campaign-research-service.test.mjs tests/creative-campaign-ai-director-service.test.mjs
 
