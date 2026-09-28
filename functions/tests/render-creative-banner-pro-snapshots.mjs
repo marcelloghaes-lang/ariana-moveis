@@ -325,3 +325,42 @@ const realFanBanner = await generateCreativeBannerProMulti(realFanProducts, {
 });
 fs.writeFileSync(path.join(outDir, 'real-fans-square.png'), realFanBanner.buffer);
 console.log('REAL_FAN_BANNER_QUALITY', JSON.stringify(realFanBanner.meta?.quality || null));
+
+
+async function fetchDerivedWithRetry(url) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const response = await fetch(url);
+    if (response.ok) return Buffer.from(await response.arrayBuffer());
+    console.log('REAL_FAN_DERIVED_HTTP', response.status, url);
+    if (![420,423,429].includes(response.status)) return null;
+    await new Promise(resolve => setTimeout(resolve, 1400 + attempt * 900));
+  }
+  return null;
+}
+
+const upscaleFanSources = [
+  {
+    id: 'fan-coluna-upscale',
+    url: 'https://res.cloudinary.com/dphqmslq6/image/upload/e_upscale/e_background_removal:fineedges_y/f_png/v1776731713/ariana_moveis/produtos/produto-1776731713495.png'
+  },
+  {
+    id: 'fan-ventisol-upscale',
+    url: 'https://res.cloudinary.com/dphqmslq6/image/upload/e_upscale/e_background_removal:fineedges_y/f_png/v1776732315/ariana_moveis/produtos/produto-1776732315399.png'
+  }
+];
+
+for (const item of upscaleFanSources) {
+  const buffer = await fetchDerivedWithRetry(item.url);
+  if (!buffer) {
+    console.log('REAL_FAN_UPSCALE_FAILED', item.id);
+    continue;
+  }
+  const meta = await sharp(buffer).metadata();
+  fs.writeFileSync(path.join(outDir, item.id + '.png'), buffer);
+  console.log('REAL_FAN_UPSCALE_OK', item.id, JSON.stringify({
+    width: meta.width,
+    height: meta.height,
+    format: meta.format,
+    bytes: buffer.length
+  }));
+}
