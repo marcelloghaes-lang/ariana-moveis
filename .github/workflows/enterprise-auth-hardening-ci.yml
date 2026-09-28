@@ -47,7 +47,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npx --yes eslint@8.57.1             functions/routes/enterprise/*.js             functions/routes/enterprise/shared/*.js             functions/routes/enterpriseRoutes.js             --no-eslintrc             --env node,es2022             --parser-options '{"sourceType":"module","ecmaVersion":2022}'             --rule 'no-undef:error'
+          npx --yes eslint@8.57.1 \
+            functions/routes/enterprise/*.js \
+            functions/routes/enterprise/shared/*.js \
+            functions/routes/enterpriseRoutes.js \
+            --ignore-pattern '**/*.BACKUP*' \
+            --no-eslintrc \
+            --env node,es2022 \
+            --parser-options '{"sourceType":"module","ecmaVersion":2022}' \
+            --rule 'no-undef:error'
 
       - name: Reject duplicate Enterprise routes
         shell: bash
