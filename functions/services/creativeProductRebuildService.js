@@ -614,3 +614,23 @@ export function getCreativeProductRebuildStatus() {
     promptVersion: PROMPT_VERSION
   };
 }
+
+if (enabledFromEnv() && String(process.env.OPENAI_API_KEY || '').trim()) {
+  queueMicrotask(() => {
+    probeCreativeProductRebuildProvider()
+      .then(result => {
+        console.info('[creative-product-rebuild] provider', {
+          ok: Boolean(result?.ok),
+          model: result?.model || DEFAULT_IMAGE_MODEL,
+          status: Number(result?.status || 0),
+          reason: result?.ok ? 'ok' : clean(result?.reason || 'provider_probe_failed', 120)
+        });
+      })
+      .catch(error => {
+        console.warn('[creative-product-rebuild] provider probe failed', {
+          model: DEFAULT_IMAGE_MODEL,
+          reason: clean(error?.message || 'provider_probe_failed', 120)
+        });
+      });
+  });
+}
