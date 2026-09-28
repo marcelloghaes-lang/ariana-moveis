@@ -9789,7 +9789,7 @@ async function handleMessage({
   const mentionedProduct = findConversationProductByText(conv, text);
 
   const rawSelfName = String(text || '').trim();
-  if (/^[\\p{L}][\\p{L}'’-]{1,29}$/u.test(rawSelfName)) {
+  if (/^[\p{L}][\p{L}'’-]{1,29}$/u.test(rawSelfName)) {
     const normalizedSelfName = normalize(rawSelfName);
     const blockedSelfNames = new Set(['oi','ola','oie','sim','nao','ok','marcelo','gustavo','obrigado','obrigada']);
     if (!blockedSelfNames.has(normalizedSelfName)) {
