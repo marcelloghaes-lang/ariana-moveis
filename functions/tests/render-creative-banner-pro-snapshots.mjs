@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import sharp from 'sharp';
 import { generateCreativeBannerPro, generateCreativeBannerProMulti, prepareProProductAsset } from '../creative-banner-pro-generator.js';
 
 function svgData(svg) {
