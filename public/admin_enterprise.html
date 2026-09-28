@@ -212,6 +212,17 @@ async function openPartner(id){
     </div>
 
     <div class="card">
+      <h3>Entrada do fabricante / Sandbox</h3>
+      <p class="muted">Aprove a solicitação para gerar, uma única vez, a API Key Sandbox, Client ID/Secret OAuth e segredos de webhook. Depois disso, os segredos ficam armazenados somente por hash.</p>
+      <p><b>Status atual:</b> ${badgeStatus(p.status)}</p>
+      <p><b>Sandbox:</b> ${p.sandbox.active?'<span class="ok">Credencial ativa</span>':'<span class="warn">Ainda não liberado</span>'}</p>
+      <div class="btnrow">
+        <button class="btn" ${p.sandbox.active?'disabled':''} onclick="approveEnterpriseRequest('${esc(p.id)}')">Aprovar e gerar credenciais Sandbox</button>
+      </div>
+      <div id="partnerOnboardingOut" class="secretBox" style="display:none"></div>
+    </div>
+
+    <div class="card">
       <h3>Homologação real Enterprise</h3>
       <p class="muted">Execute todos os testes oficiais: Catálogo, Estoque, Preço, Pedido, NF-e, XML, DANFE, Rastreio, Webhook, Cancelamento e Devolução.</p>
       <div class="progress"><span id="homologationProgress" style="width:${Number(h.score||0)}%"></span></div>
@@ -329,6 +340,37 @@ function renderHomologationSteps(steps){
     {label:'Catálogo',passed:false},{label:'Estoque',passed:false},{label:'Preço',passed:false},{label:'Pedido',passed:false},{label:'NF-e',passed:false},{label:'XML',passed:false},{label:'DANFE',passed:false},{label:'Rastreio',passed:false},{label:'Webhook',passed:false},{label:'Cancelamento',passed:false},{label:'Devolução',passed:false}
   ];
   return list.map(s=>`<div class="checkitem ${s.passed?'okitem':'pendingitem'}"><div><b>${esc(s.label)}</b><br><span class="muted">${esc(s.statusLabel||s.message||'Não testado')}</span></div><span class="badge ${s.passed?'green':'yellow'}">${s.passed?'Aprovado':'Pendente'}</span></div>`).join('');
+}
+let lastEnterpriseOnboardingCredentials=null;
+function onboardingCredentialText(c={}){
+  return [
+    'API Key Sandbox: '+(c.sandboxApiKey||''),
+    'OAuth Client ID: '+(c.oauthClientId||''),
+    'OAuth Client Secret: '+(c.oauthClientSecret||''),
+    'Webhook Secret: '+(c.webhookSecret||''),
+    'Signing Secret: '+(c.signingSecret||'')
+  ].join('\n');
+}
+async function copyEnterpriseOnboardingCredentials(){
+  if(!lastEnterpriseOnboardingCredentials){toastMsg('Nenhuma credencial nova disponível.');return}
+  await navigator.clipboard.writeText(onboardingCredentialText(lastEnterpriseOnboardingCredentials));
+  toastMsg('Credenciais Sandbox copiadas.');
+}
+async function approveEnterpriseRequest(id){
+  if(!confirm('Aprovar esta solicitação e gerar as credenciais Sandbox agora? Os segredos completos aparecerão somente desta vez.')) return;
+  try{
+    const d=await api('/enterprise/partner-requests/'+encodeURIComponent(id)+'/approve',{method:'POST',body:'{}'});
+    const c=d.oneTimeCredentials||{};
+    lastEnterpriseOnboardingCredentials=c;
+    const out=document.getElementById('partnerOnboardingOut');
+    if(out){
+      out.style.display='block';
+      out.innerHTML='<b>Credenciais geradas — copie agora:</b><pre class="pre" style="margin-top:10px">'+esc(onboardingCredentialText(c))+'</pre><button class="btn light" onclick="copyEnterpriseOnboardingCredentials()">Copiar todas as credenciais</button><p class="muted">Por segurança, os segredos completos não poderão ser recuperados depois.</p>';
+    }
+    toastMsg('Solicitação aprovada e Sandbox liberado.');
+    await loadPartners();
+    await loadOverview();
+  }catch(e){alert(e.message)}
 }
 async function runHomologation(id){
   if(!confirm('Verificar agora as evidências reais deste fabricante no Sandbox?')) return;
