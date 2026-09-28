@@ -180,6 +180,8 @@ jobs:
           grep -Fq "purchaseKey" functions/integrations/cora/coraChargeModel.js
           grep -Fq "ERP_CARNE_HISTORICO" functions/services/erp/erpCarneCoraService.js
           grep -Fq "coraEligibility" functions/services/erp/erpCarneCoraService.js
+          grep -Fq "return base.purchases(query)" functions/services/erp/erpCarneCoraService.js
+          grep -Fq "return { purchases, preview, pdf, send, emit, saveContact }" functions/services/erp/erpCarneCoraService.js
           grep -Fq "personEmail: email" functions/services/erp/erpCarneCoraService.js
           grep -Fq "O carnê da loja continua disponível normalmente" public/erp_carne.html
           if grep -Fq "/erp/financeiro/completo?direction=receivable" public/erp_carne.html; then
