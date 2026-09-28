@@ -27,18 +27,6 @@ function imageUrlOf(product = {}) {
   ).trim();
 }
 
-const GENERIC_CATEGORY_LABELS = new Set([
-  'campanha', 'oferta', 'ofertas', 'destaque', 'selecao',
-  'geral', 'promocao', 'promocional'
-]);
-
-function categoryForAi(item = {}) {
-  const raw = typeof item.category === 'object'
-    ? String(item.category?.name || item.category?.title || item.category?.label || '').trim()
-    : String(item.category || item.categoryName || '').trim();
-  return GENERIC_CATEGORY_LABELS.has(normalize(raw)) ? '' : raw;
-}
-
 function safeProducts(products = []) {
   return (Array.isArray(products) ? products : [])
     .filter(Boolean)
@@ -48,7 +36,9 @@ function safeProducts(products = []) {
       id: String(item.id || item._id || '').trim(),
       name: String(item.name || item.title || item.productName || '').trim(),
       brand: String(item.brand || item.brandName || '').trim(),
-      category: categoryForAi(item),
+      category: typeof item.category === 'object'
+        ? String(item.category?.name || item.category?.title || item.category?.label || '').trim()
+        : String(item.category || item.categoryName || '').trim(),
       imageUrl: imageUrlOf(item)
     }));
 }
@@ -105,68 +95,7 @@ function includesAny(value = '', terms = []) {
   return terms.some(term => normalized.includes(normalize(term)));
 }
 
-const COMMON_GENERIC_COPY = [
-  'boas escolhas para sua casa',
-  'escolhas para sua casa',
-  'produtos para sua casa',
-  'selecao ariana',
-  'tecnologia para sua casa',
-  'tecnologia e boas escolhas',
-  'solucoes que facilitam o seu dia a dia',
-  'solucoes para facilitar a rotina',
-  'facilitar a rotina',
-  'escolhas que fazem diferenca',
-  'encontre produtos',
-  'campanha em destaque',
-  'ofertas em destaque',
-  'produtos em destaque',
-  'transformar seus proximos momentos',
-  'uma selecao pensada'
-];
-
 const VISUAL_CATEGORY_RULES = Object.freeze({
-  colchoes: {
-    label: 'COLCHÕES',
-    detect: ['colchao', 'colchoes', 'cama box', 'travesseiro', 'pillow'],
-    badgeTerms: ['colchao', 'colchoes', 'sono', 'conforto', 'descanso'],
-    headlineTerms: ['conforto', 'noites', 'descanso', 'sono', 'colchao'],
-    subtitleTerms: ['colchao', 'qualidade', 'descanso', 'sono', 'conforto'],
-    forbiddenGeneric: COMMON_GENERIC_COPY,
-    fallback: {
-      badge: 'COLCHÕES',
-      headline: 'Conforto de verdade para suas noites de descanso',
-      subtitle: 'Colchões selecionados com qualidade, preço justo e compra segura.',
-      cta: 'VEJA AS NOVIDADES'
-    }
-  },
-  tvs: {
-    label: 'SMART TVs',
-    detect: ['smart tv', 'televisao', 'tv', 'roku', 'monitor'],
-    badgeTerms: ['tv', 'smart', 'imagem', 'entretenimento'],
-    headlineTerms: ['imagem', 'cinema', 'sala', 'tv', 'entretenimento'],
-    subtitleTerms: ['smart tv', 'familia', 'imagem', 'momentos', 'entretenimento'],
-    forbiddenGeneric: COMMON_GENERIC_COPY,
-    fallback: {
-      badge: 'SMART TVs',
-      headline: 'Imagem de cinema para sua sala',
-      subtitle: 'Smart TVs selecionadas para transformar seus momentos em família.',
-      cta: 'VEJA AS NOVIDADES'
-    }
-  },
-  celulares: {
-    label: 'CELULARES',
-    detect: ['smartphone', 'celular', 'iphone', 'galaxy', 'motorola', 'moto g'],
-    badgeTerms: ['celular', 'smartphone', 'tecnologia', 'mobile'],
-    headlineTerms: ['tecnologia', 'rotina', 'smartphone', 'celular'],
-    subtitleTerms: ['smartphone', 'celular', 'tecnologia', 'ofertas', 'aproveitar'],
-    forbiddenGeneric: COMMON_GENERIC_COPY,
-    fallback: {
-      badge: 'CELULARES',
-      headline: 'Tecnologia que acompanha sua rotina',
-      subtitle: 'Smartphones selecionados com ofertas especiais para você aproveitar mais.',
-      cta: 'VEJA AS NOVIDADES'
-    }
-  },
   audio: {
     label: 'ÁUDIO & SOM',
     detect: [
@@ -176,74 +105,21 @@ const VISUAL_CATEGORY_RULES = Object.freeze({
     badgeTerms: ['audio', 'som', 'potencia', 'conectividade'],
     headlineTerms: ['som', 'potencia', 'musica', 'audio', 'conect', 'entreten', 'energia'],
     subtitleTerms: ['som', 'potencia', 'musica', 'audio', 'conect', 'entreten', 'energia', 'momento'],
-    forbiddenGeneric: COMMON_GENERIC_COPY,
+    forbiddenGeneric: [
+      'boas escolhas para sua casa',
+      'escolhas para sua casa',
+      'produtos para sua casa',
+      'selecao ariana',
+      'tecnologia para sua casa',
+      'tecnologia e boas escolhas',
+      'solucoes que facilitam o seu dia a dia',
+      'solucoes para facilitar a rotina',
+      'facilitar a rotina'
+    ],
     fallback: {
       badge: 'ÁUDIO & SOM',
       headline: 'SOM PARA TODOS OS MOMENTOS',
       subtitle: 'Potência, conectividade e música para curtir cada momento do seu jeito.',
-      cta: 'VEJA AS NOVIDADES'
-    }
-  },
-  climatizacao: {
-    label: 'CLIMATIZAÇÃO',
-    detect: ['ar condicionado', 'climatizador', 'ventilador', 'ventisol', 'turbo', 'fan'],
-    badgeTerms: ['climatizacao', 'ventilador', 'conforto', 'refrescar', 'frescor'],
-    headlineTerms: ['conforto', 'ventilador', 'climatizacao', 'refrescar', 'frescor', 'ambiente'],
-    subtitleTerms: ['ventilador', 'climatizacao', 'ambiente', 'conforto', 'refrescar', 'frescor'],
-    forbiddenGeneric: COMMON_GENERIC_COPY,
-    fallback: {
-      badge: 'CLIMATIZAÇÃO',
-      headline: 'Mais conforto para sua casa todos os dias',
-      subtitle: 'Ventiladores e climatização com preço especial para deixar seu ambiente melhor.',
-      cta: 'VEJA AS NOVIDADES'
-    }
-  },
-  informatica: {
-    label: 'INFORMÁTICA',
-    detect: ['informatica', 'notebook', 'computador', 'impressora', 'teclado', 'mouse', 'tablet'],
-    badgeTerms: ['informatica', 'tecnologia', 'notebook', 'computador'],
-    headlineTerms: ['eletronicos', 'tecnologia', 'informatica', 'notebook', 'computador'],
-    subtitleTerms: ['tecnologia', 'produtos', 'informatica', 'notebook', 'computador'],
-    forbiddenGeneric: COMMON_GENERIC_COPY,
-    fallback: {
-      badge: 'INFORMÁTICA',
-      headline: 'Os melhores produtos eletrônicos e tecnologia do mercado',
-      subtitle: 'Produtos escolhidos para transformar sua vida num verdadeiro sonho.',
-      cta: 'VEJA AS NOVIDADES'
-    }
-  },
-  eletrodomesticos: {
-    label: 'ELETRODOMÉSTICOS',
-    detect: [
-      'eletrodomestico', 'geladeira', 'refrigerador', 'freezer', 'lavadora',
-      'maquina de lavar', 'tanquinho', 'fogao', 'cooktop', 'forno',
-      'micro ondas', 'microondas', 'air fryer', 'fritadeira'
-    ],
-    badgeTerms: ['eletrodomestico', 'cozinha', 'geladeira', 'lavadora', 'fogao'],
-    headlineTerms: ['eletrodomestico', 'condicoes', 'pagamento', 'geladeira', 'lavadora', 'fogao'],
-    subtitleTerms: ['geladeira', 'lavadora', 'fogao', 'utilidades', 'dia a dia', 'cozinha'],
-    forbiddenGeneric: COMMON_GENERIC_COPY,
-    fallback: {
-      badge: 'ELETRODOMÉSTICOS',
-      headline: 'Eletrodomésticos com as melhores condições de pagamento',
-      subtitle: 'Geladeiras, lavadoras, fogões e utilidades para facilitar seu dia a dia.',
-      cta: 'VEJA AS NOVIDADES'
-    }
-  },
-  moveis: {
-    label: 'MÓVEIS',
-    detect: [
-      'moveis', 'guarda roupa', 'roupeiro', 'sofa', 'rack', 'painel',
-      'mesa', 'cadeira', 'cozinha', 'armario', 'comoda', 'balcao', 'multiuso'
-    ],
-    badgeTerms: ['moveis', 'ambientes', 'casa'],
-    headlineTerms: ['moveis', 'ofertas', 'casa', 'ambiente'],
-    subtitleTerms: ['ambientes', 'casa', 'funcionais', 'moveis'],
-    forbiddenGeneric: COMMON_GENERIC_COPY,
-    fallback: {
-      badge: 'MÓVEIS',
-      headline: 'As melhores ofertas de móveis você encontra aqui',
-      subtitle: 'Ambientes completos, bonitos e funcionais para transformar sua casa.',
       cta: 'VEJA AS NOVIDADES'
     }
   }
@@ -489,12 +365,9 @@ export function buildAiDirectorRequest(products = [], now = new Date(), creative
     'O template escolhido deve influenciar o tom: Marketplace Impacto = varejo direto; Premium Ariana = linguagem elegante e sóbria; Campanha Forte = energia promocional sem inventar condições comerciais.',
     'Evite frases genéricas quebradas como "Campanha escolhidos para sua casa". Escreva português natural, comercial e curto.',
     'A categoria visual reconhecida nas fotos é a referência principal para a copy. Se as imagens mostram claramente uma categoria, não use copy institucional genérica.',
-    'As famílias configuradas são: móveis, eletrodomésticos, colchões, celulares, Smart TVs, áudio/som, climatização/ventiladores e informática.',
-    'Rótulos genéricos como Campanha, Oferta, Destaque, Seleção ou Geral não são categorias de produto e nunca devem substituir a categoria visual reconhecida.',
-    'A copy deve permanecer no universo da categoria reconhecida. Não use frases genéricas como "Escolhas que fazem diferença", "Campanha em destaque", "Seleção Ariana" ou "Encontre produtos" quando a imagem mostra claramente uma categoria.',
     'Quando a categoria for áudio/som/caixas de som, use vocabulário específico como som, potência, música, conectividade, entretenimento, energia e momentos.',
-    'Quando a categoria for climatização/ventiladores, use vocabulário de conforto, ventilação, frescor, refrescar e ambiente; não use copy institucional genérica.',
     'Para áudio/som, o badge deve identificar a família, por exemplo "ÁUDIO & SOM" ou equivalente específico; não use "SELEÇÃO ARIANA" como rótulo principal.',
+    'Para áudio/som, o título precisa conter benefício ou contexto de uso e ao menos um conceito do universo de áudio. Evite "Tecnologia e boas escolhas para sua casa" e variações genéricas.',
     'O texto de apoio deve continuar a mesma ideia da categoria, sem voltar para frases genéricas de casa, seleção ou produtos.',
     'Data de referência: ' + now.toISOString().slice(0,10) + '.'
   ].join('\n');
