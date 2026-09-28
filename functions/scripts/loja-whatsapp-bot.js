@@ -8752,6 +8752,8 @@ async function handleVisionMedia(incoming, conv) {
   }
 
   if (confident && classification.kind === 'product') {
+    // Uma foto claramente identificada como produto é mudança explícita para vendas.
+    clearDailyDueCollectionContext(conv);
     conv.lastImageClassification = classification;
     conv.lastImageAt = Date.now();
     conv.pendingImageIntent = '';
