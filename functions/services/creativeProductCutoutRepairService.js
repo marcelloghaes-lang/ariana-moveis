@@ -478,6 +478,7 @@ function fanResidualMatteRatio(original, repaired, info, background) {
 
 
 const cloudinaryFanMaskCache = new Map();
+const cloudinaryFanSuperresCache = new Map();
 
 function cloudinaryBackgroundRemovalUrl(source = '') {
   const value = String(source || '').trim();
@@ -491,6 +492,24 @@ function cloudinaryBackgroundRemovalUrl(source = '') {
     url.pathname = url.pathname.replace(
       marker,
       marker + 'e_background_removal:fineedges_y/f_png/'
+    );
+    return url.toString();
+  } catch {
+    return '';
+  }
+}
+
+function cloudinaryUpscaledBackgroundRemovalUrl(source = '') {
+  const value = String(source || '').trim();
+  if (!value) return '';
+  try {
+    const url = new URL(value);
+    if (url.hostname !== 'res.cloudinary.com') return '';
+    const marker = '/image/upload/';
+    if (!url.pathname.includes(marker)) return '';
+    url.pathname = url.pathname.replace(
+      marker,
+      marker + 'e_upscale/e_background_removal:fineedges_y/f_png/'
     );
     return url.toString();
   } catch {
@@ -541,6 +560,126 @@ async function fetchCloudinaryFanMask(source = '') {
   return null;
 }
 
+async function fetchCloudinaryFanSuperresCutout(source = '') {
+  const transformed = cloudinaryUpscaledBackgroundRemovalUrl(source);
+  if (!transformed) return null;
+  if (cloudinaryFanSuperresCache.has(transformed)) {
+    return cloudinaryFanSuperresCache.get(transformed);
+  }
+
+  for (let attempt = 0; attempt < 7; attempt += 1) {
+    try {
+      const response = await fetch(transformed, {
+        headers: { accept: 'image/png,image/*' },
+        signal: AbortSignal.timeout(40000)
+      });
+
+      if (response.ok) {
+        const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+        if (!contentType.startsWith('image/')) return null;
+        const bytes = await response.arrayBuffer();
+        if (!bytes.byteLength || bytes.byteLength > 24 * 1024 * 1024) return null;
+        const buffer = Buffer.from(bytes);
+        cloudinaryFanSuperresCache.set(transformed, buffer);
+        if (cloudinaryFanSuperresCache.size > 16) {
+          const oldestKey = cloudinaryFanSuperresCache.keys().next().value;
+          if (oldestKey) cloudinaryFanSuperresCache.delete(oldestKey);
+        }
+        return buffer;
+      }
+
+      if (![420, 423, 429].includes(response.status)) return null;
+    } catch {
+      if (attempt >= 6) return null;
+    }
+
+    await wait(1300 + attempt * 850);
+  }
+
+  return null;
+}
+
+function suppressDenseNeutralResiduals(data, info) {
+  const { width, height, channels } = info;
+  const total = width * height;
+  const candidate = new Uint8Array(total);
+  const integralWidth = width + 1;
+  const integral = new Uint32Array((width + 1) * (height + 1));
+
+  for (let y = 0; y < height; y += 1) {
+    let rowSum = 0;
+    for (let x = 0; x < width; x += 1) {
+      const index = y * width + x;
+      const p = index * channels;
+      const alpha = data[p + 3];
+      const brightness = pixelBrightness(data, p);
+      const spread = pixelSpread(data, p);
+      const isCandidate =
+        alpha >= 40 &&
+        brightness >= 180 &&
+        spread <= 70;
+      candidate[index] = isCandidate ? 1 : 0;
+      rowSum += candidate[index];
+      const ip = (y + 1) * integralWidth + (x + 1);
+      integral[ip] = integral[y * integralWidth + (x + 1)] + rowSum;
+    }
+  }
+
+  const radius = 5;
+  let removed = 0;
+  let softened = 0;
+
+  const rectSum = (x1, y1, x2, y2) => {
+    const ax = Math.max(0, x1);
+    const ay = Math.max(0, y1);
+    const bx = Math.min(width - 1, x2);
+    const by = Math.min(height - 1, y2);
+    const A = ay * integralWidth + ax;
+    const B = ay * integralWidth + (bx + 1);
+    const C = (by + 1) * integralWidth + ax;
+    const D = (by + 1) * integralWidth + (bx + 1);
+    return integral[D] - integral[B] - integral[C] + integral[A];
+  };
+
+  const whiteBackground = { r: 255, g: 255, b: 255, brightness: 255 };
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = y * width + x;
+      if (!candidate[index]) continue;
+
+      const x1 = Math.max(0, x - radius);
+      const y1 = Math.max(0, y - radius);
+      const x2 = Math.min(width - 1, x + radius);
+      const y2 = Math.min(height - 1, y + radius);
+      const area = (x2 - x1 + 1) * (y2 - y1 + 1);
+      const density = rectSum(x1, y1, x2, y2) / Math.max(1, area);
+      const p = index * channels;
+      const originalAlpha = data[p + 3];
+
+      if (density >= 0.40) {
+        data[p + 3] = 0;
+        removed += 1;
+        continue;
+      }
+
+      if (density >= 0.20) {
+        const ratio = clamp((density - 0.20) / 0.20, 0, 1);
+        const nextAlpha = Math.round(originalAlpha * (1 - ratio * 0.75));
+        if (nextAlpha < originalAlpha) {
+          data[p + 3] = nextAlpha;
+          softened += 1;
+          if (nextAlpha >= 24) {
+            unmatteFanPixel(data, p, whiteBackground, nextAlpha);
+          }
+        }
+      }
+    }
+  }
+
+  return { removed, softened };
+}
+
 async function finalizeFanCutout({
   asset,
   data,
@@ -550,7 +689,9 @@ async function finalizeFanCutout({
   removalMode,
   provider = '',
   removedPixels = 0,
-  partialPixels = 0
+  partialPixels = 0,
+  skipResolutionEnhance = false,
+  resolutionEnhancedOverride = false
 }) {
   const total = info.width * info.height;
   const foregroundSignalBefore = fanStrongForegroundCount(
@@ -607,11 +748,11 @@ async function finalizeFanCutout({
   );
   const baseWidth = Number(meta.width || info.width);
   const baseHeight = Number(meta.height || info.height);
-  const shouldEnhanceResolution = sourceLongEdge < 900;
+  const shouldEnhanceResolution = sourceLongEdge < 900 && !skipResolutionEnhance;
   let outputBuffer = trimmed;
   let outputWidth = baseWidth;
   let outputHeight = baseHeight;
-  let resolutionEnhanced = false;
+  let resolutionEnhanced = Boolean(resolutionEnhancedOverride);
 
   if (shouldEnhanceResolution) {
     const scale = clamp(1100 / Math.max(1, sourceLongEdge), 1, 3.5);
@@ -702,6 +843,47 @@ async function repairFanProductWithSegmentationMask(
     const background = estimateLightBackground(raw, info);
     const limits = fanCutoutThresholds(background);
     if (!limits.eligible) return null;
+
+    const sourceLongEdge = Math.max(info.width, info.height);
+    if (sourceLongEdge < 900) {
+      const superresBuffer = await fetchCloudinaryFanSuperresCutout(referenceSource);
+      if (superresBuffer) {
+        try {
+          const enhanced = sharp(superresBuffer, { failOn: 'none' })
+            .rotate()
+            .ensureAlpha();
+          const { data: enhancedDataRaw, info: enhancedInfo } =
+            await enhanced.raw().toBuffer({ resolveWithObject: true });
+          const enhancedData = Buffer.from(enhancedDataRaw);
+          const cleanup = suppressDenseNeutralResiduals(enhancedData, enhancedInfo);
+          const enhancedBackground = {
+            r: 255,
+            g: 255,
+            b: 255,
+            brightness: 255,
+            variance: 0,
+            spread: 0
+          };
+          const enhancedLimits = fanCutoutThresholds(enhancedBackground);
+          const enhancedResult = await finalizeFanCutout({
+            asset,
+            data: enhancedData,
+            info: enhancedInfo,
+            background: enhancedBackground,
+            limits: enhancedLimits,
+            removalMode: 'fan_cloudinary_superres_segmentation',
+            provider: 'cloudinary_upscale_background_removal',
+            removedPixels: cleanup.removed,
+            partialPixels: cleanup.softened,
+            skipResolutionEnhance: true,
+            resolutionEnhancedOverride: true
+          });
+          if (enhancedResult.cutoutSafe) return enhancedResult;
+        } catch {
+          // Cai para a máscara normal abaixo; nenhuma outra etapa do Studio é afetada.
+        }
+      }
+    }
 
     const maskImage = sharp(maskBuffer, { failOn: 'none' })
       .rotate()
