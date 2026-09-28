@@ -9481,3 +9481,10 @@ test('nível Diana: produto citado após comprovante continua financeiro e não 
   assert.doesNotMatch(body, /catálogo|opções disponíveis/i);
   assert.equal(sentMedia.length, 0);
 });
+
+
+test('regressão Osvaldo: descrição do perfil não vira nome de tratamento', () => {
+  assert.equal(bot.customerFirstName('mangá larga'), '');
+  assert.equal(bot.personalizedGreeting('Boa tarde', 'mangá larga'), 'Boa tarde!');
+  assert.equal(bot.customerFirstName('Osvaldo Lucas'), 'Osvaldo');
+});
