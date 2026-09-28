@@ -3196,9 +3196,6 @@ async function quoteUnifiedShipping(cepDestino, quantity) {
                     message: e.message || e.error || 'Indisponível'
                 })));
             }
-            if (data?.context?.usesArianaLocalRule && data?.context?.destinationArea === 'unknown') {
-                return { quotes: [], errors: [], requiresAddressConfirmation: true };
-            }
         } catch (err) {
             lastError = err?.message || String(err || '');
         }
@@ -3226,21 +3223,6 @@ function renderShippingQuotes(result, cep) {
 
             let quotes = Array.isArray(result.quotes) ? result.quotes : [];
             const errors = Array.isArray(result.errors) ? result.errors : [];
-
-            if (result?.requiresAddressConfirmation === true) {
-                shippingResult.innerHTML = `
-                  <div class="p-3 rounded-lg border border-blue-100 bg-blue-50">
-                    <div class="flex items-center justify-between gap-3">
-                      <div>
-                        <div class="font-bold text-text-dark">Ariana Entrega</div>
-                        <div class="text-xs text-gray-500 mt-1">Valor confirmado no checkout.</div>
-                      </div>
-                      <i class="fas fa-truck text-primary-blue"></i>
-                    </div>
-                  </div>`;
-                fretePriceEl.textContent = "No checkout";
-                return;
-            }
 
             // =========================================================
             // REGRA ARIANA MÓVEIS: CORREIOS INDISPONÍVEL

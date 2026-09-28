@@ -1388,51 +1388,10 @@ async function calculateShipping(body = {}) {
   const destinationAccess = classifyDestinationAccess(body, location);
   const isRuralGuanhaes = isGuanhaesDestination && destinationAccess.type === 'rural';
   const isUrbanGuanhaes = isGuanhaesDestination && destinationAccess.type === 'urban';
-  const needsGuanhaesAreaConfirmation =
-    usesArianaLocalRule &&
-    arianaRule.enabled !== false &&
-    isGuanhaesDestination &&
-    destinationAccess.type === 'unknown';
-
-  if (needsGuanhaesAreaConfirmation) {
-    const message = 'O valor da entrega será confirmado no checkout após a seleção do endereço.';
-    const unavailable = {
-      service: 'ariana_entrega_address_required',
-      label: 'Ariana Entrega',
-      name: 'Ariana Entrega',
-      unavailable: true,
-      provider: 'ariana',
-      error: message,
-      metadata: {
-        rule: 'guanhaes_requires_area_type',
-        destinationCep,
-        destinationCity: location.city || 'Guanhães'
-      }
-    };
-    return {
-      ok: true,
-      error: message,
-      message,
-      options: [unavailable],
-      quotes: [],
-      errors: [{ code: 'GUANHAES_AREA_REQUIRED', message }],
-      cheapest: null,
-      bestQuote: null,
-      montagemCost: 0,
-      context: {
-        sellerDetected: sellerCtx.raw || null,
-        sellerId: sellerProfile?.sellerId || sellerIds[0] || null,
-        sellerShippingType: sellerProfile?.type || (hasExternalSeller ? 'marketplace' : 'ariana'),
-        isAriana,
-        usesArianaLocalRule,
-        usesArianaLogistics,
-        destinationCity: location.city || null,
-        destinationState: location.state || null,
-        destinationCep,
-        destinationArea: 'unknown'
-      }
-    };
-  }
+  // O simulador precisa entregar uma cotação já na página do produto/carrinho.
+  // Guanhães usa CEP geral, então CEP sem rua/bairro não pode bloquear a simulação.
+  // A tabela Ariana é aplicada normalmente; endereço completo continua refinando
+  // a classificação urbano/rural quando estiver disponível.
 
   // Celular mantém a regra especial fora da zona rural de Guanhães.
   // Na zona rural de Guanhães vale a tabela normal da Ariana Logística (R$ 89 até 50 km).
@@ -1464,6 +1423,7 @@ async function calculateShipping(body = {}) {
     !hasPhoneFlatDelivery &&
     usesArianaLocalRule &&
     arianaRule.enabled !== false &&
+    arianaRule.freeLocalEnabled === true &&
     isUrbanGuanhaes;
 
   if (hasArianaFree) {
@@ -1527,7 +1487,6 @@ async function calculateShipping(body = {}) {
 
     if (resolvedDistance <= arianaMaxLocalKm) {
       const tierIndex = arianaTiers.findIndex((tier) =>
-        (isRuralGuanhaes || !isGuanhaesDestination) &&
         resolvedDistance <= tier.maxKm
       );
       const selectedTier = tierIndex >= 0 ? arianaTiers[tierIndex] : null;

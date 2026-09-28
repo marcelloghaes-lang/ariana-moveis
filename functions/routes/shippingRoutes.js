@@ -31,7 +31,7 @@ app.post('/shipping/quote', async (req, res) => { try { return res.json(await ca
 app.post('/api/shipping/logistics/quote', async (req, res) => {
   try {
     const result = await calculateShipping(req.body || {});
-    const quotes = Array.isArray(result?.options) ? result.options.map((q) => ({
+    const quotes = Array.isArray(result?.options) ? result.options.filter((q) => q && !q.unavailable).map((q) => ({
       service: q.service,
       label: q.label || q.name || 'Logística',
       name: q.label || q.name || 'Logística',
@@ -56,7 +56,7 @@ app.post('/api/shipping/logistics/quote', async (req, res) => {
 app.post('/shipping/logistics/quote', async (req, res) => {
   try {
     const result = await calculateShipping(req.body || {});
-    const quotes = Array.isArray(result?.options) ? result.options.map((q) => ({
+    const quotes = Array.isArray(result?.options) ? result.options.filter((q) => q && !q.unavailable).map((q) => ({
       service: q.service,
       label: q.label || q.name || 'Logística',
       name: q.label || q.name || 'Logística',
