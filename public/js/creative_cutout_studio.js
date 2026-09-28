@@ -280,7 +280,7 @@
   }
 
   function restoreCardButtons(card, asset = {}) {
-    if (!card?.isConnected) return;
+    if (!card) return;
     const busy = processingActive(asset);
     card.querySelectorAll('button[data-action]').forEach(button => {
       if (busy) {
