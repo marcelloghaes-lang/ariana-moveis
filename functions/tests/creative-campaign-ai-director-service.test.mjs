@@ -45,6 +45,28 @@ test('request do diretor IA inclui web search e imagens dos produtos', () => {
   assert.equal(images[0].image_url, 'https://example.com/a.png');
 });
 
+test('request do diretor IA recebe formato, template e modo da campanha', () => {
+  const request = buildAiDirectorRequest(
+    PRODUCTS,
+    new Date('2026-09-27T12:00:00Z'),
+    {
+      format: 'square',
+      template: 'premium',
+      contentMode: 'multi_product'
+    }
+  );
+
+  const developer = request.input.find(item => item.role === 'developer');
+  const user = request.input.find(item => item.role === 'user');
+  const developerText = developer.content.map(item => item.text || '').join(' ');
+  const userText = user.content.map(item => item.text || '').join(' ');
+
+  assert.match(developerText, /Card Quadrado 1080x1080/i);
+  assert.match(developerText, /Premium Ariana/i);
+  assert.match(userText, /Template alvo: Premium Ariana/i);
+  assert.match(userText, /Modo: multi_product/i);
+});
+
 test('direção IA sanitiza comércio inventado e preserva briefing criativo', () => {
   const result = sanitizeAiCreativeDirection({
     category: 'Áudio & Som',
