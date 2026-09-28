@@ -9481,3 +9481,20 @@ test('nível Diana: produto citado após comprovante continua financeiro e não 
   assert.doesNotMatch(body, /catálogo|opções disponíveis/i);
   assert.equal(sentMedia.length, 0);
 });
+
+
+test('nome de WhatsApp colado não vira nome pessoal no cumprimento', async () => {
+  assert.equal(bot.customerFirstName('ataicemariasantos'), '');
+  assert.equal(bot.customerFirstName('luanacamargos560'), '');
+  assert.equal(bot.customerFirstName('voneiva029'), '');
+  assert.equal(bot.customerFirstName('Magnata,💍❤️'), '');
+  assert.equal(bot.customerFirstName('Ataice Maria Santos'), 'Ataice');
+});
+
+test('cumprimento não inventa tratamento pessoal a partir de handle do WhatsApp', async () => {
+  const phone = '553399999881';
+  await bot.handleMessage({ phone, text: 'Boa noite', pushName: 'ataicemariasantos' });
+  const body = sentTexts.map((item) => String(item?.text || item || '')).join(' ');
+  assert.match(body, /Boa noite/i);
+  assert.doesNotMatch(body, /Ataicemariasantos/i);
+});
