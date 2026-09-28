@@ -187,6 +187,98 @@ test('prompt exige copy específica quando a visão reconhece áudio', () => {
 });
 
 
+test('restaura as categorias antigas no diretor criativo', () => {
+  const genericCopy = {
+    badge: 'CAMPANHA EM DESTAQUE',
+    headline: 'ESCOLHAS QUE FAZEM DIFERENÇA',
+    subtitle: 'Encontre produtos para transformar seus próximos momentos.',
+    cta: 'VEJA AS NOVIDADES'
+  };
+
+  const cases = [
+    {
+      product: { name:'Ventilador Arno Turbo', category:'Campanha' },
+      rawCategory:'Ventiladores',
+      category:'CLIMATIZAÇÃO',
+      headline:'Mais conforto para sua casa todos os dias',
+      subtitle:'Ventiladores e climatização com preço especial para deixar seu ambiente melhor.'
+    },
+    {
+      product: { name:'Smart TV 55 Polegadas', category:'Campanha' },
+      rawCategory:'TV',
+      category:'SMART TVs',
+      headline:'Imagem de cinema para sua sala',
+      subtitle:'Smart TVs selecionadas para transformar seus momentos em família.'
+    },
+    {
+      product: { name:'Geladeira Frost Free', category:'Eletrodomésticos' },
+      rawCategory:'Refrigeração',
+      category:'ELETRODOMÉSTICOS',
+      headline:'Eletrodomésticos com as melhores condições de pagamento',
+      subtitle:'Geladeiras, lavadoras, fogões e utilidades para facilitar seu dia a dia.'
+    },
+    {
+      product: { name:'Guarda Roupa 6 Portas', category:'Móveis' },
+      rawCategory:'Móveis',
+      category:'MÓVEIS',
+      headline:'As melhores ofertas de móveis você encontra aqui',
+      subtitle:'Ambientes completos, bonitos e funcionais para transformar sua casa.'
+    },
+    {
+      product: { name:'Colchão Casal', category:'Colchões' },
+      rawCategory:'Colchões',
+      category:'COLCHÕES',
+      headline:'Conforto de verdade para suas noites de descanso',
+      subtitle:'Colchões selecionados com qualidade, preço justo e compra segura.'
+    },
+    {
+      product: { name:'Smartphone Galaxy', category:'Celulares' },
+      rawCategory:'Celulares',
+      category:'CELULARES',
+      headline:'Tecnologia que acompanha sua rotina',
+      subtitle:'Smartphones selecionados com ofertas especiais para você aproveitar mais.'
+    },
+    {
+      product: { name:'Notebook 15 Polegadas', category:'Informática' },
+      rawCategory:'Informática',
+      category:'INFORMÁTICA',
+      headline:'Os melhores produtos eletrônicos e tecnologia do mercado',
+      subtitle:'Produtos escolhidos para transformar sua vida num verdadeiro sonho.'
+    }
+  ];
+
+  for (const item of cases) {
+    const fixed = fixCopyByVisualCategory(
+      genericCopy,
+      item.rawCategory,
+      [{ index:0, label:item.product.name, confidence:0.98 }],
+      [item.product]
+    );
+    assert.equal(fixed.category, item.category, item.product.name);
+    assert.equal(fixed.copy.headline, item.headline, item.product.name);
+    assert.equal(fixed.copy.subtitle, item.subtitle, item.product.name);
+    assert.notEqual(fixed.copy.badge, 'CAMPANHA EM DESTAQUE', item.product.name);
+  }
+});
+
+test('categoria genérica Campanha não é enviada à IA como categoria de produto', () => {
+  const request = buildAiDirectorRequest([
+    {
+      id:'fan-1',
+      name:'Ventilador Arno',
+      brand:'Arno',
+      category:'Campanha',
+      imageUrl:'https://example.com/fan.png'
+    }
+  ], new Date('2026-09-27T12:00:00Z'));
+
+  const user = request.input.find(item => item.role === 'user');
+  const textBody = user.content.map(item => item.text || '').join(' ');
+  assert.match(textBody, /"name":"Ventilador Arno"/);
+  assert.match(textBody, /"category":""/);
+  assert.doesNotMatch(textBody, /"category":"Campanha"/);
+});
+
 test('fallback por falha da API continua específico para caixas de som', () => {
   const fallback = categorySpecificFallback({
     copy: {
