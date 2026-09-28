@@ -20,9 +20,9 @@ const cache = new Map();
 const inflight = new Map();
 
 function enabledFromEnv() {
-  return ['1', 'true', 'yes', 'on'].includes(
-    String(process.env.CREATIVE_PRODUCT_REBUILD_ENABLED || '').trim().toLowerCase()
-  );
+  const configured = String(process.env.CREATIVE_PRODUCT_REBUILD_ENABLED || '').trim().toLowerCase();
+  if (configured) return ['1', 'true', 'yes', 'on'].includes(configured);
+  return Boolean(String(process.env.OPENAI_API_KEY || '').trim());
 }
 
 function clean(value = '', max = 220) {
@@ -547,6 +547,61 @@ export async function rebuildCreativeProductFromReference({
   } finally {
     inflight.delete(key);
   }
+}
+
+let providerProbeCache = null;
+
+export async function probeCreativeProductRebuildProvider({
+  fetchImpl = fetch,
+  apiKey = String(process.env.OPENAI_API_KEY || '').trim(),
+  imageModel = DEFAULT_IMAGE_MODEL,
+  maxAgeMs = 5 * 60 * 1000
+} = {}) {
+  if (!apiKey) {
+    return {
+      ok: false,
+      configured: false,
+      model: imageModel,
+      reason: 'openai_key_missing'
+    };
+  }
+
+  if (
+    providerProbeCache &&
+    providerProbeCache.model === imageModel &&
+    Date.now() - providerProbeCache.checkedAt < maxAgeMs
+  ) {
+    return providerProbeCache;
+  }
+
+  try {
+    const response = await fetchImpl(
+      'https://api.openai.com/v1/models/' + encodeURIComponent(imageModel),
+      {
+        headers: { Authorization: 'Bearer ' + apiKey },
+        signal: AbortSignal.timeout(8000)
+      }
+    );
+    const body = response.ok ? null : await response.text().catch(() => '');
+    providerProbeCache = {
+      ok: response.ok,
+      configured: true,
+      model: imageModel,
+      status: response.status,
+      reason: response.ok ? 'ok' : clean(body || ('http_' + response.status), 180),
+      checkedAt: Date.now()
+    };
+  } catch (error) {
+    providerProbeCache = {
+      ok: false,
+      configured: true,
+      model: imageModel,
+      status: 0,
+      reason: clean(error?.message || 'provider_probe_failed', 180),
+      checkedAt: Date.now()
+    };
+  }
+  return providerProbeCache;
 }
 
 export function getCreativeProductRebuildStatus() {
