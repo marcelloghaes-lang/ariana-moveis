@@ -6,6 +6,14 @@ Compatível com Java 17+, Maven, Gradle, Spring Boot, Jakarta EE e Java puro.
 
 ## Instalação Maven
 
+O SDK ainda não está publicado no Maven Central. Depois de baixar e extrair o pacote oficial, instale-o no repositório Maven local:
+
+```bash
+mvn -f ./ariana_enterprise_java/pom.xml install
+```
+
+Depois disso, use normalmente a dependência no seu projeto:
+
 ```xml
 <dependency>
   <groupId>br.com.arianamoveis</groupId>
@@ -22,8 +30,8 @@ import java.util.List;
 import java.util.Map;
 
 ArianaEnterpriseClient ariana = ArianaEnterpriseClient.builder()
-    .apiKey("ari_live_xxxxx")
-    .environment("production")
+    .apiKey("ari_sbx_xxxxx")
+    .environment("sandbox")
     .build();
 
 ariana.catalog().push(List.of(

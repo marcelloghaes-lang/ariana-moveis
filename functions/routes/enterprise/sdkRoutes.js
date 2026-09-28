@@ -18,7 +18,7 @@ const ARIANA_ENTERPRISE_SDK_MANIFEST = {
     name: 'Ariana Enterprise SDK',
     version: '1.0.0',
     status: 'preview',
-    languages: ['javascript', 'nodejs', 'php', 'python', 'java', 'curl'],
+    languages: ['javascript', 'nodejs', 'php', 'python', 'java', 'dotnet', 'curl'],
     baseUrl: 'https://ariana-backend.onrender.com/api',
     stableVersion: 'v1',
     previewVersion: 'v2'
@@ -32,6 +32,8 @@ const ARIANA_ENTERPRISE_SDK_MANIFEST = {
     pythonDocs: '/sdk/python/ariana_enterprise_python/README.md',
     java: '/sdk/java/ariana-enterprise-java-sdk.zip',
     javaDocs: '/sdk/java/ariana_enterprise_java/README.md',
+    dotnet: '/sdk/dotnet/ariana-enterprise-dotnet-sdk.zip',
+    dotnetDocs: '/sdk/dotnet/ariana_enterprise_dotnet/README.md',
     docs: '/ariana_enterprise_sdk.html'
   },
   features: [
@@ -98,7 +100,7 @@ const ARIANA_ENTERPRISE_PHP_SDK_MANIFEST = {
     examples: '/sdk/php/ariana-enterprise-php/examples/full_flow.php'
   },
   install: {
-    composer: 'composer require ariana/enterprise-sdk',
+    registry: 'Ainda não publicado no Packagist. Use o pacote ZIP oficial ou repositório local.',
     local: 'composer config repositories.ariana-enterprise path ./ariana-enterprise-php && composer require ariana/enterprise-sdk:*'
   },
   features: [
@@ -141,7 +143,7 @@ const ARIANA_ENTERPRISE_PYTHON_SDK_MANIFEST = {
     examples: '/sdk/python/ariana_enterprise_python/examples/full_flow.py'
   },
   install: {
-    pip: 'pip install ariana-enterprise',
+    registry: 'Ainda não publicado no PyPI. Use o pacote ZIP oficial.',
     local: 'pip install ./ariana_enterprise_python'
   },
   features: [
@@ -186,9 +188,9 @@ const ARIANA_ENTERPRISE_JAVA_SDK_MANIFEST = {
     examples: '/sdk/java/ariana_enterprise_java/examples/FullFlowExample.java'
   },
   install: {
-    maven: '<dependency><groupId>br.com.arianamoveis</groupId><artifactId>ariana-enterprise-java</artifactId><version>1.0.0</version></dependency>',
-    gradle: "implementation 'br.com.arianamoveis:ariana-enterprise-java:1.0.0'",
-    local: 'mvn install'
+    registry: 'Ainda não publicado no Maven Central. Instale primeiro o pacote oficial localmente.',
+    mavenCoordinates: 'br.com.arianamoveis:ariana-enterprise-java:1.0.0',
+    local: 'mvn -f ./ariana_enterprise_java/pom.xml install'
   },
   features: [
     'api_key_auth', 'oauth2_client_credentials', 'bearer_token', 'retry', 'timeout', 'error_handling',
@@ -236,7 +238,7 @@ const ARIANA_ENTERPRISE_DOTNET_SDK_MANIFEST = {
     examples: '/sdk/dotnet/ariana_enterprise_dotnet/examples/FullFlowExample.cs'
   },
   install: {
-    nuget: 'dotnet add package ArianaEnterprise.Sdk --version 1.0.0',
+    registry: 'Ainda não publicado no NuGet. Use a referência local do pacote oficial.',
     local: 'dotnet add reference ./ariana_enterprise_dotnet/ArianaEnterprise.Sdk.csproj',
     restore: 'dotnet restore'
   },
