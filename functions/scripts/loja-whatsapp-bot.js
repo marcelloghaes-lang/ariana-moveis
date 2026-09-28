@@ -11770,7 +11770,7 @@ async function handleWebhook(payload) {
   if (incoming.fromMe) {
     if (isDailyDueReminderOutbound(incoming.text)) {
       const conv = conversation(incoming.phone);
-      clearDailyDueCollectionContext(conv);
+      markDailyDueCollectionContext(conv);
       clearReviewNeeded(conv);
 
       await syncTicket(incoming.phone, {
