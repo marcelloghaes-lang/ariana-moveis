@@ -1,5 +1,6 @@
 import registerOrderStatusRoutes from './orderStatusRoutes.js';
 import registerAdminCoreRoutes from './adminCoreRoutes.js';
+import registerCreativeCutoutStudioRoutes from './creativeCutoutStudioRoutes.js';
 import registerCouponRoutes from './couponRoutes.js';
 import registerPaymentRoutes from './paymentRoutes.js';
 import registerEnterpriseRoutes from './enterpriseRoutes.js';
@@ -3460,6 +3461,15 @@ registerAdminCoreRoutes(app, {
   waMaybeNotifyOrderStatusChange,
   waNotifyAdminOrderStatusChange,
   formatMoneyBRL
+});
+
+
+registerCreativeCutoutStudioRoutes(app, {
+  ...context,
+  mongoose,
+  adminRequired,
+  upload: context.upload,
+  fs: context.fs
 });
 
 // ============================================================

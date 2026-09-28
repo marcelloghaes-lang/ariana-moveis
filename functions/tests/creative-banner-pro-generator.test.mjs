@@ -7,6 +7,7 @@ import {
   analyzeCreativeBannerProMulti,
   generateCreativeBannerProMulti,
   prepareOfficialLogoAsset,
+  prepareProProductAsset,
   resolveProFormat,
   resolveProTemplate,
   getProTemplateManifest
@@ -96,6 +97,31 @@ test('manifesto de template mantém regras obrigatórias para novos modelos', ()
   assert.equal(manifest.rules.commerce.autoPrice, false);
   assert.equal(manifest.rules.qualityGate.blockFinalSaveOnCriticalFailure, true);
   assert.ok(manifest.supportedFormats.some(item => item.id === 'square'));
+});
+
+test('Cutout Studio consegue processar buffer original sem URL intermediária', async () => {
+  const originalBuffer = await sharp(Buffer.from(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1200">' +
+    '<rect width="1200" height="1200" fill="#ffffff"/>' +
+    '<rect x="330" y="180" width="540" height="820" rx="40" fill="#111827"/>' +
+    '<circle cx="600" cy="430" r="150" fill="#2563eb"/>' +
+    '</svg>'
+  )).png().toBuffer();
+
+  const asset = await prepareProProductAsset({
+    name: 'Produto original do Cutout Studio',
+    category: 'Teste',
+    originalBuffer,
+    sourceType: 'creative_cutout_bank_original'
+  }, {
+    removeBackground: true
+  });
+
+  assert.equal(asset.sourceType, 'creative_cutout_bank_original');
+  assert.ok(Buffer.isBuffer(asset.buffer));
+  assert.ok(asset.buffer.length > 1000);
+  assert.equal(asset.sourceWidth, 1200);
+  assert.equal(asset.sourceHeight, 1200);
 });
 
 test('remove fundo branco conectado sem apagar branco interno do produto', async () => {
