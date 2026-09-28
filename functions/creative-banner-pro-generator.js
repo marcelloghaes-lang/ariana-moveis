@@ -207,6 +207,10 @@ function productImage(product = {}, options = {}) {
     || images.find(item => item?.url || item?.imageUrl);
 
   return String(
+    product.originalSourcePath ||
+    product.sourcePath ||
+    options.originalSourcePath ||
+    options.sourcePath ||
     options.imageUrl ||
     product.mainImageUrl ||
     product.imageUrl ||
@@ -1515,7 +1519,16 @@ export async function prepareProProductAsset(product = {}, options = {}) {
     options.removeBackground !== false && options.removeLightBackground !== false,
     productText
   );
-  return repairCreativeProductCutout(baseAsset, productText, raw, source);
+  const repaired = await repairCreativeProductCutout(baseAsset, productText, raw, source);
+  return {
+    ...repaired,
+    sourceType: product.originalSourcePath
+      ? 'direct_original_upload'
+      : String(product.sourceType || 'remote_or_catalog'),
+    sourceOriginalName: String(product.originalSourceName || ''),
+    sourceOriginalMimeType: String(product.originalSourceMimeType || ''),
+    sourceOriginalBytes: Number(product.originalSourceBytes || raw.length || 0)
+  };
 }
 
 export async function analyzeCreativeBannerPro(product = {}, options = {}) {
