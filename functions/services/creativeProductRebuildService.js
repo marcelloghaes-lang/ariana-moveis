@@ -52,6 +52,14 @@ export function shouldRebuildCreativeProduct(asset = {}, productText = '') {
     return { required: false, difficult, reason: 'clean_existing_alpha' };
   }
 
+  const sourceLongEdge = Math.max(
+    Number(asset.sourceWidth || 0),
+    Number(asset.sourceHeight || 0)
+  );
+  if (sourceLongEdge > 0 && sourceLongEdge < 700) {
+    return { required: true, difficult, reason: 'low_source_resolution' };
+  }
+
   if (difficult) {
     return { required: true, difficult: true, reason: 'difficult_product_structure' };
   }
