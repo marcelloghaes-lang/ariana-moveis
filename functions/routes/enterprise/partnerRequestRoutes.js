@@ -332,4 +332,142 @@ export default function registerEnterprisePartnerRequestRoutes(app, context = {}
       return res.status(500).json({ ok: false, error: error.message || 'Erro ao recusar solicitação Enterprise' });
     }
   });
+
+  // Bootstrap temporário e estritamente opt-in para criar um parceiro fictício
+  // de homologação interna no Sandbox. Nunca libera produção e não expõe segredos
+  // em logs/respostas. O bloco só executa quando a flag explícita estiver ativa.
+  async function ensureEnterpriseInternalSandboxFixture() {
+    if (String(process.env.ENTERPRISE_INTERNAL_SANDBOX_FIXTURE_ENABLED || 'false').toLowerCase() !== 'true') return;
+
+    const requestId = String(process.env.ENTERPRISE_INTERNAL_SANDBOX_FIXTURE_REQUEST_ID || '').trim();
+    const sandboxApiKey = String(process.env.ENTERPRISE_INTERNAL_SANDBOX_FIXTURE_API_KEY || '').trim();
+    const oauthClientId = String(process.env.ENTERPRISE_INTERNAL_SANDBOX_FIXTURE_OAUTH_CLIENT_ID || '').trim();
+    const oauthClientSecret = String(process.env.ENTERPRISE_INTERNAL_SANDBOX_FIXTURE_OAUTH_SECRET || '').trim();
+    const webhookSecret = String(process.env.ENTERPRISE_INTERNAL_SANDBOX_FIXTURE_WEBHOOK_SECRET || '').trim();
+    const signingSecret = String(process.env.ENTERPRISE_INTERNAL_SANDBOX_FIXTURE_SIGNING_SECRET || '').trim();
+
+    if (!requestId || !sandboxApiKey || !oauthClientId || !oauthClientSecret || !webhookSecret || !signingSecret) {
+      console.error('[ENTERPRISE TEST FIXTURE] configuração incompleta; bootstrap ignorado');
+      return;
+    }
+
+    const request = await EnterpriseHomologationRequestCompat.findOne({ requestId });
+    if (!request) {
+      console.error('[ENTERPRISE TEST FIXTURE] solicitação não encontrada:', requestId);
+      return;
+    }
+
+    const hashSecret = (value = '') => crypto.createHash('sha256').update(String(value || '')).digest('hex');
+    const expectedApiKeyHash = hashSecret(sandboxApiKey);
+
+    if (
+      String(request.status || '').toLowerCase() === 'approved' &&
+      String(request.sandboxCredentials?.apiKeyHash || '') === expectedApiKeyHash &&
+      request.sandboxCredentials?.active === true
+    ) {
+      console.log('[ENTERPRISE TEST FIXTURE] parceiro Sandbox já está pronto:', requestId);
+      return;
+    }
+
+    const partnerId = String(request.partnerRequestId || request.partnerId || createEnterprisePartnerId()).trim();
+    const oauth = {
+      clientId: oauthClientId,
+      clientSecretHash: hashSecret(oauthClientSecret),
+      clientSecretLast4: oauthClientSecret.slice(-4),
+      active: true,
+      environment: 'sandbox',
+      createdAt: new Date()
+    };
+
+    request.set({
+      partnerRequestId: partnerId,
+      status: 'approved',
+      statusLabel: 'Aprovada',
+      approvedAt: new Date(),
+      reviewedAt: new Date(),
+      approvedBy: 'internal_sandbox_fixture',
+      reviewedBy: 'internal_sandbox_fixture',
+      responsibleName: request.responsibleName || 'Equipe Ariana Enterprise',
+      environment: 'sandbox',
+      integrationTypes: Array.isArray(request.integrationTypes) && request.integrationTypes.length
+        ? request.integrationTypes
+        : ['catalog', 'stock', 'price', 'orders', 'invoice', 'tracking', 'webhooks'],
+      apiKeySandboxHash: expectedApiKeyHash,
+      oauthClientId,
+      oauthClientSecretHash: oauth.clientSecretHash,
+      webhookSecret,
+      signingSecret,
+      sandboxCredentials: {
+        ...(request.sandboxCredentials || {}),
+        apiKeyHash: expectedApiKeyHash,
+        apiKeyLast4: sandboxApiKey.slice(-4),
+        active: true,
+        environment: 'sandbox',
+        webhookSecret,
+        signingSecret,
+        oauth
+      },
+      productionCredentials: {
+        ...(request.productionCredentials || {}),
+        active: false,
+        environment: 'production'
+      },
+      credentials: {
+        ...(request.credentials || {}),
+        sandbox: {
+          ...(request.credentials?.sandbox || {}),
+          apiKeyHash: expectedApiKeyHash,
+          apiKeyLast4: sandboxApiKey.slice(-4),
+          active: true,
+          oauth
+        },
+        production: {
+          ...(request.credentials?.production || {}),
+          active: false
+        }
+      }
+    });
+
+    request.history = Array.isArray(request.history) ? request.history : [];
+    request.history.push({
+      status: 'approved',
+      at: new Date(),
+      by: 'internal_sandbox_fixture',
+      source: 'internal_prelaunch_test'
+    });
+    await request.save();
+
+    await EnterpriseHomologationRequestCompat.updateOne(
+      { _id: request._id },
+      { $unset: {
+        apiKeySandbox: '', sandboxApiKey: '', apiKeyProduction: '', enterpriseApiKey: '', apiKey: '',
+        oauthClientSecret: '', oauthProductionClientSecret: '',
+        'sandboxCredentials.apiKey': '', 'productionCredentials.apiKey': '',
+        'sandboxCredentials.oauth.clientSecret': '', 'productionCredentials.oauth.clientSecret': '',
+        'sandbox.apiKey': '', 'production.apiKey': '',
+        'credentials.sandbox.apiKey': '', 'credentials.production.apiKey': '',
+        'credentials.sandbox.oauth.clientSecret': '', 'credentials.production.oauth.clientSecret': ''
+      } }
+    ).catch(() => null);
+
+    await IntegrationAuditLog.create({
+      scope: 'enterprise_partner_request',
+      eventType: 'partner_request.internal_sandbox_fixture',
+      manufacturer: request.companyName || request.tradeName || request.requestId,
+      integrationId: partnerId,
+      status: 'success',
+      statusCode: 200,
+      message: 'Parceiro fictício Sandbox preparado para teste ponta a ponta',
+      metadata: { requestId, partnerRequestId: partnerId, environment: 'sandbox' }
+    }).catch(() => null);
+
+    console.log('[ENTERPRISE TEST FIXTURE] parceiro Sandbox preparado:', requestId);
+  }
+
+  setTimeout(() => {
+    ensureEnterpriseInternalSandboxFixture().catch((error) => {
+      console.error('[ENTERPRISE TEST FIXTURE] erro:', error.message || error);
+    });
+  }, 3000);
+
 }
