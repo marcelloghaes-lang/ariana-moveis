@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { generateCreativeBannerPro, generateCreativeBannerProMulti } from '../creative-banner-pro-generator.js';
+import { generateCreativeBannerPro, generateCreativeBannerProMulti, prepareProProductAsset } from '../creative-banner-pro-generator.js';
 
 function svgData(svg) {
   return 'data:image/svg+xml;base64,' + Buffer.from(svg).toString('base64');
@@ -234,3 +234,46 @@ for (const [key,value] of Object.entries(expectedCopy)) {
 }
 fs.writeFileSync(path.join(outDir, 'copy-authority-desktop.png'), copyAuthority.buffer);
 console.log('copy-authority-desktop', copyAuthority.buffer.length, copyAuthority.meta.quality.score, copyAuthority.meta.copy || {});
+
+
+const realFanProducts = [
+  {
+    id: 'fan-coluna-real',
+    name: 'Ventilador de Coluna Oscilante, Turbo 6 Pás Premium, Vermelho, 40cm',
+    category: 'Ventiladores',
+    imageUrl: 'https://res.cloudinary.com/dphqmslq6/image/upload/v1776731713/ariana_moveis/produtos/produto-1776731713495.png'
+  },
+  {
+    id: 'fan-ventisol-real',
+    name: 'Ventilador De Mesa Ventisol Turbo 6 Pás 30cm',
+    category: 'Ventiladores',
+    imageUrl: 'https://res.cloudinary.com/dphqmslq6/image/upload/v1776732315/ariana_moveis/produtos/produto-1776732315399.png'
+  },
+  {
+    id: 'fan-arno-real',
+    name: 'VENTILADOR ARNO 40CM TURBO FORCE 2 EM 1 VF42',
+    category: 'Ventiladores',
+    imageUrl: 'https://res.cloudinary.com/dphqmslq6/image/upload/v1776731073/ariana_moveis/produtos/produto-1776731073119.webp'
+  }
+];
+
+for (const product of realFanProducts) {
+  const asset = await prepareProProductAsset(product, {
+    removeBackground: true,
+    removeLightBackground: true
+  });
+  const name = product.id + '-cutout';
+  fs.writeFileSync(path.join(outDir, name + '.png'), asset.buffer);
+  console.log(
+    'REAL_FAN_CUTOUT',
+    product.id,
+    JSON.stringify({
+      removalMode: asset.removalMode,
+      cutoutSafe: asset.cutoutSafe,
+      cutoutReason: asset.cutoutReason,
+      width: asset.width,
+      height: asset.height,
+      repair: asset.repairMetrics || null
+    })
+  );
+}
