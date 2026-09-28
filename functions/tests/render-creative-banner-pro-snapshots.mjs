@@ -305,3 +305,23 @@ try {
 } catch (error) {
   console.log('REAL_FAN_CATALOG_ERROR', String(error?.message || error));
 }
+
+
+const realFanBanner = await generateCreativeBannerProMulti(realFanProducts, {
+  outputFormat: 'square',
+  templatePro: 'campaign',
+  showPrice: false,
+  showCommercialInfo: false,
+  removeBackground: true,
+  brandLabel: '',
+  brandLogoUrl: '',
+  badge: 'VENTILADORES',
+  headline: 'Mais vento. Mais conforto.',
+  subtitle: 'Modelos de mesa e coluna para refrescar seus ambientes.',
+  benefit: '',
+  promoText: '',
+  couponText: '',
+  cta: 'Confira os modelos'
+});
+fs.writeFileSync(path.join(outDir, 'real-fans-square.png'), realFanBanner.buffer);
+console.log('REAL_FAN_BANNER_QUALITY', JSON.stringify(realFanBanner.meta?.quality || null));
