@@ -15,9 +15,24 @@ export const PRO_BANNER_FORMATS = Object.freeze({
 });
 
 export const PRO_TEMPLATES = Object.freeze({
-  marketplace: Object.freeze({ label: 'Marketplace Impacto' }),
-  premium: Object.freeze({ label: 'Premium Ariana' }),
-  campaign: Object.freeze({ label: 'Campanha Forte' })
+  marketplace: Object.freeze({
+    label: 'Marketplace Impacto',
+    description: 'Azul Ariana, contraste forte, faixa amarela e leitura rápida de varejo.',
+    mood: 'impacto',
+    accent: '#FFD51B'
+  }),
+  premium: Object.freeze({
+    label: 'Premium Ariana',
+    description: 'Azul-marinho, dourado, respiro maior e acabamento elegante.',
+    mood: 'premium',
+    accent: '#F0CA6A'
+  }),
+  campaign: Object.freeze({
+    label: 'Campanha Forte',
+    description: 'Azul vivo, feixe amarelo, energia promocional e direção de campanha.',
+    mood: 'campanha',
+    accent: '#FFD51B'
+  })
 });
 
 function number(value, fallback = 0) {
@@ -102,6 +117,57 @@ export function resolveProFormat(value = '') {
 export function resolveProTemplate(value = '') {
   const key = String(value || '').trim().toLowerCase();
   return PRO_TEMPLATES[key] ? key : 'marketplace';
+}
+
+export function getProTemplateManifest(value = '') {
+  const id = resolveProTemplate(value);
+  const template = PRO_TEMPLATES[id];
+  return {
+    schemaVersion: 'ariana-creative-template/v1',
+    id,
+    label: template.label,
+    description: template.description,
+    renderer: id,
+    style: {
+      mood: template.mood,
+      accent: template.accent
+    },
+    supportedFormats: Object.entries(PRO_BANNER_FORMATS).map(([formatId, item]) => ({
+      id: formatId,
+      label: item.label,
+      width: item.width,
+      height: item.height,
+      device: item.device
+    })),
+    rules: {
+      manualCopyAuthority: 'editor_nonempty_wins',
+      copyFields: ['badge', 'headline', 'subtitle', 'cta'],
+      aiCreativeDirection: true,
+      multiProduct: {
+        minProducts: 2,
+        maxProducts: 5,
+        preferredHeroComposition: 'one_plus_two'
+      },
+      commerce: {
+        autoPrice: false,
+        autoDiscount: false,
+        autoPix: false,
+        autoInstallments: false,
+        autoFreight: false
+      },
+      branding: {
+        officialArianaLogoRequired: true,
+        manufacturerLogoOptional: true,
+        externalStorePromotionForbidden: true,
+        ownSiteUrlInsideOwnSiteBanner: false
+      },
+      qualityGate: {
+        cutoutRequired: true,
+        minimumSourceLongEdge: 700,
+        blockFinalSaveOnCriticalFailure: true
+      }
+    }
+  };
 }
 
 function decodeDataUrl(url = '') {
@@ -1616,6 +1682,10 @@ function multiShowcaseStageSvg(format, count = 3) {
 
 function multiCampaignOverlay(format, opts, count = 2) {
   const mobile = format.device === 'mobile';
+  const template = resolveProTemplate(opts.template);
+  const accent = template === 'premium' ? '#F0CA6A' : '#FFD51B';
+  const titleFill = '#ffffff';
+  const supportOpacity = template === 'premium' ? '.84' : '.90';
   const brand = String(opts.brandLabel || '').trim();
   const brandCampaign = Boolean(opts.hasBrandLogo || brand);
   // A copy já foi resolvida em normalizedOptions. Não criar uma segunda camada
@@ -1641,17 +1711,17 @@ function multiCampaignOverlay(format, opts, count = 2) {
     if (showCommercialInfo) {
       footer =
         '<g font-family="Arial,Helvetica,sans-serif">'+
-          '<text x="'+Math.round(w*.10)+'" y="'+infoY+'" font-size="'+Math.round(w*.030)+'" font-weight="950" fill="#FFD51B">'+installment+'x</text>'+
+          '<text x="'+Math.round(w*.10)+'" y="'+infoY+'" font-size="'+Math.round(w*.030)+'" font-weight="950" fill="'+accent+'">'+installment+'x</text>'+
           '<text x="'+Math.round(w*.10)+'" y="'+Math.round(infoY+h*.026)+'" font-size="'+Math.round(w*.0145)+'" font-weight="800" fill="#ffffff">SEM JUROS NO CARTÃO</text>'+
           '<line x1="'+Math.round(w*.39)+'" y1="'+Math.round(infoY-h*.026)+'" x2="'+Math.round(w*.39)+'" y2="'+Math.round(infoY+h*.034)+'" stroke="#ffffff" stroke-opacity=".38" stroke-width="2"/>'+
-          (promo ? '<text x="'+Math.round(w*.44)+'" y="'+Math.round(infoY-h*.002)+'" font-size="'+Math.round(w*.017)+'" font-weight="900" fill="#FFD51B">'+escapeXml(promo)+'</text>' : '')+
+          (promo ? '<text x="'+Math.round(w*.44)+'" y="'+Math.round(infoY-h*.002)+'" font-size="'+Math.round(w*.017)+'" font-weight="900" fill="'+accent+'">'+escapeXml(promo)+'</text>' : '')+
           '<line x1="'+Math.round(w*.70)+'" y1="'+Math.round(infoY-h*.026)+'" x2="'+Math.round(w*.70)+'" y2="'+Math.round(infoY+h*.034)+'" stroke="#ffffff" stroke-opacity=".38" stroke-width="2"/>'+
           '<text x="'+Math.round(w*.75)+'" y="'+Math.round(infoY-h*.002)+'" font-size="'+Math.round(w*.017)+'" font-weight="900" fill="#ffffff">'+escapeXml(cta)+' →</text>'+
         '</g>';
     } else {
       footer =
         '<g font-family="Arial,Helvetica,sans-serif">'+
-          '<line x1="'+Math.round(w*.20)+'" y1="'+Math.round(infoY-h*.010)+'" x2="'+Math.round(w*.80)+'" y2="'+Math.round(infoY-h*.010)+'" stroke="#FFD51B" stroke-opacity=".70" stroke-width="2"/>'+
+          '<line x1="'+Math.round(w*.20)+'" y1="'+Math.round(infoY-h*.010)+'" x2="'+Math.round(w*.80)+'" y2="'+Math.round(infoY-h*.010)+'" stroke="'+accent+'" stroke-opacity=".70" stroke-width="2"/>'+
           '<text x="'+cx+'" y="'+Math.round(infoY+h*.030)+'" text-anchor="middle" font-size="'+Math.round(w*.017)+'" font-weight="900" letter-spacing="1.4" fill="#ffffff">'+escapeXml(cta)+' →</text>'+
         '</g>';
     }
@@ -1659,7 +1729,7 @@ function multiCampaignOverlay(format, opts, count = 2) {
     return Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
       (topLabel
-        ? '<text x="'+cx+'" y="'+Math.round(h*.135)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.021)+'" font-weight="900" letter-spacing="2.4" fill="#FFD51B">'+escapeXml(topLabel)+'</text>'
+        ? '<text x="'+cx+'" y="'+Math.round(h*.135)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.021)+'" font-weight="900" letter-spacing="2.4" fill="'+accent+'">'+escapeXml(topLabel)+'</text>'
         : '')+
       linesSvg(wrap(headline,22,2),{
         x:cx,
@@ -1670,10 +1740,10 @@ function multiCampaignOverlay(format, opts, count = 2) {
         weight:950,
         anchor:'middle'
       })+
-      '<text x="'+cx+'" y="'+supportY+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.021)+'" font-weight="650" fill="#ffffff" opacity=".90">'+escapeXml(support)+'</text>'+
+      '<text x="'+cx+'" y="'+supportY+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.021)+'" font-weight="650" fill="#ffffff" opacity="'+supportOpacity+'">'+escapeXml(support)+'</text>'+
       (coupon
         ? '<text x="'+cx+'" y="'+Math.round(h*.365)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.019)+'" font-weight="850" fill="#ffffff">USE O CUPOM</text>'+
-          '<text x="'+cx+'" y="'+Math.round(h*.415)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.038)+'" font-weight="950" fill="#FFD51B">'+escapeXml(coupon)+'</text>'
+          '<text x="'+cx+'" y="'+Math.round(h*.415)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.038)+'" font-weight="950" fill="'+accent+'">'+escapeXml(coupon)+'</text>'
         : '')+
       footer+
       '</svg>'
@@ -1721,10 +1791,10 @@ function multiCampaignOverlay(format, opts, count = 2) {
   if (showCommercialInfo) {
     footer =
       '<g font-family="Arial,Helvetica,sans-serif">'+
-        '<text x="'+x+'" y="'+infoY+'" font-size="'+Math.round(h*.052)+'" font-weight="950" fill="#FFD51B">'+installment+'x</text>'+
+        '<text x="'+x+'" y="'+infoY+'" font-size="'+Math.round(h*.052)+'" font-weight="950" fill="'+accent+'">'+installment+'x</text>'+
         '<text x="'+x+'" y="'+Math.round(infoY+h*.050)+'" font-size="'+Math.round(h*.020)+'" font-weight="850" fill="#ffffff">SEM JUROS NO CARTÃO</text>'+
         '<line x1="'+Math.round(w*.178)+'" y1="'+Math.round(infoY-h*.045)+'" x2="'+Math.round(w*.178)+'" y2="'+Math.round(infoY+h*.058)+'" stroke="#ffffff" stroke-opacity=".35" stroke-width="'+Math.max(1,Math.round(h*.004))+'"/>'+
-        (promo ? '<text x="'+Math.round(w*.200)+'" y="'+Math.round(infoY+h*.010)+'" font-size="'+Math.round(h*.025)+'" font-weight="900" fill="#FFD51B">'+escapeXml(promo)+'</text>' : '')+
+        (promo ? '<text x="'+Math.round(w*.200)+'" y="'+Math.round(infoY+h*.010)+'" font-size="'+Math.round(h*.025)+'" font-weight="900" fill="'+accent+'">'+escapeXml(promo)+'</text>' : '')+
         '<line x1="'+Math.round(w*.390)+'" y1="'+Math.round(infoY-h*.045)+'" x2="'+Math.round(w*.390)+'" y2="'+Math.round(infoY+h*.058)+'" stroke="#ffffff" stroke-opacity=".35" stroke-width="'+Math.max(1,Math.round(h*.004))+'"/>'+
         '<text x="'+Math.round(w*.412)+'" y="'+Math.round(infoY+h*.010)+'" font-size="'+Math.round(h*.025)+'" font-weight="900" fill="#ffffff">'+escapeXml(cta)+' →</text>'+
       '</g>';
@@ -1732,7 +1802,7 @@ function multiCampaignOverlay(format, opts, count = 2) {
     const ruleEnd = Math.round(x + textW*.72);
     footer =
       '<g font-family="Arial,Helvetica,sans-serif">'+
-        '<line x1="'+x+'" y1="'+Math.round(infoY-h*.038)+'" x2="'+ruleEnd+'" y2="'+Math.round(infoY-h*.038)+'" stroke="#FFD51B" stroke-opacity=".72" stroke-width="'+Math.max(2,Math.round(h*.005))+'"/>'+
+        '<line x1="'+x+'" y1="'+Math.round(infoY-h*.038)+'" x2="'+ruleEnd+'" y2="'+Math.round(infoY-h*.038)+'" stroke="'+accent+'" stroke-opacity=".72" stroke-width="'+Math.max(2,Math.round(h*.005))+'"/>'+
         '<text x="'+x+'" y="'+Math.round(infoY+h*.025)+'" font-size="'+Math.round(h*.034)+'" font-weight="900" letter-spacing="1.1" fill="#ffffff">'+escapeXml(cta)+' →</text>'+
       '</g>';
   }
@@ -1740,7 +1810,7 @@ function multiCampaignOverlay(format, opts, count = 2) {
   return Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
     (topLabel
-      ? '<text x="'+x+'" y="'+topY+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.031)+'" font-weight="900" letter-spacing="2.6" fill="#FFD51B">'+escapeXml(topLabel)+'</text>'
+      ? '<text x="'+x+'" y="'+topY+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.031)+'" font-weight="900" letter-spacing="2.6" fill="'+accent+'">'+escapeXml(topLabel)+'</text>'
       : '')+
     linesSvg(headlineLines,{
       x,
@@ -1762,7 +1832,7 @@ function multiCampaignOverlay(format, opts, count = 2) {
     })+
     (coupon
       ? '<text x="'+x+'" y="'+Math.round(h*.675)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.025)+'" font-weight="850" fill="#ffffff">USE O CUPOM</text>'+
-        '<text x="'+x+'" y="'+Math.round(h*.748)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.062)+'" font-weight="950" fill="#FFD51B">'+escapeXml(coupon)+'</text>'
+        '<text x="'+x+'" y="'+Math.round(h*.748)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.062)+'" font-weight="950" fill="'+accent+'">'+escapeXml(coupon)+'</text>'
       : '')+
     footer+
     '</svg>'
@@ -1843,7 +1913,7 @@ function multiQuality(assets = [], brandAsset = null, format = {}, opts = {}, ca
 export async function analyzeCreativeBannerProMulti(products = [], options = {}) {
   const rows=(Array.isArray(products)?products:[]).filter(Boolean).slice(0,5);
   if(rows.length<2) throw new Error('multi_product_requires_at_least_two_products');
-  const opts=normalizedOptions(rows[0],{...options,showPrice:false,contentMode:'multi_product',templatePro:'campaign'});
+  const opts=normalizedOptions(rows[0],{...options,showPrice:false,contentMode:'multi_product'});
   const brandAsset=await prepareOfficialLogoAsset();
   const campaignBrandAsset=opts.brandLogoUrl ? await prepareCampaignBrandLogo(opts.brandLogoUrl) : null;
   opts.hasBrandLogo=Boolean(campaignBrandAsset?.backgroundRemoved);
@@ -1854,7 +1924,7 @@ export async function analyzeCreativeBannerProMulti(products = [], options = {})
     ok:true,
     multiProduct:true,
     format:opts.format,
-    template:'campaign',
+    template:opts.template,
     productCount:rows.length,
     products:assets.map((asset,index)=>({
       index,
@@ -1887,8 +1957,7 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
   const opts=normalizedOptions(rows[0],{
     ...options,
     showPrice:false,
-    contentMode:'multi_product',
-    templatePro:'campaign'
+    contentMode:'multi_product'
   });
   const format=opts.format;
   const brandAsset=await prepareOfficialLogoAsset();
@@ -1900,7 +1969,7 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
   const slots=multiProductSlots(format,rows.length);
 
   const layers=[
-    {input:backgroundSvg(format,'campaign'),left:0,top:0},
+    {input:backgroundSvg(format,opts.template),left:0,top:0},
     {input:multiShowcaseStageSvg(format,rows.length),left:0,top:0}
   ];
   layers.push(await logoLayer(format,brandAsset));
@@ -1922,7 +1991,7 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
       });
     }else{
       layers.push({
-        input:fallbackPanelSvg(format,{product:slot},'campaign'),
+        input:fallbackPanelSvg(format,{product:slot},opts.template),
         left:0,
         top:0
       });
@@ -1958,7 +2027,7 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
     meta:{
       multiProduct:true,
       format,
-      template:'campaign',
+      template:opts.template,
       productCount:rows.length,
       products:assets.map((asset,index)=>({
         index,
