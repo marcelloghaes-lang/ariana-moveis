@@ -405,4 +405,34 @@ app.post('/api/admin/enterprise/catalog/sync-jobs/:jobId/retry', adminRequired, 
 });
 
 
+function startEnterpriseCatalogSyncWorker() {
+  const enabled = String(process.env.ENTERPRISE_CATALOG_SYNC_WORKER_ENABLED || 'true').toLowerCase() !== 'false';
+  if (!enabled) {
+    console.log('🏭 Enterprise catalog sync worker desativado por ENTERPRISE_CATALOG_SYNC_WORKER_ENABLED=false');
+    return;
+  }
+
+  // Proteção contra registro duplicado do intervalo no mesmo processo.
+  if (globalThis.__arianaEnterpriseCatalogSyncWorkerStarted) return;
+  globalThis.__arianaEnterpriseCatalogSyncWorkerStarted = true;
+
+  const intervalMs = Math.max(15000, Number(process.env.ENTERPRISE_CATALOG_SYNC_WORKER_INTERVAL_MS || 45000));
+  const limit = Math.max(1, Number(process.env.ENTERPRISE_CATALOG_SYNC_WORKER_LIMIT || 3));
+
+  console.log(`🏭 Enterprise catalog sync worker ativo: a cada ${intervalMs}ms, limite ${limit}`);
+
+  const timer = setInterval(() => {
+    processPendingEnterpriseCatalogSyncJobs(limit).catch((error) => {
+      console.error('[ENTERPRISE CATALOG SYNC WORKER] ERRO', error.message || error);
+    });
+  }, intervalMs);
+
+  if (typeof timer.unref === 'function') timer.unref();
+}
+
+// O worker precisa nascer no mesmo módulo que possui o processador da fila.
+// Assim cargas grandes (> limite inline) não ficam presas em "queued".
+startEnterpriseCatalogSyncWorker();
+
+
 }
