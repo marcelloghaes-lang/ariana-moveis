@@ -397,7 +397,7 @@
           payload.website = normalizeWebsite(payload.website || '');
           payload.source = 'developers_portal';
 
-          const res = await fetch(`${getApiBase()}/enterprise/homologation/request`, {
+          const res = await fetch(`${getApiBase()}/enterprise/partner-requests`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
