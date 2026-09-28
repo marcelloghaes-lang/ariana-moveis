@@ -77,7 +77,7 @@ function fakeFetchFactory({ validationSafe = true } = {}) {
         assert.equal(init.body.get('background'), 'transparent');
         assert.equal(init.body.get('output_format'), 'png');
         assert.equal(init.body.get('quality'), 'medium');
-        assert.equal(init.body.get('input_fidelity'), 'high');
+        assert.equal(init.body.get('input_fidelity'), null);
         assert.equal(init.body.get('size'), '1024x1024');
         assert.match(String(init.body.get('prompt')), /mesmo produto/i);
         assert.match(String(init.body.get('prompt')), /fundo realmente transparente/i);
@@ -159,6 +159,49 @@ test('prompt obriga fidelidade e transparência nos vazados', () => {
   assert.match(prompt, /não redesenhe/i);
   assert.match(prompt, /espaços entre grades/i);
   assert.match(prompt, /fundo realmente transparente/i);
+});
+
+test('gpt-image-2 não envia input_fidelity porque o modelo já usa alta fidelidade automaticamente', async () => {
+  const seen = [];
+  const fakeFetch = async (url, init = {}) => {
+    if (String(url).endsWith('/v1/images/edits')) {
+      seen.push(init.body.get('input_fidelity'));
+      const generated = await rebuiltPng();
+      return new Response(JSON.stringify({
+        data: [{ b64_json: generated.toString('base64') }]
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    if (String(url).endsWith('/v1/responses')) {
+      return new Response(JSON.stringify({
+        model: 'gpt-5.6-luna',
+        output_text: JSON.stringify({
+          sameProduct: true,
+          silhouetteFaithful: true,
+          structureFaithful: true,
+          brandingFaithful: true,
+          voidsClean: true,
+          noExtraObjects: true,
+          confidence: 0.95,
+          reason: 'ok'
+        })
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    throw new Error('unexpected_url:' + url);
+  };
+
+  const result = await rebuildCreativeProductFromReference({
+    referenceBuffer: await referencePng(),
+    asset: baseAsset(),
+    productText: 'Ventilador Arno',
+    enabled: true,
+    fetchImpl: fakeFetch,
+    apiKey: 'test-key',
+    imageModel: 'gpt-image-2',
+    validationModel: 'gpt-5.6-luna'
+  });
+
+  assert.equal(result.rebuildMetrics?.safe, true);
+  assert.deepEqual(seen, [null]);
 });
 
 test('análise prepara reconstrução sem chamar geração de imagem', async () => {
