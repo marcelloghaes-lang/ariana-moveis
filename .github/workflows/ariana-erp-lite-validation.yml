@@ -49,6 +49,8 @@ jobs:
         run: |
           node --check functions/server.js
           node --check functions/routes/adminSigeCrediarioBotRoutes.js
+          node --check functions/integrations/cora/coraChargeModel.js
+          node --check functions/integrations/cora/coraInstallmentService.js
           find functions/services/erp functions/routes/erp functions/routes/televendas \
             -type f -name '*.js' -print0 \
             | sort -z \
@@ -121,7 +123,9 @@ jobs:
           grep -Fq "historicalInstallmentLabel" functions/services/erp/erpPaymentReceiptUtils.js
           grep -Fq "historicalInstallmentNumber" functions/services/erp/erpLedgerService.js
           grep -Fq "historicalInstallments" functions/services/erp/erpLedgerService.js
-          grep -Fq "hasOriginal" public/erp_financeiro_completo.html
+          grep -Fq "historicalInstallmentNumber" public/erp_financeiro_completo.html
+          grep -Fq "historicalInstallments" public/erp_financeiro_completo.html
+          grep -Fq "knownTotal" public/erp_financeiro_completo.html
           grep -Fq "receiptDelivery" functions/services/erp/erpFinanceService.js
           grep -Fq "receiptDelivery" functions/services/erp/erpLedgerService.js
           grep -Fq "return finance.receive" functions/services/erp/erpSigeSaleParityService.js
@@ -162,6 +166,24 @@ jobs:
           grep -Fq "_paginated" functions/services/erp/erpSigeHistoricalPurchaseEnrichmentService.js
           if grep -Eq "ledger\.pay|Entry\.(update|updateOne|updateMany|findOneAndUpdate|delete|deleteOne|deleteMany|bulkWrite|create)|Entry\.collection\.(update|updateOne|updateMany|findOneAndUpdate|delete|deleteOne|deleteMany|insert|insertOne|insertMany|bulkWrite)" functions/services/erp/erpSigeHistoricalPurchaseEnrichmentService.js; then
             echo "A rotina de enriquecimento pode ler vínculos financeiros, mas não pode escrever no financeiro do Ariana ERP."
+            exit 1
+          fi
+
+      - name: Validate unified ERP carnês
+        shell: bash
+        run: |
+          grep -Fq "async function purchases(query = {})" functions/services/erp/erpCarneService.js
+          grep -Fq "migration?.sourceSaleId" functions/services/erp/erpCarneService.js
+          grep -Fq "Histórico SIGE" functions/services/erp/erpCarneService.js
+          grep -Fq "/erp/finance-panel/carne/compras" functions/routes/erp/erpFinancePanelBridgeRoutes.js
+          grep -Fq "/erp/finance-panel/carne/compras" public/erp_carne.html
+          grep -Fq "purchaseKey" functions/integrations/cora/coraChargeModel.js
+          grep -Fq "ERP_CARNE_HISTORICO" functions/services/erp/erpCarneCoraService.js
+          grep -Fq "coraEligibility" functions/services/erp/erpCarneCoraService.js
+          grep -Fq "personEmail: email" functions/services/erp/erpCarneCoraService.js
+          grep -Fq "O carnê da loja continua disponível normalmente" public/erp_carne.html
+          if grep -Fq "/erp/financeiro/completo?direction=receivable" public/erp_carne.html; then
+            echo "A tela de carnês não deve depender da rota financeira legada para listar compras."
             exit 1
           fi
 
@@ -210,6 +232,9 @@ jobs:
           assert.deepEqual(rule('GET', '/erp/finance-panel/lancamentos').any, ['finance:read','payments:read']);
           assert.deepEqual(rule('GET', '/erp/finance-panel/inadimplentes').any, ['finance:read','payments:read']);
           assert.deepEqual(rule('GET', '/erp/finance-panel/dashboard').any, ['finance:read','payments:read']);
+          assert.deepEqual(rule('GET', '/erp/finance-panel/carne/compras').any, ['finance:read','payments:read']);
+          assert.deepEqual(rule('GET', '/erp/finance-panel/carne/preview').any, ['finance:read','payments:read']);
+          assert.deepEqual(rule('POST', '/erp/finance-panel/carne/cora/emitir').any, ['payments:receive']);
           assert.deepEqual(rule('POST', '/erp/finance-panel/lancamentos/order123/2/pagamentos').any, ['payments:receive']);
           assert.deepEqual(rule('GET', '/erp/relatorios/inadimplentes').any, ['finance:read','payments:read','finance:reports','reports:read']);
           assert.deepEqual(rule('GET', '/erp/relatorios/inadimplentes/pdf').any, ['finance:read','payments:read','finance:reports','reports:read']);
