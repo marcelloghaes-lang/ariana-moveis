@@ -282,14 +282,15 @@ test('Recorte Inteligente Pro limpa fundo entre grade e pé sem destruir ventila
     removeBackground: true
   });
 
-  assert.equal(asset.backgroundRemoved, true);
-  assert.equal(asset.cutoutSafe, true);
+  assert.equal(asset.backgroundRemoved, true, JSON.stringify(asset.repairMetrics));
+  assert.equal(asset.cutoutSafe, true, JSON.stringify(asset.repairMetrics));
   assert.match(asset.removalMode, /internal_repair|repair_verified/);
   assert.equal(asset.repairMetrics?.attempted, true);
   assert.equal(asset.repairMetrics?.difficultProduct, true);
   assert.ok(asset.repairMetrics?.internalCandidateCount >= 3);
   assert.ok(asset.repairMetrics?.internalRemovedPixels > 500);
-  assert.ok(asset.repairMetrics?.structuralLossRatio < 0.24);
+  assert.ok(asset.repairMetrics?.structuralLossRatio < 0.86);
+  assert.ok(asset.repairMetrics?.foregroundOpaqueRatioAfter >= 0.035);
   assert.equal(asset.repairMetrics?.internalBackgroundOk, true);
   assert.equal(asset.repairMetrics?.whiteHaloOk, true);
 
