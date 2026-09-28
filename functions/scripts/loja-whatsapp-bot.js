@@ -3208,7 +3208,8 @@ function customerFirstName(pushName = '') {
   const raw = String(pushName || '').trim();
   if (!raw) return '';
 
-  const firstToken = raw.split(/\s+/)[0] || '';
+  const firstTokenRaw = raw.split(/\s+/)[0] || '';
+  const firstToken = firstTokenRaw.replace(/^[,.;:!?]+|[,.;:!?]+$/g, '');
 
   // Reject only clearly untrustworthy WhatsApp handles/labels.
   // Keep ordinary human names and ignore notes after the first token as before.
