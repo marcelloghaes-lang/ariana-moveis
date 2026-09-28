@@ -174,13 +174,32 @@ async function processBuffer({
       referenceBuffer: originalBuffer,
       asset,
       productText,
-      perform: true
+      perform: true,
+      force: true
     });
 
     aiMetrics = rebuilt.rebuildMetrics || null;
-    if (rebuilt?.buffer && rebuilt.cutoutSafe !== false && rebuilt.backgroundRemoved) {
-      asset = rebuilt;
+    const genuineAiResult =
+      Boolean(rebuilt?.buffer) &&
+      rebuilt.cutoutSafe !== false &&
+      Boolean(rebuilt.backgroundRemoved) &&
+      rebuilt.removalMode === 'ai_reference_rebuild' &&
+      rebuilt.rebuildMetrics?.attempted === true &&
+      rebuilt.rebuildMetrics?.safe === true;
+
+    if (!genuineAiResult) {
+      const reason =
+        rebuilt?.rebuildMetrics?.reason ||
+        rebuilt?.cutoutReason ||
+        'ai_master_repair_rejected';
+      const error = new Error('creative_cutout_ai_repair_rejected:' + reason);
+      error.code = 'creative_cutout_ai_repair_rejected';
+      error.aiReason = reason;
+      error.aiMetrics = aiMetrics;
+      throw error;
     }
+
+    asset = rebuilt;
   }
 
   const outputMeta = await imageMetadata(asset.buffer);

@@ -9,9 +9,11 @@ on:
       - 'functions/services/creativeCutoutBankService.js'
       - 'functions/services/creativeCampaignResearchService.js'
       - 'functions/services/creativeCampaignAiDirectorService.js'
+      - 'functions/services/creativeProductRebuildService.js'
       - 'functions/tests/creative-banner-pro-generator.test.mjs'
       - 'functions/tests/creative-campaign-ai-director-service.test.mjs'
       - 'functions/tests/creative-campaign-research-service.test.mjs'
+      - 'functions/tests/creative-product-rebuild-service.test.mjs'
       - 'functions/tests/render-creative-banner-pro-snapshots.mjs'
       - 'public/js/creative_studio_pro.js'
       - 'public/creative_studio_pro.html'
@@ -58,11 +60,12 @@ jobs:
           node --check services/creativeCutoutBankService.js
           node --check services/creativeCampaignResearchService.js
           node --check services/creativeCampaignAiDirectorService.js
+          node --check services/creativeProductRebuildService.js
           node --check ../public/js/creative_studio_pro.js
           node --check ../public/js/creative_cutout_studio.js
           node --check ../public/sw-creative-cutout-studio.js
       - name: Creative Studio Pro regressions
-        run: node --test tests/creative-banner-pro-generator.test.mjs tests/creative-campaign-research-service.test.mjs tests/creative-campaign-ai-director-service.test.mjs
+        run: node --test tests/creative-banner-pro-generator.test.mjs tests/creative-campaign-research-service.test.mjs tests/creative-campaign-ai-director-service.test.mjs tests/creative-product-rebuild-service.test.mjs
 
       - name: Render visual snapshots
         run: node tests/render-creative-banner-pro-snapshots.mjs

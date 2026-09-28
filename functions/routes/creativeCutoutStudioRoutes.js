@@ -137,6 +137,14 @@ export default function registerCreativeCutoutStudioRoutes(app, context = {}) {
       return res.json({ ok: true, asset });
     } catch (error) {
       console.error('[creative-cutout-studio] reprocess:', error);
+      if (error?.code === 'creative_cutout_ai_repair_rejected') {
+        return res.status(422).json({
+          ok: false,
+          code: error.code,
+          reason: error.aiReason || 'ai_master_repair_rejected',
+          error: 'A IA não conseguiu gerar uma reconstrução fiel o suficiente. O recorte anterior foi mantido sem alterações.'
+        });
+      }
       return res.status(500).json({
         ok: false,
         error: error.message || 'Falha ao reprocessar a imagem.'
