@@ -114,6 +114,33 @@
     }));
   }
 
+  function currentControllerPath() {
+    const url = navigator.serviceWorker.controller?.scriptURL || '';
+    if (!url) return '';
+    try { return new URL(url).pathname; } catch { return ''; }
+  }
+
+  function wantedWorkerPath() {
+    try { return new URL(swUrl, location.href).pathname; } catch { return swUrl; }
+  }
+
+  async function ensureCorrectController(registration) {
+    const wanted = wantedWorkerPath();
+    const current = currentControllerPath();
+    if (current === wanted) return;
+
+    try { await registration.update(); } catch {}
+
+    const reloadKey = 'ariana-pwa-controller-reload:' + wanted;
+    let alreadyReloaded = false;
+    try { alreadyReloaded = sessionStorage.getItem(reloadKey) === '1'; } catch {}
+
+    if (alreadyReloaded) return;
+
+    try { sessionStorage.setItem(reloadKey, '1'); } catch {}
+    location.reload();
+  }
+
   let registrationStarted = false;
 
   async function registerIsolatedPwa() {
@@ -123,6 +150,7 @@
       await removeLegacySharedWorkers();
       const registration = await navigator.serviceWorker.register(swUrl, { scope });
       await navigator.serviceWorker.ready.catch(() => registration);
+      await ensureCorrectController(registration);
       console.info('[Ariana PWA] Aplicativo isolado registrado:', { swUrl, scope });
       window.dispatchEvent(new CustomEvent('ariana-pwa-ready'));
     } catch (error) {
