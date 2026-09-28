@@ -1514,8 +1514,7 @@ export async function prepareProProductAsset(product = {}, options = {}) {
   return rebuildCreativeProductFromReference({
     referenceBuffer: raw,
     asset: repairedAsset,
-    productText,
-    enabled: options.aiRebuild !== false && options.rebuildProduct !== false
+    productText
   });
 }
 
