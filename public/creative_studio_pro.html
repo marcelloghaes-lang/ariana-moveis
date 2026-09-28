@@ -115,7 +115,7 @@
               <div class="hero-slot-actions">
                 <button type="button" class="hero-slot-catalog" data-hero-catalog-slot="0">Escolher do catálogo</button>
                 <label class="hero-slot-upload">
-                  <input type="file" accept="image/png,image/jpeg,image/webp" data-hero-upload-slot="0">
+                  <input type="file" accept="image/*" data-hero-upload-slot="0">
                   <span>Enviar imagem</span>
                 </label>
                 <button type="button" class="hero-slot-clear hidden" data-hero-clear-slot="0">Remover</button>
@@ -132,7 +132,7 @@
               <div class="hero-slot-actions">
                 <button type="button" class="hero-slot-catalog" data-hero-catalog-slot="1">Escolher do catálogo</button>
                 <label class="hero-slot-upload">
-                  <input type="file" accept="image/png,image/jpeg,image/webp" data-hero-upload-slot="1">
+                  <input type="file" accept="image/*" data-hero-upload-slot="1">
                   <span>Enviar imagem</span>
                 </label>
                 <button type="button" class="hero-slot-clear hidden" data-hero-clear-slot="1">Remover</button>
@@ -149,7 +149,7 @@
               <div class="hero-slot-actions">
                 <button type="button" class="hero-slot-catalog" data-hero-catalog-slot="2">Escolher do catálogo</button>
                 <label class="hero-slot-upload">
-                  <input type="file" accept="image/png,image/jpeg,image/webp" data-hero-upload-slot="2">
+                  <input type="file" accept="image/*" data-hero-upload-slot="2">
                   <span>Enviar imagem</span>
                 </label>
                 <button type="button" class="hero-slot-clear hidden" data-hero-clear-slot="2">Remover</button>
@@ -171,7 +171,7 @@
           <label class="field full"><span>Nome do produto</span><input id="product-name" maxlength="110" placeholder="Ex.: Smart TV 55 polegadas"></label>
           <label class="field full"><span>Imagem do produto</span><input id="image-url" type="url" placeholder="https://..."></label>
           <label class="upload full" for="image-file">
-            <input id="image-file" type="file" accept="image/png,image/jpeg,image/webp">
+            <input id="image-file" type="file" accept="image/*">
             <span class="upload-icon">↑</span>
             <span><b>Enviar imagem</b><small>O Pro tentará remover automaticamente fundo branco ou uniforme conectado às bordas.</small></span>
           </label>
@@ -242,7 +242,7 @@
               <input id="brand-logo-url" type="url" placeholder="https://... ou envie o arquivo abaixo">
             </label>
             <label class="upload full brand-logo-upload" for="brand-logo-file">
-              <input id="brand-logo-file" type="file" accept="image/png,image/jpeg,image/webp">
+              <input id="brand-logo-file" type="file" accept="image/*">
               <span class="upload-icon">↑</span>
               <span><b>Enviar logo do fabricante</b><small>Prefira PNG transparente.</small></span>
             </label>
@@ -327,7 +327,7 @@
     </section>
   </main>
 
-  <script src="./js/creative_studio_pro.js?v=20260928-15"></script>
+  <script src="./js/creative_studio_pro.js?v=20260928-16"></script>
   <script src="./pwa-register.js?v=20260928-2" data-sw="./sw-creative-studio-pro.js" data-scope="./creative_studio_pro.html"></script>
 </body>
 </html>
