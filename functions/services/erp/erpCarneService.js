@@ -377,22 +377,31 @@ export function createErpCarneService(context = {}) {
     if (Entry) {
       const entries = await Entry.collection.find({
         direction: 'receivable',
-        status: { $ne: 'cancelled' }
-      }).sort({ dueAt: 1, createdAt: 1 }).limit(20000).toArray();
+        status: { $ne: 'cancelled' },
+        $or: [
+          { renegotiatedAt: { $exists: false } },
+          { renegotiatedAt: null }
+        ]
+      }).sort({ dueAt: 1, installmentNumber: 1, createdAt: 1 }).limit(20000).toArray();
 
       const groups = new Map();
       for (const row of entries) {
         const sourceSaleId = clean(row?.migration?.sourceSaleId, 180);
         const orderId = clean(row.orderId, 120);
+        const agreementId = clean(row.agreementId, 120);
+        const agreementNumber = clean(row.agreementNumber, 120);
+        const isAgreement = clean(row.origin, 80) === 'debt_agreement' && (agreementId || agreementNumber);
         const documentNumber = clean(row.documentNumber, 120);
         const personDocument = clean(row.personDocument, 60);
         const key = orderId
           ? 'order:' + orderId
-          : sourceSaleId
-            ? 'sige:' + sourceSaleId
-            : documentNumber
-              ? 'document:' + documentNumber + ':' + personDocument
-              : 'entry:' + String(row._id);
+          : isAgreement
+            ? 'agreement:' + (agreementId || agreementNumber)
+            : sourceSaleId
+              ? 'sige:' + sourceSaleId
+              : documentNumber
+                ? 'document:' + documentNumber + ':' + personDocument
+                : 'entry:' + String(row._id);
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(row);
       }
@@ -402,15 +411,19 @@ export function createErpCarneService(context = {}) {
         rows.sort((a, b) => new Date(a.dueAt || a.createdAt || 0) - new Date(b.dueAt || b.createdAt || 0));
         const selected = rows[0];
         const sourceSaleId = clean(selected?.migration?.sourceSaleId, 180);
-        const reference = sourceSaleId
-          ? clean(selected.description || ('Histórico SIGE • venda ref. ' + sourceSaleId), 180)
-          : clean(selected.documentNumber || selected.description || String(selected._id), 180);
+        const agreementNumber = clean(selected.agreementNumber, 120);
+        const isAgreement = clean(selected.origin, 80) === 'debt_agreement' && (clean(selected.agreementId, 120) || agreementNumber);
+        const reference = isAgreement
+          ? clean('Acordo ' + (agreementNumber || clean(selected.agreementId, 120)), 180)
+          : sourceSaleId
+            ? clean(selected.description || ('Histórico SIGE • venda ref. ' + sourceSaleId), 180)
+            : clean(selected.documentNumber || selected.description || String(selected._id), 180);
         const items = buildItems(rows, reference);
         results.push(purchaseSummaryFromItems({
           key,
           targetId: 'entry:' + String(selected._id),
           orderId: clean(selected.orderId, 120),
-          source: sourceSaleId ? 'Histórico SIGE' : 'Financeiro ERP',
+          source: isAgreement ? 'Acordo Ariana ERP' : (sourceSaleId ? 'Histórico SIGE' : 'Financeiro ERP'),
           reference,
           contact: {
             name: selected.personName,
@@ -456,10 +469,18 @@ export function createErpCarneService(context = {}) {
     if (!selected || selected.direction !== 'receivable') throw fail('Parcela financeira não encontrada.', 404, 'ERP_CARNE_TARGET_NOT_FOUND');
     const query = { direction: 'receivable', status: { $ne: 'cancelled' } };
     const sourceSaleId = clean(selected?.migration?.sourceSaleId, 180);
+    const agreementId = clean(selected.agreementId, 120);
+    const agreementNumber = clean(selected.agreementNumber, 120);
+    const isAgreement = clean(selected.origin, 80) === 'debt_agreement' && (agreementId || agreementNumber);
     let purchaseKey = '';
     if (clean(selected.orderId, 120)) {
       query.orderId = clean(selected.orderId, 120);
       purchaseKey = `order:${query.orderId}`;
+    } else if (isAgreement) {
+      query.origin = 'debt_agreement';
+      if (agreementId) query.agreementId = agreementId;
+      else query.agreementNumber = agreementNumber;
+      purchaseKey = `agreement:${agreementId || agreementNumber}`;
     } else if (sourceSaleId) {
       query['migration.sourceSaleId'] = sourceSaleId;
       purchaseKey = `sige:${sourceSaleId}`;
@@ -471,8 +492,10 @@ export function createErpCarneService(context = {}) {
       query._id = selected._id;
       purchaseKey = `entry:${String(selected._id)}`;
     }
-    const rows = await Entry.collection.find(query).sort({ dueAt: 1, installmentNumber: 1, createdAt: 1 }).toArray();
-    const reference = sourceSaleId ? `Histórico SIGE • venda ref. ${sourceSaleId}` : clean(selected.documentNumber || selected.description || String(selected._id), 180);
+    const rows = await Entry.collection.find(query).sort({ installmentNumber: 1, dueAt: 1, createdAt: 1 }).toArray();
+    const reference = isAgreement
+      ? `Acordo ${agreementNumber || agreementId}`
+      : (sourceSaleId ? `Histórico SIGE • venda ref. ${sourceSaleId}` : clean(selected.documentNumber || selected.description || String(selected._id), 180));
     const contact = await currentCustomer({ name: selected.personName, document: selected.personDocument, email: selected.email || selected.personEmail, phone: selected.phone || selected.personPhone });
     const items = buildItems(rows.length ? rows : [selected], reference);
     return {
@@ -483,7 +506,7 @@ export function createErpCarneService(context = {}) {
       description: clean(selected.description || reference, 500),
       contact,
       items,
-      source: sourceSaleId ? 'historico_sige' : 'financeiro_erp'
+      source: isAgreement ? 'acordo_ariana_erp' : (sourceSaleId ? 'historico_sige' : 'financeiro_erp')
     };
   }
 

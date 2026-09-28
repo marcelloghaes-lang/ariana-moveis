@@ -184,6 +184,11 @@ jobs:
           grep -Fq "return { purchases, preview, pdf, send, emit, saveContact }" functions/services/erp/erpCarneCoraService.js
           grep -Fq "personEmail: email" functions/services/erp/erpCarneCoraService.js
           grep -Fq "O carnê da loja continua disponível normalmente" public/erp_carne.html
+          grep -Fq "agreementId" functions/services/erp/erpCarneService.js
+          grep -Fq "agreementNumber" functions/services/erp/erpCarneService.js
+          grep -Fq "agreement:" functions/services/erp/erpCarneService.js
+          grep -Fq "origin = 'debt_agreement'" functions/services/erp/erpCarneService.js
+          grep -Fq "groupQuery.agreementId" functions/services/erp/erpCarneCoraService.js
           if grep -Fq "/erp/financeiro/completo?direction=receivable" public/erp_carne.html; then
             echo "A tela de carnês não deve depender da rota financeira legada para listar compras."
             exit 1

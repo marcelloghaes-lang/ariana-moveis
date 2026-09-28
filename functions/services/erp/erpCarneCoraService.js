@@ -453,8 +453,15 @@ export function createErpCarneCoraService(context = {}) {
 
       const groupQuery = { direction: 'receivable', status: { $ne: 'cancelled' } };
       const sourceSaleId = clean(selected?.migration?.sourceSaleId, 180);
+      const agreementId = clean(selected.agreementId, 120);
+      const agreementNumber = clean(selected.agreementNumber, 120);
+      const isAgreement = clean(selected.origin, 80) === 'debt_agreement' && (agreementId || agreementNumber);
       if (clean(selected.orderId, 120)) groupQuery.orderId = clean(selected.orderId, 120);
-      else if (sourceSaleId) groupQuery['migration.sourceSaleId'] = sourceSaleId;
+      else if (isAgreement) {
+        groupQuery.origin = 'debt_agreement';
+        if (agreementId) groupQuery.agreementId = agreementId;
+        else groupQuery.agreementNumber = agreementNumber;
+      } else if (sourceSaleId) groupQuery['migration.sourceSaleId'] = sourceSaleId;
       else if (clean(selected.documentNumber, 120)) {
         groupQuery.documentNumber = clean(selected.documentNumber, 120);
         if (clean(selected.personDocument, 60)) groupQuery.personDocument = clean(selected.personDocument, 60);
