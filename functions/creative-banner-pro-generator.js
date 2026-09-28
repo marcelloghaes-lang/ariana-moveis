@@ -583,6 +583,7 @@ async function removeConnectedBackground(buffer, enabled = true, productText = '
 
   const sourceMeta = await source.metadata();
   const { data, info } = await source.raw().toBuffer({ resolveWithObject: true });
+  const originalPixels = Buffer.from(data);
   const width = info.width;
   const height = info.height;
   const channels = info.channels;
@@ -751,6 +752,112 @@ async function removeConnectedBackground(buffer, enabled = true, productText = '
     : 0;
 
   if (!safety.safe) {
+    // Segunda tentativa conservadora para fotos de catálogo em fundo branco.
+    // A primeira passagem pode confundir partes claras do próprio produto com
+    // o fundo. Aqui removemos somente pixels quase brancos conectados às bordas,
+    // preservando carcaças cinza/brancas e detalhes claros.
+    if (lightEdge && ['foreground_fragmented', 'possible_white_product_overcut'].includes(safety.reason)) {
+      const conservative = Buffer.from(originalPixels);
+      const conservativeVisited = new Uint8Array(total);
+      const conservativeQueue = new Int32Array(total);
+      let conservativeHead = 0;
+      let conservativeTail = 0;
+      const conservativeTolerance = 38;
+      const conservativeTolerance2 = conservativeTolerance * conservativeTolerance;
+
+      function conservativeMatches(index) {
+        const p = index * channels;
+        const alpha = conservative[p + 3];
+        if (alpha < 24) return true;
+        const dr = conservative[p] - bg.r;
+        const dg = conservative[p + 1] - bg.g;
+        const db = conservative[p + 2] - bg.b;
+        const dist2 = dr * dr + dg * dg + db * db;
+        const brightness = (conservative[p] + conservative[p + 1] + conservative[p + 2]) / 3;
+        const spread = Math.max(conservative[p], conservative[p + 1], conservative[p + 2])
+          - Math.min(conservative[p], conservative[p + 1], conservative[p + 2]);
+        return brightness >= 242 && spread <= 28 && dist2 <= conservativeTolerance2 * 1.35;
+      }
+
+      function conservativeEnqueue(index) {
+        if (conservativeVisited[index] || !conservativeMatches(index)) return;
+        conservativeVisited[index] = 1;
+        conservativeQueue[conservativeTail++] = index;
+      }
+
+      for (let x = 0; x < width; x += 1) {
+        conservativeEnqueue(x);
+        conservativeEnqueue((height - 1) * width + x);
+      }
+      for (let y = 0; y < height; y += 1) {
+        conservativeEnqueue(y * width);
+        conservativeEnqueue(y * width + width - 1);
+      }
+
+      while (conservativeHead < conservativeTail) {
+        const index = conservativeQueue[conservativeHead++];
+        const x = index % width;
+        const y = Math.floor(index / width);
+        if (x > 0) conservativeEnqueue(index - 1);
+        if (x + 1 < width) conservativeEnqueue(index + 1);
+        if (y > 0) conservativeEnqueue(index - width);
+        if (y + 1 < height) conservativeEnqueue(index + width);
+      }
+
+      const conservativeRemovedRatio = conservativeTail / Math.max(1, total);
+      if (conservativeRemovedRatio >= 0.015 && conservativeRemovedRatio <= 0.94) {
+        for (let i = 0; i < total; i += 1) {
+          if (conservativeVisited[i]) conservative[i * channels + 3] = 0;
+        }
+
+        for (let i = 0; i < total; i += 1) {
+          if (conservativeVisited[i]) continue;
+          const x = i % width;
+          const y = Math.floor(i / width);
+          const touchesRemoved =
+            (x > 0 && conservativeVisited[i - 1]) ||
+            (x + 1 < width && conservativeVisited[i + 1]) ||
+            (y > 0 && conservativeVisited[i - width]) ||
+            (y + 1 < height && conservativeVisited[i + width]);
+          if (touchesRemoved) {
+            const alphaIndex = i * channels + 3;
+            conservative[alphaIndex] = Math.min(conservative[alphaIndex], 232);
+          }
+        }
+
+        const conservativeShape = alphaShapeStats(conservative, info);
+        const conservativeSafety = cutoutSafety(
+          conservativeShape,
+          conservativeRemovedRatio,
+          productText
+        );
+
+        if (conservativeSafety.safe) {
+          const conservativePng = await sharp(conservative, { raw: info }).png().toBuffer();
+          const conservativeTrimmed = await sharp(conservativePng)
+            .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 8 })
+            .png()
+            .toBuffer();
+          const conservativeMeta = await sharp(conservativeTrimmed).metadata();
+
+          return {
+            buffer: conservativeTrimmed,
+            sourceWidth: sourceMeta.width || width,
+            sourceHeight: sourceMeta.height || height,
+            width: conservativeMeta.width || width,
+            height: conservativeMeta.height || height,
+            backgroundRemoved: true,
+            removalMode: 'connected_light_background_conservative',
+            removedRatio: conservativeRemovedRatio,
+            confidence: 0.78,
+            cutoutSafe: true,
+            cutoutReason: 'ok',
+            shape: conservativeShape
+          };
+        }
+      }
+    }
+
     const original = await source.png().toBuffer();
     const originalMeta = await sharp(original).metadata();
     return {
