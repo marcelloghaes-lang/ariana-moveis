@@ -5,6 +5,7 @@
   const blobUrls = new Set();
   let currentStatus = 'all';
   let selectedFile = null;
+  let deferredInstallPrompt = null;
 
   const $ = id => document.getElementById(id);
   const els = {
@@ -24,7 +25,8 @@
     total: $('summary-total'),
     pending: $('summary-pending'),
     approved: $('summary-approved'),
-    rejected: $('summary-rejected')
+    rejected: $('summary-rejected'),
+    installApp: $('install-app-button')
   };
 
   function authToken() {
@@ -115,6 +117,86 @@
     el.textContent = message;
     el.className = 'status' + (type ? ' ' + type : '');
   }
+
+
+  function isInstalledApp() {
+    return window.matchMedia?.('(display-mode: standalone)')?.matches ||
+      window.navigator.standalone === true;
+  }
+
+  function syncInstallButton() {
+    if (!els.installApp) return;
+    if (isInstalledApp()) {
+      els.installApp.classList.add('hidden');
+      return;
+    }
+    els.installApp.classList.remove('hidden');
+    els.installApp.disabled = false;
+    els.installApp.textContent = 'Instalar app';
+  }
+
+  async function promptInstall() {
+    if (!els.installApp) return;
+
+    if (isInstalledApp()) {
+      els.installApp.classList.add('hidden');
+      return;
+    }
+
+    els.installApp.disabled = true;
+    const originalText = els.installApp.textContent;
+    els.installApp.textContent = 'Preparando...';
+
+    try {
+      if (!deferredInstallPrompt && 'serviceWorker' in navigator) {
+        await Promise.race([
+          navigator.serviceWorker.ready.catch(() => null),
+          new Promise(resolve => setTimeout(resolve, 1600))
+        ]);
+      }
+
+      const started = Date.now();
+      while (!deferredInstallPrompt && Date.now() - started < 2200) {
+        await new Promise(resolve => setTimeout(resolve, 120));
+      }
+
+      if (deferredInstallPrompt) {
+        const prompt = deferredInstallPrompt;
+        deferredInstallPrompt = null;
+        await prompt.prompt();
+        const choice = await prompt.userChoice.catch(() => null);
+        if (choice?.outcome === 'accepted') {
+          setStatus(els.bankStatus, 'Instalação iniciada. O Cutout Studio ficará disponível como aplicativo.', 'ok');
+        } else {
+          setStatus(els.bankStatus, 'A instalação não foi concluída. Você pode tentar novamente.', '');
+        }
+      } else {
+        setStatus(
+          els.bankStatus,
+          'O navegador ainda não liberou a instalação. No Edge/Chrome, abra o menu do navegador e escolha Instalar aplicativo ou Adicionar à tela inicial.',
+          ''
+        );
+      }
+    } catch (error) {
+      setStatus(els.bankStatus, error.message || 'Não foi possível iniciar a instalação.', 'error');
+    } finally {
+      els.installApp.disabled = false;
+      els.installApp.textContent = originalText;
+      syncInstallButton();
+    }
+  }
+
+  window.addEventListener('beforeinstallprompt', event => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    syncInstallButton();
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    syncInstallButton();
+    setStatus(els.bankStatus, 'Ariana Cutout Studio instalado como aplicativo.', 'ok');
+  });
 
   function revokeAllBlobUrls() {
     for (const url of blobUrls) {
@@ -408,6 +490,8 @@
   });
 
   els.create.addEventListener('click', createAsset);
+  els.installApp?.addEventListener('click', promptInstall);
+  syncInstallButton();
 
   els.filters.addEventListener('click', event => {
     const button = event.target.closest('button[data-status]');
