@@ -145,6 +145,14 @@ export default function registerCreativeCutoutStudioRoutes(app, context = {}) {
           error: 'A IA não conseguiu gerar uma reconstrução fiel o suficiente. O recorte anterior foi mantido sem alterações.'
         });
       }
+      if (error?.code === 'creative_cutout_already_processing') {
+        return res.status(409).json({
+          ok: false,
+          code: error.code,
+          processing: error.processing || null,
+          error: 'Este produto já está sendo processado. Aguarde a conclusão antes de iniciar novamente.'
+        });
+      }
       return res.status(500).json({
         ok: false,
         error: error.message || 'Falha ao reprocessar a imagem.'
