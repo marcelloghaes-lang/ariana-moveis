@@ -522,7 +522,13 @@ export async function repairCreativeProductCutout(asset = {}, productText = '') 
 
   const internalBackgroundOk = internalBackgroundContaminationRatio <= 0.004;
   const whiteHaloOk = whiteHaloResidualRatio <= 0.055;
-  const structureOk = structuralLossRatio <= 0.24 && afterOpaque / Math.max(1, total) >= 0.04;
+  const foregroundOpaqueRatioAfter = afterOpaque / Math.max(1, total);
+  // Em estruturas vazadas, grande parte do que parecia "área opaca" antes do reparo
+  // pode ser apenas fundo branco preso entre grades. Por isso a segurança não usa
+  // uma perda percentual rígida: preservamos uma área mínima real de produto e
+  // mantemos um teto amplo apenas para impedir remoções catastróficas.
+  const structuralLossLimit = (difficultProduct || autoDetectedPorousStructure) ? 0.86 : 0.30;
+  const structureOk = structuralLossRatio <= structuralLossLimit && foregroundOpaqueRatioAfter >= 0.035;
   const baseWasUsable = asset.backgroundRemoved && asset.cutoutSafe !== false;
   const recoveredWasUsable = recoveredOuterCutout && outerRecoveredRatio >= 0.025 && outerRecoveredRatio <= 0.93;
   const safe = (baseWasUsable || recoveredWasUsable) &&
@@ -576,6 +582,7 @@ export async function repairCreativeProductCutout(asset = {}, productText = '') 
       internalBackgroundContaminationRatio,
       whiteHaloResidualRatio,
       structuralLossRatio,
+      foregroundOpaqueRatioAfter,
       internalBackgroundOk,
       whiteHaloOk,
       safe,
