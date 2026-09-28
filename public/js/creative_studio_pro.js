@@ -98,7 +98,7 @@
     if (response.status === 401) throw new Error('Sua sessão expirou. Faça login novamente.');
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      throw new Error(payload.error || payload.message || 'Falha na operação (' + response.status + ').');
+      throw new Error(payload.message || payload.error || 'Falha na operação (' + response.status + ').');
     }
     return responseType === 'blob' ? response.blob() : response.json();
   }
@@ -1167,8 +1167,19 @@
       }
       renderQuality(analysis);
 
+      const pendingRebuilds = contentMode === 'multi_product'
+        ? (Array.isArray(analysis?.products)
+            ? analysis.products.filter(item => item?.rebuild?.pending === true).length
+            : 0)
+        : (analysis?.product?.rebuild?.pending === true ? 1 : 0);
+
       if (analysis?.quality?.blockSave) {
-        status('Prévia gerada, mas a arte final está bloqueada: corrija logo, recorte ou resolução antes de salvar.', 'error');
+        status('A análise encontrou um item crítico. O Studio não vai usar uma imagem defeituosa.', 'error');
+      } else if (pendingRebuilds > 0) {
+        status(
+          'Reconstruindo ' + pendingRebuilds + ' produto(s) por IA com base na foto original. Aguarde a validação de fidelidade...',
+          'ok'
+        );
       } else if (contentMode === 'multi_product') {
         status('Todos os produtos passaram no recorte. Gerando a vitrine multi-produto...', 'ok');
       } else if (contentMode === 'with_price' && !payload.options.showPrice) {
@@ -1179,16 +1190,30 @@
         status('A foto tem fundo complexo. O Pro preservará a imagem em um painel e marcará o aviso de qualidade.', '');
       }
 
-      const blob = await api('/admin/creative-studio/pro/preview',{
-        method:'POST',
-        body:JSON.stringify(payload)
-      },'blob');
+      const previewController = new AbortController();
+      const previewTimer = setTimeout(() => previewController.abort(), 125000);
+      let blob;
+      try {
+        blob = await api('/admin/creative-studio/pro/preview',{
+          method:'POST',
+          body:JSON.stringify(payload),
+          signal:previewController.signal
+        },'blob');
+      } finally {
+        clearTimeout(previewTimer);
+      }
       showPreview(blob);
       if (!analysis?.quality?.blockSave) {
         status('Prévia Pro aprovada na qualidade mínima. Confira a arte antes de salvar.', 'ok');
       }
     } catch (error) {
-      status('Falha ao gerar a prévia Pro: ' + error.message,'error');
+      const aborted = /abort|timeout/i.test(String(error?.name || '') + ' ' + String(error?.message || ''));
+      status(
+        aborted
+          ? 'A reconstrução demorou além do limite e foi interrompida. Nenhum recorte defeituoso foi usado; tente gerar novamente.'
+          : 'Falha ao gerar a prévia Pro: ' + error.message,
+        'error'
+      );
     } finally {
       setBusy(false);
     }
@@ -1296,31 +1321,55 @@
       status('Creative Studio instalado no celular.', 'ok');
     });
 
+    async function promptInstallIfReady() {
+      if (!deferredInstallPrompt) return false;
+      const prompt = deferredInstallPrompt;
+      deferredInstallPrompt = null;
+      await prompt.prompt();
+      const choice = await prompt.userChoice.catch(() => null);
+      if (choice?.outcome === 'accepted') {
+        status('Instalação iniciada. O Creative Studio ficará disponível como aplicativo.', 'ok');
+      } else {
+        status('A instalação não foi concluída. Você pode tentar novamente.', '');
+      }
+      syncButton();
+      return true;
+    }
+
     button.addEventListener('click', async () => {
       if (isInstalledApp()) {
         button.classList.add('hidden');
         return;
       }
 
-      if (deferredInstallPrompt) {
-        const prompt = deferredInstallPrompt;
-        deferredInstallPrompt = null;
-        await prompt.prompt();
-        const choice = await prompt.userChoice.catch(() => null);
-        if (choice?.outcome === 'accepted') {
-          status('Instalação iniciada. O Creative Studio ficará disponível como aplicativo.', 'ok');
-        } else {
-          status('A instalação não foi concluída. Você pode tentar novamente pelo menu do navegador.', '');
-        }
-        syncButton();
+      if (await promptInstallIfReady()) return;
+
+      status('Preparando a instalação do aplicativo...', 'ok');
+      for (let attempt = 0; attempt < 8 && !deferredInstallPrompt; attempt += 1) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      if (await promptInstallIfReady()) return;
+
+      const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      const android = /android/i.test(navigator.userAgent);
+
+      if (android) {
+        const target = new URL(window.location.href);
+        target.searchParams.set('source', 'pwa-install');
+        const fallback = target.toString();
+        const intent =
+          'intent://' + target.host + target.pathname + target.search +
+          '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' +
+          encodeURIComponent(fallback) + ';end';
+        status('Abrindo o Creative Studio no Chrome completo para instalar o app...', 'ok');
+        window.location.href = intent;
         return;
       }
 
-      const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
       status(
         ios
           ? 'No iPhone/iPad: toque em Compartilhar e depois em Adicionar à Tela de Início.'
-          : 'Se a janela de instalação não abrir, use o menu do navegador e toque em Instalar app ou Adicionar à tela inicial.',
+          : 'Abra esta página no navegador principal e use Instalar app ou Adicionar à tela inicial.',
         ''
       );
     });
