@@ -1,7 +1,7 @@
-const CACHE='ariana-erp-v9-blue-theme';
+const CACHE='ariana-erp-v10-isolated-scope';
 const SHELL=['/erp_ariana.html','/erp-theme.css','/erp-app.webmanifest','/erp-icon.svg'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()))});
-self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
+self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('ariana-erp-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
 function isHtml(response){return response&&response.ok&&String(response.headers.get('content-type')||'').includes('text/html')}
 function shouldAddBack(url,response){return isHtml(response)&&((/^\/erp_.*\.html$/i).test(url.pathname)||url.pathname==='/crediario_ariana.html')&&!['/erp_ariana.html','/erp_login.html'].includes(url.pathname)}
 function shouldFixDashboard(url,response){return isHtml(response)&&url.pathname==='/erp_ariana.html'}
