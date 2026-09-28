@@ -3,7 +3,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import sharp from 'sharp';
 import { repairCreativeProductCutout } from './services/creativeProductCutoutRepairService.js';
-import { rebuildCreativeProductFromReference } from './services/creativeProductRebuildService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1506,18 +1505,12 @@ export async function prepareProProductAsset(product = {}, options = {}) {
     options.removeBackground !== false && options.removeLightBackground !== false,
     productText
   );
-  const repairedAsset = await repairCreativeProductCutout(baseAsset, productText, raw);
-  return rebuildCreativeProductFromReference({
-    referenceBuffer: raw,
-    asset: repairedAsset,
-    productText,
-    perform: options.performAiRebuild !== false
-  });
+  return repairCreativeProductCutout(baseAsset, productText, raw);
 }
 
 export async function analyzeCreativeBannerPro(product = {}, options = {}) {
   const opts = normalizedOptions(product, options);
-  const asset = await prepareProProductAsset(product, { ...opts, performAiRebuild: false });
+  const asset = await prepareProProductAsset(product, opts);
   const brandAsset = await prepareOfficialLogoAsset();
   const campaignBrandAsset = opts.brandLogoUrl ? await prepareCampaignBrandLogo(opts.brandLogoUrl) : null;
   opts.hasBrandLogo = Boolean(campaignBrandAsset?.backgroundRemoved);
@@ -2073,7 +2066,7 @@ export async function analyzeCreativeBannerProMulti(products = [], options = {})
   opts.hasBrandLogo=Boolean(campaignBrandAsset?.backgroundRemoved);
   const assets=[];
   for(const product of rows) {
-    assets.push(await prepareProProductAsset(product,{ ...opts, performAiRebuild:false }));
+    assets.push(await prepareProProductAsset(product,opts));
   }
 
   return {
