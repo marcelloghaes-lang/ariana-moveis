@@ -56,6 +56,18 @@ const FRAGMENTED_WHITE_PRODUCT = svgData(
   '</svg>'
 );
 
+const LIGHT_SHELL_SPEAKER = svgData(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="900" height="900">' +
+  '<rect width="900" height="900" fill="#ffffff"/>' +
+  '<rect x="245" y="90" width="410" height="720" rx="48" fill="#edf1f5"/>' +
+  '<rect x="300" y="135" width="300" height="88" rx="24" fill="#1f2937"/>' +
+  '<circle cx="450" cy="390" r="118" fill="#111827"/>' +
+  '<circle cx="450" cy="390" r="72" fill="#2563eb"/>' +
+  '<circle cx="450" cy="650" r="92" fill="#111827"/>' +
+  '<circle cx="450" cy="650" r="52" fill="#ef4444"/>' +
+  '</svg>'
+);
+
 const product = {
   id: 'p1',
   name: 'Geladeira Teste Frost Free 400L',
@@ -206,6 +218,24 @@ test('logo oficial com fundo preto vira transparente antes de entrar no banner',
   const cornerAlpha = data[3];
   assert.equal(info.channels, 4);
   assert.equal(cornerAlpha, 0);
+});
+
+test('segunda tentativa conservadora preserva produto claro em fundo branco', async () => {
+  const analysis = await analyzeCreativeBannerPro({
+    ...product,
+    name: 'Caixa de Som Clara com LEDs',
+    category: 'Áudio & Som',
+    imageUrl: LIGHT_SHELL_SPEAKER
+  }, {
+    outputFormat: 'hero_desktop',
+    templatePro: 'campaign',
+    removeBackground: true
+  });
+
+  assert.equal(analysis.product.backgroundRemoved, true);
+  assert.equal(analysis.product.cutoutSafe, true);
+  assert.equal(analysis.product.removalMode, 'connected_light_background_conservative');
+  assert.equal(analysis.quality.blockSave, false);
 });
 
 test('recorte fragmentado de produto branco é bloqueado em vez de gerar produto mastigado', async () => {
