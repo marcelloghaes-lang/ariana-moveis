@@ -9,6 +9,7 @@ import {
   getProTemplateManifest
 } from '../creative-banner-pro-generator.js';
 import { researchCreativeCampaignWithAi } from '../services/creativeCampaignAiDirectorService.js';
+import { getCreativeProductRebuildStatus } from '../services/creativeProductRebuildService.js';
 
 // ============================================================
 // ROTAS ADMIN CORE / UPLOAD / POSTERS / CRUD GENÉRICO
@@ -966,7 +967,8 @@ app.get('/api/creative-studio/pro/ai-status', (_req, res) => {
     configured: Boolean(String(process.env.OPENAI_API_KEY || '').trim()),
     model: String(process.env.CREATIVE_AI_MODEL || 'gpt-5.6-luna').trim(),
     engine: 'ai_vision_web',
-    fallback: 'rules_fallback'
+    fallback: 'rules_fallback',
+    productRebuild: getCreativeProductRebuildStatus()
   });
 });
 
