@@ -210,3 +210,25 @@ test('fallback por falha da API continua específico para caixas de som', () => 
     'Potência, conectividade e música para curtir cada momento do seu jeito.'
   );
 });
+
+
+test('diretor IA aceita imagem temporária data URL de upload direto', () => {
+  const products = [{
+    id: 'fan-direct',
+    name: 'Ventilador de Coluna 40cm',
+    brand: '',
+    category: 'Ventiladores',
+    imageUrl: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD'
+  }];
+
+  const request = buildAiDirectorRequest(
+    products,
+    new Date('2026-09-28T12:00:00Z'),
+    { format:'square', template:'campaign', contentMode:'multi_product' }
+  );
+  const user = request.input.find(item => item.role === 'user');
+  const images = user.content.filter(item => item.type === 'input_image');
+
+  assert.equal(images.length, 1);
+  assert.match(images[0].image_url, /^data:image\/jpeg;base64,/i);
+});
