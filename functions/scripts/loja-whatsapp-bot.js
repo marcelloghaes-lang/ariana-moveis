@@ -2606,7 +2606,7 @@ async function handleGeneralIntent({
     const greeting = greetingFromText(text) || 'Olá';
     await sendText(
       phone,
-      `${personalizedGreeting(greeting, conv.customerName || pushName)} 😊 Tudo bem? Seja bem-vindo à Ariana Móveis. Como posso te ajudar hoje?`
+      `${personalizedGreeting(greeting, pushName)} 😊 Tudo bem? Seja bem-vindo à Ariana Móveis. Como posso te ajudar hoje?`
     );
     return true;
   }
@@ -10033,7 +10033,7 @@ async function handleMessage({
 
   if (isCourtesyGreeting(text)) {
     const greeting = courtesyGreetingLabel(text);
-    const firstName = customerFirstName(conv.customerName || '') || customerFirstName(pushName);
+    const firstName = customerFirstName(pushName);
     const askedWellbeing = asksBotWellbeingQuestion(text);
     if (hasCourtesyGreetingContext(conv)) {
       await sendText(phone, 'Oi 😊 Estou por aqui. Pode falar.');
@@ -11334,7 +11334,7 @@ ${productCaption(product)}`
     if (greeting) {
       await sendText(
         phone,
-        `${personalizedGreeting(greeting, conv.customerName || pushName)} 😊 Tudo bem? Seja bem-vindo à Ariana Móveis. Vou verificar as opções disponíveis para você.`
+        `${personalizedGreeting(greeting, pushName)} 😊 Tudo bem? Seja bem-vindo à Ariana Móveis. Vou verificar as opções disponíveis para você.`
       );
     }
 
@@ -11371,7 +11371,7 @@ ${productCaption(product)}`
   if (isGreeting(text)) {
     const saudacao = courtesyGreetingLabel(text);
     startCourtesyGreetingContext(conv);
-    await sendText(phone, `${personalizedGreeting(saudacao, conv.customerName || pushName)} 😊 Tudo ótimo, e você?`);
+    await sendText(phone, `${personalizedGreeting(saudacao, pushName)} 😊 Tudo ótimo, e você?`);
     return;
   }
 
