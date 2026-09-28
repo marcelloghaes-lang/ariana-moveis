@@ -289,18 +289,64 @@ app.post('/api/admin/enterprise/pro/partners/:id/api-keys/:environment/rotate', 
     const partner = await EnterpriseHomologationRequestCompat.findOne(query);
     if (!partner) return res.status(404).json({ ok: false, error: 'Fabricante não encontrado' });
     const key = enterprisePartnerGenerateKey(environment, partner);
+    const keyHash = enterpriseHashSecret(key);
+    const keyLast4 = key.slice(-4);
     const path = enterprisePartnerEnvironmentPath(environment);
     const set = {
-      [`${path}.apiKey`]: key,
+      [`${path}.apiKeyHash`]: keyHash,
+      [`${path}.apiKeyLast4`]: keyLast4,
       [`${path}.active`]: true,
       [`${path}.environment`]: environment,
       [`${path}.rotatedAt`]: new Date(),
       [`${path}.lastAccessAt`]: null,
       [`${path}.requestCount`]: 0
     };
-    if (environment === 'sandbox') Object.assign(set, { 'sandbox.apiKey': key, 'sandbox.active': true, 'credentials.sandbox.apiKey': key, 'credentials.sandbox.active': true, apiKeySandbox: key, sandboxApiKey: key, status: partner.status || 'sandbox', environment: 'sandbox' });
-    else Object.assign(set, { 'production.apiKey': key, 'production.active': true, 'credentials.production.apiKey': key, 'credentials.production.active': true, enterpriseApiKey: key, apiKey: key, status: 'production', environment: 'production' });
-    await EnterpriseHomologationRequestCompat.updateOne({ _id: partner._id }, { $set: set, $push: { history: { status: `${environment}_key_rotated`, at: new Date(), by: req.admin?.email || req.admin?.id || 'admin', source: 'admin_enterprise_pro' } } });
+    const unset = environment === 'sandbox'
+      ? {
+          [`${path}.apiKey`]: '',
+          'sandbox.apiKey': '',
+          'credentials.sandbox.apiKey': '',
+          apiKeySandbox: '',
+          sandboxApiKey: ''
+        }
+      : {
+          [`${path}.apiKey`]: '',
+          'production.apiKey': '',
+          'credentials.production.apiKey': '',
+          apiKeyProduction: '',
+          enterpriseApiKey: '',
+          apiKey: ''
+        };
+    if (environment === 'sandbox') Object.assign(set, {
+      'sandbox.apiKeyHash': keyHash,
+      'sandbox.apiKeyLast4': keyLast4,
+      'sandbox.active': true,
+      'credentials.sandbox.apiKeyHash': keyHash,
+      'credentials.sandbox.apiKeyLast4': keyLast4,
+      'credentials.sandbox.active': true,
+      apiKeySandboxHash: keyHash,
+      status: partner.status || 'sandbox',
+      environment: 'sandbox'
+    });
+    else Object.assign(set, {
+      'production.apiKeyHash': keyHash,
+      'production.apiKeyLast4': keyLast4,
+      'production.active': true,
+      'credentials.production.apiKeyHash': keyHash,
+      'credentials.production.apiKeyLast4': keyLast4,
+      'credentials.production.active': true,
+      apiKeyProductionHash: keyHash,
+      status: 'production',
+      environment: 'production'
+    });
+    await EnterpriseHomologationRequestCompat.updateOne(
+      { _id: partner._id },
+      {
+        $set: set,
+        $unset: unset,
+        $push: { history: { status: `${environment}_key_rotated`, at: new Date(), by: req.admin?.email || req.admin?.id || 'admin', source: 'admin_enterprise_pro' } }
+      }
+    );
     await IntegrationAuditLog.create({ scope: 'enterprise', eventType: 'admin_api_key_rotated', manufacturer: partner.requestId || partner.tradeName || partner.companyName || '', status: 'success', statusCode: 200, message: `API Key ${environment} renovada pelo Admin Enterprise`, metadata: { environment, admin: req.admin?.email || req.admin?.id || '' } }).catch(() => null);
     return res.json({ ok: true, environment, apiKey: key, message: 'API Key renovada' });
   } catch (error) {
@@ -317,9 +363,32 @@ app.post('/api/admin/enterprise/pro/partners/:id/api-keys/:environment/revoke', 
     if (!partner) return res.status(404).json({ ok: false, error: 'Fabricante não encontrado' });
     const path = enterprisePartnerEnvironmentPath(environment);
     const set = { [`${path}.active`]: false, [`${path}.revokedAt`]: new Date() };
+    const unset = environment === 'sandbox'
+      ? {
+          [`${path}.apiKey`]: '',
+          'sandbox.apiKey': '',
+          'credentials.sandbox.apiKey': '',
+          apiKeySandbox: '',
+          sandboxApiKey: ''
+        }
+      : {
+          [`${path}.apiKey`]: '',
+          'production.apiKey': '',
+          'credentials.production.apiKey': '',
+          apiKeyProduction: '',
+          enterpriseApiKey: '',
+          apiKey: ''
+        };
     if (environment === 'sandbox') Object.assign(set, { 'sandbox.active': false, 'credentials.sandbox.active': false });
     else Object.assign(set, { 'production.active': false, 'credentials.production.active': false });
-    await EnterpriseHomologationRequestCompat.updateOne({ _id: partner._id }, { $set: set, $push: { history: { status: `${environment}_key_revoked`, at: new Date(), by: req.admin?.email || req.admin?.id || 'admin', source: 'admin_enterprise_pro' } } });
+    await EnterpriseHomologationRequestCompat.updateOne(
+      { _id: partner._id },
+      {
+        $set: set,
+        $unset: unset,
+        $push: { history: { status: `${environment}_key_revoked`, at: new Date(), by: req.admin?.email || req.admin?.id || 'admin', source: 'admin_enterprise_pro' } }
+      }
+    );
     await IntegrationAuditLog.create({ scope: 'enterprise', eventType: 'admin_api_key_revoked', manufacturer: partner.requestId || partner.tradeName || partner.companyName || '', status: 'success', statusCode: 200, message: `API Key ${environment} revogada pelo Admin Enterprise`, metadata: { environment, admin: req.admin?.email || req.admin?.id || '' } }).catch(() => null);
     return res.json({ ok: true, environment, message: 'API Key revogada' });
   } catch (error) {
