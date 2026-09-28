@@ -6,6 +6,7 @@ on:
       - 'functions/creative-banner-pro-generator.js'
       - 'functions/routes/adminCoreRoutes.js'
       - 'functions/services/creativeCampaignResearchService.js'
+      - 'functions/services/creativeProductCutoutRepairService.js'
       - 'functions/services/creativeCampaignAiDirectorService.js'
       - 'functions/tests/creative-banner-pro-generator.test.mjs'
       - 'functions/tests/creative-campaign-ai-director-service.test.mjs'
@@ -20,6 +21,7 @@ on:
       - 'functions/creative-banner-pro-generator.js'
       - 'functions/routes/adminCoreRoutes.js'
       - 'functions/services/creativeCampaignResearchService.js'
+      - 'functions/services/creativeProductCutoutRepairService.js'
       - 'functions/services/creativeCampaignAiDirectorService.js'
       - 'functions/tests/creative-banner-pro-generator.test.mjs'
       - 'functions/tests/creative-campaign-ai-director-service.test.mjs'
@@ -48,6 +50,7 @@ jobs:
           node --check creative-banner-pro-generator.js
           node --check routes/adminCoreRoutes.js
           node --check services/creativeCampaignResearchService.js
+          node --check services/creativeProductCutoutRepairService.js
           node --check services/creativeCampaignAiDirectorService.js
           node --check ../public/js/creative_studio_pro.js
       - name: Creative Studio Pro regressions
