@@ -306,6 +306,44 @@ function buildEnterpriseOpenApiSpec(req = null) {
           responses: { 200: { description: 'Rastreio atualizado', content: { 'application/json': { schema: okSchema } } } }
         }
       },
+      '/enterprise/orders/{orderId}/xml': {
+        get: {
+          tags: ['NF-e'],
+          summary: 'Consulta e valida o XML da NF-e',
+          security: apiKeySecurity,
+          parameters: [{ name: 'orderId', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { 200: { description: 'XML disponível e validado' }, 404: { description: 'XML ainda não disponível' } }
+        }
+      },
+      '/enterprise/orders/{orderId}/danfe': {
+        get: {
+          tags: ['NF-e'],
+          summary: 'Consulta e valida o DANFE',
+          security: apiKeySecurity,
+          parameters: [{ name: 'orderId', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { 200: { description: 'DANFE disponível e validado' }, 404: { description: 'DANFE ainda não disponível' } }
+        }
+      },
+      '/enterprise/orders/{orderId}/rma': {
+        post: {
+          tags: ['Pedidos'],
+          summary: 'Abre uma devolução / RMA',
+          security: apiKeySecurity,
+          parameters: [{ name: 'orderId', in: 'path', required: true, schema: { type: 'string' } }],
+          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { reason: { type: 'string', example: 'Produto com avaria' }, type: { type: 'string', example: 'return' }, items: { type: 'array', items: { type: 'object' } } } } } } },
+          responses: { 200: { description: 'RMA aberto' } }
+        }
+      },
+      '/enterprise/orders/{orderId}/cancel': {
+        post: {
+          tags: ['Pedidos'],
+          summary: 'Cancela um pedido Enterprise',
+          security: apiKeySecurity,
+          parameters: [{ name: 'orderId', in: 'path', required: true, schema: { type: 'string' } }],
+          requestBody: { required: false, content: { 'application/json': { schema: { type: 'object', properties: { reason: { type: 'string', example: 'Cancelamento solicitado pelo fabricante' } } } } } },
+          responses: { 200: { description: 'Pedido cancelado' } }
+        }
+      },
       '/enterprise/webhooks/test': {
         post: {
           tags: ['Webhooks'],
