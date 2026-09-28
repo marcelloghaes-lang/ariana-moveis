@@ -18,6 +18,8 @@ on:
       - 'public/js/creative_cutout_studio.js'
       - 'public/creative_cutout_studio.html'
       - 'public/css/creative_cutout_studio.css'
+      - 'public/manifest-creative-cutout-studio.json'
+      - 'public/sw-creative-cutout-studio.js'
       - '.github/workflows/creative-studio-pro-quality.yml'
   push:
     branches: [main]
@@ -58,6 +60,7 @@ jobs:
           node --check services/creativeCampaignAiDirectorService.js
           node --check ../public/js/creative_studio_pro.js
           node --check ../public/js/creative_cutout_studio.js
+          node --check ../public/sw-creative-cutout-studio.js
       - name: Creative Studio Pro regressions
         run: node --test tests/creative-banner-pro-generator.test.mjs tests/creative-campaign-research-service.test.mjs tests/creative-campaign-ai-director-service.test.mjs
 
