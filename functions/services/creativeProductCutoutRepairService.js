@@ -243,6 +243,33 @@ function residualBackgroundRatio(data, info, background) {
   return residual / Math.max(1, opaque);
 }
 
+function semiTransparentBackgroundRatio(data, info, background) {
+  const limits = adaptiveBackgroundThresholds(background);
+  if (!limits.eligible) return 0;
+  const total = info.width * info.height;
+  let visible = 0;
+  let contaminated = 0;
+
+  for (let i = 0; i < total; i += 1) {
+    const p = i * info.channels;
+    const alpha = data[p + 3];
+    if (alpha < 40) continue;
+    visible += 1;
+    if (alpha >= 224) continue;
+
+    if (backgroundLike(data, i, info, background, {
+      maxDistance: limits.maxDistance + 3,
+      minBrightness: Math.max(150, limits.minBrightness - 8),
+      maxSpread: Math.min(110, limits.maxSpread + 8),
+      minAlpha: 40
+    })) {
+      contaminated += 1;
+    }
+  }
+
+  return contaminated / Math.max(1, visible);
+}
+
 function reconstructNeutralBackground(data, info, background) {
   const limits = adaptiveBackgroundThresholds(background);
   if (!limits.eligible) return null;
@@ -294,11 +321,14 @@ function reconstructNeutralBackground(data, info, background) {
       if (neighborDistance > limits.maxDistance + 10) foregroundNeighbors += 1;
     }
 
-    if (foregroundNeighbors === 0) {
+    // Em grades, telas e estruturas vazadas, deixar o fundo "meio transparente"
+    // cria exatamente a névoa cinza que aparece dentro do ventilador no banner.
+    // Todo pixel que ainda se parece com o fundo deve sair da máscara visível.
+    if (foregroundNeighbors <= 2) {
       output[p + 3] = 0;
       removed += 1;
     } else {
-      const nextAlpha = Math.min(alpha, 112);
+      const nextAlpha = Math.min(alpha, 32);
       if (nextAlpha !== alpha) {
         output[p + 3] = nextAlpha;
         softened += 1;
@@ -780,7 +810,7 @@ export async function repairCreativeProductCutout(asset = {}, productText = '', 
       reconstructionRemovedPixels += reconstructed.removed;
       internalRemovedPixels += reconstructed.removed;
       haloChangedPixels += reconstructed.softened;
-      cleanWhiteHalo(data, info, background);
+      haloChangedPixels += cleanWhiteHalo(data, info, background);
     }
   }
 
@@ -793,11 +823,13 @@ export async function repairCreativeProductCutout(asset = {}, productText = '', 
     residualCandidatePixels / Math.max(1, afterOpaque);
   const whiteHaloResidualRatio = haloResidualRatio(data, info, background);
   const outerBackgroundResidualRatio = residualBackgroundRatio(data, info, background);
+  const semiTransparentContaminationRatio = semiTransparentBackgroundRatio(data, info, background);
 
   const internalBackgroundOk =
     internalBackgroundContaminationRatio <= 0.004 &&
-    outerBackgroundResidualRatio <= (difficultProduct ? 0.018 : 0.035);
-  const whiteHaloOk = whiteHaloResidualRatio <= 0.045;
+    outerBackgroundResidualRatio <= (difficultProduct ? 0.012 : 0.035) &&
+    semiTransparentContaminationRatio <= (difficultProduct ? 0.006 : 0.018);
+  const whiteHaloOk = whiteHaloResidualRatio <= 0.040;
   const foregroundOpaqueRatioAfter = afterOpaque / Math.max(1, total);
   const afterStructure = alphaStructureStats(data, info);
   // Em estruturas vazadas, grande parte do que parecia "área opaca" antes do reparo
@@ -894,6 +926,7 @@ export async function repairCreativeProductCutout(asset = {}, productText = '', 
       internalRemovedRatio: internalRemovedPixels / Math.max(1, beforeOpaque),
       internalBackgroundContaminationRatio,
       outerBackgroundResidualRatio,
+      semiTransparentContaminationRatio,
       whiteHaloResidualRatio,
       structuralLossRatio,
       thinStructureDamageRatio,
