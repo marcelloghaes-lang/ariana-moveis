@@ -1222,7 +1222,20 @@
         : (analysis?.product?.rebuild?.pending === true ? 1 : 0);
 
       if (analysis?.quality?.blockSave) {
-        status('A análise encontrou um item crítico. O Studio não vai usar uma imagem defeituosa.', 'error');
+        const failedChecks = Array.isArray(analysis?.quality?.checks)
+          ? analysis.quality.checks.filter(item => item?.critical && !item?.ok)
+          : [];
+        const failureText = failedChecks
+          .map(item => item?.label || item?.id)
+          .filter(Boolean)
+          .join(' • ');
+        status(
+          failureText
+            ? 'A análise bloqueou a prévia: ' + failureText + '.'
+            : 'A análise encontrou um item crítico e bloqueou a prévia.',
+          'error'
+        );
+        return;
       } else if (pendingRebuilds > 0) {
         status(
           'Reconstruindo ' + pendingRebuilds + ' produto(s) por IA com base na foto original. Aguarde a validação de fidelidade...',

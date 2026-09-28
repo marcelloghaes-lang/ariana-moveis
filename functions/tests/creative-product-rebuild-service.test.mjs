@@ -140,6 +140,18 @@ test('detecta automaticamente ventiladores e estruturas vazadas como difíceis',
   assert.equal(isDifficultCreativeProduct('Geladeira Frost Free 400L'), false);
 });
 
+test('imagem abaixo de 700 px entra automaticamente na reconstrução IA', () => {
+  const decision = shouldRebuildCreativeProduct({
+    ...baseAsset(),
+    sourceWidth: 520,
+    sourceHeight: 640,
+    removalMode: 'connected_light_background+repair_verified'
+  }, 'Produto enviado');
+
+  assert.equal(decision.required, true);
+  assert.equal(decision.reason, 'low_source_resolution');
+});
+
 test('não reconstrói PNG já transparente e limpo', () => {
   const decision = shouldRebuildCreativeProduct({
     ...baseAsset(),
