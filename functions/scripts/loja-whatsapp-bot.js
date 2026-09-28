@@ -3681,6 +3681,34 @@ function clearTransientCommercialPromptOnGreeting(conv = {}) {
   return true;
 }
 
+function clearStaleFinanceCpfOnExplicitProductIntent(
+  conv = {},
+  text = '',
+  semanticIntent = null
+) {
+  if (String(conv?.pendingAction || '').trim() !== 'finance_cpf') return false;
+
+  const category =
+    detectCategory(text) ||
+    detectCategory(String(semanticIntent?.category || '')) ||
+    '';
+
+  if (!category) return false;
+
+  const n = normalize(text);
+  const explicitShopping = (
+    /\b(quero|queria|preciso|procurando|procuro|comprar|compra|preco|valor|barato|barata|mais em conta|manda|mostra|mostrar|foto|fotos|tem)\b/.test(n) ||
+    ['product_search', 'product_recommendation', 'purchase_intent'].includes(String(semanticIntent?.intent || ''))
+  );
+
+  if (!explicitShopping) return false;
+
+  conv.pendingAction = '';
+  conv.lastIntent = 'produto';
+  saveStateSoon();
+  return true;
+}
+
 function clearTransientCommercialPromptOnTopicSwitch(
   conv = {},
   text = '',
@@ -10442,6 +10470,7 @@ async function handleMessage({
   }
 
   clearTransientCommercialPromptOnTopicSwitch(conv, text, semanticIntent);
+  clearStaleFinanceCpfOnExplicitProductIntent(conv, text, semanticIntent);
 
   if (await handlePending(phone, text, conv)) return;
 
