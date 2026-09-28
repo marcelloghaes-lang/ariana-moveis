@@ -38,11 +38,12 @@ button,a{transition:.18s ease}
 .brand strong{font-size:19px}
 .brand small{color:var(--muted)}
 .top-actions{display:flex;gap:10px;flex-wrap:wrap}
-.top-actions a{
+.top-actions a,.top-actions button{
   text-decoration:none;color:#07346e;background:#fff;border:1px solid #cbd9ec;
-  border-radius:12px;padding:10px 14px;font-weight:800;font-size:13px
+  border-radius:12px;padding:10px 14px;font-weight:800;font-size:13px;cursor:pointer
 }
-.top-actions a:hover{background:#f2f7ff}
+.top-actions a:hover,.top-actions button:hover{background:#f2f7ff}
+.top-actions button:disabled{opacity:.55;cursor:wait}
 
 .page-shell{max-width:1540px;margin:0 auto;padding:28px}
 .intro-card{
