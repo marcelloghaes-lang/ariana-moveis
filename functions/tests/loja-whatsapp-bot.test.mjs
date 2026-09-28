@@ -8205,7 +8205,7 @@ test('comprovante continua sendo reconhecido pelo conteúdo da imagem sem memór
 });
 
 
-test('resposta financeira depois de lembrete é entendida pelo texto atual sem criar memória de cobrança', async () => {
+test('resposta financeira depois de lembrete mantém contexto de cobrança', async () => {
   const phone = '5533977777787';
 
   await bot.handleWebhook({
@@ -8243,7 +8243,7 @@ test('resposta financeira depois de lembrete é entendida pelo texto atual sem c
     }
   });
 
-  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), false);
+  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), true);
   assert.equal(sentTexts.length, 1);
   assert.match(sentTexts[0].text, /Marcelo|pagamento/i);
   assert.doesNotMatch(sentTexts[0].text, /Estou acompanhando o lembrete|parcela que vence hoje/i);
@@ -8552,7 +8552,7 @@ test('sequência de emojis positivos na cobrança não gera uma resposta para ca
 });
 
 
-test('estado legado de cobrança é descartado no webhook e não força skipLegacy', async () => {
+test('contexto recente de cobrança permanece disponível no webhook', async () => {
   const phone = '5533988905282';
   const alias = '553388905282';
   const contextPatch = {
@@ -8578,8 +8578,7 @@ test('estado legado de cobrança é descartado no webhook e não força skipLega
   assert.equal(result.ok, true);
   assert.equal(result.collectionContext, false);
   assert.equal(result.skipLegacy, false);
-  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(alias)), false);
-  assert.doesNotMatch(sentTexts.map((item) => item.text).join('\n'), /parcela que vence hoje/i);
+  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(alias)), true);
 });
 
 test('controle de emoji positivo é compartilhado entre número com e sem nono dígito', async () => {
@@ -8654,7 +8653,7 @@ test('nova intenção de venda após cobrança continua liberada e não força s
 });
 
 
-test('saudação depois de lembrete antigo é saudação normal e não permanece no financeiro', async () => {
+test('saudação após lembrete recente continua no contexto financeiro', async () => {
   const phone = '5533977777799';
   bot.patchTestConversation(phone, {
     dailyDueContextUntil: Date.now() + (6 * 60 * 60 * 1000),
@@ -8677,10 +8676,11 @@ test('saudação depois de lembrete antigo é saudação normal e não permanece
   assert.equal(result.ok, true);
   assert.equal(result.collectionContext, false);
   assert.equal(result.skipLegacy, false);
-  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), false);
+  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), true);
   assert.equal(sentTexts.length, 1);
   assert.match(sentTexts[0].text, /Boa tarde/i);
-  assert.doesNotMatch(sentTexts[0].text, /parcela que vence hoje|chave PIX|comprovante/i);
+  assert.match(sentTexts[0].text, /parcela que vence hoje/i);
+  assert.doesNotMatch(sentTexts[0].text, /Seja bem-vindo/i);
 });
 
 test('saudação com typo comum bopa tarde continua curta dentro da cobrança', async () => {
