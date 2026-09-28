@@ -48,7 +48,7 @@ test('Cutout Studio força reconstrução por IA mesmo quando o recorte anterior
 test('prompt mestre protege superfícies claras reais do produto', () => {
   const prompt = buildProductRebuildPrompt('Lavadora branca', { masterRepair: true });
   assert.match(prompt, /superfícies claras/i);
-  assert.match(prompt, /permaneçam totalmente sólidas e opacas/i);
+  assert.match(prompt, /permanecer totalmente sólidas e opacas/i);
   assert.match(prompt, /não abra buracos/i);
   assert.match(prompt, /IMAGEM MESTRE/i);
 });
