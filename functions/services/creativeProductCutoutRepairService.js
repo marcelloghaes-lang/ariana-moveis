@@ -389,20 +389,106 @@ function nearestFanForegroundColor(data, info, index, background, limits) {
   return best;
 }
 
+function fanMatteScore(data, pixelOffset, background) {
+  const dr = Math.abs(data[pixelOffset] - background.r);
+  const dg = Math.abs(data[pixelOffset + 1] - background.g);
+  const db = Math.abs(data[pixelOffset + 2] - background.b);
+  const distanceNorm = Math.sqrt(dr * dr + dg * dg + db * db) / 441.673;
+  const brightnessGap = Math.max(
+    0,
+    Number(background.brightness || 255) - pixelBrightness(data, pixelOffset)
+  ) / 255;
+  const chroma = pixelSpread(data, pixelOffset) / 255;
+  return clamp(Math.max(
+    distanceNorm * 1.48,
+    brightnessGap * 1.32,
+    chroma * 0.72
+  ), 0, 1);
+}
+
+function fanLocalContrast(data, info, index) {
+  const { width, height, channels } = info;
+  const x = index % width;
+  const y = Math.floor(index / width);
+  const p = index * channels;
+  let maxDelta = 0;
+
+  const compare = (next) => {
+    const np = next * channels;
+    const delta = (
+      Math.abs(data[p] - data[np]) +
+      Math.abs(data[p + 1] - data[np + 1]) +
+      Math.abs(data[p + 2] - data[np + 2])
+    ) / (3 * 255);
+    if (delta > maxDelta) maxDelta = delta;
+  };
+
+  if (x > 0) compare(index - 1);
+  if (x + 1 < width) compare(index + 1);
+  if (y > 0) compare(index - width);
+  if (y + 1 < height) compare(index + width);
+  return maxDelta;
+}
+
+function fanComputedAlpha(score, contrast, originalAlpha) {
+  if (originalAlpha < 24) return 0;
+
+  // Fundo puro ou quase uniforme deve desaparecer por completo, inclusive
+  // dentro de células fechadas pela grade.
+  if (score <= 0.050 && contrast <= 0.10) return 0;
+  if (score <= 0.085 && contrast <= 0.055) return 0;
+
+  // A faixa intermediária vira alpha matemático em vez de um "cinza lavado".
+  // Contraste local preserva fios, aros e detalhes finos.
+  const low = contrast >= 0.12 ? 0.040 : 0.055;
+  const high = contrast >= 0.16 ? 0.180 : 0.245;
+  const normalized = clamp((score - low) / Math.max(0.001, high - low), 0, 1);
+  let alpha = Math.round(255 * Math.pow(normalized, contrast >= 0.12 ? 0.58 : 0.92));
+
+  if (contrast >= 0.18 && score >= 0.085) alpha = Math.max(alpha, 188);
+  if (score >= 0.285) alpha = 255;
+
+  return Math.min(originalAlpha, alpha);
+}
+
+function unmatteFanPixel(data, pixelOffset, background, alpha) {
+  if (alpha <= 20 || alpha >= 248) return;
+  const a = alpha / 255;
+  const recover = (observed, bg) =>
+    clamp(Math.round((observed - bg * (1 - a)) / Math.max(0.08, a)), 0, 255);
+
+  data[pixelOffset] = recover(data[pixelOffset], background.r);
+  data[pixelOffset + 1] = recover(data[pixelOffset + 1], background.g);
+  data[pixelOffset + 2] = recover(data[pixelOffset + 2], background.b);
+}
+
+function fanResidualMatteRatio(original, repaired, info, background) {
+  const total = info.width * info.height;
+  let visible = 0;
+  let residual = 0;
+
+  for (let i = 0; i < total; i += 1) {
+    const p = i * info.channels;
+    const alpha = repaired[p + 3];
+    if (alpha < 48) continue;
+    visible += 1;
+
+    const score = fanMatteScore(original, p, background);
+    const contrast = fanLocalContrast(original, info, i);
+    if (score <= 0.105 && contrast <= 0.075) residual += 1;
+  }
+
+  return residual / Math.max(1, visible);
+}
+
 async function repairFanProductFromReference(asset, referenceBuffer) {
   if (!referenceBuffer) return null;
 
   let source;
   try {
+    // Sem upscale, sem IA e sem blur: trabalhamos exatamente nos pixels da foto.
     source = sharp(referenceBuffer, { failOn: 'none' })
       .rotate()
-      .resize({
-        width: 2000,
-        height: 2000,
-        fit: 'inside',
-        withoutEnlargement: true,
-        kernel: sharp.kernel.lanczos3
-      })
       .ensureAlpha();
   } catch {
     return null;
@@ -416,97 +502,66 @@ async function repairFanProductFromReference(asset, referenceBuffer) {
   const { width, height, channels } = info;
   const total = width * height;
   const data = Buffer.from(raw);
-  const removed = new Uint8Array(total);
   const foregroundSignalBefore = fanStrongForegroundCount(raw, info, background, limits);
 
   let removedPixels = 0;
+  let partialPixels = 0;
 
-  // Primeiro passe: remove somente pixels realmente compatíveis com o fundo original.
-  // A remoção é global, não apenas conectada às bordas, por isso limpa fundo preso
-  // dentro da grade, entre haste/base e em outros vazados do ventilador.
+  // Passo 1 — color-to-alpha global. Diferente do flood-fill, alcança fundo branco
+  // preso entre cada célula da grade e entre a haste e a base.
+  const alphaMap = new Uint8Array(total);
   for (let i = 0; i < total; i += 1) {
     const p = i * channels;
-    const alpha = data[p + 3];
-    if (alpha < 24) {
-      removed[i] = 1;
-      data[p + 3] = 0;
-      continue;
-    }
+    const score = fanMatteScore(raw, p, background);
+    const contrast = fanLocalContrast(raw, info, i);
+    const originalAlpha = raw[p + 3];
+    const nextAlpha = fanComputedAlpha(score, contrast, originalAlpha);
+    alphaMap[i] = nextAlpha;
 
-    const distance = rgbDistance(data, p, background);
-    const brightness = pixelBrightness(data, p);
-    const spread = pixelSpread(data, p);
-    const strictBackground =
-      distance <= limits.strictDistance &&
-      brightness >= limits.strictBrightness &&
-      spread <= limits.strictSpread;
-    const nearPureBackground =
-      distance <= limits.softDistance &&
-      brightness >= Math.max(limits.strictBrightness + 10, background.brightness - 9) &&
-      spread <= limits.strictSpread + 8;
-
-    if (strictBackground || nearPureBackground) {
-      removed[i] = 1;
-      data[p + 3] = 0;
-      removedPixels += 1;
-    }
+    if (nextAlpha < 24 && originalAlpha >= 24) removedPixels += 1;
+    else if (nextAlpha < 224 && originalAlpha >= 224) partialPixels += 1;
   }
 
-  // Segundo passe: trata apenas a borda anti-aliased ao redor das áreas já transparentes.
-  // Não desfoca nem reconstrói o produto; mantém o RGB original e decontamina somente
-  // pixels de borda que carregam branco do fundo.
+  // Passo 2 — elimina ilhas internas uniformes que ainda ficaram parcialmente opacas.
+  // O critério exige vizinhança clara/baixa textura para não mastigar fios ou pás.
   for (let pass = 0; pass < 2; pass += 1) {
-    const alphaSnapshot = new Uint8Array(total);
-    for (let i = 0; i < total; i += 1) alphaSnapshot[i] = data[i * channels + 3];
-
+    const snapshot = Uint8Array.from(alphaMap);
     for (let i = 0; i < total; i += 1) {
+      if (snapshot[i] < 24 || snapshot[i] >= 210) continue;
+
       const p = i * channels;
-      const alpha = alphaSnapshot[i];
-      if (alpha < 40) continue;
+      const score = fanMatteScore(raw, p, background);
+      const contrast = fanLocalContrast(raw, info, i);
+      if (score > 0.16 || contrast > 0.095) continue;
 
       const x = i % width;
       const y = Math.floor(i / width);
-      const touchesTransparent =
-        (x > 0 && alphaSnapshot[i - 1] < 40) ||
-        (x + 1 < width && alphaSnapshot[i + 1] < 40) ||
-        (y > 0 && alphaSnapshot[i - width] < 40) ||
-        (y + 1 < height && alphaSnapshot[i + width] < 40);
-      if (!touchesTransparent) continue;
+      let transparentNeighbors = 0;
+      let lowAlphaNeighbors = 0;
+      const check = (next) => {
+        if (snapshot[next] < 32) transparentNeighbors += 1;
+        if (snapshot[next] < 128) lowAlphaNeighbors += 1;
+      };
+      if (x > 0) check(i - 1);
+      if (x + 1 < width) check(i + 1);
+      if (y > 0) check(i - width);
+      if (y + 1 < height) check(i + width);
 
-      const distance = rgbDistance(data, p, background);
-      const brightness = pixelBrightness(data, p);
-      const spread = pixelSpread(data, p);
-      const softBackground =
-        distance <= limits.softDistance &&
-        brightness >= limits.softBrightness &&
-        spread <= limits.softSpread;
-      if (!softBackground) continue;
-
-      const normalized = clamp(
-        (distance - limits.strictDistance) /
-          Math.max(1, limits.softDistance - limits.strictDistance),
-        0,
-        1
-      );
-      const nextAlpha = Math.round(255 * Math.pow(normalized, 0.82));
-
-      if (nextAlpha < 24) {
-        data[p + 3] = 0;
-        removed[i] = 1;
-        removedPixels += 1;
-        continue;
+      if (transparentNeighbors >= 1 || lowAlphaNeighbors >= 3) {
+        if (alphaMap[i] >= 24) removedPixels += 1;
+        alphaMap[i] = 0;
       }
+    }
+  }
 
-      if (nextAlpha < alpha) data[p + 3] = nextAlpha;
-
-      const foregroundColor = nearestFanForegroundColor(data, info, i, background, limits);
-      if (foregroundColor) {
-        // Remove contaminação branca sem aplicar blur ao produto.
-        const mix = clamp(1 - nextAlpha / 255, 0.18, 0.72);
-        data[p] = Math.round(data[p] * (1 - mix) + foregroundColor[0] * mix);
-        data[p + 1] = Math.round(data[p + 1] * (1 - mix) + foregroundColor[1] * mix);
-        data[p + 2] = Math.round(data[p + 2] * (1 - mix) + foregroundColor[2] * mix);
-      }
+  // Passo 3 — grava o alpha e remove a contaminação branca somente nos pixels
+  // anti-aliased. Isso aumenta a definição visual sem aplicar sharpen/blur.
+  for (let i = 0; i < total; i += 1) {
+    const p = i * channels;
+    const nextAlpha = alphaMap[i];
+    data[p + 3] = nextAlpha;
+    if (nextAlpha >= 24 && nextAlpha < 248) {
+      unmatteFanPixel(data, p, background, nextAlpha);
     }
   }
 
@@ -519,7 +574,7 @@ async function repairFanProductFromReference(asset, referenceBuffer) {
       : 1;
 
   const internalBackgroundContaminationRatio =
-    fanResidualBackgroundRatio(data, info, background, limits);
+    fanResidualMatteRatio(raw, data, info, background);
   const semiTransparentContaminationRatio =
     fanPartialBackgroundRatio(data, info, background, limits);
   const whiteHaloResidualRatio = haloResidualRatio(data, info, background);
@@ -527,16 +582,17 @@ async function repairFanProductFromReference(asset, referenceBuffer) {
   const afterStructure = alphaStructureStats(data, info);
 
   const internalBackgroundOk =
-    internalBackgroundContaminationRatio <= 0.0035 &&
-    semiTransparentContaminationRatio <= 0.012;
-  const whiteHaloOk = whiteHaloResidualRatio <= 0.035;
+    internalBackgroundContaminationRatio <= 0.0015 &&
+    semiTransparentContaminationRatio <= 0.008;
+  const whiteHaloOk = whiteHaloResidualRatio <= 0.028;
   const thinStructureDamageOk =
-    foregroundSignalRetention >= 0.992 &&
-    foregroundOpaqueRatioAfter >= 0.035 &&
-    afterStructure.largestShare >= 0.30;
+    foregroundSignalRetention >= 0.990 &&
+    foregroundOpaqueRatioAfter >= 0.030 &&
+    afterStructure.largestShare >= 0.28;
+
   const safe =
     removedRatio >= 0.025 &&
-    removedRatio <= 0.95 &&
+    removedRatio <= 0.96 &&
     internalBackgroundOk &&
     whiteHaloOk &&
     thinStructureDamageOk;
@@ -545,13 +601,13 @@ async function repairFanProductFromReference(asset, referenceBuffer) {
   if (!thinStructureDamageOk) reason = 'thin_structure_damage';
   else if (!internalBackgroundOk) reason = 'internal_background_contamination';
   else if (!whiteHaloOk) reason = 'white_halo_residual';
-  else if (removedRatio < 0.025 || removedRatio > 0.95) reason = 'fan_cutout_ratio_unsafe';
+  else if (removedRatio < 0.025 || removedRatio > 0.96) reason = 'fan_cutout_ratio_unsafe';
 
   const png = await sharp(data, { raw: info })
     .png({ compressionLevel: 9, adaptiveFiltering: true })
     .toBuffer();
   const trimmed = await sharp(png)
-    .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 6 })
+    .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 5 })
     .png({ compressionLevel: 9, adaptiveFiltering: true })
     .toBuffer();
   const meta = await sharp(trimmed).metadata();
@@ -562,19 +618,21 @@ async function repairFanProductFromReference(asset, referenceBuffer) {
     width: Number(meta.width || info.width),
     height: Number(meta.height || info.height),
     backgroundRemoved: safe,
-    removalMode: safe ? 'fan_original_pixel_cutout' : 'unsafe_fan_original_pixel_cutout',
+    removalMode: safe ? 'fan_original_color_to_alpha' : 'unsafe_fan_original_color_to_alpha',
     removedRatio,
-    confidence: safe ? 0.96 : 0,
+    confidence: safe ? 0.97 : 0,
     cutoutSafe: safe,
     cutoutReason: safe ? 'ok' : reason,
     repairMetrics: {
       attempted: true,
       difficultProduct: true,
       fanOriginalPixelRepair: true,
+      colorToAlphaRepair: true,
       autoDetectedPorousStructure: true,
       recoveredOuterCutout: true,
       internalCandidateCount: 0,
       internalRemovedPixels: removedPixels,
+      partialPixels,
       internalRemovedRatio: removedPixels / Math.max(1, total),
       internalBackgroundContaminationRatio,
       outerBackgroundResidualRatio: internalBackgroundContaminationRatio,
