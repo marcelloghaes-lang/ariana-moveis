@@ -20,6 +20,7 @@ import registerEnterpriseAdminPartnerRoutes from './enterprise/adminPartnerRoute
 import registerEnterpriseAdminProRoutes from './enterprise/adminEnterpriseProRoutes.js';
 import registerEnterpriseAdminAnalyticsRoutes from './enterprise/adminAnalyticsRoutes.js';
 import registerEnterpriseDeveloperRoutes from './enterprise/developerRoutes.js';
+import registerEnterpriseSdkRoutes from './enterprise/sdkRoutes.js';
 import registerEnterpriseCertificationRoutes from './enterprise/certificationRoutes.js';
 import registerEnterprisePartnerDashboardRoutes from './enterprise/partnerDashboardRoutes.js';
 import registerEnterpriseProductionRoutes from './enterprise/productionRoutes.js';
@@ -819,6 +820,14 @@ registerEnterpriseMonitorRoutes(app, {
   enterpriseVersionHeaders
 });
 
+
+// ============================================================
+// ENTERPRISE SDK / MANIFEST ROUTES
+// ============================================================
+registerEnterpriseSdkRoutes(app, {
+  ...context,
+  enterpriseVersionHeaders
+});
 
 // ============================================================
 // ENTERPRISE DEVELOPER PORTAL ROUTES
