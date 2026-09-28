@@ -11,13 +11,13 @@
   <meta name="apple-mobile-web-app-title" content="Cutout Studio">
   <title>Ariana Cutout Studio</title>
   <link rel="icon" href="./favicon.png" type="image/png">
-  <link rel="manifest" href="./manifest-creative-cutout-studio.json?v=20260928-1">
+  <link rel="manifest" href="./manifest-creative-cutout-studio.json?v=20260928-2">
   <link rel="apple-touch-icon" href="./pwa-icons/banners-192.png">
   <link rel="stylesheet" href="./css/creative_cutout_studio.css?v=20260928-2">
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="./admin_painel.html" aria-label="Voltar ao painel">
+    <a class="brand" href="./admin_painel.html" target="_blank" rel="noopener" aria-label="Abrir painel administrativo">
       <img src="./imagens/logo-original-3d.png" alt="Ariana Móveis">
       <span>
         <strong>Ariana Cutout Studio</strong>
@@ -26,8 +26,8 @@
     </a>
     <nav class="top-actions">
       <button id="install-app-button" type="button">Instalar app</button>
-      <a href="./creative_studio_pro.html">Creative Studio Pro</a>
-      <a href="./admin_painel.html">Painel administrativo</a>
+      <a href="./creative_studio_pro.html" target="_blank" rel="noopener">Creative Studio Pro</a>
+      <a href="./admin_painel.html" target="_blank" rel="noopener">Painel administrativo</a>
     </nav>
   </header>
 
@@ -163,7 +163,7 @@
     </article>
   </template>
 
-  <script src="./js/creative_cutout_studio.js?v=20260928-2"></script>
-  <script src="./pwa-register.js?v=20260928-3" data-sw="./sw-creative-cutout-studio.js" data-scope="./creative_cutout_studio.html"></script>
+  <script src="./js/creative_cutout_studio.js?v=20260928-3"></script>
+  <script src="./pwa-register.js?v=20260928-4" data-sw="./sw-creative-cutout-studio.js" data-scope="./creative_cutout_studio.html"></script>
 </body>
 </html>

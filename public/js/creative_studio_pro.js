@@ -1383,9 +1383,26 @@
     }
   }
 
-  function isInstalledApp() {
+  const CREATIVE_PWA_SOURCE = 'pwa-creative-studio-pro';
+  const CREATIVE_PWA_SESSION_KEY = 'ariana-own-pwa';
+
+  function isStandaloneDisplay() {
     return window.matchMedia?.('(display-mode: standalone)')?.matches === true
       || window.navigator.standalone === true;
+  }
+
+  function isInstalledApp() {
+    const source = new URLSearchParams(window.location.search).get('source') || '';
+    if (source === CREATIVE_PWA_SOURCE) {
+      try { sessionStorage.setItem(CREATIVE_PWA_SESSION_KEY, CREATIVE_PWA_SOURCE); } catch {}
+    }
+    let ownSession = '';
+    try { ownSession = sessionStorage.getItem(CREATIVE_PWA_SESSION_KEY) || ''; } catch {}
+    return isStandaloneDisplay() && ownSession === CREATIVE_PWA_SOURCE;
+  }
+
+  function isForeignStandaloneHost() {
+    return isStandaloneDisplay() && !isInstalledApp();
   }
 
   function bindInstallApp() {
@@ -1433,13 +1450,23 @@
 
     window.addEventListener('appinstalled', () => {
       deferredInstallPrompt = null;
+      try { sessionStorage.setItem(CREATIVE_PWA_SESSION_KEY, CREATIVE_PWA_SOURCE); } catch {}
       button.classList.add('hidden');
-      status('Creative Studio instalado como aplicativo.', 'ok');
+      status('Creative Studio instalado como aplicativo independente.', 'ok');
     });
 
     button.addEventListener('click', async () => {
       if (isInstalledApp()) {
         button.classList.add('hidden');
+        return;
+      }
+
+      if (isForeignStandaloneHost()) {
+        const target = new URL(window.location.href);
+        target.searchParams.delete('source');
+        target.searchParams.set('install', 'creative-studio-pro');
+        status('Abrindo o Creative Studio no navegador para instalar como aplicativo separado do Ariana ERP...', 'ok');
+        window.open(target.toString(), '_blank', 'noopener');
         return;
       }
 

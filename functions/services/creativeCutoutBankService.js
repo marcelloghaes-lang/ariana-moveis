@@ -1,4 +1,3 @@
-import { GridFSBucket } from 'mongodb';
 import sharp from 'sharp';
 import { prepareProProductAsset } from '../creative-banner-pro-generator.js';
 import { rebuildCreativeProductFromReference } from './creativeProductRebuildService.js';
@@ -45,6 +44,8 @@ async function ensureIndexes(mongoose) {
 }
 
 function bucketFor(mongoose) {
+  const GridFSBucket = mongoose?.mongo?.GridFSBucket;
+  if (!GridFSBucket) throw new Error('creative_cutout_gridfs_unavailable');
   return new GridFSBucket(ensureDb(mongoose), { bucketName: BUCKET_NAME });
 }
 
@@ -54,9 +55,14 @@ function collectionFor(mongoose) {
 
 function objectId(mongoose, value) {
   if (!value) return null;
-  if (value instanceof mongoose.Types.ObjectId) return value;
-  if (!mongoose.Types.ObjectId.isValid(String(value))) return null;
-  return new mongoose.Types.ObjectId(String(value));
+  const ObjectId = mongoose?.mongo?.ObjectId;
+  if (!ObjectId) throw new Error('creative_cutout_objectid_unavailable');
+  if (value instanceof ObjectId) return value;
+  const raw = typeof value?.toHexString === 'function'
+    ? value.toHexString()
+    : String(value);
+  if (!ObjectId.isValid(raw)) return null;
+  return new ObjectId(raw);
 }
 
 async function putBuffer(bucket, buffer, filename, contentType, metadata = {}) {
@@ -66,25 +72,29 @@ async function putBuffer(bucket, buffer, filename, contentType, metadata = {}) {
       metadata
     });
     stream.once('error', reject);
-    stream.once('finish', () => resolve(stream.id));
+    stream.once('finish', () => resolve(String(stream.id)));
     stream.end(buffer);
   });
 }
 
-async function readBuffer(bucket, fileId) {
+async function readBuffer(bucket, mongoose, fileId) {
+  const id = objectId(mongoose, fileId);
+  if (!id) throw new Error('creative_cutout_file_id_invalid');
   return new Promise((resolve, reject) => {
     const chunks = [];
-    const stream = bucket.openDownloadStream(fileId);
+    const stream = bucket.openDownloadStream(id);
     stream.on('data', chunk => chunks.push(Buffer.from(chunk)));
     stream.once('error', reject);
     stream.once('end', () => resolve(Buffer.concat(chunks)));
   });
 }
 
-async function deleteGridFile(bucket, fileId) {
+async function deleteGridFile(bucket, mongoose, fileId) {
   if (!fileId) return;
+  const id = objectId(mongoose, fileId);
+  if (!id) return;
   try {
-    await bucket.delete(fileId);
+    await bucket.delete(id);
   } catch (error) {
     if (!/FileNotFound|not found/i.test(String(error?.message || error))) throw error;
   }
@@ -217,7 +227,7 @@ export async function createCreativeCutoutAsset({
   const db = ensureDb(mongoose);
   const bucket = bucketFor(mongoose);
   const collection = collectionFor(mongoose);
-  const id = new mongoose.Types.ObjectId();
+  const id = new mongoose.mongo.ObjectId();
   const createdAt = now();
 
   const originalFileId = await putBuffer(
@@ -275,8 +285,8 @@ export async function createCreativeCutoutAsset({
     await collection.insertOne(doc);
     return publicAsset(doc);
   } catch (error) {
-    if (processedFileId) await deleteGridFile(bucket, processedFileId);
-    await deleteGridFile(bucket, originalFileId);
+    if (processedFileId) await deleteGridFile(bucket, mongoose, processedFileId);
+    await deleteGridFile(bucket, mongoose, originalFileId);
     throw error;
   }
 }
@@ -318,7 +328,7 @@ export async function reprocessCreativeCutoutAsset({
 
   const bucket = bucketFor(mongoose);
   const collection = collectionFor(mongoose);
-  const originalBuffer = await readBuffer(bucket, doc.originalFileId);
+  const originalBuffer = await readBuffer(bucket, mongoose, doc.originalFileId);
   const safeMode = mode === 'ai_repair' ? 'ai_repair' : 'standard';
   const result = await processBuffer({
     originalBuffer,
@@ -367,7 +377,7 @@ export async function reprocessCreativeCutoutAsset({
     String(previousProcessedFileId) !== String(approvedFileId || '') &&
     String(previousProcessedFileId) !== String(nextFileId)
   ) {
-    await deleteGridFile(bucket, previousProcessedFileId);
+    await deleteGridFile(bucket, mongoose, previousProcessedFileId);
   }
 
   const updated = await collection.findOne({ _id: doc._id });
@@ -428,7 +438,7 @@ export async function deleteCreativeCutoutAsset({ mongoose, id }) {
     .filter(Boolean)
     .map(value => String(value));
   for (const unique of [...new Set(ids)]) {
-    await deleteGridFile(bucket, objectId(mongoose, unique));
+    await deleteGridFile(bucket, mongoose, unique);
   }
   await collectionFor(mongoose).deleteOne({ _id: doc._id });
   return true;
@@ -473,7 +483,7 @@ export async function getCreativeCutoutFile({
   if (!fileId) return null;
 
   const bucket = bucketFor(mongoose);
-  const buffer = await readBuffer(bucket, fileId);
+  const buffer = await readBuffer(bucket, mongoose, fileId);
   return {
     buffer,
     contentType: kind === 'original'
