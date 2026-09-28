@@ -19,8 +19,6 @@
   let lastCopyResearchSignature = '';
   let lastCreativeDirection = null;
   let deferredInstallPrompt = null;
-  let localProductImageDataUrl = '';
-  let localBrandLogoDataUrl = '';
 
   const FORMATS = Object.freeze({
     hero_desktop: { label: 'PRÉVIA • HERO DESKTOP', size: '1920 × 480 pixels' },
@@ -100,7 +98,7 @@
     if (response.status === 401) throw new Error('Sua sessão expirou. Faça login novamente.');
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      throw new Error(payload.message || payload.error || 'Falha na operação (' + response.status + ').');
+      throw new Error(payload.error || payload.message || 'Falha na operação (' + response.status + ').');
     }
     return responseType === 'blob' ? response.blob() : response.json();
   }
@@ -108,67 +106,6 @@
   function status(message = '', type = '') {
     els.globalStatus.textContent = message;
     els.globalStatus.className = 'global-status ' + type;
-  }
-
-  function readFileAsDataUrl(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ''));
-      reader.onerror = () => reject(new Error('Não foi possível ler a imagem selecionada.'));
-      reader.readAsDataURL(file);
-    });
-  }
-
-  function loadLocalImage(file) {
-    return new Promise((resolve, reject) => {
-      const objectUrl = URL.createObjectURL(file);
-      const image = new Image();
-      const finish = () => URL.revokeObjectURL(objectUrl);
-      image.onload = () => {
-        finish();
-        resolve(image);
-      };
-      image.onerror = () => {
-        finish();
-        reject(new Error('Formato de imagem não reconhecido pelo navegador.'));
-      };
-      image.src = objectUrl;
-    });
-  }
-
-  async function prepareCreativeLocalImage(file, maxDimension = 1800) {
-    if (!file) throw new Error('Selecione uma imagem.');
-    if (file.size > 20 * 1024 * 1024) throw new Error('A imagem ultrapassa 20 MB.');
-    if (file.type && !String(file.type).startsWith('image/')) {
-      throw new Error('Selecione um arquivo de imagem.');
-    }
-
-    try {
-      const image = await loadLocalImage(file);
-      const width = Number(image.naturalWidth || image.width || 0);
-      const height = Number(image.naturalHeight || image.height || 0);
-      if (!width || !height) throw new Error('Imagem sem dimensões válidas.');
-
-      const scale = Math.min(1, maxDimension / Math.max(width, height));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(width * scale));
-      canvas.height = Math.max(1, Math.round(height * scale));
-      const ctx = canvas.getContext('2d', { alpha: true });
-      if (!ctx) throw new Error('Não foi possível preparar a imagem.');
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-      const webp = canvas.toDataURL('image/webp', 0.92);
-      if (webp.startsWith('data:image/webp')) return webp;
-      return canvas.toDataURL('image/png');
-    } catch (_error) {
-      const original = await readFileAsDataUrl(file);
-      if (!original.startsWith('data:image/')) {
-        throw new Error('Não foi possível preparar a imagem selecionada.');
-      }
-      return original;
-    }
   }
 
   function selectedFormat() {
@@ -375,7 +312,13 @@
     status('Enviando imagem do ' + (slot === 0 ? 'produto principal' : 'produto de apoio ' + slot) + '...', '');
 
     try {
-      const url = await prepareCreativeLocalImage(file);
+      const form = new FormData();
+      form.append('file', file);
+      form.append('folder', 'marketing/creative-studio-pro/hero-produtos');
+      const data = await api('/admin/uploads', { method:'POST', body:form });
+      const uploaded = Array.isArray(data?.files) ? data.files[0] : (data?.file || data);
+      const url = uploaded?.url || uploaded?.secure_url || uploaded?.imageUrl || data?.url;
+      if (!url) throw new Error('O servidor não devolveu a URL da imagem.');
 
       const cleanName = String(file.name || 'Produto')
         .replace(/\.[a-z0-9]+$/i,'')
@@ -389,7 +332,7 @@
         category: 'Campanha',
         __heroUploaded: true
       });
-      status('Imagem adicionada ao Studio. ' + heroSlotProducts().length + ' de 3 produtos preenchidos.', 'ok');
+      status('Imagem adicionada. ' + heroSlotProducts().length + ' de 3 produtos preenchidos.', 'ok');
     } catch (error) {
       status('Falha ao enviar imagem: ' + error.message, 'error');
     } finally {
@@ -940,7 +883,6 @@
     }
 
     selectedProduct = product;
-    localProductImageDataUrl = '';
     const compact = compactCatalogProduct(product);
     els.productName.value = compact.name;
     els.imageUrl.value = compact.imageUrl;
@@ -1013,15 +955,19 @@
       return;
     }
 
-    els.uploadStatus.textContent = 'Preparando imagem no Studio...';
+    els.uploadStatus.textContent = 'Enviando imagem...';
     els.uploadStatus.className = 'inline-status full';
     try {
-      localProductImageDataUrl = await prepareCreativeLocalImage(file);
-      els.imageUrl.value = '';
-      els.uploadStatus.textContent = 'Imagem carregada. O recorte será analisado na prévia.';
+      const form = new FormData();
+      form.append('file',file);
+      form.append('folder','marketing/creative-studio-pro/produtos');
+      const data = await api('/admin/uploads',{method:'POST',body:form});
+      const uploaded = Array.isArray(data?.files) ? data.files[0] : (data?.file || data);
+      const url = uploaded?.url || uploaded?.secure_url || uploaded?.imageUrl || data?.url;
+      if (!url) throw new Error('O servidor não devolveu a URL da imagem.');
+      els.imageUrl.value = url;
+      els.uploadStatus.textContent = 'Imagem enviada. O recorte será analisado na prévia.';
       els.uploadStatus.className = 'inline-status full ok';
-      qualityAllowsSave = false;
-      els.saveButton.disabled = true;
     } catch (error) {
       els.uploadStatus.textContent = error.message;
       els.uploadStatus.className = 'inline-status full error';
@@ -1036,12 +982,18 @@
       return;
     }
 
-    els.brandLogoStatus.textContent = 'Preparando logo no Studio...';
+    els.brandLogoStatus.textContent = 'Enviando logo do fabricante...';
     els.brandLogoStatus.className = 'inline-status full';
     try {
-      localBrandLogoDataUrl = await prepareCreativeLocalImage(file, 1400);
-      els.brandLogoUrl.value = '';
-      els.brandLogoStatus.textContent = 'Logo carregada. O Studio vai remover fundo simples e validar antes de salvar.';
+      const form = new FormData();
+      form.append('file', file);
+      form.append('folder', 'marketing/creative-studio-pro/marcas');
+      const data = await api('/admin/uploads', { method:'POST', body:form });
+      const uploaded = Array.isArray(data?.files) ? data.files[0] : (data?.file || data);
+      const url = uploaded?.url || uploaded?.secure_url || uploaded?.imageUrl || data?.url;
+      if (!url) throw new Error('O servidor não devolveu a URL da logo.');
+      els.brandLogoUrl.value = url;
+      els.brandLogoStatus.textContent = 'Logo enviada. O Studio vai remover fundo simples e validar antes de salvar.';
       els.brandLogoStatus.className = 'inline-status full ok';
       qualityAllowsSave = false;
       els.saveButton.disabled = true;
@@ -1085,7 +1037,7 @@
           manualCopy,
           copyAuthority: 'editor',
           brandLabel: els.brandLabel.value.trim(),
-          brandLogoUrl: localBrandLogoDataUrl || els.brandLogoUrl.value.trim(),
+          brandLogoUrl: els.brandLogoUrl.value.trim(),
           couponText: els.couponText.value.trim(),
           promoText: els.promoText.value.trim(),
           showCommercialInfo: false,
@@ -1096,7 +1048,7 @@
     }
 
     const name = els.productName.value.trim();
-    const imageUrl = localProductImageDataUrl || els.imageUrl.value.trim();
+    const imageUrl = els.imageUrl.value.trim();
     if (!name) throw new Error('Informe o nome do produto.');
     if (!imageUrl) throw new Error('Selecione ou envie a imagem do produto.');
 
@@ -1132,7 +1084,7 @@
         manualCopy,
         copyAuthority: 'editor',
         brandLabel: els.brandLabel.value.trim() || selectedProduct?.brand || '',
-        brandLogoUrl: localBrandLogoDataUrl || els.brandLogoUrl.value.trim(),
+        brandLogoUrl: els.brandLogoUrl.value.trim(),
         couponText: els.couponText.value.trim(),
         promoText: els.promoText.value.trim(),
         productName: name,
@@ -1215,32 +1167,8 @@
       }
       renderQuality(analysis);
 
-      const pendingRebuilds = contentMode === 'multi_product'
-        ? (Array.isArray(analysis?.products)
-            ? analysis.products.filter(item => item?.rebuild?.pending === true).length
-            : 0)
-        : (analysis?.product?.rebuild?.pending === true ? 1 : 0);
-
       if (analysis?.quality?.blockSave) {
-        const failedChecks = Array.isArray(analysis?.quality?.checks)
-          ? analysis.quality.checks.filter(item => item?.critical && !item?.ok)
-          : [];
-        const failureText = failedChecks
-          .map(item => item?.label || item?.id)
-          .filter(Boolean)
-          .join(' • ');
-        status(
-          failureText
-            ? 'A análise bloqueou a prévia: ' + failureText + '.'
-            : 'A análise encontrou um item crítico e bloqueou a prévia.',
-          'error'
-        );
-        return;
-      } else if (pendingRebuilds > 0) {
-        status(
-          'Reconstruindo ' + pendingRebuilds + ' produto(s) por IA com base na foto original. Aguarde a validação de fidelidade...',
-          'ok'
-        );
+        status('Prévia gerada, mas a arte final está bloqueada: corrija logo, recorte ou resolução antes de salvar.', 'error');
       } else if (contentMode === 'multi_product') {
         status('Todos os produtos passaram no recorte. Gerando a vitrine multi-produto...', 'ok');
       } else if (contentMode === 'with_price' && !payload.options.showPrice) {
@@ -1251,30 +1179,16 @@
         status('A foto tem fundo complexo. O Pro preservará a imagem em um painel e marcará o aviso de qualidade.', '');
       }
 
-      const previewController = new AbortController();
-      const previewTimer = setTimeout(() => previewController.abort(), 125000);
-      let blob;
-      try {
-        blob = await api('/admin/creative-studio/pro/preview',{
-          method:'POST',
-          body:JSON.stringify(payload),
-          signal:previewController.signal
-        },'blob');
-      } finally {
-        clearTimeout(previewTimer);
-      }
+      const blob = await api('/admin/creative-studio/pro/preview',{
+        method:'POST',
+        body:JSON.stringify(payload)
+      },'blob');
       showPreview(blob);
       if (!analysis?.quality?.blockSave) {
         status('Prévia Pro aprovada na qualidade mínima. Confira a arte antes de salvar.', 'ok');
       }
     } catch (error) {
-      const aborted = /abort|timeout/i.test(String(error?.name || '') + ' ' + String(error?.message || ''));
-      status(
-        aborted
-          ? 'A reconstrução demorou além do limite e foi interrompida. Nenhum recorte defeituoso foi usado; tente gerar novamente.'
-          : 'Falha ao gerar a prévia Pro: ' + error.message,
-        'error'
-      );
+      status('Falha ao gerar a prévia Pro: ' + error.message,'error');
     } finally {
       setBusy(false);
     }
@@ -1382,55 +1296,31 @@
       status('Creative Studio instalado no celular.', 'ok');
     });
 
-    async function promptInstallIfReady() {
-      if (!deferredInstallPrompt) return false;
-      const prompt = deferredInstallPrompt;
-      deferredInstallPrompt = null;
-      await prompt.prompt();
-      const choice = await prompt.userChoice.catch(() => null);
-      if (choice?.outcome === 'accepted') {
-        status('Instalação iniciada. O Creative Studio ficará disponível como aplicativo.', 'ok');
-      } else {
-        status('A instalação não foi concluída. Você pode tentar novamente.', '');
-      }
-      syncButton();
-      return true;
-    }
-
     button.addEventListener('click', async () => {
       if (isInstalledApp()) {
         button.classList.add('hidden');
         return;
       }
 
-      if (await promptInstallIfReady()) return;
-
-      status('Preparando a instalação do aplicativo...', 'ok');
-      for (let attempt = 0; attempt < 8 && !deferredInstallPrompt; attempt += 1) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-      }
-      if (await promptInstallIfReady()) return;
-
-      const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
-      const android = /android/i.test(navigator.userAgent);
-
-      if (android) {
-        const target = new URL(window.location.href);
-        target.searchParams.set('source', 'pwa-install');
-        const fallback = target.toString();
-        const intent =
-          'intent://' + target.host + target.pathname + target.search +
-          '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' +
-          encodeURIComponent(fallback) + ';end';
-        status('Abrindo o Creative Studio no Chrome completo para instalar o app...', 'ok');
-        window.location.href = intent;
+      if (deferredInstallPrompt) {
+        const prompt = deferredInstallPrompt;
+        deferredInstallPrompt = null;
+        await prompt.prompt();
+        const choice = await prompt.userChoice.catch(() => null);
+        if (choice?.outcome === 'accepted') {
+          status('Instalação iniciada. O Creative Studio ficará disponível como aplicativo.', 'ok');
+        } else {
+          status('A instalação não foi concluída. Você pode tentar novamente pelo menu do navegador.', '');
+        }
+        syncButton();
         return;
       }
 
+      const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
       status(
         ios
           ? 'No iPhone/iPad: toque em Compartilhar e depois em Adicionar à Tela de Início.'
-          : 'Abra esta página no navegador principal e use Instalar app ou Adicionar à tela inicial.',
+          : 'Se a janela de instalação não abrir, use o menu do navegador e toque em Instalar app ou Adicionar à tela inicial.',
         ''
       );
     });
@@ -1444,26 +1334,13 @@
       button.addEventListener('click', () => chooseCatalogForHeroSlot(button.dataset.heroCatalogSlot));
     });
     document.querySelectorAll('[data-hero-upload-slot]').forEach(input => {
-      input.addEventListener('change', event => {
-        uploadHeroSlot(event.target.files?.[0], input.dataset.heroUploadSlot)
-          .finally(() => { event.target.value = ''; });
-      });
+      input.addEventListener('change', event => uploadHeroSlot(event.target.files?.[0], input.dataset.heroUploadSlot));
     });
     document.querySelectorAll('[data-hero-clear-slot]').forEach(button => {
       button.addEventListener('click', () => clearHeroSlot(button.dataset.heroClearSlot));
     });
-    els.imageFile.addEventListener('change',event => {
-      uploadImage(event.target.files?.[0]).finally(() => { event.target.value = ''; });
-    });
-    els.brandLogoFile.addEventListener('change',event => {
-      uploadBrandLogo(event.target.files?.[0]).finally(() => { event.target.value = ''; });
-    });
-    els.imageUrl.addEventListener('input', () => {
-      if (els.imageUrl.value.trim()) localProductImageDataUrl = '';
-    });
-    els.brandLogoUrl.addEventListener('input', () => {
-      if (els.brandLogoUrl.value.trim()) localBrandLogoDataUrl = '';
-    });
+    els.imageFile.addEventListener('change',event => uploadImage(event.target.files?.[0]));
+    els.brandLogoFile.addEventListener('change',event => uploadBrandLogo(event.target.files?.[0]));
 
     [
       ['badge', els.badge],
