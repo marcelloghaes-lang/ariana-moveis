@@ -22,6 +22,7 @@ export default function registerAdminCoreRoutes(app, context = {}) {
     ADMIN_NAME,
     ADMIN_PASSWORD,
     APP_BASE_URL,
+    crypto,
     MONGODB_DB,
     PORT,
     DEFAULT_CURRENCY,
@@ -50,6 +51,7 @@ export default function registerAdminCoreRoutes(app, context = {}) {
     cloudinary,
     upload,
     uploadToCloudinary,
+    tmpUploadsDir,
     isCloudinaryConfigured,
     safeUploadFolder,
     path,
@@ -94,6 +96,100 @@ function clientInfo(req) {
   const os = /Windows/i.test(ua) ? 'Windows' : /Android/i.test(ua) ? 'Android' : /iPhone|iPad/i.test(ua) ? 'iOS' : /Mac OS/i.test(ua) ? 'macOS' : /Linux/i.test(ua) ? 'Linux' : 'Outro';
   const device = /Mobile|Android|iPhone|iPad/i.test(ua) ? 'Celular/Tablet' : 'Computador';
   return { ip, userAgent: ua, browser, os, device };
+}
+
+
+const CREATIVE_SOURCE_TTL_MS = 2 * 60 * 60 * 1000;
+const creativeSourceRegistry = new Map();
+
+function cleanupCreativeSourceRegistry() {
+  const nowMs = Date.now();
+  for (const [token, entry] of creativeSourceRegistry.entries()) {
+    const expired = !entry || Number(entry.expiresAt || 0) <= nowMs;
+    const missing = !entry?.path || !fs.existsSync(entry.path);
+    if (!expired && !missing) continue;
+    if (entry?.path && fs.existsSync(entry.path)) {
+      try { fs.unlinkSync(entry.path); } catch {}
+    }
+    creativeSourceRegistry.delete(token);
+  }
+
+  if (!tmpUploadsDir || !fs.existsSync(tmpUploadsDir)) return;
+  try {
+    for (const name of fs.readdirSync(tmpUploadsDir)) {
+      if (!String(name).startsWith('creative-studio-pro-')) continue;
+      const abs = path.join(tmpUploadsDir, name);
+      let stat = null;
+      try { stat = fs.statSync(abs); } catch {}
+      if (!stat?.isFile()) continue;
+      if (nowMs - Number(stat.mtimeMs || 0) <= CREATIVE_SOURCE_TTL_MS) continue;
+      try { fs.unlinkSync(abs); } catch {}
+    }
+  } catch {}
+}
+
+function registerCreativeDirectSource(file) {
+  cleanupCreativeSourceRegistry();
+  if (!file?.path || !fs.existsSync(file.path)) {
+    throw new Error('creative_source_file_missing');
+  }
+
+  const token = typeof crypto?.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : (Date.now().toString(36) + '-' + Math.random().toString(36).slice(2));
+
+  const rawExt = path.extname(String(file.originalname || ''));
+  const ext = /^\.[a-z0-9]{1,8}$/i.test(rawExt) ? rawExt.toLowerCase() : '';
+  const finalPath = path.join(tmpUploadsDir, 'creative-studio-pro-' + token + ext);
+
+  if (file.path !== finalPath) {
+    fs.renameSync(file.path, finalPath);
+  }
+
+  const nowMs = Date.now();
+  const entry = {
+    token,
+    path: finalPath,
+    originalName: String(file.originalname || 'produto'),
+    mimeType: String(file.mimetype || ''),
+    size: Number(file.size || 0),
+    createdAt: nowMs,
+    expiresAt: nowMs + CREATIVE_SOURCE_TTL_MS
+  };
+  creativeSourceRegistry.set(token, entry);
+  return entry;
+}
+
+function resolveCreativeDirectSource(product = {}) {
+  const token = String(
+    product.sourceToken ||
+    product.originalSourceToken ||
+    product.directSourceToken ||
+    ''
+  ).trim();
+  if (!token) return product;
+
+  cleanupCreativeSourceRegistry();
+  const entry = creativeSourceRegistry.get(token);
+  if (!entry || !entry.path || !fs.existsSync(entry.path)) {
+    const error = new Error('A imagem original temporária expirou. Envie o arquivo novamente.');
+    error.code = 'creative_source_expired';
+    throw error;
+  }
+
+  entry.expiresAt = Date.now() + CREATIVE_SOURCE_TTL_MS;
+  return {
+    ...product,
+    originalSourcePath: entry.path,
+    originalSourceName: entry.originalName,
+    originalSourceMimeType: entry.mimeType,
+    originalSourceBytes: entry.size,
+    sourceType: 'direct_original_upload'
+  };
+}
+
+function resolveCreativeDirectSources(products = []) {
+  return products.map(item => resolveCreativeDirectSource(item));
 }
 
 async function recordLoginEvent(payload = {}) {
@@ -987,6 +1083,47 @@ app.get('/api/admin/creative-studio/pro/templates/:templateId', adminRequired, (
   }
 });
 
+app.post(
+  '/api/admin/creative-studio/pro/source-image',
+  adminRequired,
+  upload.single('file'),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ ok: false, error: 'Nenhuma imagem enviada.' });
+      }
+
+      const mimeType = String(req.file.mimetype || '').toLowerCase();
+      if (!mimeType.startsWith('image/')) {
+        if (req.file.path && fs.existsSync(req.file.path)) {
+          try { fs.unlinkSync(req.file.path); } catch {}
+        }
+        return res.status(415).json({ ok: false, error: 'O arquivo enviado não é uma imagem válida.' });
+      }
+
+      const entry = registerCreativeDirectSource(req.file);
+      return res.json({
+        ok: true,
+        sourceToken: entry.token,
+        originalName: entry.originalName,
+        mimeType: entry.mimeType,
+        bytes: entry.size,
+        expiresInSeconds: Math.round(CREATIVE_SOURCE_TTL_MS / 1000),
+        sourceType: 'direct_original_upload'
+      });
+    } catch (error) {
+      if (req.file?.path && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch {}
+      }
+      console.error('[creative-studio-pro] erro ao receber imagem original:', error);
+      return res.status(500).json({
+        ok: false,
+        error: error.message || 'creative_studio_pro_source_upload_failed'
+      });
+    }
+  }
+);
+
 app.post('/api/admin/creative-studio/pro/research-copy', adminRequired, async (req, res) => {
   try {
     const products = Array.isArray(req.body?.products)
@@ -1010,9 +1147,11 @@ app.post('/api/admin/creative-studio/pro/research-copy', adminRequired, async (r
 
 app.post('/api/admin/creative-studio/pro/analyze', adminRequired, async (req, res) => {
   try {
-    const { product, options } = professionalCreativeInput(req.body || {});
+    const input = professionalCreativeInput(req.body || {});
+    const product = resolveCreativeDirectSource(input.product);
+    const options = input.options;
     const products = Array.isArray(req.body?.products)
-      ? req.body.products.filter(Boolean).slice(0, 5)
+      ? resolveCreativeDirectSources(req.body.products.filter(Boolean).slice(0, 5))
       : [];
     const analysis = products.length >= 2
       ? await analyzeCreativeBannerProMulti(products, options)
@@ -1026,9 +1165,11 @@ app.post('/api/admin/creative-studio/pro/analyze', adminRequired, async (req, re
 
 app.post('/api/admin/creative-studio/pro/preview', adminRequired, async (req, res) => {
   try {
-    const { product, options } = professionalCreativeInput(req.body || {});
+    const input = professionalCreativeInput(req.body || {});
+    const product = resolveCreativeDirectSource(input.product);
+    const options = input.options;
     const products = Array.isArray(req.body?.products)
-      ? req.body.products.filter(Boolean).slice(0, 5)
+      ? resolveCreativeDirectSources(req.body.products.filter(Boolean).slice(0, 5))
       : [];
     const result = products.length >= 2
       ? await generateCreativeBannerProMulti(products, options)
@@ -1057,9 +1198,11 @@ app.post('/api/admin/creative-studio/pro/preview', adminRequired, async (req, re
 
 app.post('/api/admin/creative-studio/pro/render', adminRequired, async (req, res) => {
   try {
-    const { product, options } = professionalCreativeInput(req.body || {});
+    const input = professionalCreativeInput(req.body || {});
+    const product = resolveCreativeDirectSource(input.product);
+    const options = input.options;
     const products = Array.isArray(req.body?.products)
-      ? req.body.products.filter(Boolean).slice(0, 5)
+      ? resolveCreativeDirectSources(req.body.products.filter(Boolean).slice(0, 5))
       : [];
     const result = products.length >= 2
       ? await generateCreativeBannerProMulti(products, options)
