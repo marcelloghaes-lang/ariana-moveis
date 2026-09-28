@@ -86,7 +86,8 @@ function estimateLightBackground(data, info) {
     g: mean.g,
     b: mean.b,
     brightness: mean.brightness,
-    variance
+    variance,
+    spread: Math.max(mean.r, mean.g, mean.b) - Math.min(mean.r, mean.g, mean.b)
   };
 }
 
@@ -190,8 +191,132 @@ function alphaStructureStats(data, info, threshold = 48) {
   };
 }
 
+function adaptiveBackgroundThresholds(background = {}) {
+  const brightness = Number(background.brightness || 0);
+  const variance = Math.max(0, Number(background.variance || 0));
+  const spread = Math.max(0, Number(background.spread || 0));
+  return {
+    eligible: brightness >= 178 && variance <= 2200,
+    maxDistance: clamp(28 + Math.sqrt(variance) * 0.32, 28, 50),
+    minBrightness: clamp(brightness - 38, 158, 232),
+    maxSpread: clamp(spread + 30, 34, 92)
+  };
+}
+
+function foregroundSignalCount(data, info, background) {
+  const limits = adaptiveBackgroundThresholds(background);
+  const total = info.width * info.height;
+  let signal = 0;
+  for (let i = 0; i < total; i += 1) {
+    const p = i * info.channels;
+    if (data[p + 3] < 40) continue;
+    const looksLikeBackground = backgroundLike(data, i, info, background, {
+      maxDistance: limits.maxDistance + 10,
+      minBrightness: Math.max(145, limits.minBrightness - 18),
+      maxSpread: Math.min(110, limits.maxSpread + 18),
+      minAlpha: 0
+    });
+    if (!looksLikeBackground) signal += 1;
+  }
+  return signal;
+}
+
+function residualBackgroundRatio(data, info, background) {
+  const limits = adaptiveBackgroundThresholds(background);
+  if (!limits.eligible) return 0;
+  const total = info.width * info.height;
+  let opaque = 0;
+  let residual = 0;
+  for (let i = 0; i < total; i += 1) {
+    const p = i * info.channels;
+    if (data[p + 3] < 48) continue;
+    opaque += 1;
+    if (backgroundLike(data, i, info, background, {
+      maxDistance: Math.max(22, limits.maxDistance - 4),
+      minBrightness: limits.minBrightness,
+      maxSpread: limits.maxSpread,
+      minAlpha: 48
+    })) {
+      residual += 1;
+    }
+  }
+  return residual / Math.max(1, opaque);
+}
+
+function reconstructNeutralBackground(data, info, background) {
+  const limits = adaptiveBackgroundThresholds(background);
+  if (!limits.eligible) return null;
+
+  const { width, height, channels } = info;
+  const total = width * height;
+  const output = Buffer.from(data);
+  let removed = 0;
+  let softened = 0;
+
+  for (let i = 0; i < total; i += 1) {
+    const p = i * channels;
+    const alpha = output[p + 3];
+    if (alpha < 32) continue;
+
+    const distance = rgbDistance(output, p, background);
+    const brightness = pixelBrightness(output, p);
+    const spread = pixelSpread(output, p);
+    const strictBackground =
+      distance <= Math.max(18, limits.maxDistance - 8) &&
+      brightness >= limits.minBrightness + 6 &&
+      spread <= Math.max(28, limits.maxSpread - 8);
+    const probableBackground =
+      distance <= limits.maxDistance &&
+      brightness >= limits.minBrightness &&
+      spread <= limits.maxSpread;
+
+    if (strictBackground) {
+      output[p + 3] = 0;
+      removed += 1;
+      continue;
+    }
+
+    if (!probableBackground) continue;
+
+    const x = i % width;
+    const y = Math.floor(i / width);
+    let foregroundNeighbors = 0;
+    const neighbors = [];
+    if (x > 0) neighbors.push(i - 1);
+    if (x + 1 < width) neighbors.push(i + 1);
+    if (y > 0) neighbors.push(i - width);
+    if (y + 1 < height) neighbors.push(i + width);
+
+    for (const next of neighbors) {
+      const np = next * channels;
+      if (output[np + 3] < 40) continue;
+      const neighborDistance = rgbDistance(output, np, background);
+      if (neighborDistance > limits.maxDistance + 10) foregroundNeighbors += 1;
+    }
+
+    if (foregroundNeighbors === 0) {
+      output[p + 3] = 0;
+      removed += 1;
+    } else {
+      const nextAlpha = Math.min(alpha, 112);
+      if (nextAlpha !== alpha) {
+        output[p + 3] = nextAlpha;
+        softened += 1;
+      }
+    }
+  }
+
+  return {
+    data: output,
+    removed,
+    softened,
+    removedRatio: removed / Math.max(1, total)
+  };
+}
+
 function strictOuterCutout(data, info, background) {
-  if (background.brightness < 220 || background.variance > 900) return null;
+  const limits = adaptiveBackgroundThresholds(background);
+  if (!limits.eligible) return null;
 
   const { width, height, channels } = info;
   const total = width * height;
@@ -204,9 +329,9 @@ function strictOuterCutout(data, info, background) {
     const p = index * channels;
     if (data[p + 3] < 28) return true;
     return backgroundLike(data, index, info, background, {
-      maxDistance: 24,
-      minBrightness: 235,
-      maxSpread: 28,
+      maxDistance: limits.maxDistance,
+      minBrightness: limits.minBrightness,
+      maxSpread: limits.maxSpread,
       minAlpha: 0
     });
   };
@@ -258,9 +383,9 @@ function strictOuterCutout(data, info, background) {
       (y + 1 < height && visited[i + width]);
     if (!touchesRemoved) continue;
     if (backgroundLike(output, i, info, background, {
-      maxDistance: 28,
-      minBrightness: 228,
-      maxSpread: 34,
+      maxDistance: limits.maxDistance + 4,
+      minBrightness: Math.max(145, limits.minBrightness - 8),
+      maxSpread: Math.min(110, limits.maxSpread + 10),
       minAlpha: 0
     })) {
       output[p + 3] = Math.min(alpha, 176);
@@ -275,12 +400,13 @@ function findInternalBackgroundComponents(data, info, background) {
   const total = width * height;
   const mask = new Uint8Array(total);
   const labels = new Int32Array(total);
+  const limits = adaptiveBackgroundThresholds(background);
 
   for (let i = 0; i < total; i += 1) {
-    if (backgroundLike(data, i, info, background, {
-      maxDistance: 22,
-      minBrightness: 238,
-      maxSpread: 28,
+    if (limits.eligible && backgroundLike(data, i, info, background, {
+      maxDistance: Math.max(22, limits.maxDistance - 3),
+      minBrightness: limits.minBrightness,
+      maxSpread: limits.maxSpread,
       minAlpha: 64
     })) {
       mask[i] = 1;
@@ -379,8 +505,8 @@ function findInternalBackgroundComponents(data, info, background) {
     }
   }
 
-  const minArea = Math.max(18, Math.round(total * 0.000035));
-  const maxArea = Math.max(minArea + 1, Math.round(total * 0.10));
+  const minArea = Math.max(14, Math.round(total * 0.000025));
+  const maxArea = Math.max(minArea + 1, Math.round(total * 0.22));
   const candidates = components.filter(component => {
     const boxArea = Math.max(1, (component.maxX - component.minX + 1) * (component.maxY - component.minY + 1));
     const fillRatio = component.count / boxArea;
@@ -389,12 +515,12 @@ function findInternalBackgroundComponents(data, info, background) {
     return !component.touchesEdge &&
       component.count >= minArea &&
       component.count <= maxArea &&
-      component.meanBrightness >= 240 &&
-      component.meanDistance <= 20 &&
-      component.brightnessStd <= 10 &&
-      fillRatio >= 0.16 &&
-      enclosure >= 0.82 &&
-      component.transparentBoundary <= Math.max(2, Math.round(component.solidBoundary * 0.08));
+      component.meanBrightness >= Math.max(160, limits.minBrightness) &&
+      component.meanDistance <= Math.max(20, limits.maxDistance - 2) &&
+      component.brightnessStd <= 18 &&
+      fillRatio >= 0.10 &&
+      enclosure >= 0.68 &&
+      component.transparentBoundary <= Math.max(4, Math.round(component.solidBoundary * 0.22));
   });
 
   return { labels, components, candidates };
@@ -417,6 +543,7 @@ function removeInternalCandidates(data, info, labels, candidates) {
 
 function cleanWhiteHalo(data, info, background) {
   const { width, height, channels } = info;
+  const limits = adaptiveBackgroundThresholds(background);
   const total = width * height;
   const originalAlpha = new Uint8Array(total);
   for (let i = 0; i < total; i += 1) originalAlpha[i] = data[i * channels + 3];
@@ -439,10 +566,19 @@ function cleanWhiteHalo(data, info, background) {
     const brightness = pixelBrightness(data, p);
     const spread = pixelSpread(data, p);
 
-    if (transparentNeighbors >= 2 && distance <= 12 && brightness >= 246 && spread <= 18) {
+    if (
+      transparentNeighbors >= 2 &&
+      distance <= Math.max(12, limits.maxDistance - 14) &&
+      brightness >= Math.max(170, limits.minBrightness + 8) &&
+      spread <= Math.max(22, limits.maxSpread - 10)
+    ) {
       data[p + 3] = 0;
       changed += 1;
-    } else if (distance <= 20 && brightness >= 236 && spread <= 26) {
+    } else if (
+      distance <= Math.max(20, limits.maxDistance - 5) &&
+      brightness >= Math.max(160, limits.minBrightness) &&
+      spread <= limits.maxSpread
+    ) {
       const nextAlpha = Math.min(alpha, 128);
       if (nextAlpha !== alpha) {
         data[p + 3] = nextAlpha;
@@ -456,6 +592,7 @@ function cleanWhiteHalo(data, info, background) {
 
 function haloResidualRatio(data, info, background) {
   const { width, height, channels } = info;
+  const limits = adaptiveBackgroundThresholds(background);
   const total = width * height;
   let boundary = 0;
   let halo = 0;
@@ -476,9 +613,9 @@ function haloResidualRatio(data, info, background) {
     boundary += 1;
     if (
       alpha < 250 &&
-      rgbDistance(data, p, background) <= 24 &&
-      pixelBrightness(data, p) >= 232 &&
-      pixelSpread(data, p) <= 30
+      rgbDistance(data, p, background) <= Math.max(24, limits.maxDistance - 2) &&
+      pixelBrightness(data, p) >= Math.max(158, limits.minBrightness) &&
+      pixelSpread(data, p) <= limits.maxSpread
     ) {
       halo += 1;
     }
@@ -511,7 +648,7 @@ function resultWithoutRepair(asset, difficultProduct, reason = 'not_required') {
   };
 }
 
-export async function repairCreativeProductCutout(asset = {}, productText = '') {
+export async function repairCreativeProductCutout(asset = {}, productText = '', referenceBuffer = null) {
   if (!asset?.buffer) return asset;
 
   const difficultProduct = isDifficultProduct(productText);
@@ -523,13 +660,60 @@ export async function repairCreativeProductCutout(asset = {}, productText = '') 
   const { data: raw, info } = await source.raw().toBuffer({ resolveWithObject: true });
   let data = Buffer.from(raw);
   const total = info.width * info.height;
-  const background = estimateLightBackground(data, info);
+
+  let background = estimateLightBackground(data, info);
+  if (referenceBuffer) {
+    try {
+      const reference = sharp(referenceBuffer)
+        .rotate()
+        .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+        .ensureAlpha();
+      const { data: referenceData, info: referenceInfo } =
+        await reference.raw().toBuffer({ resolveWithObject: true });
+      const referenceBackground = estimateLightBackground(referenceData, referenceInfo);
+      if (adaptiveBackgroundThresholds(referenceBackground).eligible) {
+        background = referenceBackground;
+      }
+    } catch {
+      // O reparo continua com a estimativa do asset; nunca afeta outras etapas do Studio.
+    }
+  }
+
+  const foregroundSignalBefore = foregroundSignalCount(data, info, background);
   let recoveredOuterCutout = false;
   let outerRecoveredRatio = 0;
+  let reconstructionApplied = false;
+  let reconstructionRemovedPixels = 0;
 
   if (!asset.backgroundRemoved) {
     const recovered = strictOuterCutout(data, info, background);
-    if (!recovered) {
+    if (recovered) {
+      data = recovered.data;
+      recoveredOuterCutout = true;
+      outerRecoveredRatio = recovered.removedRatio;
+    } else if (difficultProduct) {
+      const reconstructed = reconstructNeutralBackground(data, info, background);
+      if (reconstructed && reconstructed.removedRatio >= 0.02 && reconstructed.removedRatio <= 0.94) {
+        data = reconstructed.data;
+        recoveredOuterCutout = true;
+        reconstructionApplied = true;
+        reconstructionRemovedPixels += reconstructed.removed;
+        outerRecoveredRatio = reconstructed.removedRatio;
+      } else {
+        return {
+          ...resultWithoutRepair(asset, difficultProduct, 'strict_outer_recovery_failed'),
+          repairMetrics: {
+            ...resultWithoutRepair(asset, difficultProduct, 'strict_outer_recovery_failed').repairMetrics,
+            attempted: true,
+            safe: false,
+            internalBackgroundOk: false,
+            whiteHaloOk: false,
+            thinStructureDamageOk: false,
+            thinStructureDamageRatio: 1
+          }
+        };
+      }
+    } else {
       return {
         ...resultWithoutRepair(asset, difficultProduct, 'strict_outer_recovery_failed'),
         repairMetrics: {
@@ -543,9 +727,6 @@ export async function repairCreativeProductCutout(asset = {}, productText = '') 
         }
       };
     }
-    data = recovered.data;
-    recoveredOuterCutout = true;
-    outerRecoveredRatio = recovered.removedRatio;
   }
 
   const beforeOpaque = opaqueCount(data, info);
@@ -583,8 +764,26 @@ export async function repairCreativeProductCutout(asset = {}, productText = '') 
     };
   }
 
-  const internalRemovedPixels = removeInternalCandidates(data, info, before.labels, before.candidates);
-  const haloChangedPixels = cleanWhiteHalo(data, info, background);
+  let internalRemovedPixels = removeInternalCandidates(data, info, before.labels, before.candidates);
+  let haloChangedPixels = cleanWhiteHalo(data, info, background);
+
+  const firstResidualRatio = residualBackgroundRatio(data, info, background);
+  if (
+    difficultProduct &&
+    firstResidualRatio > 0.018 &&
+    adaptiveBackgroundThresholds(background).eligible
+  ) {
+    const reconstructed = reconstructNeutralBackground(data, info, background);
+    if (reconstructed) {
+      data = reconstructed.data;
+      reconstructionApplied = true;
+      reconstructionRemovedPixels += reconstructed.removed;
+      internalRemovedPixels += reconstructed.removed;
+      haloChangedPixels += reconstructed.softened;
+      cleanWhiteHalo(data, info, background);
+    }
+  }
+
   const afterOpaque = opaqueCount(data, info);
   const structuralLossRatio = Math.max(0, beforeOpaque - afterOpaque) / Math.max(1, beforeOpaque);
 
@@ -593,9 +792,12 @@ export async function repairCreativeProductCutout(asset = {}, productText = '') 
   const internalBackgroundContaminationRatio =
     residualCandidatePixels / Math.max(1, afterOpaque);
   const whiteHaloResidualRatio = haloResidualRatio(data, info, background);
+  const outerBackgroundResidualRatio = residualBackgroundRatio(data, info, background);
 
-  const internalBackgroundOk = internalBackgroundContaminationRatio <= 0.004;
-  const whiteHaloOk = whiteHaloResidualRatio <= 0.055;
+  const internalBackgroundOk =
+    internalBackgroundContaminationRatio <= 0.004 &&
+    outerBackgroundResidualRatio <= (difficultProduct ? 0.018 : 0.035);
+  const whiteHaloOk = whiteHaloResidualRatio <= 0.045;
   const foregroundOpaqueRatioAfter = afterOpaque / Math.max(1, total);
   const afterStructure = alphaStructureStats(data, info);
   // Em estruturas vazadas, grande parte do que parecia "área opaca" antes do reparo
@@ -615,17 +817,28 @@ export async function repairCreativeProductCutout(asset = {}, productText = '') 
   const baseThinDamageSuspected =
     ['foreground_fragmented', 'opaque_area_too_small'].includes(String(asset.cutoutReason || '')) &&
     !recoveredFromFragmentation;
+  const foregroundSignalAfter = foregroundSignalCount(data, info, background);
+  const foregroundSignalRetention =
+    foregroundSignalBefore > 0
+      ? foregroundSignalAfter / foregroundSignalBefore
+      : 1;
+  const foregroundSignalOk =
+    foregroundSignalBefore < 120 ||
+    foregroundSignalRetention >= (difficultProduct ? 0.94 : 0.90);
+
   const thinStructureDamageOk =
     structureOk &&
     !componentExplosion &&
     !largestShareDrop &&
-    !baseThinDamageSuspected;
+    !baseThinDamageSuspected &&
+    foregroundSignalOk;
   const thinStructureDamageRatio = Math.max(
     componentExplosion ? 1 : 0,
     largestShareDrop
       ? Math.max(0, beforeStructure.largestShare - afterStructure.largestShare)
       : 0,
-    baseThinDamageSuspected ? 1 : 0
+    baseThinDamageSuspected ? 1 : 0,
+    foregroundSignalOk ? 0 : Math.max(0, 1 - foregroundSignalRetention)
   );
   const baseWasUsable = asset.backgroundRemoved && asset.cutoutSafe !== false;
   const recoveredWasUsable = recoveredOuterCutout && outerRecoveredRatio >= 0.025 && outerRecoveredRatio <= 0.93;
@@ -659,11 +872,13 @@ export async function repairCreativeProductCutout(asset = {}, productText = '') 
     height: meta.height || asset.height || info.height,
     backgroundRemoved: safe,
     removalMode: safe
-      ? (recoveredOuterCutout
-          ? 'cutout_repair_strict_outer_and_internal'
-          : internalRemovedPixels > 0 || haloChangedPixels > 0
-            ? String(asset.removalMode || 'cutout') + '+internal_repair'
-            : String(asset.removalMode || 'cutout') + '+repair_verified')
+      ? (reconstructionApplied
+          ? 'cutout_repair_reconstructed_neutral_background'
+          : recoveredOuterCutout
+            ? 'cutout_repair_strict_outer_and_internal'
+            : internalRemovedPixels > 0 || haloChangedPixels > 0
+              ? String(asset.removalMode || 'cutout') + '+internal_repair'
+              : String(asset.removalMode || 'cutout') + '+repair_verified')
       : 'unsafe_cutout_repair_blocked',
     removedRatio: clamp(baseRemovedRatio + extraRemovedRatio, 0, 0.99),
     confidence: safe ? Math.max(Number(asset.confidence || 0), recoveredOuterCutout ? 0.80 : 0.86) : 0,
@@ -678,10 +893,16 @@ export async function repairCreativeProductCutout(asset = {}, productText = '') 
       internalRemovedPixels,
       internalRemovedRatio: internalRemovedPixels / Math.max(1, beforeOpaque),
       internalBackgroundContaminationRatio,
+      outerBackgroundResidualRatio,
       whiteHaloResidualRatio,
       structuralLossRatio,
       thinStructureDamageRatio,
+      foregroundSignalBefore,
+      foregroundSignalAfter,
+      foregroundSignalRetention,
       foregroundOpaqueRatioAfter,
+      reconstructionApplied,
+      reconstructionRemovedPixels,
       beforeStructure,
       afterStructure,
       internalBackgroundOk,
