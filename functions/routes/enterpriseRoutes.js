@@ -792,6 +792,7 @@ registerEnterpriseAdminProRoutes(app, {
   redact,
   enterpriseCompatRateLimitConfig,
   enterprisePartnerGenerateKey,
+  enterprisePartnerEnvironmentPath,
   enterpriseOAuthGenerateCredentials,
   enterpriseHashSecret
 });
