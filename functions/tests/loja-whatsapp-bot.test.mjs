@@ -9485,6 +9485,7 @@ test('nível Diana: produto citado após comprovante continua financeiro e não 
 
 test('regressão Osvaldo: nome informado pelo cliente prevalece sobre apelido incorreto do WhatsApp', async () => {
   const phone = '553398120279';
+  sentTexts = [];
   bot.conversation(phone).customerName = 'Osvaldo';
   await bot.handleMessage({ phone, text: 'Oi', pushName: 'mangá larga' });
   const body = sentTexts.map((item) => String(item?.text || item || '')).join(' ');
