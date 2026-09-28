@@ -41,6 +41,7 @@ export default function createErpFinancePanelBridgeRoutes(context={}){
     return bridge.receber(req.params.orderId,req.params.number,req.body||{},actor(req));
   }));
 
+  router.get('/erp/finance-panel/carne/compras',context.adminRequired,handle(req=>carne.purchases(req.query||{})));
   router.get('/erp/finance-panel/carne/preview',context.adminRequired,handle(req=>carne.preview(req.query?.targetId||'',req.query?.via||'')));
   router.get('/erp/finance-panel/carne/pdf',context.adminRequired,async(req,res)=>{
     try{
