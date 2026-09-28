@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import sharp from 'sharp';
+import { repairCreativeProductCutout } from './services/creativeProductCutoutRepairService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -163,6 +164,9 @@ export function getProTemplateManifest(value = '') {
       },
       qualityGate: {
         cutoutRequired: true,
+        internalBackgroundContaminationCheck: true,
+        whiteHaloResidualCheck: true,
+        thinStructureDamageCheck: true,
         minimumSourceLongEdge: 700,
         blockFinalSaveOnCriticalFailure: true
       }
@@ -1385,6 +1389,10 @@ function quality(asset, opts, format, brandAsset = null, campaignBrandAsset = nu
   const brandOk = Boolean(brandAsset?.backgroundRemoved && brandAsset?.transparentRatio >= .02);
   const manufacturerLogoRequested = Boolean(opts.brandLogoUrl);
   const manufacturerLogoOk = !manufacturerLogoRequested || Boolean(campaignBrandAsset?.backgroundRemoved);
+  const repair = asset.repairMetrics || {};
+  const internalBackgroundOk = repair.internalBackgroundOk !== false;
+  const whiteHaloOk = repair.whiteHaloOk !== false;
+  const thinStructureDamageOk = repair.thinStructureDamageOk !== false;
 
   const checks = [
     {
@@ -1425,6 +1433,35 @@ function quality(asset, opts, format, brandAsset = null, campaignBrandAsset = nu
           )
     },
     {
+      id: 'internal_background_contamination',
+      critical: true,
+      ok: internalBackgroundOk,
+      label: internalBackgroundOk ? 'Áreas vazadas sem fundo preso' : 'Fundo interno residual detectado',
+      detail: internalBackgroundOk
+        ? (repair.attempted
+            ? 'Limpeza interna validada pelo Recorte Inteligente Pro.'
+            : 'Nenhuma contaminação interna crítica foi detectada.')
+        : 'Ainda existe fundo preso entre grades, pés ou outras áreas vazadas. A arte final foi bloqueada.'
+    },
+    {
+      id: 'white_halo_residual',
+      critical: true,
+      ok: whiteHaloOk,
+      label: whiteHaloOk ? 'Bordas sem halo branco crítico' : 'Halo branco residual detectado',
+      detail: whiteHaloOk
+        ? 'As bordas do produto passaram pela verificação de halo.'
+        : 'O contorno ainda apresenta branco residual acima do limite seguro. A arte final foi bloqueada.'
+    },
+    {
+      id: 'thin_structure_damage',
+      critical: true,
+      ok: thinStructureDamageOk,
+      label: thinStructureDamageOk ? 'Peças finas preservadas' : 'Dano em grade ou estrutura fina detectado',
+      detail: thinStructureDamageOk
+        ? 'A continuidade da grade, pés e peças finas foi preservada.'
+        : 'O recorte perdeu continuidade estrutural. A arte final foi bloqueada para não usar produto mastigado.'
+    },
+    {
       id: 'resolution',
       critical: true,
       ok: resolutionOk,
@@ -1462,11 +1499,13 @@ export async function prepareProProductAsset(product = {}, options = {}) {
   if (!source) throw new Error('product_image_required');
   const raw = await loadImage(source);
   if (!raw) throw new Error('product_image_unavailable');
-  return removeConnectedBackground(
+  const productText = productCategoryText(product);
+  const baseAsset = await removeConnectedBackground(
     raw,
     options.removeBackground !== false && options.removeLightBackground !== false,
-    productCategoryText(product)
+    productText
   );
+  return repairCreativeProductCutout(baseAsset, productText);
 }
 
 export async function analyzeCreativeBannerPro(product = {}, options = {}) {
@@ -1493,7 +1532,8 @@ export async function analyzeCreativeBannerPro(product = {}, options = {}) {
       backgroundConfidence: Number(asset.confidence.toFixed(3)),
       cutoutSafe: Boolean(asset.cutoutSafe),
       cutoutReason: asset.cutoutReason || '',
-      shape: asset.shape || null
+      shape: asset.shape || null,
+      repair: asset.repairMetrics || null
     },
     brand: {
       backgroundRemoved: Boolean(brandAsset.backgroundRemoved),
@@ -1583,7 +1623,8 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
         backgroundConfidence: Number(asset.confidence.toFixed(3)),
         cutoutSafe: Boolean(asset.cutoutSafe),
         cutoutReason: asset.cutoutReason || '',
-        shape: asset.shape || null
+        shape: asset.shape || null,
+        repair: asset.repairMetrics || null
       },
       brand: {
         backgroundRemoved: Boolean(brandAsset.backgroundRemoved),
@@ -1913,6 +1954,15 @@ function multiQuality(assets = [], brandAsset = null, format = {}, opts = {}, ca
   const lowResolution = assets
     .map((asset,index)=>({asset,index}))
     .filter(({asset}) => Math.max(asset.sourceWidth, asset.sourceHeight) < 700);
+  const internalBackgroundFailures = assets
+    .map((asset,index)=>({asset,index}))
+    .filter(({asset}) => asset.repairMetrics?.internalBackgroundOk === false);
+  const whiteHaloFailures = assets
+    .map((asset,index)=>({asset,index}))
+    .filter(({asset}) => asset.repairMetrics?.whiteHaloOk === false);
+  const thinStructureFailures = assets
+    .map((asset,index)=>({asset,index}))
+    .filter(({asset}) => asset.repairMetrics?.thinStructureDamageOk === false);
 
   const checks = [
     {
@@ -1941,6 +1991,39 @@ function multiQuality(assets = [], brandAsset = null, format = {}, opts = {}, ca
       detail:badCutouts.length===0
         ? assets.length+' produto(s) prontos para composição.'
         : 'Troque as imagens reprovadas por PNG transparente ou foto oficial limpa.'
+    },
+    {
+      id:'multi_internal_background_contamination',
+      critical:true,
+      ok:internalBackgroundFailures.length===0,
+      label:internalBackgroundFailures.length===0
+        ? 'Áreas vazadas internas aprovadas'
+        : internalBackgroundFailures.length+' produto(s) com fundo interno residual',
+      detail:internalBackgroundFailures.length===0
+        ? 'Nenhum fundo preso crítico foi detectado.'
+        : 'A campanha final foi bloqueada até corrigir os recortes internos.'
+    },
+    {
+      id:'multi_white_halo_residual',
+      critical:true,
+      ok:whiteHaloFailures.length===0,
+      label:whiteHaloFailures.length===0
+        ? 'Bordas sem halo branco crítico'
+        : whiteHaloFailures.length+' produto(s) com halo branco residual',
+      detail:whiteHaloFailures.length===0
+        ? 'As bordas dos produtos foram validadas.'
+        : 'A campanha final foi bloqueada até limpar os halos residuais.'
+    },
+    {
+      id:'multi_thin_structure_damage',
+      critical:true,
+      ok:thinStructureFailures.length===0,
+      label:thinStructureFailures.length===0
+        ? 'Grades e peças finas preservadas'
+        : thinStructureFailures.length+' produto(s) com dano em estrutura fina',
+      detail:thinStructureFailures.length===0
+        ? 'A continuidade estrutural dos produtos foi validada.'
+        : 'A campanha final foi bloqueada para não usar recortes com peças finas mastigadas.'
     },
     {
       id:'multi_resolution',
@@ -1999,7 +2082,8 @@ export async function analyzeCreativeBannerProMulti(products = [], options = {})
       cutoutSafe:Boolean(asset.cutoutSafe),
       cutoutReason:asset.cutoutReason||'',
       removalMode:asset.removalMode,
-      removedRatio:Number(asset.removedRatio.toFixed(4))
+      removedRatio:Number(asset.removedRatio.toFixed(4)),
+      repair:asset.repairMetrics || null
     })),
     brand:{
       backgroundRemoved:Boolean(brandAsset.backgroundRemoved),
@@ -2099,7 +2183,8 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
         backgroundRemoved:Boolean(asset.backgroundRemoved),
         cutoutSafe:Boolean(asset.cutoutSafe),
         cutoutReason:asset.cutoutReason||'',
-        removalMode:asset.removalMode
+        removalMode:asset.removalMode,
+        repair:asset.repairMetrics || null
       })),
       brand:{
         backgroundRemoved:Boolean(brandAsset.backgroundRemoved),
