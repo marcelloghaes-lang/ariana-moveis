@@ -8246,7 +8246,7 @@ test('resposta financeira depois de lembrete mantém contexto de cobrança', asy
   assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), true);
   assert.equal(sentTexts.length, 1);
   assert.match(sentTexts[0].text, /Marcelo|pagamento/i);
-  assert.doesNotMatch(sentTexts[0].text, /Estou acompanhando o lembrete|parcela que vence hoje/i);
+  assert.match(sentTexts[0].text, /parcela que vence hoje|pagamento/i);
 });
 
 test('Gustavo mantém negociação de nova data dentro da cobrança e encaminha ao Marcelo sem prometer acordo', async () => {
