@@ -8052,7 +8052,7 @@ test('fechamento no carnê entra no fluxo seguro de análise de crédito', async
   assert.ok(backendEvents.some((event) => /Crediário \/ análise/i.test(event.status || '')));
 });
 
-test('lembrete automático de vencimento é apenas registro e não abre memória de cobrança no Gustavo', async () => {
+test('lembrete automático preserva contexto para a resposta imediata do cliente', async () => {
   const phone = '5533977777790';
   const reminder = [
     'Bom dia, Cliente! Tudo bem?',
@@ -8080,10 +8080,10 @@ test('lembrete automático de vencimento é apenas registro e não abre memória
   });
 
   assert.equal(outbound.dailyDueReminder, true);
-  assert.equal(outbound.stateless, true);
-  assert.equal(outbound.contextHours, 0);
+  assert.equal(outbound.stateless, false);
+  assert.ok(outbound.contextHours > 0);
   assert.equal(bot.conversation(phone).manualHumanUntil, 0);
-  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), false);
+  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), true);
 
   sentTexts = [];
 
@@ -8100,10 +8100,11 @@ test('lembrete automático de vencimento é apenas registro e não abre memória
     }
   });
 
-  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), false);
+  assert.equal(bot.hasDailyDueCollectionContext(bot.conversation(phone)), true);
   assert.equal(sentTexts.length, 1);
   assert.match(sentTexts[0].text, /Bom dia/i);
-  assert.doesNotMatch(sentTexts[0].text, /parcela que vence hoje|cobrança|comprovante/i);
+  assert.match(sentTexts[0].text, /parcela que vence hoje/i);
+  assert.doesNotMatch(sentTexts[0].text, /Seja bem-vindo/i);
 });
 
 
