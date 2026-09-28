@@ -9481,3 +9481,25 @@ test('nível Diana: produto citado após comprovante continua financeiro e não 
   assert.doesNotMatch(body, /catálogo|opções disponíveis/i);
   assert.equal(sentMedia.length, 0);
 });
+
+
+test('regressão Osvaldo: nome informado pelo cliente prevalece sobre apelido incorreto do WhatsApp', async () => {
+  const phone = '553398120279';
+  await bot.handleMessage({ phone, text: 'Oi', pushName: 'mangá larga' });
+  sentTexts = [];
+  await bot.handleMessage({ phone, text: 'Osvaldo', pushName: 'mangá larga' });
+  sentTexts = [];
+  await bot.handleMessage({ phone, text: 'Oi', pushName: 'mangá larga' });
+  const body = sentTexts.map((item) => String(item?.text || item || '')).join(' ');
+  assert.doesNotMatch(body, /Mangá|Manga/i);
+  assert.equal(bot.conversation(phone).customerName, 'Osvaldo');
+});
+
+test('regressão saudação: oi repetido em conversa ativa não reinicia cumprimento personalizado', async () => {
+  const phone = '553398120278';
+  await bot.handleMessage({ phone, text: 'Oi', pushName: 'Osvaldo' });
+  sentTexts = [];
+  await bot.handleMessage({ phone, text: 'Oi', pushName: 'Osvaldo' });
+  const body = sentTexts.map((item) => String(item?.text || item || '')).join(' ');
+  assert.doesNotMatch(body, /Boa (?:tarde|noite|dia), Osvaldo|Tudo bem/i);
+});
