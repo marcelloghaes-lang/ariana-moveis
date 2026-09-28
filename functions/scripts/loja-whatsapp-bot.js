@@ -3465,7 +3465,14 @@ function customerFirstName(pushName = '') {
   if (!raw) return '';
 
   const firstToken = raw.split(/\s+/)[0] || '';
-  const match = firstToken.match(/[\p{L}][\p{L}'’-]*/u);
+
+  // WhatsApp/push names are display labels, not verified customer names.
+  // Never turn handles, glued identifiers, numbers or emoji-decorated labels
+  // into a personal greeting.
+  if (/\d/u.test(raw) || /[^\p{L}\p{M}'’\-\s]/u.test(raw)) return '';
+  if (raw === raw.toLocaleLowerCase('pt-BR') && raw.length > 14 && !/\s/u.test(raw)) return '';
+
+  const match = firstToken.match(/^[\p{L}][\p{L}\p{M}'’-]*$/u);
   if (!match) return '';
 
   const first = match[0];
