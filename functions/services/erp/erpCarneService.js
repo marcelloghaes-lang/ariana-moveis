@@ -295,6 +295,159 @@ export function createErpCarneService(context = {}) {
     }).sort((a, b) => a.number - b.number || new Date(a.dueAt || 0) - new Date(b.dueAt || 0));
   }
 
+
+  function purchaseSummaryFromItems({
+    key,
+    targetId,
+    orderId = '',
+    source = 'Financeiro ERP',
+    reference = 'Compra',
+    contact = {},
+    items = []
+  } = {}) {
+    const rows = arr(items).map(item => ({
+      value: money(item.original),
+      received: money(item.paid),
+      remaining: item.settled ? 0 : money(item.open),
+      dueAt: item.dueAt || null,
+      status: item.settled ? 'paid' : (Number(item.paid || 0) > 0 ? 'partial' : 'open'),
+      number: Number(item.number || 0),
+      total: Number(item.totalInstallments || items.length || 1)
+    }));
+    const original = money(rows.reduce((sum, row) => sum + row.value, 0));
+    const received = money(rows.reduce((sum, row) => sum + row.received, 0));
+    const balance = money(rows.reduce((sum, row) => sum + row.remaining, 0));
+    const overdue = arr(items).filter(item => !item.settled && Number(item.open || 0) > 0.009 && Number(item.daysLate || 0) > 0).length;
+    return {
+      key,
+      targetId,
+      orderId,
+      source,
+      ref: reference,
+      client: clean(contact.name || 'Consumidor', 220),
+      document: clean(contact.document || '', 80),
+      phone: clean(contact.phone || '', 80),
+      email: clean(contact.email || '', 320),
+      rows,
+      original,
+      received,
+      balance,
+      overdue
+    };
+  }
+
+  async function purchases(query = {}) {
+    const q = clean(query.q || query.search || '', 180)
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+    const status = clean(query.status || 'open', 30).toLowerCase();
+    const limit = Math.min(3000, Math.max(1, Number(query.limit || 2000)));
+    const results = [];
+
+    const orders = await Order.find({ origin: 'erp_ariana' })
+      .select('_id orderCode code customerName customerCpf customerPhone customerEmail payment items televendas.erp origin status createdAt')
+      .sort({ createdAt: -1 })
+      .limit(5000)
+      .lean();
+
+    for (const order of orders) {
+      const erp = order.televendas?.erp || {};
+      const receivables = arr(erp.receivables);
+      if (!receivables.length) continue;
+      const reference = clean(erp.code || order.orderCode || order.code || String(order._id).slice(-8).toUpperCase(), 180);
+      const items = buildItems(receivables, reference);
+      results.push(purchaseSummaryFromItems({
+        key: 'order:' + String(order._id),
+        targetId: 'order:' + String(order._id),
+        orderId: String(order._id),
+        source: 'Ariana ERP',
+        reference,
+        contact: {
+          name: order.customerName,
+          document: order.customerCpf,
+          phone: order.customerPhone,
+          email: order.customerEmail
+        },
+        items
+      }));
+    }
+
+    const Entry = mongoose.models.ErpFinancialEntry;
+    if (Entry) {
+      const entries = await Entry.collection.find({
+        direction: 'receivable',
+        status: { $ne: 'cancelled' }
+      }).sort({ dueAt: 1, createdAt: 1 }).limit(20000).toArray();
+
+      const groups = new Map();
+      for (const row of entries) {
+        const sourceSaleId = clean(row?.migration?.sourceSaleId, 180);
+        const orderId = clean(row.orderId, 120);
+        const documentNumber = clean(row.documentNumber, 120);
+        const personDocument = clean(row.personDocument, 60);
+        const key = orderId
+          ? 'order:' + orderId
+          : sourceSaleId
+            ? 'sige:' + sourceSaleId
+            : documentNumber
+              ? 'document:' + documentNumber + ':' + personDocument
+              : 'entry:' + String(row._id);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(row);
+      }
+
+      for (const [key, rows] of groups) {
+        if (key.startsWith('order:') && results.some(item => item.key === key)) continue;
+        rows.sort((a, b) => new Date(a.dueAt || a.createdAt || 0) - new Date(b.dueAt || b.createdAt || 0));
+        const selected = rows[0];
+        const sourceSaleId = clean(selected?.migration?.sourceSaleId, 180);
+        const reference = sourceSaleId
+          ? clean(selected.description || ('Histórico SIGE • venda ref. ' + sourceSaleId), 180)
+          : clean(selected.documentNumber || selected.description || String(selected._id), 180);
+        const items = buildItems(rows, reference);
+        results.push(purchaseSummaryFromItems({
+          key,
+          targetId: 'entry:' + String(selected._id),
+          orderId: clean(selected.orderId, 120),
+          source: sourceSaleId ? 'Histórico SIGE' : 'Financeiro ERP',
+          reference,
+          contact: {
+            name: selected.personName,
+            document: selected.personDocument,
+            phone: selected.personPhone,
+            email: selected.personEmail
+          },
+          items
+        }));
+      }
+    }
+
+    const filtered = results.filter(item => {
+      if (status === 'open' && item.balance <= 0.009) return false;
+      if (status === 'overdue' && item.overdue < 1) return false;
+      if (q) {
+        const haystack = (String(item.client || '') + ' ' + String(item.document || '') + ' ' + String(item.phone || '') + ' ' + String(item.email || '') + ' ' + String(item.ref || '') + ' ' + String(item.key || ''))
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '');
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+
+    filtered.sort((a, b) => a.client.localeCompare(b.client, 'pt-BR') || String(a.ref).localeCompare(String(b.ref), 'pt-BR'));
+    return {
+      purchases: filtered.slice(0, limit),
+      total: filtered.length,
+      sources: {
+        ariana: filtered.filter(item => item.source === 'Ariana ERP').length,
+        historical: filtered.filter(item => item.source === 'Histórico SIGE').length,
+        ledger: filtered.filter(item => item.source === 'Financeiro ERP').length
+      }
+    };
+  }
+
   async function financialContext(entryId) {
     const Entry = mongoose.models.ErpFinancialEntry;
     if (!Entry) throw fail('Livro financeiro do Ariana ERP não está disponível.', 503, 'ERP_LEDGER_UNAVAILABLE');
@@ -558,7 +711,7 @@ export function createErpCarneService(context = {}) {
     };
   }
 
-  return { preview, pdf, send };
+  return { purchases, preview, pdf, send };
 }
 
 export default createErpCarneService;
