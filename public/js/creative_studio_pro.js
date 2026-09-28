@@ -19,6 +19,7 @@
   let lastCopyResearchSignature = '';
   let lastCreativeDirection = null;
   let deferredInstallPrompt = null;
+  let directProductSource = null;
 
   const FORMATS = Object.freeze({
     hero_desktop: { label: 'PRÉVIA • HERO DESKTOP', size: '1920 × 480 pixels' },
@@ -106,6 +107,37 @@
   function status(message = '', type = '') {
     els.globalStatus.textContent = message;
     els.globalStatus.className = 'global-status ' + type;
+  }
+
+
+  function revokeObjectUrl(url = '') {
+    if (!String(url).startsWith('blob:')) return;
+    try { URL.revokeObjectURL(url); } catch {}
+  }
+
+  function clearDirectProductSource() {
+    if (directProductSource?.previewUrl) revokeObjectUrl(directProductSource.previewUrl);
+    directProductSource = null;
+  }
+
+  async function uploadOriginalSource(file) {
+    const form = new FormData();
+    form.append('file', file);
+    const data = await api('/admin/creative-studio/pro/source-image', {
+      method:'POST',
+      body:form
+    });
+    if (!data?.sourceToken) {
+      throw new Error('O gerador não confirmou o recebimento da imagem original.');
+    }
+    return {
+      sourceToken: String(data.sourceToken),
+      originalName: String(data.originalName || file.name || 'produto'),
+      mimeType: String(data.mimeType || file.type || ''),
+      bytes: Number(data.bytes || file.size || 0),
+      previewUrl: URL.createObjectURL(file),
+      sourceType: 'direct_original_upload'
+    };
   }
 
   function selectedFormat() {
@@ -309,16 +341,10 @@
     const slot = Number(index);
     const card = byId('hero-slot-' + slot);
     card?.classList.add('active');
-    status('Enviando imagem do ' + (slot === 0 ? 'produto principal' : 'produto de apoio ' + slot) + '...', '');
+    status('Enviando a imagem original direto para o gerador...', '');
 
     try {
-      const form = new FormData();
-      form.append('file', file);
-      form.append('folder', 'marketing/creative-studio-pro/hero-produtos');
-      const data = await api('/admin/uploads', { method:'POST', body:form });
-      const uploaded = Array.isArray(data?.files) ? data.files[0] : (data?.file || data);
-      const url = uploaded?.url || uploaded?.secure_url || uploaded?.imageUrl || data?.url;
-      if (!url) throw new Error('O servidor não devolveu a URL da imagem.');
+      const source = await uploadOriginalSource(file);
 
       const cleanName = String(file.name || 'Produto')
         .replace(/\.[a-z0-9]+$/i,'')
@@ -328,11 +354,17 @@
       setHeroSlot(slot, {
         id: 'hero-upload-' + Date.now() + '-' + slot,
         name: cleanName,
-        imageUrl: url,
+        imageUrl: source.previewUrl,
+        sourceToken: source.sourceToken,
+        sourceOriginalName: source.originalName,
+        sourceOriginalMimeType: source.mimeType,
+        sourceOriginalBytes: source.bytes,
+        sourceType: source.sourceType,
         category: 'Campanha',
-        __heroUploaded: true
+        __heroUploaded: true,
+        __directOriginal: true
       });
-      status('Imagem adicionada. ' + heroSlotProducts().length + ' de 3 produtos preenchidos.', 'ok');
+      status('Imagem original recebida diretamente pelo gerador. ' + heroSlotProducts().length + ' de 3 produtos preenchidos.', 'ok');
     } catch (error) {
       status('Falha ao enviar imagem: ' + error.message, 'error');
     } finally {
@@ -771,6 +803,11 @@
       id: String(product.id || product._id || ''),
       name: product.name || product.title || 'Produto',
       imageUrl: imageOf(product),
+      sourceToken: String(product.sourceToken || ''),
+      sourceOriginalName: String(product.sourceOriginalName || ''),
+      sourceOriginalMimeType: String(product.sourceOriginalMimeType || ''),
+      sourceOriginalBytes: Number(product.sourceOriginalBytes || 0),
+      sourceType: String(product.sourceType || ''),
       brand: product.brand || product.brandName || '',
       category: product.category || product.categoryName || '',
       cashPrice: cash,
@@ -882,6 +919,7 @@
       return;
     }
 
+    clearDirectProductSource();
     selectedProduct = product;
     const compact = compactCatalogProduct(product);
     els.productName.value = compact.name;
@@ -955,18 +993,27 @@
       return;
     }
 
-    els.uploadStatus.textContent = 'Enviando imagem...';
+    els.uploadStatus.textContent = 'Enviando a imagem original direto para o gerador...';
     els.uploadStatus.className = 'inline-status full';
     try {
-      const form = new FormData();
-      form.append('file',file);
-      form.append('folder','marketing/creative-studio-pro/produtos');
-      const data = await api('/admin/uploads',{method:'POST',body:form});
-      const uploaded = Array.isArray(data?.files) ? data.files[0] : (data?.file || data);
-      const url = uploaded?.url || uploaded?.secure_url || uploaded?.imageUrl || data?.url;
-      if (!url) throw new Error('O servidor não devolveu a URL da imagem.');
-      els.imageUrl.value = url;
-      els.uploadStatus.textContent = 'Imagem enviada. O recorte será analisado na prévia.';
+      const source = await uploadOriginalSource(file);
+      clearDirectProductSource();
+      directProductSource = source;
+      els.imageUrl.value = source.previewUrl;
+      selectedProduct = {
+        ...(selectedProduct || {}),
+        imageUrl: source.previewUrl,
+        sourceToken: source.sourceToken,
+        sourceOriginalName: source.originalName,
+        sourceOriginalMimeType: source.mimeType,
+        sourceOriginalBytes: source.bytes,
+        sourceType: source.sourceType,
+        __directOriginal: true
+      };
+      renderSelectedProducts();
+      qualityAllowsSave = false;
+      els.saveButton.disabled = true;
+      els.uploadStatus.textContent = 'Imagem original pronta. O recorte será feito sem passar pelo Cloudinary.';
       els.uploadStatus.className = 'inline-status full ok';
     } catch (error) {
       els.uploadStatus.textContent = error.message;
@@ -1064,6 +1111,11 @@
         id: String(selectedProduct?.id || selectedProduct?._id || ''),
         name,
         imageUrl,
+        sourceToken: String(directProductSource?.sourceToken || selectedProduct?.sourceToken || ''),
+        sourceOriginalName: String(directProductSource?.originalName || selectedProduct?.sourceOriginalName || ''),
+        sourceOriginalMimeType: String(directProductSource?.mimeType || selectedProduct?.sourceOriginalMimeType || ''),
+        sourceOriginalBytes: Number(directProductSource?.bytes || selectedProduct?.sourceOriginalBytes || 0),
+        sourceType: String(directProductSource?.sourceType || selectedProduct?.sourceType || ''),
         brand: selectedProduct?.brand || '',
         category: selectedProduct?.category || selectedProduct?.categoryName || '',
         cashPrice,
