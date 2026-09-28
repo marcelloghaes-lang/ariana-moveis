@@ -9499,3 +9499,32 @@ test('cumprimento não inventa tratamento pessoal a partir de handle do WhatsApp
   assert.match(body, /Boa noite/i);
   assert.doesNotMatch(body, /Ataicemariasantos/i);
 });
+
+
+test('regressão print ventiladores: visão nunca envia geladeira quando categoria identificada é ventilador', async () => {
+  const phone = '5533977000991';
+  visionClassification = {
+    kind: 'product',
+    confidence: 0.98,
+    product_name: 'Ventiladores Ariana Móveis',
+    brand: '',
+    model: '',
+    category_hint: 'ventiladores',
+    payment_method: 'unknown',
+    payment_recipient_name: '',
+    summary: 'Ventiladores Ariana Móveis'
+  };
+
+  catalogRows = [
+    product('geladeira-errada', 'Geladeira Consul Frost Free', { category: 'Geladeira', stock: 2 }),
+    product('vent-mesa', 'Ventilador de Mesa 40cm', { category: 'Ventilador', stock: 3 }),
+    product('vent-coluna', 'Ventilador de Coluna 40cm', { category: 'Ventilador', stock: 2 })
+  ];
+
+  await bot.showProductsFromVision(phone, bot.conversation(phone), visionClassification);
+
+  const captions = sentMedia.map((item) => String(item?.caption || '')).join(' ');
+  assert.match(captions, /Ventilador/i);
+  assert.doesNotMatch(captions, /Geladeira|Consul/i);
+  assert.equal(sentMedia.length, 2);
+});
