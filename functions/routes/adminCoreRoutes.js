@@ -9,7 +9,7 @@ import {
   getProTemplateManifest
 } from '../creative-banner-pro-generator.js';
 import { researchCreativeCampaignWithAi } from '../services/creativeCampaignAiDirectorService.js';
-import { getCreativeProductRebuildStatus } from '../services/creativeProductRebuildService.js';
+import { getCreativeProductRebuildStatus, probeCreativeProductRebuildProvider } from '../services/creativeProductRebuildService.js';
 
 // ============================================================
 // ROTAS ADMIN CORE / UPLOAD / POSTERS / CRUD GENÉRICO
@@ -961,14 +961,24 @@ app.post('/api/admin/posters/professional-banner', adminRequired, async (req, re
   }
 });
 
-app.get('/api/creative-studio/pro/ai-status', (_req, res) => {
+app.get('/api/creative-studio/pro/ai-status', async (_req, res) => {
+  const productRebuild = getCreativeProductRebuildStatus();
+  const productRebuildProvider = await probeCreativeProductRebuildProvider().catch(error => ({
+    ok: false,
+    configured: productRebuild.configured,
+    model: productRebuild.imageModel,
+    reason: String(error?.message || 'provider_probe_failed').slice(0, 180)
+  }));
   return res.json({
     ok: true,
     configured: Boolean(String(process.env.OPENAI_API_KEY || '').trim()),
     model: String(process.env.CREATIVE_AI_MODEL || 'gpt-5.6-luna').trim(),
     engine: 'ai_vision_web',
     fallback: 'rules_fallback',
-    productRebuild: getCreativeProductRebuildStatus()
+    productRebuild: {
+      ...productRebuild,
+      provider: productRebuildProvider
+    }
   });
 });
 
