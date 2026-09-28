@@ -3,9 +3,13 @@
 
   const API = String(window.API_BASE || 'https://ariana-backend.onrender.com/api').replace(/\/+$/,'');
   const blobUrls = new Set();
+  const assetBlobUrls = new Set();
   let currentStatus = 'all';
   let selectedFile = null;
   let deferredInstallPrompt = null;
+  let processingPollTimer = null;
+  let workspaceRefreshPromise = null;
+  let lastResumeRefreshAt = 0;
 
   const $ = id => document.getElementById(id);
   const els = {
@@ -248,11 +252,76 @@
     els.dropCopy.classList.add('hidden');
   }
 
+  function revokeAssetBlobUrls() {
+    for (const url of assetBlobUrls) {
+      try { URL.revokeObjectURL(url); } catch {}
+      blobUrls.delete(url);
+    }
+    assetBlobUrls.clear();
+  }
+
   async function secureBlobUrl(path) {
     const blob = await api(path, {}, 'blob');
     const url = URL.createObjectURL(blob);
     blobUrls.add(url);
+    assetBlobUrls.add(url);
     return url;
+  }
+
+  function processingActive(asset = {}) {
+    if (!asset?.processing) return false;
+    const expiresAt = Date.parse(asset.processing.expiresAt || '');
+    return !Number.isFinite(expiresAt) || expiresAt > Date.now();
+  }
+
+  function processingMessage(asset = {}) {
+    const mode = asset?.processing?.mode === 'ai_repair' ? 'A IA está reconstruindo' : 'O recorte está sendo reprocessado';
+    return mode + '. Você pode sair desta tela; ao voltar, o resultado será atualizado automaticamente.';
+  }
+
+  function restoreCardButtons(card, asset = {}) {
+    if (!card?.isConnected) return;
+    const busy = processingActive(asset);
+    card.querySelectorAll('button[data-action]').forEach(button => {
+      if (busy) {
+        button.disabled = button.dataset.action !== 'download';
+        return;
+      }
+      button.disabled = button.dataset.action === 'approve' && !asset.cutoutUrl;
+    });
+  }
+
+  function scheduleProcessingPoll(hasProcessing) {
+    if (processingPollTimer) {
+      clearTimeout(processingPollTimer);
+      processingPollTimer = null;
+    }
+    if (!hasProcessing) return;
+
+    processingPollTimer = setTimeout(() => {
+      processingPollTimer = null;
+      if (document.visibilityState === 'visible') {
+        refreshWorkspace('processing-poll');
+      } else {
+        scheduleProcessingPoll(true);
+      }
+    }, 2800);
+  }
+
+  async function refreshWorkspace() {
+    if (!authToken()) return;
+    if (workspaceRefreshPromise) return workspaceRefreshPromise;
+    workspaceRefreshPromise = Promise.all([loadSummary(), loadAssets()])
+      .finally(() => { workspaceRefreshPromise = null; });
+    return workspaceRefreshPromise;
+  }
+
+  function refreshWhenVisible() {
+    if (document.visibilityState && document.visibilityState !== 'visible') return;
+    const timestamp = Date.now();
+    if (timestamp - lastResumeRefreshAt < 700) return;
+    lastResumeRefreshAt = timestamp;
+    refreshWorkspace('resume');
   }
 
   function humanStatus(status) {
@@ -330,7 +399,15 @@
     }
 
     const message = node.querySelector('.asset-message');
-    if (q.reason && q.reason !== 'ok') {
+    if (processingActive(asset)) {
+      badge.textContent = 'Processando';
+      badge.className = 'asset-status-badge pending';
+      message.textContent = processingMessage(asset);
+      message.className = 'asset-message';
+    } else if (asset.lastProcessingError?.reason) {
+      message.textContent = 'Último processamento não concluiu: ' + asset.lastProcessingError.reason;
+      message.className = 'asset-message error';
+    } else if (q.reason && q.reason !== 'ok') {
       message.textContent = 'Quality gate: ' + q.reason;
       message.className = 'asset-message error';
     } else if (asset.status === 'approved') {
@@ -338,7 +415,7 @@
       message.className = 'asset-message ok';
     }
 
-    node.querySelector('[data-action="approve"]').disabled = !asset.cutoutUrl;
+    restoreCardButtons(node, asset);
 
     node.addEventListener('click', event => {
       const button = event.target.closest('button[data-action]');
@@ -384,6 +461,13 @@
   async function handleAction(card, asset, action, button) {
     const message = card.querySelector('.asset-message');
     const buttons = card.querySelectorAll('button[data-action]');
+
+    if (processingActive(asset) && action !== 'download') {
+      message.textContent = processingMessage(asset);
+      message.className = 'asset-message';
+      return;
+    }
+
     buttons.forEach(item => item.disabled = true);
     message.className = 'asset-message';
 
@@ -443,11 +527,13 @@
         return;
       }
 
-      await Promise.all([loadAssets(), loadSummary()]);
+      await refreshWorkspace('action-complete');
     } catch (error) {
       message.textContent = error.message || 'Falha na operação.';
       message.className = 'asset-message error';
-      buttons.forEach(item => item.disabled = false);
+      await refreshWorkspace('action-error').catch(() => {});
+    } finally {
+      restoreCardButtons(card, asset);
     }
   }
 
@@ -457,13 +543,24 @@
     try {
       const data = await api('/admin/creative-cutout-studio/assets' + suffix);
       const assets = Array.isArray(data.assets) ? data.assets : [];
+      const processingCount = assets.filter(processingActive).length;
+      revokeAssetBlobUrls();
       els.grid.innerHTML = '';
       if (!assets.length) {
         els.grid.innerHTML = '<div class="empty-state"><strong>Nenhuma imagem neste filtro</strong><span>Adicione uma imagem ou escolha outro status.</span></div>';
       } else {
         for (const asset of assets) els.grid.appendChild(buildCard(asset));
       }
-      setStatus(els.bankStatus, assets.length + ' imagem(ns) encontrada(s).', 'ok');
+      if (processingCount > 0) {
+        setStatus(
+          els.bankStatus,
+          assets.length + ' imagem(ns) • ' + processingCount + ' em processamento. A tela atualiza sozinha.',
+          ''
+        );
+      } else {
+        setStatus(els.bankStatus, assets.length + ' imagem(ns) encontrada(s).', 'ok');
+      }
+      scheduleProcessingPoll(processingCount > 0);
     } catch (error) {
       setStatus(els.bankStatus, error.message || 'Falha ao carregar o Banco Mestre.', 'error');
     }
@@ -546,11 +643,21 @@
     loadAssets();
   });
 
-  window.addEventListener('beforeunload', revokeAllBlobUrls);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshWhenVisible();
+  });
+  window.addEventListener('focus', refreshWhenVisible);
+  window.addEventListener('pageshow', refreshWhenVisible);
+  window.addEventListener('online', refreshWhenVisible);
+  window.addEventListener('beforeunload', () => {
+    if (processingPollTimer) clearTimeout(processingPollTimer);
+    revokeAssetBlobUrls();
+    revokeAllBlobUrls();
+  });
 
   if (!authToken()) {
     setStatus(els.bankStatus, 'Faça login no painel administrativo para usar o Cutout Studio.', 'error');
   } else {
-    Promise.all([loadSummary(), loadAssets()]);
+    refreshWorkspace('initial');
   }
 })();
