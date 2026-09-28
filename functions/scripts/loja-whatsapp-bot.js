@@ -8193,6 +8193,13 @@ function matchesRequestedProductType(product = {}, query = '') {
     return /caixa.{0,12}som|torre.{0,12}som|som.{0,12}torre|\bsom\b/.test(haystack);
   }
 
+  // Categorias reconhecidas pela visão também precisam de filtro positivo.
+  // Sem isso, uma busca textual ampla pode devolver qualquer família do catálogo.
+  if (requested === 'ventilador') return /\bventilador(?:es)?\b/.test(haystack);
+  if (requested === 'ar-condicionado') return /\bar[ -]?condicionado\b/.test(haystack);
+  if (requested === 'fogao') return /\bfogao(?:es)?\b/.test(haystack);
+  if (requested === 'air fryer') return /\bair ?fryer\b|fritadeira eletrica/.test(haystack);
+
   if (requested === 'multiuso') return /multiuso|sapateira/.test(haystack);
   if (requested === 'penteadeira') return /penteadeira|camarim/.test(haystack);
   if (requested === 'rack\/painel') {
