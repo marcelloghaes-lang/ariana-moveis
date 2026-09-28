@@ -470,4 +470,203 @@ export default function registerEnterprisePartnerRequestRoutes(app, context = {}
     });
   }, 3000);
 
+
+  async function runEnterpriseInternalSandboxSmoke() {
+    if (String(process.env.ENTERPRISE_INTERNAL_SANDBOX_SMOKE_ENABLED || 'false').toLowerCase() !== 'true') return;
+
+    const apiKey = String(process.env.ENTERPRISE_INTERNAL_SANDBOX_FIXTURE_API_KEY || '').trim();
+    const clientId = String(process.env.ENTERPRISE_INTERNAL_SANDBOX_FIXTURE_OAUTH_CLIENT_ID || '').trim();
+    const clientSecret = String(process.env.ENTERPRISE_INTERNAL_SANDBOX_FIXTURE_OAUTH_SECRET || '').trim();
+    const base = String(
+      process.env.ENTERPRISE_INTERNAL_SANDBOX_SMOKE_BASE_URL ||
+      `http://127.0.0.1:${process.env.PORT || 10000}/api/v1/enterprise`
+    ).replace(/\/+$/, '');
+
+    if (!apiKey || !clientId || !clientSecret) {
+      console.error('[ENTERPRISE INTERNAL SMOKE] credenciais ausentes');
+      return;
+    }
+
+    const results = [];
+    const call = async (step, path, options = {}) => {
+      try {
+        const response = await fetch(`${base}${path}`, {
+          ...options,
+          headers: {
+            ...(options.body ? { 'content-type': 'application/json' } : {}),
+            ...(options.headers || {})
+          }
+        });
+        const body = await response.json().catch(() => ({}));
+        results.push({ step, status: response.status, ok: response.ok && body?.ok !== false });
+        console.log(`[ENTERPRISE INTERNAL SMOKE] ${step}: HTTP ${response.status} ${response.ok && body?.ok !== false ? 'OK' : 'FAIL'}`);
+        return { response, body };
+      } catch (error) {
+        results.push({ step, status: 0, ok: false });
+        console.error(`[ENTERPRISE INTERNAL SMOKE] ${step}: ERRO`, error.message || error);
+        return { response: null, body: {} };
+      }
+    };
+
+    await call('auth_check', '/auth/check', { headers: { 'x-ariana-key': apiKey } });
+
+    const login = await call('partner_login', '/partner/login', {
+      method: 'POST',
+      body: JSON.stringify({ apiKey })
+    });
+    const portalToken = String(login.body?.token || '');
+    if (portalToken) {
+      await call('partner_me', '/partner/me', {
+        headers: { authorization: `Bearer ${portalToken}` }
+      });
+    }
+
+    const oauth = await call('oauth_token', '/oauth/token', {
+      method: 'POST',
+      body: JSON.stringify({
+        grant_type: 'client_credentials',
+        client_id: clientId,
+        client_secret: clientSecret
+      })
+    });
+
+    const product = {
+      sku: 'SBX-SMOKE-001',
+      name: 'Produto Sandbox Smoke Test',
+      description: 'Produto fictício de homologação interna. Não comercializar.',
+      category: 'Sandbox',
+      brand: 'Ariana Sandbox Lab',
+      price: 899.9,
+      stock: 10,
+      active: true
+    };
+
+    await call('catalog_push', '/catalog/push', {
+      method: 'POST',
+      headers: { 'x-ariana-key': apiKey },
+      body: JSON.stringify({ manufacturer: 'Ariana Sandbox Factory', products: [product] })
+    });
+
+    await call('product_sync', '/products/SBX-SMOKE-001/sync', {
+      method: 'POST',
+      headers: { 'x-ariana-key': apiKey },
+      body: JSON.stringify({ stock: 9, price: 879.9, active: true })
+    });
+
+    await call('stock_update', '/products/SBX-SMOKE-001/stock', {
+      method: 'PUT',
+      headers: { 'x-ariana-key': apiKey },
+      body: JSON.stringify({ stock: 8 })
+    });
+
+    await call('price_update', '/products/SBX-SMOKE-001/price', {
+      method: 'PUT',
+      headers: { 'x-ariana-key': apiKey },
+      body: JSON.stringify({ price: 859.9 })
+    });
+
+    const bulkItems = Array.from({ length: 75 }, (_, index) => ({
+      sku: `SBX-BULK-${String(index + 1).padStart(3, '0')}`,
+      name: `Produto Sandbox Lote ${index + 1}`,
+      description: 'Item fictício para validação da fila assíncrona.',
+      category: 'Sandbox',
+      brand: 'Ariana Sandbox Lab',
+      price: 100 + index,
+      stock: 5 + (index % 10),
+      active: true
+    }));
+
+    const bulk = await call('catalog_sync_queue', '/catalog/sync', {
+      method: 'POST',
+      headers: { 'x-ariana-key': apiKey },
+      body: JSON.stringify({ manufacturer: 'Ariana Sandbox Factory', products: bulkItems })
+    });
+
+    const jobId = String(bulk.body?.jobId || '');
+    if (jobId) {
+      for (let attempt = 1; attempt <= 8; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 10000));
+        const status = await call(`catalog_sync_status_${attempt}`, `/catalog/sync/${encodeURIComponent(jobId)}`, {
+          headers: { 'x-ariana-key': apiKey }
+        });
+        const jobStatus = String(status.body?.job?.status || '');
+        if (['completed', 'completed_with_errors', 'failed'].includes(jobStatus)) break;
+      }
+    }
+
+    const orderCreate = await call('order_create', '/orders', {
+      method: 'POST',
+      headers: { 'x-ariana-key': apiKey, 'idempotency-key': 'SBX-SMOKE-ORDER-001' },
+      body: JSON.stringify({
+        manufacturer: 'Ariana Sandbox Factory',
+        externalOrderId: 'SBX-SMOKE-ORDER-001',
+        customerName: 'Cliente Sandbox',
+        customerEmail: 'sandbox@example.invalid',
+        customerPhone: '00000000000',
+        items: [{ sku: 'SBX-SMOKE-001', name: 'Produto Sandbox Smoke Test', qty: 1, unitPrice: 859.9 }]
+      })
+    });
+
+    const orderId = String(orderCreate.body?.orderId || '');
+    if (orderId) {
+      await call('order_get', `/orders/${encodeURIComponent(orderId)}`, {
+        headers: { 'x-ariana-key': apiKey }
+      });
+
+      await call('invoice_send', `/orders/${encodeURIComponent(orderId)}/invoice`, {
+        method: 'POST',
+        headers: { 'x-ariana-key': apiKey },
+        body: JSON.stringify({
+          invoice: {
+            number: 'SBX-000001',
+            series: 'TESTE',
+            accessKey: '00000000000000000000000000000000000000000000',
+            total: 859.9,
+            xmlUrl: 'https://example.invalid/sandbox-nfe.xml',
+            danfeUrl: 'https://example.invalid/sandbox-danfe.pdf'
+          }
+        })
+      });
+
+      await call('tracking_send', `/orders/${encodeURIComponent(orderId)}/tracking`, {
+        method: 'POST',
+        headers: { 'x-ariana-key': apiKey },
+        body: JSON.stringify({
+          trackingCode: 'SBXTEST123BR',
+          carrier: 'Transportadora Sandbox',
+          trackingUrl: 'https://example.invalid/rastreio/SBXTEST123BR'
+        })
+      });
+
+      await call('tracking_get', `/orders/${encodeURIComponent(orderId)}/tracking`, {
+        headers: { 'x-ariana-key': apiKey }
+      });
+    }
+
+    await call('webhook_test', '/webhooks/test', {
+      method: 'POST',
+      headers: { 'x-ariana-key': apiKey },
+      body: JSON.stringify({ event: 'order_ack', message: 'Smoke test interno Ariana Enterprise' })
+    });
+
+    if (String(oauth.body?.access_token || '')) {
+      await call('oauth_check', '/oauth/check', {
+        headers: { authorization: `Bearer ${oauth.body.access_token}` }
+      });
+    }
+
+    const passed = results.filter((item) => item.ok).length;
+    const failed = results.filter((item) => !item.ok);
+    console.log(`[ENTERPRISE INTERNAL SMOKE] RESUMO: ${passed}/${results.length} etapas OK; falhas=${failed.length}`);
+    if (failed.length) {
+      console.error('[ENTERPRISE INTERNAL SMOKE] ETAPAS COM FALHA:', failed.map((item) => `${item.step}:${item.status}`).join(', '));
+    }
+  }
+
+  setTimeout(() => {
+    runEnterpriseInternalSandboxSmoke().catch((error) => {
+      console.error('[ENTERPRISE INTERNAL SMOKE] erro geral:', error.message || error);
+    });
+  }, 7000);
+
 }
