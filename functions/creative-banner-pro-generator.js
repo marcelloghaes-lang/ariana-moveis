@@ -1461,9 +1461,10 @@ function multiProductSlots(format, count = 2) {
     { x:.76, y:.15, w:.20, h:.70 }
   ];
   if (n === 3) return [
-    { x:.68, y:.08, w:.21, h:.77 },
-    { x:.55, y:.29, w:.16, h:.54 },
-    { x:.84, y:.31, w:.14, h:.50 }
+    // 1 herói + 2 apoios: bloco mais compacto e visualmente centralizado.
+    { x:.665, y:.085, w:.215, h:.765 },
+    { x:.570, y:.310, w:.150, h:.520 },
+    { x:.815, y:.340, w:.125, h:.480 }
   ];
   if (n === 4) return [
     { x:.53, y:.28, w:.14, h:.54 },
