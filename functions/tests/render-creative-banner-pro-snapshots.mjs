@@ -277,3 +277,31 @@ for (const product of realFanProducts) {
     })
   );
 }
+
+
+try {
+  const response = await fetch('https://ariana-backend.onrender.com/api/products?limit=250&sortBy=updatedAt&sortDir=desc');
+  if (response.ok) {
+    const catalog = await response.json();
+    const rows = Array.isArray(catalog) ? catalog : (catalog?.products || catalog?.items || []);
+    for (const row of rows) {
+      const text = [row?.name,row?.category,row?.brand].filter(Boolean).join(' ').toLowerCase();
+      if (!text.includes('ventil')) continue;
+      console.log('REAL_FAN_CATALOG', JSON.stringify({
+        id: row?._id || row?.id || '',
+        name: row?.name || '',
+        imageUrl: row?.imageUrl || '',
+        mainImageUrl: row?.mainImageUrl || '',
+        image: row?.image || '',
+        imagem: row?.imagem || '',
+        images: row?.images || [],
+        imageUrls: row?.imageUrls || [],
+        imagePaths: row?.imagePaths || []
+      }));
+    }
+  } else {
+    console.log('REAL_FAN_CATALOG_HTTP', response.status);
+  }
+} catch (error) {
+  console.log('REAL_FAN_CATALOG_ERROR', String(error?.message || error));
+}
