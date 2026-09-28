@@ -3552,30 +3552,21 @@ function startEnterpriseQueueWorker() {
     console.log('🏭 Enterprise queue worker desativado por ENTERPRISE_QUEUE_WORKER_ENABLED=false');
     return;
   }
+
+  if (globalThis.__arianaEnterpriseQueueWorkerStarted) return;
+  globalThis.__arianaEnterpriseQueueWorkerStarted = true;
+
   const intervalMs = Math.max(15000, Number(process.env.ENTERPRISE_QUEUE_WORKER_INTERVAL_MS || 60000));
   const limit = Math.max(1, Number(process.env.ENTERPRISE_QUEUE_WORKER_LIMIT || 5));
   console.log(`🏭 Enterprise queue worker ativo: a cada ${intervalMs}ms, limite ${limit}`);
-  setInterval(() => {
+
+  const timer = setInterval(() => {
     processManufacturerQueue(limit).catch((error) => {
       console.error('[ENTERPRISE QUEUE WORKER] ERRO', error.message || error);
     });
   }, intervalMs);
-}
 
-function startEnterpriseCatalogSyncWorker() {
-  const enabled = String(process.env.ENTERPRISE_CATALOG_SYNC_WORKER_ENABLED || 'true').toLowerCase() !== 'false';
-  if (!enabled) {
-    console.log('🏭 Enterprise catalog sync worker desativado por ENTERPRISE_CATALOG_SYNC_WORKER_ENABLED=false');
-    return;
-  }
-  const intervalMs = Math.max(15000, Number(process.env.ENTERPRISE_CATALOG_SYNC_WORKER_INTERVAL_MS || 45000));
-  const limit = Math.max(1, Number(process.env.ENTERPRISE_CATALOG_SYNC_WORKER_LIMIT || 3));
-  console.log(`🏭 Enterprise catalog sync worker ativo: a cada ${intervalMs}ms, limite ${limit}`);
-  setInterval(() => {
-    processPendingEnterpriseCatalogSyncJobs(limit).catch((error) => {
-      console.error('[ENTERPRISE CATALOG SYNC WORKER] ERRO', error.message || error);
-    });
-  }, intervalMs);
+  if (typeof timer.unref === 'function') timer.unref();
 }
 
 
@@ -3624,5 +3615,10 @@ registerExternalIntegrationRoutes(app, {
   EnterpriseBillingRecord,
   redact
 });
+
+// O processador da fila de pedidos/fabricantes vive neste módulo.
+// Iniciá-lo aqui garante que vendas pagas sejam despachadas sem depender
+// de símbolos locais inacessíveis a server.js.
+startEnterpriseQueueWorker();
 
 }
