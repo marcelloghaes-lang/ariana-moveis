@@ -3208,6 +3208,9 @@ function customerFirstName(pushName = '') {
   const raw = String(pushName || '').trim();
   if (!raw) return '';
 
+  // Descrição/apelido de perfil todo em minúsculas não é nome confiável.
+  if (/\s/u.test(raw) && raw === raw.toLocaleLowerCase('pt-BR')) return '';
+
   const firstToken = raw.split(/\s+/)[0] || '';
   const match = firstToken.match(/[\p{L}][\p{L}'’-]*/u);
   if (!match) return '';
