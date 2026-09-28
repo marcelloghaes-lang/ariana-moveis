@@ -346,12 +346,16 @@
 
   function qualityFlags(asset) {
     const q = asset.quality || {};
-    return [
+    const flags = [
       ['Fundo interno', q.internalBackgroundOk !== false],
       ['Halo', q.whiteHaloOk !== false],
       ['Peças finas', q.thinStructureDamageOk !== false],
       ['Seguro', q.safe !== false]
     ];
+    if (q.masterResolutionOk !== undefined) {
+      flags.splice(3, 0, ['Alta resolução', q.masterResolutionOk !== false]);
+    }
+    return flags;
   }
 
   async function loadSummary() {

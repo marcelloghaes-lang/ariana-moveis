@@ -1,6 +1,9 @@
 import sharp from 'sharp';
 import { prepareProProductAsset } from '../creative-banner-pro-generator.js';
-import { rebuildCreativeProductFromReference } from './creativeProductRebuildService.js';
+import {
+  rebuildCreativeProductFromReference,
+  isFanCreativeProduct
+} from './creativeProductRebuildService.js';
 
 const BUCKET_NAME = 'creative_cutout_files';
 const COLLECTION_NAME = 'creative_cutout_assets';
@@ -111,15 +114,28 @@ async function imageMetadata(buffer) {
   };
 }
 
-function qualityScore(asset = {}) {
+function qualityScore(asset = {}, productText = '') {
   const repair = asset.repairMetrics || {};
+  const fan = isFanCreativeProduct(productText);
+  const width = Number(asset.width || 0);
+  const height = Number(asset.height || 0);
+  const longEdge = Math.max(width, height);
+  const shortEdge = Math.min(width, height);
+
   let score = 0;
   if (asset.backgroundRemoved) score += 25;
   if (asset.cutoutSafe !== false) score += 25;
   if (repair.internalBackgroundOk !== false) score += 18;
   if (repair.whiteHaloOk !== false) score += 14;
   if (repair.thinStructureDamageOk !== false) score += 14;
-  if (Math.max(Number(asset.width || 0), Number(asset.height || 0)) >= 700) score += 4;
+
+  if (fan) {
+    if (longEdge >= 1300 && shortEdge >= 480) score += 4;
+    else score -= 16;
+  } else if (longEdge >= 700) {
+    score += 4;
+  }
+
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
@@ -209,7 +225,7 @@ async function processBuffer({
     buffer: asset.buffer,
     mode,
     quality: {
-      score: qualityScore(asset),
+      score: qualityScore(asset, productText),
       safe: asset.cutoutSafe !== false && Boolean(asset.backgroundRemoved),
       reason: asset.cutoutReason || 'ok',
       removalMode: asset.removalMode || '',
@@ -218,6 +234,12 @@ async function processBuffer({
       internalBackgroundOk: asset.repairMetrics?.internalBackgroundOk !== false,
       whiteHaloOk: asset.repairMetrics?.whiteHaloOk !== false,
       thinStructureDamageOk: asset.repairMetrics?.thinStructureDamageOk !== false,
+      masterResolutionOk: isFanCreativeProduct(productText)
+        ? (
+            Math.max(Number(asset.width || 0), Number(asset.height || 0)) >= 1300 &&
+            Math.min(Number(asset.width || 0), Number(asset.height || 0)) >= 480
+          )
+        : true,
       repairMetrics: asset.repairMetrics || null
     },
     processed: outputMeta,

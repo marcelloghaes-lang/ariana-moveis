@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import sharp from 'sharp';
 import {
   buildProductRebuildPrompt,
+  isFanCreativeProduct,
   rebuildCreativeProductFromReference
 } from '../services/creativeProductRebuildService.js';
 
@@ -51,4 +52,21 @@ test('prompt mestre protege superfícies claras reais do produto', () => {
   assert.match(prompt, /permanecer totalmente sólidas e opacas/i);
   assert.match(prompt, /não abra buracos/i);
   assert.match(prompt, /IMAGEM MESTRE/i);
+});
+
+
+test('perfil de ventilador exige reconstrução mestre integral e alta nitidez', () => {
+  assert.equal(isFanCreativeProduct('Ventilador Mondial de coluna 40cm'), true);
+  assert.equal(isFanCreativeProduct('Geladeira duplex'), false);
+
+  const prompt = buildProductRebuildPrompt(
+    'Ventilador Mondial de coluna 40cm',
+    { masterRepair: true, fanMaster: true }
+  );
+
+  assert.match(prompt, /MODO VENTILADOR MASTER/i);
+  assert.match(prompt, /reconstrua o ventilador inteiro/i);
+  assert.match(prompt, /88% a 94% da altura útil/i);
+  assert.match(prompt, /nitidez de catálogo/i);
+  assert.match(prompt, /arquivo mestre/i);
 });
