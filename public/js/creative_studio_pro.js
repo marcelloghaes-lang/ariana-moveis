@@ -1384,7 +1384,6 @@
   }
 
   const CREATIVE_PWA_SOURCE = 'pwa-creative-studio-pro';
-  const CREATIVE_PWA_SESSION_KEY = 'ariana-own-pwa';
 
   function isStandaloneDisplay() {
     return window.matchMedia?.('(display-mode: standalone)')?.matches === true
@@ -1393,16 +1392,21 @@
 
   function isInstalledApp() {
     const source = new URLSearchParams(window.location.search).get('source') || '';
-    if (source === CREATIVE_PWA_SOURCE) {
-      try { sessionStorage.setItem(CREATIVE_PWA_SESSION_KEY, CREATIVE_PWA_SOURCE); } catch {}
-    }
-    let ownSession = '';
-    try { ownSession = sessionStorage.getItem(CREATIVE_PWA_SESSION_KEY) || ''; } catch {}
-    return isStandaloneDisplay() && ownSession === CREATIVE_PWA_SOURCE;
+    return isStandaloneDisplay() && source === CREATIVE_PWA_SOURCE;
   }
 
   function isForeignStandaloneHost() {
     return isStandaloneDisplay() && !isInstalledApp();
+  }
+
+  function openInstallerInBrowser(target) {
+    const url = target instanceof URL ? target.toString() : String(target || '');
+    const isWindowsEdge = /windows/i.test(navigator.userAgent) && /edg\//i.test(navigator.userAgent);
+    if (isWindowsEdge) {
+      window.location.href = 'microsoft-edge:' + url;
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 
   function bindInstallApp() {
@@ -1450,7 +1454,6 @@
 
     window.addEventListener('appinstalled', () => {
       deferredInstallPrompt = null;
-      try { sessionStorage.setItem(CREATIVE_PWA_SESSION_KEY, CREATIVE_PWA_SOURCE); } catch {}
       button.classList.add('hidden');
       status('Creative Studio instalado como aplicativo independente.', 'ok');
     });
@@ -1465,8 +1468,8 @@
         const target = new URL(window.location.href);
         target.searchParams.delete('source');
         target.searchParams.set('install', 'creative-studio-pro');
-        status('Abrindo o Creative Studio no navegador para instalar como aplicativo separado do Ariana ERP...', 'ok');
-        window.open(target.toString(), '_blank', 'noopener');
+        status('Abrindo o Creative Studio no Edge normal para instalar como aplicativo separado do Ariana ERP...', 'ok');
+        openInstallerInBrowser(target);
         return;
       }
 
