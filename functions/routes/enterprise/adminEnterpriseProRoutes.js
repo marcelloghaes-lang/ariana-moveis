@@ -16,6 +16,7 @@ export default function registerEnterpriseAdminProRoutes(app, context = {}) {
     redact,
     enterpriseCompatRateLimitConfig,
     enterprisePartnerGenerateKey,
+    enterprisePartnerEnvironmentPath,
     enterpriseOAuthGenerateCredentials,
     enterpriseHashSecret
   } = context;
