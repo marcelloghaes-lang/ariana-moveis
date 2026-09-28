@@ -326,6 +326,10 @@ export function createErpCarneCoraService(context = {}) {
     };
   }
 
+  async function purchases(query = {}) {
+    return base.purchases(query);
+  }
+
   async function preview(targetId, via = '') {
     const baseData = await base.preview(targetId, via);
     const charge = await findLinkedCharge(baseData);
@@ -610,7 +614,7 @@ export function createErpCarneCoraService(context = {}) {
     }
   }
 
-  return { preview, pdf, send, emit, saveContact };
+  return { purchases, preview, pdf, send, emit, saveContact };
 }
 
 export default createErpCarneCoraService;
