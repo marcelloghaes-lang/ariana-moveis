@@ -3208,6 +3208,10 @@ function customerFirstName(pushName = '') {
   const raw = String(pushName || '').trim();
   if (!raw) return '';
 
+  // Descrições/apelidos de perfil em minúsculas (ex.: "mangá larga") não são
+  // nomes confiáveis para tratamento pessoal.
+  if (/\s/u.test(raw) && raw === raw.toLocaleLowerCase('pt-BR')) return '';
+
   const firstToken = raw.split(/\s+/)[0] || '';
   const match = firstToken.match(/[\p{L}][\p{L}'’-]*/u);
   if (!match) return '';
