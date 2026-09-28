@@ -58,6 +58,39 @@
       .trim();
   }
 
+
+  function inferCategoryFromText(value = '') {
+    const text = normalize(value);
+    const rules = [
+      ['ventilador','Ventiladores'],
+      ['climatizador','Climatização'],
+      ['ar condicionado','Climatização'],
+      ['geladeira','Geladeiras'],
+      ['refrigerador','Geladeiras'],
+      ['lavadora','Lavadoras'],
+      ['lava e seca','Lavadoras'],
+      ['maquina de lavar','Lavadoras'],
+      ['fogao','Fogões'],
+      ['cooktop','Fogões e Cooktops'],
+      ['micro ondas','Micro-ondas'],
+      ['microondas','Micro-ondas'],
+      ['air fryer','Air Fryer'],
+      ['fritadeira','Air Fryer'],
+      ['tv','TVs'],
+      ['televisor','TVs'],
+      ['smart tv','TVs'],
+      ['guarda roupa','Móveis'],
+      ['roupeiro','Móveis'],
+      ['sofa','Móveis'],
+      ['mesa','Móveis'],
+      ['colchao','Móveis']
+    ];
+    for (const [needle, category] of rules) {
+      if (text.includes(needle)) return category;
+    }
+    return '';
+  }
+
   function parseMoney(value) {
     const raw = String(value ?? '').trim().replace(/R\$/gi,'').replace(/\s/g,'');
     if (!raw) return 0;
@@ -351,16 +384,24 @@
         .replace(/[_-]+/g,' ')
         .trim() || 'Produto';
 
+      const previous = heroSlots[slot] || {};
+      const inferredCategory =
+        previous.category ||
+        previous.categoryName ||
+        inferCategoryFromText(cleanName);
+
       setHeroSlot(slot, {
-        id: 'hero-upload-' + Date.now() + '-' + slot,
-        name: cleanName,
+        ...previous,
+        id: String(previous.id || previous._id || ('hero-upload-' + Date.now() + '-' + slot)),
+        name: previous.name || previous.title || cleanName,
         imageUrl: source.previewUrl,
         sourceToken: source.sourceToken,
         sourceOriginalName: source.originalName,
         sourceOriginalMimeType: source.mimeType,
         sourceOriginalBytes: source.bytes,
         sourceType: source.sourceType,
-        category: 'Campanha',
+        category: inferredCategory,
+        categoryName: previous.categoryName || inferredCategory,
         __heroUploaded: true,
         __directOriginal: true
       });
@@ -522,8 +563,11 @@
         id: String(item.id || item._id || ''),
         name: item.name || item.title || '',
         brand: item.brand || item.brandName || '',
-        category: item.category || item.categoryName || '',
-        imageUrl: imageOf(item)
+        category: item.category || item.categoryName || inferCategoryFromText(item.name || item.title || ''),
+        imageUrl: imageOf(item),
+        sourceToken: String(item.sourceToken || ''),
+        sourceType: String(item.sourceType || ''),
+        sourceOriginalName: String(item.sourceOriginalName || '')
       }));
     }
 
@@ -534,8 +578,11 @@
       id: '',
       name: manualName,
       brand: els.brandLabel?.value?.trim() || '',
-      category: '',
-      imageUrl: els.imageUrl?.value?.trim() || ''
+      category: inferCategoryFromText(manualName),
+      imageUrl: els.imageUrl?.value?.trim() || '',
+      sourceToken: String(directProductSource?.sourceToken || ''),
+      sourceType: String(directProductSource?.sourceType || ''),
+      sourceOriginalName: String(directProductSource?.originalName || '')
     }];
   }
 
@@ -1000,16 +1047,35 @@
       clearDirectProductSource();
       directProductSource = source;
       els.imageUrl.value = source.previewUrl;
+      const cleanName = String(
+        selectedProduct?.name ||
+        selectedProduct?.title ||
+        els.productName?.value ||
+        source.originalName ||
+        'Produto'
+      )
+        .replace(/\.[a-z0-9]+$/i,'')
+        .replace(/[_-]+/g,' ')
+        .trim() || 'Produto';
+      const inferredCategory =
+        selectedProduct?.category ||
+        selectedProduct?.categoryName ||
+        inferCategoryFromText(cleanName);
+
       selectedProduct = {
         ...(selectedProduct || {}),
+        name: selectedProduct?.name || selectedProduct?.title || cleanName,
         imageUrl: source.previewUrl,
         sourceToken: source.sourceToken,
         sourceOriginalName: source.originalName,
         sourceOriginalMimeType: source.mimeType,
         sourceOriginalBytes: source.bytes,
         sourceType: source.sourceType,
+        category: inferredCategory,
+        categoryName: selectedProduct?.categoryName || inferredCategory,
         __directOriginal: true
       };
+      if (!els.productName.value.trim()) els.productName.value = selectedProduct.name;
       renderSelectedProducts();
       qualityAllowsSave = false;
       els.saveButton.disabled = true;
