@@ -1282,6 +1282,29 @@
       button.classList.remove('hidden');
     };
 
+    const waitForInstallPrompt = async (timeoutMs = 2400) => {
+      const startedAt = Date.now();
+      while (!deferredInstallPrompt && Date.now() - startedAt < timeoutMs) {
+        await new Promise(resolve => setTimeout(resolve, 120));
+      }
+      return deferredInstallPrompt;
+    };
+
+    const promptInstallIfReady = async () => {
+      if (!deferredInstallPrompt) return false;
+      const prompt = deferredInstallPrompt;
+      deferredInstallPrompt = null;
+      await prompt.prompt();
+      const choice = await prompt.userChoice.catch(() => null);
+      if (choice?.outcome === 'accepted') {
+        status('Instalação iniciada. O Creative Studio ficará disponível como aplicativo.', 'ok');
+      } else {
+        status('A instalação não foi concluída. O botão continua disponível para tentar novamente.', '');
+      }
+      syncButton();
+      return true;
+    };
+
     syncButton();
 
     window.addEventListener('beforeinstallprompt', event => {
@@ -1293,7 +1316,7 @@
     window.addEventListener('appinstalled', () => {
       deferredInstallPrompt = null;
       button.classList.add('hidden');
-      status('Creative Studio instalado no celular.', 'ok');
+      status('Creative Studio instalado como aplicativo.', 'ok');
     });
 
     button.addEventListener('click', async () => {
@@ -1302,27 +1325,52 @@
         return;
       }
 
-      if (deferredInstallPrompt) {
-        const prompt = deferredInstallPrompt;
-        deferredInstallPrompt = null;
-        await prompt.prompt();
-        const choice = await prompt.userChoice.catch(() => null);
-        if (choice?.outcome === 'accepted') {
-          status('Instalação iniciada. O Creative Studio ficará disponível como aplicativo.', 'ok');
-        } else {
-          status('A instalação não foi concluída. Você pode tentar novamente pelo menu do navegador.', '');
-        }
-        syncButton();
-        return;
-      }
+      button.disabled = true;
+      const originalText = button.textContent;
+      button.textContent = 'Preparando...';
 
-      const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
-      status(
-        ios
-          ? 'No iPhone/iPad: toque em Compartilhar e depois em Adicionar à Tela de Início.'
-          : 'Se a janela de instalação não abrir, use o menu do navegador e toque em Instalar app ou Adicionar à tela inicial.',
-        ''
-      );
+      try {
+        if (await promptInstallIfReady()) return;
+
+        if ('serviceWorker' in navigator) {
+          await Promise.race([
+            navigator.serviceWorker.ready.catch(() => null),
+            new Promise(resolve => setTimeout(resolve, 1800))
+          ]);
+        }
+
+        await waitForInstallPrompt(1800);
+        if (await promptInstallIfReady()) return;
+
+        const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+        const android = /android/i.test(navigator.userAgent);
+
+        if (android) {
+          const target = new URL(window.location.href);
+          target.searchParams.set('source', 'pwa-install');
+          const fallback = target.toString();
+          const intent =
+            'intent://' + target.host + target.pathname + target.search +
+            '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' +
+            encodeURIComponent(fallback) + ';end';
+          status('Abrindo no Chrome para concluir a instalação do aplicativo...', 'ok');
+          window.location.href = intent;
+          return;
+        }
+
+        const message = ios
+          ? 'No iPhone/iPad, toque em Compartilhar e depois em Adicionar à Tela de Início.'
+          : 'O navegador ainda não liberou a janela automática. No Edge/Chrome, abra o menu do navegador e escolha Aplicativos > Instalar Ariana Creative Studio Pro.';
+
+        status(message, '');
+        window.alert(message);
+      } finally {
+        if (!isInstalledApp()) {
+          button.disabled = false;
+          button.textContent = originalText;
+          syncButton();
+        }
+      }
     });
   }
 
