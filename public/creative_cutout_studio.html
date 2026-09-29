@@ -99,14 +99,15 @@
       <section class="bank-panel">
         <div class="bank-head">
           <div>
-            <span class="eyebrow">BANCO MESTRE</span>
-            <h2>Recortes tratados</h2>
+            <span class="eyebrow" id="panel-eyebrow">ÁREA DE TRABALHO</span>
+            <h2 id="panel-title">Itens para revisar</h2>
+            <p class="panel-help" id="panel-help">Aqui ficam somente itens pendentes, em processamento ou rejeitados. Ao aprovar, o produto sai desta área e vai para o Banco Mestre.</p>
           </div>
           <div class="filters" id="filters">
-            <button type="button" class="active" data-status="all">Todos</button>
+            <button type="button" class="active" data-status="workspace">Área de trabalho</button>
             <button type="button" data-status="pending">Pendentes</button>
-            <button type="button" data-status="approved">Aprovados</button>
             <button type="button" data-status="rejected">Rejeitados</button>
+            <button type="button" data-status="approved" class="master-filter">📁 Banco Mestre</button>
           </div>
         </div>
 
@@ -163,7 +164,7 @@
     </article>
   </template>
 
-  <script src="./js/creative_cutout_studio.js?v=20260928-fan-master-hq-1"></script>
+  <script src="./js/creative_cutout_studio.js?v=20260928-workspace-fanfix-1"></script>
   <script src="./pwa-register.js?v=20260928-6" data-sw="./sw-creative-cutout-studio.js" data-scope="./creative_cutout_studio.html"></script>
 </body>
 </html>
