@@ -467,13 +467,12 @@ function qualityScore(asset = {}, productText = '') {
 function publicAsset(doc = {}) {
   const productText = [doc.category, doc.name].filter(Boolean).join(' ');
   const difficultProduct = isDifficultCreativeProduct(productText);
-  const masterReady = difficultProduct
-    ? Boolean(
-        doc.processedFileId &&
-        doc.quality?.safe === true &&
-        doc.quality?.masterResolutionOk !== false
-      )
-    : Boolean(doc.processedFileId);
+  const masterReady = Boolean(
+    doc.processedFileId &&
+    doc.quality?.safe === true &&
+    doc.quality?.transparentBackgroundOk !== false &&
+    doc.quality?.masterResolutionOk !== false
+  );
   return {
     id: String(doc._id || ''),
     name: doc.name || '',
@@ -496,7 +495,8 @@ function publicAsset(doc = {}) {
     updatedAt: doc.updatedAt || null,
     approvedAt: doc.approvedAt || null,
     rejectedAt: doc.rejectedAt || null,
-    originalUrl: doc._id ? '/admin/creative-cutout-studio/assets/' + doc._id + '/original' : '',
+    originalDiscardedAt: doc.originalDiscardedAt || null,
+    originalUrl: doc._id && doc.originalFileId ? '/admin/creative-cutout-studio/assets/' + doc._id + '/original' : '',
     cutoutUrl: doc._id && doc.processedFileId
       ? '/admin/creative-cutout-studio/assets/' + doc._id + '/cutout'
       : '',
@@ -549,13 +549,10 @@ async function processBuffer({
   let aiMetrics = null;
   let aiFallbackUsed = false;
 
+  const forceAiRepair = mode === 'ai_repair' || mode === 'ai_master';
   const allowAiFallback =
-    !realGate.safe &&
-    (
-      difficultProduct ||
-      mode === 'ai_repair' ||
-      mode === 'ai_master'
-    );
+    forceAiRepair ||
+    (!realGate.safe && difficultProduct);
 
   if (allowAiFallback) {
     const rebuilt = await rebuildCreativeProductFromReference({
@@ -595,6 +592,9 @@ async function processBuffer({
   }
 
   const outputMeta = await imageMetadata(asset.buffer);
+  const alpha = await meaningfulAlphaRatio(asset.buffer);
+  const transparentBackgroundOk = alpha.transparentRatio >= 0.02;
+  const transparencyStrong = alpha.transparentRatio >= 0.12;
   const longEdge = Math.max(
     Number(asset.width || outputMeta.width || 0),
     Number(asset.height || outputMeta.height || 0)
@@ -611,18 +611,29 @@ async function processBuffer({
     buffer: asset.buffer,
     mode: effectiveMode,
     quality: {
-      score: qualityScore(asset, productText),
+      score: (() => {
+        const base = qualityScore(asset, productText);
+        if (!transparentBackgroundOk) return Math.min(base, 55);
+        if (!transparencyStrong) return Math.min(base, 94);
+        return base;
+      })(),
       safe:
         asset.cutoutSafe !== false &&
         Boolean(asset.backgroundRemoved) &&
+        transparentBackgroundOk &&
         asset.repairMetrics?.internalBackgroundOk !== false &&
         asset.repairMetrics?.whiteHaloOk !== false &&
         asset.repairMetrics?.thinStructureDamageOk !== false &&
         masterResolutionOk,
-      reason: asset.cutoutReason || realGate.reason || 'ok',
+      reason: !transparentBackgroundOk
+        ? 'transparent_background_not_confirmed'
+        : (asset.cutoutReason || realGate.reason || 'ok'),
       removalMode: asset.removalMode || '',
       removedRatio: Number(asset.removedRatio || 0),
       confidence: Number(asset.confidence || 0),
+      transparentBackgroundOk,
+      transparentRatio: Number(alpha.transparentRatio || 0),
+      partialAlphaRatio: Number(alpha.partialRatio || 0),
       internalBackgroundOk: asset.repairMetrics?.internalBackgroundOk !== false,
       whiteHaloOk: asset.repairMetrics?.whiteHaloOk !== false,
       thinStructureDamageOk: asset.repairMetrics?.thinStructureDamageOk !== false,
@@ -960,31 +971,43 @@ export async function approveCreativeCutoutAsset({ mongoose, id }) {
   if (!doc || !doc.processedFileId) return null;
 
   const productText = [doc.category, doc.name].filter(Boolean).join(' ');
-  if (isDifficultCreativeProduct(productText)) {
-    const masterReady =
-      Boolean(doc.processedFileId) &&
-      doc.quality?.safe === true &&
-      doc.quality?.masterResolutionOk !== false;
-    if (!masterReady) {
-      const error = new Error('creative_cutout_master_rebuild_required');
-      error.code = 'creative_cutout_master_rebuild_required';
-      throw error;
-    }
+  const masterReady =
+    Boolean(doc.processedFileId) &&
+    doc.quality?.safe === true &&
+    doc.quality?.transparentBackgroundOk !== false &&
+    doc.quality?.masterResolutionOk !== false;
+
+  if (!masterReady) {
+    const error = new Error('creative_cutout_master_rebuild_required');
+    error.code = 'creative_cutout_master_rebuild_required';
+    throw error;
   }
 
+  const bucket = bucketFor(mongoose);
   const timestamp = now();
+  const originalFileId = doc.originalFileId || null;
+
   await collection.updateOne(
     { _id },
     {
       $set: {
         status: 'approved',
         approvedFileId: doc.processedFileId,
+        originalFileId: null,
+        originalDiscardedAt: timestamp,
         approvedAt: timestamp,
         updatedAt: timestamp,
         rejectedAt: null
       }
     }
   );
+
+  // Depois que o PNG Mestre foi aprovado, o original deixa de ser necessário.
+  // Mantemos somente o PNG aprovado no Banco Mestre.
+  if (originalFileId) {
+    await deleteGridFile(bucket, mongoose, originalFileId).catch(() => {});
+  }
+
   return publicAsset(await collection.findOne({ _id }));
 }
 
