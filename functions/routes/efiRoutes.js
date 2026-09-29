@@ -1,4 +1,4 @@
-import { efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig } from '../services/efiService.js';
+import { efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, runPixSplitHomologationTest } from '../services/efiService.js';
 
 function safeProviderError(error = {}) {
   const providerData = error?.providerData || {};
@@ -6,7 +6,7 @@ function safeProviderError(error = {}) {
     code: error?.code || 'EFI_ERROR',
     stage: error?.stage || '',
     statusCode: Number(error?.statusCode || 500),
-    message: providerData?.mensagem || providerData?.message || providerData?.title || error?.message || 'Erro na integração Efí.'
+    message: providerData?.mensagem || providerData?.message || providerData?.detail || providerData?.title || error?.message || 'Erro na integração Efí.'
   };
 }
 
@@ -84,6 +84,76 @@ export default function registerEfiRoutes(app, context = {}) {
       const safe = safeProviderError(error);
       await audit({ eventType: 'efi_homologation_split_config_created', status: 'error', statusCode: safe.statusCode, message: safe.message, environment: 'homologation', response: safe });
       return res.status(safe.statusCode >= 400 && safe.statusCode < 600 ? safe.statusCode : 500).json({ ok: false, provider: 'efi', environment: 'homologation', ...safe });
+    }
+  });
+
+  app.get('/api/admin/payments/efi/homologation/split-pix/last-config', adminRequired, async (_req, res) => {
+    try {
+      if (!IntegrationAuditLog?.findOne) {
+        return res.status(503).json({ ok: false, error: 'Auditoria de integrações indisponível.' });
+      }
+      const last = await IntegrationAuditLog.findOne({
+        scope: 'payments',
+        eventType: 'efi_homologation_split_config_created',
+        status: 'success'
+      }).sort({ createdAt: -1, _id: -1 }).lean();
+      const id = String(last?.response?.id || '').trim();
+      if (!id) return res.status(404).json({ ok: false, error: 'Nenhuma configuração Split Pix homologada foi encontrada.' });
+      return res.json({
+        ok: true,
+        provider: 'efi',
+        environment: 'homologation',
+        splitConfigId: id,
+        status: last?.response?.status || null,
+        description: last?.response?.descricao || null,
+        createdAt: last?.createdAt || null
+      });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error.message || 'Falha ao recuperar última configuração Split Pix.' });
+    }
+  });
+
+  app.post('/api/admin/payments/efi/homologation/split-pix/test-flow', adminRequired, async (req, res) => {
+    try {
+      const splitConfigId = String(req.body?.splitConfigId || '').trim();
+      const amount = Number(req.body?.amount ?? 11);
+      const result = await runPixSplitHomologationTest({
+        splitConfigId,
+        amount,
+        expiration: 3600,
+        description: 'Teste Split Pix Ariana Marketplace - Homologacao'
+      });
+      await audit({
+        eventType: 'efi_homologation_split_test_flow',
+        status: 'success',
+        statusCode: 200,
+        message: 'Cobrança Pix criada, vinculada e consultada com Split em Homologação.',
+        environment: 'homologation',
+        integrationId: splitConfigId,
+        metadata: {
+          txid: result.charge?.txid || null,
+          amount: result.charge?.amount || null,
+          linked: Boolean(result.link?.linked),
+          splitDetected: Boolean(result.verification?.splitDetected)
+        }
+      });
+      return res.json({ ok: true, provider: 'efi', ...result });
+    } catch (error) {
+      const safe = safeProviderError(error);
+      await audit({
+        eventType: 'efi_homologation_split_test_flow',
+        status: 'error',
+        statusCode: safe.statusCode,
+        message: safe.message,
+        environment: 'homologation',
+        metadata: { splitConfigId: String(req.body?.splitConfigId || '').trim() }
+      });
+      return res.status(safe.statusCode >= 400 && safe.statusCode < 600 ? safe.statusCode : 500).json({
+        ok: false,
+        provider: 'efi',
+        environment: 'homologation',
+        ...safe
+      });
     }
   });
 
