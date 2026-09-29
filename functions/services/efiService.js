@@ -1,6 +1,7 @@
 import https from 'https';
 import fs from 'fs';
 import axios from 'axios';
+import crypto from 'crypto';
 
 const tokenCache = new Map();
 
@@ -226,6 +227,170 @@ export async function createPixSplitConfig(options = {}) {
   const payload = buildPixSplitPercentagePayload(options);
   const response = await efiPixRequest({ environment: options.environment || 'homologation', method: 'post', path: '/v2/gn/split/config', data: payload });
   return { ...response, payload };
+}
+
+
+function normalizeSplitConfigId(value = '') {
+  const id = String(value || '').trim();
+  if (!/^[A-Za-z0-9]{8,80}$/.test(id)) {
+    const error = new Error('ID da configuração de Split Pix inválido.');
+    error.code = 'EFI_SPLIT_CONFIG_ID_INVALID';
+    error.statusCode = 400;
+    throw error;
+  }
+  return id;
+}
+
+function normalizeTxid(value = '') {
+  const txid = String(value || '').trim();
+  if (!/^[A-Za-z0-9]{26,35}$/.test(txid)) {
+    const error = new Error('TXID Pix inválido.');
+    error.code = 'EFI_PIX_TXID_INVALID';
+    error.statusCode = 400;
+    throw error;
+  }
+  return txid;
+}
+
+export async function createPixHomologationTestCharge(options = {}) {
+  const environment = normalizeEnvironment(options.environment || 'homologation');
+  if (environment !== 'homologation') {
+    const error = new Error('Cobrança de teste permitida somente em Homologação.');
+    error.code = 'EFI_HOMOLOGATION_ONLY';
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const config = getEfiConfig(environment);
+  if (!config.pixKey) {
+    const error = new Error('Chave Pix Efí de Homologação não configurada.');
+    error.code = 'EFI_PIX_KEY_MISSING';
+    error.statusCode = 503;
+    throw error;
+  }
+
+  const amount = Number(options.amount ?? 11);
+  if (!Number.isFinite(amount) || amount <= 10 || amount > 1000) {
+    const error = new Error('Para este teste, informe valor acima de R$ 10,00 e até R$ 1.000,00.');
+    error.code = 'EFI_TEST_AMOUNT_INVALID';
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const expiration = Math.max(60, Math.min(86400, Number(options.expiration || 3600)));
+  const txid = crypto.randomBytes(16).toString('hex');
+  const payload = {
+    calendario: { expiracao: expiration },
+    valor: { original: amount.toFixed(2) },
+    chave: config.pixKey,
+    solicitacaoPagador: String(options.description || 'Teste Split Pix Ariana Marketplace - Homologacao').slice(0, 140)
+  };
+
+  const response = await efiPixRequest({
+    environment,
+    method: 'put',
+    path: '/v2/cob/' + txid,
+    data: payload
+  });
+
+  return { ...response, txid, payload };
+}
+
+export async function linkPixChargeToSplit(options = {}) {
+  const environment = normalizeEnvironment(options.environment || 'homologation');
+  if (environment !== 'homologation') {
+    const error = new Error('Vínculo de teste permitido somente em Homologação.');
+    error.code = 'EFI_HOMOLOGATION_ONLY';
+    error.statusCode = 400;
+    throw error;
+  }
+  const txid = normalizeTxid(options.txid);
+  const splitConfigId = normalizeSplitConfigId(options.splitConfigId);
+  return efiPixRequest({
+    environment,
+    method: 'put',
+    path: '/v2/gn/split/cob/' + txid + '/vinculo/' + splitConfigId
+  });
+}
+
+export async function getPixSplitCharge(options = {}) {
+  const environment = normalizeEnvironment(options.environment || 'homologation');
+  if (environment !== 'homologation') {
+    const error = new Error('Consulta de teste permitida somente em Homologação.');
+    error.code = 'EFI_HOMOLOGATION_ONLY';
+    error.statusCode = 400;
+    throw error;
+  }
+  const txid = normalizeTxid(options.txid);
+  return efiPixRequest({
+    environment,
+    method: 'get',
+    path: '/v2/gn/split/cob/' + txid
+  });
+}
+
+export async function runPixSplitHomologationTest(options = {}) {
+  const splitConfigId = normalizeSplitConfigId(options.splitConfigId);
+  const charge = await createPixHomologationTestCharge({
+    environment: 'homologation',
+    amount: options.amount ?? 11,
+    expiration: options.expiration ?? 3600,
+    description: options.description || 'Teste Split Pix Ariana Marketplace - Homologacao'
+  });
+
+  const chargeStatus = String(charge.data?.status || '').toUpperCase();
+  if (chargeStatus !== 'ATIVA') {
+    const error = new Error('A cobrança de Homologação não ficou ATIVA e não pode ser vinculada ao Split.');
+    error.code = 'EFI_TEST_CHARGE_NOT_ACTIVE';
+    error.statusCode = 409;
+    error.providerData = { status: charge.data?.status || null, txid: charge.txid };
+    throw error;
+  }
+
+  const link = await linkPixChargeToSplit({
+    environment: 'homologation',
+    txid: charge.txid,
+    splitConfigId
+  });
+
+  const verification = await getPixSplitCharge({
+    environment: 'homologation',
+    txid: charge.txid
+  });
+
+  const data = verification.data || {};
+  return {
+    ok: true,
+    environment: 'homologation',
+    splitConfigId,
+    charge: {
+      httpStatus: charge.status,
+      txid: charge.txid,
+      status: charge.data?.status || null,
+      amount: charge.data?.valor?.original || charge.payload?.valor?.original || null,
+      expiration: charge.data?.calendario?.expiracao || charge.payload?.calendario?.expiracao || null,
+      location: charge.data?.location || charge.data?.loc?.location || null,
+      pixCopiaECola: charge.data?.pixCopiaECola || null
+    },
+    link: {
+      httpStatus: link.status,
+      linked: link.status === 204
+    },
+    verification: {
+      httpStatus: verification.status,
+      txid: data.txid || charge.txid,
+      status: data.status || null,
+      amount: data.valor?.original || null,
+      config: data.config ? {
+        id: data.config.id || splitConfigId,
+        status: data.config.status || null,
+        revisao: data.config.revisao ?? null,
+        descricao: data.config.descricao || null,
+        tipo: data.config.tipo || null
+      } : { id: splitConfigId },
+      splitDetected: Boolean(data.split || data.config)
+    }
+  };
 }
 
 export async function testEfiAuthentication(environment = 'homologation') {
