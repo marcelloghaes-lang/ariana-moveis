@@ -361,6 +361,31 @@ export async function linkPixChargeToSplit(options = {}) {
   });
 }
 
+
+export async function revisePixChargeAmount(options = {}) {
+  const environment = normalizeEnvironment(options.environment || 'homologation');
+  if (environment !== 'homologation') {
+    const error = new Error('Revisão de teste permitida somente em Homologação.');
+    error.code = 'EFI_HOMOLOGATION_ONLY';
+    error.statusCode = 400;
+    throw error;
+  }
+  const txid = normalizeTxid(options.txid);
+  const amount = Number(options.amount);
+  if (!Number.isFinite(amount) || amount <= 0 || amount > 1000) {
+    const error = new Error('Valor inválido para revisão da cobrança Pix.');
+    error.code = 'EFI_PIX_REVISE_AMOUNT_INVALID';
+    error.statusCode = 400;
+    throw error;
+  }
+  return efiPixRequest({
+    environment,
+    method: 'patch',
+    path: '/v2/cob/' + txid,
+    data: { valor: { original: amount.toFixed(2) } }
+  });
+}
+
 export async function getPixSplitCharge(options = {}) {
   const environment = normalizeEnvironment(options.environment || 'homologation');
   if (environment !== 'homologation') {
