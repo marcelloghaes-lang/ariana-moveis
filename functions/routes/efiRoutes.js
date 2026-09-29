@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, createPixHomologationTestCharge, createPixWebhookHomologationProbe, linkPixChargeToSplit, getPixSplitCharge, runPixSplitHomologationTest, configurePixWebhook, getPixWebhook, buildChargesSplitPercentagePayload, createChargesSplitHomologationTransaction, payChargesSplitBoletoHomologation, getChargesSplitHomologationTransaction } from '../services/efiService.js';
+import { getEfiConfig, efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, createPixHomologationTestCharge, createPixWebhookHomologationProbe, linkPixChargeToSplit, getPixSplitCharge, runPixSplitHomologationTest, configurePixWebhook, getPixWebhook, buildChargesSplitPercentagePayload, createChargesSplitHomologationTransaction, payChargesSplitBoletoHomologation, payChargesSplitCardHomologation, getChargesSplitHomologationTransaction } from '../services/efiService.js';
 
 function safeProviderError(error = {}) {
   const providerData = error?.providerData || {};
@@ -521,6 +521,104 @@ export default function registerEfiRoutes(app, context = {}) {
       const safe = safeProviderError(error);
       await audit({
         eventType: 'efi_homologation_charges_split_transaction',
+        status: 'error',
+        statusCode: safe.statusCode,
+        message: safe.message,
+        environment: 'homologation'
+      });
+      return res.status(safe.statusCode >= 400 && safe.statusCode < 600 ? safe.statusCode : 500).json({
+        ok: false,
+        provider: 'efi',
+        environment: 'homologation',
+        ...safe
+      });
+    }
+  });
+
+  app.get('/api/admin/payments/efi/homologation/card/tokenization-config', adminRequired, async (_req, res) => {
+    const config = getEfiConfig('homologation');
+    const accountIdentifier = String(config.payeeCode || '').trim();
+    if (!accountIdentifier) {
+      return res.status(503).json({
+        ok: false,
+        provider: 'efi',
+        environment: 'homologation',
+        error: 'Identificador da conta Ariana não configurado para tokenização de cartão.'
+      });
+    }
+    return res.json({
+      ok: true,
+      provider: 'efi',
+      environment: 'homologation',
+      tokenizationEnvironment: 'sandbox',
+      accountIdentifier
+    });
+  });
+
+  app.post('/api/admin/payments/efi/homologation/split-charges/card-test', adminRequired, async (req, res) => {
+    try {
+      const paymentToken = String(req.body?.paymentToken || req.body?.payment_token || '').trim();
+      const created = await createChargesSplitHomologationTransaction({
+        environment: 'homologation',
+        platformPercent: req.body?.platformPercent ?? 12,
+        recipients: req.body?.recipients || [],
+        feeMode: req.body?.feeMode ?? 2,
+        itemName: req.body?.itemName || 'Produto teste Ariana Marketplace - Cartao',
+        unitValueCents: req.body?.unitValueCents || 1100,
+        amount: req.body?.amount || 1,
+        customId: req.body?.customId || ('ARIANA-EFI-CARTAO-' + Date.now())
+      });
+
+      const chargeId = created.data?.data?.charge_id || created.data?.charge_id || null;
+      if (!chargeId) throw new Error('Efí não retornou charge_id para o teste de cartão.');
+
+      const paid = await payChargesSplitCardHomologation(chargeId, {
+        paymentToken,
+        installments: req.body?.installments || 1
+      });
+
+      const queried = await getChargesSplitHomologationTransaction(chargeId);
+      const data = queried.data?.data || queried.data || {};
+      const repasses = data?.items?.[0]?.marketplace?.repasses || [];
+
+      const response = {
+        ok: true,
+        provider: 'efi',
+        environment: 'homologation',
+        chargeId,
+        status: data?.status || paid.data?.data?.status || paid.data?.status || null,
+        total: data?.total || created.data?.data?.total || created.data?.total || null,
+        payment: data?.payment?.payment_method || paid.data?.data?.payment || paid.data?.payment || 'credit_card',
+        installments: paid.data?.data?.installments || paid.data?.installments || Number(req.body?.installments || 1),
+        installmentValue: paid.data?.data?.installment_value || paid.data?.installment_value || null,
+        split: {
+          repassesCount: Array.isArray(repasses) ? repasses.length : 0,
+          sellerPercentage: Array.isArray(repasses) ? (repasses.find((x) => Number(x?.percentage) === 8800)?.percentage ?? repasses[0]?.percentage ?? null) : null
+        }
+      };
+
+      await audit({
+        eventType: 'efi_homologation_card_split_test',
+        status: 'success',
+        statusCode: 200,
+        message: 'Cartão Split da API Cobranças processado em Homologação.',
+        environment: 'homologation',
+        integrationId: String(chargeId),
+        metadata: {
+          chargeId,
+          status: response.status,
+          payment: response.payment,
+          installments: response.installments,
+          repassesCount: response.split.repassesCount,
+          sellerPercentage: response.split.sellerPercentage
+        }
+      });
+
+      return res.json(response);
+    } catch (error) {
+      const safe = safeProviderError(error);
+      await audit({
+        eventType: 'efi_homologation_card_split_test',
         status: 'error',
         statusCode: safe.statusCode,
         message: safe.message,
