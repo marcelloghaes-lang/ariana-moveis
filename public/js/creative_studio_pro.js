@@ -20,6 +20,9 @@
   let lastCreativeDirection = null;
   let deferredInstallPrompt = null;
   let directProductSource = null;
+  let cutoutBankAssets = [];
+  let cutoutBankTargetSlot = null;
+  const cutoutBankBlobUrls = new Map();
 
   const FORMATS = Object.freeze({
     hero_desktop: { label: 'PRÉVIA • HERO DESKTOP', size: '1920 × 480 pixels' },
@@ -239,6 +242,125 @@
   function revokeObjectUrl(url = '') {
     if (!String(url).startsWith('blob:')) return;
     try { URL.revokeObjectURL(url); } catch {}
+  }
+
+  async function cutoutBankBlobUrl(asset) {
+    const id = String(asset?.id || '');
+    if (!id) return '';
+    if (cutoutBankBlobUrls.has(id)) return cutoutBankBlobUrls.get(id);
+
+    const auth = token();
+    const response = await fetch(API + '/admin/creative-cutout-studio/assets/' + encodeURIComponent(id) + '/approved', {
+      headers: { Authorization: 'Bearer ' + auth }
+    });
+    if (!response.ok) throw new Error('Não consegui carregar o PNG Mestre aprovado.');
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    cutoutBankBlobUrls.set(id, url);
+    return url;
+  }
+
+  function cutoutBankDestinationLabel() {
+    if (Number.isInteger(cutoutBankTargetSlot)) {
+      return cutoutBankTargetSlot === 0 ? 'Produto principal'
+        : 'Produto de apoio ' + cutoutBankTargetSlot;
+    }
+    return 'Produto do banner';
+  }
+
+  async function renderCutoutBankGallery(query = '') {
+    if (!els.cutoutBankGrid) return;
+    const normalized = normalize(query);
+    const rows = cutoutBankAssets.filter(asset => {
+      if (!normalized) return true;
+      return normalize([asset.name, asset.category, asset.sku].filter(Boolean).join(' ')).includes(normalized);
+    });
+
+    els.cutoutBankGrid.innerHTML = rows.length
+      ? rows.map(asset =>
+          '<article class="cutout-bank-card" data-cutout-bank-id="' + escapeHtml(asset.id) + '">' +
+          '<div class="cutout-bank-thumb"><span>Carregando...</span></div>' +
+          '<b>' + escapeHtml(asset.name || 'Produto') + '</b>' +
+          '<small>' + escapeHtml([asset.category, asset.sku ? 'SKU ' + asset.sku : ''].filter(Boolean).join(' • ')) + '</small>' +
+          '<button type="button" data-use-cutout-bank="' + escapeHtml(asset.id) + '">Usar este PNG</button>' +
+          '</article>'
+        ).join('')
+      : '<div class="cutout-bank-empty">Nenhum PNG Mestre aprovado encontrado.</div>';
+
+    for (const asset of rows.slice(0, 40)) {
+      const card = els.cutoutBankGrid.querySelector('[data-cutout-bank-id="' + CSS.escape(asset.id) + '"]');
+      const thumb = card?.querySelector('.cutout-bank-thumb');
+      if (!thumb) continue;
+      cutoutBankBlobUrl(asset).then(url => {
+        thumb.innerHTML = '<img src="' + escapeHtml(url) + '" alt="">';
+      }).catch(() => {
+        thumb.innerHTML = '<span>Falha ao carregar</span>';
+      });
+    }
+  }
+
+  async function loadCutoutBank() {
+    els.cutoutBankStatus.textContent = 'Carregando PNGs aprovados...';
+    els.cutoutBankStatus.className = 'inline-status';
+    const data = await api('/admin/creative-cutout-studio/assets?status=approved&limit=80');
+    cutoutBankAssets = Array.isArray(data?.assets) ? data.assets : [];
+    els.cutoutBankStatus.textContent = cutoutBankAssets.length
+      ? cutoutBankAssets.length + ' PNG(s) Mestre disponíveis.'
+      : 'Ainda não há PNGs aprovados no Banco Mestre.';
+    els.cutoutBankStatus.className = 'inline-status ' + (cutoutBankAssets.length ? 'ok' : '');
+    await renderCutoutBankGallery(els.cutoutBankSearch?.value || '');
+  }
+
+  async function openCutoutBank(slot = null) {
+    cutoutBankTargetSlot = Number.isInteger(Number(slot)) && slot !== null ? Number(slot) : null;
+    if (contentMode === 'multi_product' && cutoutBankTargetSlot === null) {
+      const empty = heroSlots.findIndex(item => !item);
+      cutoutBankTargetSlot = empty >= 0 ? empty : 0;
+    }
+    if (els.cutoutBankTarget) els.cutoutBankTarget.textContent = 'Destino: ' + cutoutBankDestinationLabel();
+    if (typeof els.cutoutBankDialog?.showModal === 'function') els.cutoutBankDialog.showModal();
+    else els.cutoutBankDialog?.setAttribute('open','');
+    try {
+      await loadCutoutBank();
+    } catch (error) {
+      els.cutoutBankStatus.textContent = error.message;
+      els.cutoutBankStatus.className = 'inline-status error';
+    }
+  }
+
+  async function useCutoutBankAsset(assetId) {
+    const asset = cutoutBankAssets.find(item => String(item.id) === String(assetId));
+    if (!asset) throw new Error('PNG Mestre não encontrado.');
+    const imageUrl = await cutoutBankBlobUrl(asset);
+    const product = {
+      id: 'cutout-bank-' + asset.id,
+      name: asset.name || 'Produto',
+      imageUrl,
+      cutoutAssetId: asset.id,
+      sourceType: 'approved_cutout_bank',
+      category: asset.category || '',
+      categoryName: asset.category || '',
+      sku: asset.sku || '',
+      __cutoutBank: true,
+      __heroUploaded: false
+    };
+
+    if (Number.isInteger(cutoutBankTargetSlot)) {
+      setHeroSlot(cutoutBankTargetSlot, product);
+      status('PNG Mestre adicionado ao espaço ' + (cutoutBankTargetSlot + 1) + '.', 'ok');
+    } else {
+      clearDirectProductSource();
+      selectedProduct = product;
+      els.productName.value = product.name;
+      els.imageUrl.value = imageUrl;
+      renderSelectedProducts();
+      qualityAllowsSave = false;
+      els.saveButton.disabled = true;
+      previewBlob = null;
+      status('PNG Mestre carregado diretamente do Banco Mestre.', 'ok');
+    }
+
+    els.cutoutBankDialog?.close();
   }
 
   function clearDirectProductSource() {
@@ -572,9 +694,11 @@
         img.classList.remove('hidden');
         placeholder.classList.add('hidden');
         name.textContent = product.name || product.title || (index === 0 ? 'Produto principal' : 'Produto de apoio ' + index);
-        source.textContent = product.__heroUploaded
-          ? 'Imagem enviada'
-          : (product.brand || product.categoryName || product.category || 'Produto do catálogo');
+        source.textContent = product.__cutoutBank
+          ? 'PNG Mestre aprovado'
+          : product.__heroUploaded
+            ? 'Imagem enviada'
+            : (product.brand || product.categoryName || product.category || 'Produto do catálogo');
       } else {
         img.removeAttribute('src');
         img.classList.add('hidden');
@@ -1131,6 +1255,7 @@
       sourceOriginalMimeType: String(product.sourceOriginalMimeType || ''),
       sourceOriginalBytes: Number(product.sourceOriginalBytes || 0),
       sourceType: String(product.sourceType || ''),
+      cutoutAssetId: String(product.cutoutAssetId || ''),
       brand: product.brand || product.brandName || '',
       category: product.category || product.categoryName || '',
       cashPrice: cash,
@@ -1467,6 +1592,7 @@
         sourceOriginalMimeType: String(directProductSource?.mimeType || selectedProduct?.sourceOriginalMimeType || ''),
         sourceOriginalBytes: Number(directProductSource?.bytes || selectedProduct?.sourceOriginalBytes || 0),
         sourceType: String(directProductSource?.sourceType || selectedProduct?.sourceType || ''),
+        cutoutAssetId: String(selectedProduct?.cutoutAssetId || ''),
         brand: selectedProduct?.brand || '',
         category: selectedProduct?.category || selectedProduct?.categoryName || '',
         cashPrice,
@@ -2036,6 +2162,27 @@
     document.querySelectorAll('[data-hero-catalog-slot]').forEach(button => {
       button.addEventListener('click', () => chooseCatalogForHeroSlot(button.dataset.heroCatalogSlot));
     });
+    document.querySelectorAll('[data-hero-bank-slot]').forEach(button => {
+      button.addEventListener('click', () => openCutoutBank(Number(button.dataset.heroBankSlot)));
+    });
+    els.openCutoutBank?.addEventListener('click', () => openCutoutBank(null));
+    els.singleCutoutBank?.addEventListener('click', () => openCutoutBank(null));
+    els.closeCutoutBank?.addEventListener('click', () => els.cutoutBankDialog?.close());
+    els.cutoutBankDialog?.addEventListener('click', event => {
+      if (event.target === els.cutoutBankDialog) els.cutoutBankDialog.close();
+    });
+    els.cutoutBankSearch?.addEventListener('input', event => renderCutoutBankGallery(event.target.value));
+    els.cutoutBankGrid?.addEventListener('click', event => {
+      const button = event.target.closest('[data-use-cutout-bank]');
+      if (!button) return;
+      button.disabled = true;
+      useCutoutBankAsset(button.dataset.useCutoutBank)
+        .catch(error => {
+          els.cutoutBankStatus.textContent = error.message;
+          els.cutoutBankStatus.className = 'inline-status error';
+          button.disabled = false;
+        });
+    });
     document.querySelectorAll('[data-hero-upload-slot]').forEach(input => {
       input.addEventListener('change', event => uploadHeroSlot(event.target.files?.[0], input.dataset.heroUploadSlot));
     });
@@ -2156,6 +2303,14 @@
       marketplacePreset:byId('marketplace-preset'),
       layoutGrammar:byId('layout-grammar'),
       autoHeroButton:byId('auto-hero-button'),
+      openCutoutBank:byId('open-cutout-bank'),
+      singleCutoutBank:byId('single-cutout-bank'),
+      cutoutBankDialog:byId('cutout-bank-dialog'),
+      closeCutoutBank:byId('close-cutout-bank'),
+      cutoutBankSearch:byId('cutout-bank-search'),
+      cutoutBankTarget:byId('cutout-bank-target'),
+      cutoutBankStatus:byId('cutout-bank-status'),
+      cutoutBankGrid:byId('cutout-bank-grid'),
       productSearch:byId('product-search'),
       productSearchLabel:byId('product-search-label'),
       heroPickerCount:byId('hero-picker-count'),
@@ -2210,6 +2365,11 @@
     renderHeroSlots();
     catalogReadyPromise = loadProducts();
   }
+
+  window.addEventListener('beforeunload', () => {
+    for (const url of cutoutBankBlobUrls.values()) revokeObjectUrl(url);
+    cutoutBankBlobUrls.clear();
+  });
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',start);
   else start();
