@@ -47,6 +47,7 @@ export function getEfiConfig(environmentInput = process.env.EFI_ENV || 'homologa
     p12Path: String(process.env[prefix + 'P12_PATH'] || '').trim(),
     p12Passphrase: String(process.env[prefix + 'P12_PASSPHRASE'] || ''),
     pixKey: String(process.env[prefix + 'PIX_KEY'] || '').trim(),
+    payeeCode: String(process.env[prefix + 'PAYEE_CODE'] || '').trim(),
     pixBaseUrl: production ? 'https://pix.api.efipay.com.br' : 'https://pix-h.api.efipay.com.br',
     chargesBaseUrl: production ? 'https://cobrancas.api.efipay.com.br' : 'https://cobrancas-h.api.efipay.com.br'
   };
@@ -68,6 +69,7 @@ export function efiConfigSummary(environmentInput) {
     certificateConfigured,
     certificateReadable,
     pixKeyConfigured: Boolean(config.pixKey),
+    payeeCodeConfigured: Boolean(config.payeeCode),
     pixBaseUrl: config.pixBaseUrl,
     chargesBaseUrl: config.chargesBaseUrl,
     checkoutAttached: false,
@@ -169,6 +171,120 @@ export async function getEfiPixAccessToken(environment = 'homologation', options
     error.code = 'EFI_TOKEN_MISSING'; error.statusCode = 502; throw error;
   }
   return token;
+}
+
+export async function efiChargesRequest(options = {}) {
+  const env = normalizeEnvironment(options.environment || 'homologation');
+  const config = getEfiConfig(env);
+  assertCredentials(config, false);
+  const token = await getEfiChargesAccessToken(env);
+  const response = await axios({
+    method: options.method || 'get',
+    url: config.chargesBaseUrl + (options.path || '/'),
+    data: options.data,
+    headers: {
+      Authorization: 'Bearer ' + token,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(options.headers || {})
+    },
+    timeout: 30000,
+    validateStatus: () => true
+  });
+  if (response.status < 200 || response.status >= 300) throw efiHttpError(response, 'charges_request');
+  return { status: response.status, data: response.data ?? null };
+}
+
+function normalizePayeeCode(value = '') {
+  const payeeCode = String(value || '').trim();
+  if (!/^[A-Za-z0-9_-]{16,100}$/.test(payeeCode)) {
+    const error = new Error('Identificador de conta (payee_code) Efí inválido.');
+    error.code = 'EFI_PAYEE_CODE_INVALID';
+    error.statusCode = 400;
+    throw error;
+  }
+  return payeeCode;
+}
+
+export function buildChargesSplitPercentagePayload(options = {}) {
+  const platformPercent = Number(options.platformPercent);
+  const recipients = Array.isArray(options.recipients) ? options.recipients : [];
+  const feeMode = Number(options.feeMode ?? 1);
+  const itemName = String(options.itemName || 'Produto teste Ariana Marketplace').trim().slice(0, 255);
+  const amount = Math.max(1, Math.floor(Number(options.amount || 1)));
+  const unitValueCents = Math.floor(Number(options.unitValueCents || options.valueCents || 1100));
+
+  if (!Number.isFinite(platformPercent) || platformPercent <= 0 || platformPercent >= 100) {
+    throw new Error('Percentual da Ariana deve ser maior que 0 e menor que 100.');
+  }
+  if (!recipients.length) throw new Error('Informe ao menos um favorecido para o split.');
+  if (![1, 2].includes(feeMode)) throw new Error('Modo de tarifa inválido. Use 1 ou 2.');
+  if (!Number.isFinite(unitValueCents) || unitValueCents < 1) throw new Error('Valor do item é inválido.');
+
+  const repasses = recipients.map((recipient) => {
+    const percentage = Number(recipient.percentage ?? recipient.percent);
+    if (!Number.isFinite(percentage) || percentage <= 0 || percentage >= 100) {
+      throw new Error('Percentual do favorecido é inválido.');
+    }
+    return {
+      payee_code: normalizePayeeCode(recipient.payeeCode || recipient.payee_code),
+      percentage: Math.round(percentage * 100)
+    };
+  });
+
+  const sellerTotal = repasses.reduce((sum, item) => sum + Number(item.percentage || 0), 0) / 100;
+  const total = platformPercent + sellerTotal;
+  if (Math.abs(total - 100) > 0.001) {
+    throw new Error('Os percentuais do split devem somar 100%. Soma atual: ' + total.toFixed(2) + '%.');
+  }
+
+  return {
+    items: [{
+      name: itemName,
+      value: unitValueCents,
+      amount,
+      marketplace: {
+        mode: feeMode,
+        repasses
+      }
+    }],
+    metadata: {
+      custom_id: String(options.customId || ('ARIANA-EFI-HOMOLOG-' + Date.now())).slice(0, 255)
+    }
+  };
+}
+
+export async function createChargesSplitHomologationTransaction(options = {}) {
+  const environment = normalizeEnvironment(options.environment || 'homologation');
+  if (environment !== 'homologation') {
+    const error = new Error('Transação Split de teste permitida somente em Homologação.');
+    error.code = 'EFI_HOMOLOGATION_ONLY';
+    error.statusCode = 400;
+    throw error;
+  }
+  const payload = buildChargesSplitPercentagePayload(options);
+  const response = await efiChargesRequest({
+    environment,
+    method: 'post',
+    path: '/v1/charge',
+    data: payload
+  });
+  return { ...response, payload };
+}
+
+export async function getChargesSplitHomologationTransaction(chargeIdInput) {
+  const chargeId = String(chargeIdInput || '').replace(/\D/g, '');
+  if (!chargeId) {
+    const error = new Error('charge_id Efí inválido.');
+    error.code = 'EFI_CHARGE_ID_INVALID';
+    error.statusCode = 400;
+    throw error;
+  }
+  return efiChargesRequest({
+    environment: 'homologation',
+    method: 'get',
+    path: '/v1/charge/' + chargeId
+  });
 }
 
 export async function efiPixRequest(options = {}) {
