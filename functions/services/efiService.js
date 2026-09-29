@@ -296,6 +296,54 @@ export async function createPixHomologationTestCharge(options = {}) {
   return { ...response, txid, payload };
 }
 
+
+export async function createPixWebhookHomologationProbe(options = {}) {
+  const environment = normalizeEnvironment(options.environment || 'homologation');
+  if (environment !== 'homologation') {
+    const error = new Error('Teste de webhook permitido somente em Homologação.');
+    error.code = 'EFI_HOMOLOGATION_ONLY';
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const config = getEfiConfig(environment);
+  if (!config.pixKey) {
+    const error = new Error('Chave Pix Efí de Homologação não configurada.');
+    error.code = 'EFI_PIX_KEY_MISSING';
+    error.statusCode = 503;
+    throw error;
+  }
+
+  const amount = Number(options.amount ?? 1);
+  if (!Number.isFinite(amount) || amount < 0.01 || amount > 10) {
+    const error = new Error('Para o teste de webhook em Homologação, use valor entre R$ 0,01 e R$ 10,00.');
+    error.code = 'EFI_WEBHOOK_PROBE_AMOUNT_INVALID';
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const txid = crypto.randomBytes(16).toString('hex');
+  const payload = {
+    calendario: { expiracao: 3600 },
+    valor: { original: amount.toFixed(2) },
+    chave: config.pixKey,
+    solicitacaoPagador: String(options.description || 'Teste Webhook Pix Ariana - Homologacao').slice(0, 140)
+  };
+
+  const response = await efiPixRequest({
+    environment,
+    method: 'put',
+    path: '/v2/cob/' + txid,
+    data: payload
+  });
+
+  return {
+    ...response,
+    txid,
+    payload
+  };
+}
+
 export async function linkPixChargeToSplit(options = {}) {
   const environment = normalizeEnvironment(options.environment || 'homologation');
   if (environment !== 'homologation') {
