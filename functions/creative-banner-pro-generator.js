@@ -35,6 +35,36 @@ export const PRO_TEMPLATES = Object.freeze({
     description: 'Azul vivo, feixe amarelo, energia promocional e direção de campanha.',
     mood: 'campanha',
     accent: '#FFD51B'
+  }),
+  retail_stock: Object.freeze({
+    label: 'Atacado Impacto Ariana',
+    description: 'Headline forte, produtos centrais e área comercial à direita em linguagem de grande varejo.',
+    mood: 'atacado_impacto',
+    accent: '#FFD51B'
+  }),
+  category_selection: Object.freeze({
+    label: 'Seleção Comercial',
+    description: 'Categoria destacada, palco de produtos e composição inspirada em vitrines de grande varejo.',
+    mood: 'selecao_comercial',
+    accent: '#FF8A00'
+  }),
+  stock_movement: Object.freeze({
+    label: 'Estoque em Movimento',
+    description: 'Campanha de oportunidade e giro com contraste forte e CTA de varejo.',
+    mood: 'estoque_movimento',
+    accent: '#FF7A00'
+  }),
+  tech_store: Object.freeze({
+    label: 'Tecnologia para sua Loja',
+    description: 'Fundo escuro, contraste tecnológico e produtos centrais com luz de recorte.',
+    mood: 'tecnologia_varejo',
+    accent: '#70FF00'
+  }),
+  premium_line: Object.freeze({
+    label: 'Linha Premium Comercial',
+    description: 'Fabricante ou linha em composição premium de varejo com respiro e dourado Ariana.',
+    mood: 'premium_comercial',
+    accent: '#F0CA6A'
   })
 });
 
@@ -78,7 +108,7 @@ function resolveMarketplacePreset(value = '') {
 
 function resolveMarketplaceGrammar(value = '', preset = 'impact') {
   const raw = String(value || '').trim().toUpperCase();
-  if (['A','B','C','D','E'].includes(raw)) return raw;
+  if (['A','B','C','D','E','F','G','H','I'].includes(raw)) return raw;
   return MARKETPLACE_ARIANA_PRESETS[resolveMarketplacePreset(preset)]?.preferredGrammar || 'A';
 }
 
@@ -193,7 +223,11 @@ export function getProTemplateManifest(value = '') {
         B: 'texto central/topo; produto principal central; apoios laterais',
         C: 'headline no topo; grupo de produtos abaixo; CTA discreto no rodapé',
         D: 'fabricante/linha em destaque; composição premium',
-        E: 'mini campanhas em cards quadrados/retangulares'
+        E: 'mini campanhas em cards quadrados/retangulares',
+        F: 'atacado: headline à esquerda, produtos centrais e condição à direita',
+        G: 'seleção comercial com produtos sobre palco',
+        H: 'oportunidade / estoque em movimento com CTA forte',
+        I: 'tecnologia escura com alto contraste e produtos centrais'
       },
       palette: {
         primary: '#0047AB',
@@ -1195,6 +1229,55 @@ function backgroundSvg(format, template) {
   const w = format.width;
   const h = format.height;
 
+  if (template === 'retail_stock') {
+    return Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+      '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#034FB6"/><stop offset=".55" stop-color="#0796DF"/><stop offset="1" stop-color="#04BFD7"/></linearGradient><radialGradient id="g" cx="58%" cy="55%" r="46%"><stop offset="0" stop-color="#66D7FF" stop-opacity=".35"/><stop offset="1" stop-color="#0053B6" stop-opacity="0"/></radialGradient></defs>'+
+      '<rect width="100%" height="100%" fill="url(#bg)"/><rect width="100%" height="100%" fill="url(#g)"/>'+
+      '<rect y="'+Math.round(h*.91)+'" width="'+w+'" height="'+Math.round(h*.09)+'" fill="#0B2CD6"/>'+
+      '</svg>'
+    );
+  }
+
+  if (template === 'category_selection') {
+    return Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+      '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#060B45"/><stop offset=".55" stop-color="#101271"/><stop offset="1" stop-color="#171B9A"/></linearGradient><radialGradient id="g" cx="59%" cy="74%" r="45%"><stop offset="0" stop-color="#413CFF" stop-opacity=".48"/><stop offset="1" stop-color="#080A45" stop-opacity="0"/></radialGradient></defs>'+
+      '<rect width="100%" height="100%" fill="url(#bg)"/><rect width="100%" height="100%" fill="url(#g)"/>'+
+      '<ellipse cx="'+Math.round(w*.62)+'" cy="'+Math.round(h*.92)+'" rx="'+Math.round(w*.22)+'" ry="'+Math.round(h*.10)+'" fill="#342DFF" opacity=".62"/>'+
+      '</svg>'
+    );
+  }
+
+  if (template === 'stock_movement') {
+    return Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+      '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#07104B"/><stop offset=".65" stop-color="#141A87"/><stop offset="1" stop-color="#11145F"/></linearGradient><radialGradient id="g" cx="73%" cy="60%" r="43%"><stop offset="0" stop-color="#584DFF" stop-opacity=".36"/><stop offset="1" stop-color="#080C40" stop-opacity="0"/></radialGradient></defs>'+
+      '<rect width="100%" height="100%" fill="url(#bg)"/><rect width="100%" height="100%" fill="url(#g)"/>'+
+      '<path d="M0 '+Math.round(h*.76)+' L'+w+' '+Math.round(h*.76)+' L'+w+' '+h+' L0 '+h+' Z" fill="#080E36" opacity=".48"/>'+
+      '</svg>'
+    );
+  }
+
+  if (template === 'tech_store') {
+    return Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+      '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#050505"/><stop offset=".62" stop-color="#0A0A0A"/><stop offset="1" stop-color="#07160B"/></linearGradient><radialGradient id="g" cx="83%" cy="78%" r="48%"><stop offset="0" stop-color="#45FF00" stop-opacity=".34"/><stop offset=".48" stop-color="#139A14" stop-opacity=".12"/><stop offset="1" stop-color="#000000" stop-opacity="0"/></radialGradient></defs>'+
+      '<rect width="100%" height="100%" fill="url(#bg)"/><rect width="100%" height="100%" fill="url(#g)"/>'+
+      '</svg>'
+    );
+  }
+
+  if (template === 'premium_line') {
+    return Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+      '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#06172F"/><stop offset=".55" stop-color="#0A3264"/><stop offset="1" stop-color="#03101D"/></linearGradient><radialGradient id="g" cx="78%" cy="48%" r="48%"><stop offset="0" stop-color="#F0CA6A" stop-opacity=".18"/><stop offset="1" stop-color="#F0CA6A" stop-opacity="0"/></radialGradient></defs>'+
+      '<rect width="100%" height="100%" fill="url(#bg)"/><rect width="100%" height="100%" fill="url(#g)"/>'+
+      '<line x1="'+Math.round(w*.055)+'" y1="'+Math.round(h*.87)+'" x2="'+Math.round(w*.42)+'" y2="'+Math.round(h*.87)+'" stroke="#F0CA6A" stroke-opacity=".7" stroke-width="'+Math.max(2,Math.round(h*.006))+'"/>'+
+      '</svg>'
+    );
+  }
+
   if (template === 'premium') {
     return Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '">' +
@@ -1819,6 +1902,27 @@ function multiProductSlots(format, count = 2, opts = {}) {
   const marketplaceMode = opts.generationStyle === 'marketplace';
   const grammar = marketplaceMode ? resolveMarketplaceGrammar(opts.layoutGrammar, opts.marketplacePreset) : 'A';
 
+  if (marketplaceMode && !mobile && grammar === 'F') {
+    if (n === 2) return [{x:.39,y:.17,w:.23,h:.66},{x:.57,y:.17,w:.23,h:.66}];
+    if (n === 3) return [{x:.43,y:.12,w:.22,h:.72},{x:.33,y:.30,w:.16,h:.52},{x:.60,y:.29,w:.16,h:.53}];
+    return Array.from({length:n},(_,i)=>({x:.32+i*.13,y:i%2?.25:.16,w:.15,h:i%2?.55:.66}));
+  }
+  if (marketplaceMode && !mobile && grammar === 'G') {
+    if (n === 2) return [{x:.42,y:.18,w:.23,h:.68},{x:.61,y:.18,w:.23,h:.68}];
+    if (n === 3) return [{x:.49,y:.13,w:.21,h:.72},{x:.38,y:.26,w:.17,h:.58},{x:.64,y:.26,w:.17,h:.58}];
+    return Array.from({length:n},(_,i)=>({x:.34+i*.13,y:.18+(i%2)*.09,w:.16,h:.62-(i%2)*.08}));
+  }
+  if (marketplaceMode && !mobile && grammar === 'H') {
+    if (n === 2) return [{x:.42,y:.17,w:.24,h:.69},{x:.61,y:.22,w:.21,h:.64}];
+    if (n === 3) return [{x:.48,y:.12,w:.23,h:.74},{x:.36,y:.28,w:.17,h:.56},{x:.67,y:.29,w:.16,h:.55}];
+    return Array.from({length:n},(_,i)=>({x:.34+i*.13,y:.19+(i%2)*.08,w:.16,h:.61-(i%2)*.08}));
+  }
+  if (marketplaceMode && !mobile && grammar === 'I') {
+    if (n === 2) return [{x:.39,y:.19,w:.23,h:.65},{x:.60,y:.20,w:.23,h:.64}];
+    if (n === 3) return [{x:.48,y:.17,w:.23,h:.66},{x:.34,y:.28,w:.18,h:.55},{x:.67,y:.29,w:.17,h:.54}];
+    return Array.from({length:n},(_,i)=>({x:.32+i*.14,y:.22+(i%2)*.07,w:.16,h:.58-(i%2)*.06}));
+  }
+
   if (marketplaceMode && !mobile && grammar === 'A') {
     // Marketplace Ariana refinado: 1 herói realmente dominante + 2 apoios
     // próximos, formando um conjunto comercial coeso sem invadir a área de texto.
@@ -2011,6 +2115,35 @@ function multiCampaignOverlay(format, opts, count = 2) {
   const mobile = format.device === 'mobile';
   const marketplaceMode = opts.generationStyle === 'marketplace';
   const grammar = marketplaceMode ? resolveMarketplaceGrammar(opts.layoutGrammar, opts.marketplacePreset) : 'A';
+  if (marketplaceMode && ['F','G','H','I'].includes(grammar) && !mobile) {
+    const w=format.width,h=format.height;
+    const template=resolveProTemplate(opts.template);
+    const accent = template === 'tech_store' ? '#70FF00' : template === 'premium_line' ? '#F0CA6A' : (template === 'category_selection' || template === 'stock_movement' ? '#FF8200' : '#FFD51B');
+    const x=Math.round(w*.04);
+    const headline=clean(opts.headline,72);
+    const support=clean(opts.subtitle,120);
+    const topLabel=clean(opts.badge,42);
+    const cta=clean(opts.cta,42);
+    const headlineSize=Math.round(h*(grammar==='I'?.090:.094));
+    const ctaFill = grammar === 'I' ? '#70FF00' : accent;
+    const ctaText = grammar === 'I' ? '#062009' : '#071B3B';
+    const rightX=Math.round(w*.80);
+    const rightBlock = opts.showCommercialInfo
+      ? '<text x="'+rightX+'" y="'+Math.round(h*.34)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.105)+'" font-weight="950" fill="'+accent+'">'+escapeXml(String(opts.installmentCount||12))+'x</text>'+
+        '<text x="'+rightX+'" y="'+Math.round(h*.42)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.030)+'" font-weight="800" fill="#ffffff">CONDIÇÃO COMERCIAL</text>'
+      : '';
+    return Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+      (topLabel?'<text x="'+x+'" y="'+Math.round(h*.17)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.031)+'" font-weight="900" letter-spacing="2" fill="'+accent+'">'+escapeXml(topLabel)+'</text>':'')+
+      linesSvg(wrap(headline,24,3),{x,y:Math.round(h*.31),size:headlineSize,lineHeight:Math.round(headlineSize*.98),fill:grammar==='I'?accent:'#ffffff',weight:950})+
+      linesSvg(wrap(support,34,3),{x,y:Math.round(h*.62),size:Math.round(h*.036),lineHeight:Math.round(h*.045),fill:'#ffffff',weight:650})+
+      rightBlock+
+      '<rect x="'+x+'" y="'+Math.round(h*.79)+'" width="'+Math.round(w*.145)+'" height="'+Math.round(h*.10)+'" rx="'+Math.round(h*.05)+'" fill="'+ctaFill+'"/>'+
+      '<text x="'+Math.round(x+w*.0725)+'" y="'+Math.round(h*.855)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.031)+'" font-weight="950" fill="'+ctaText+'">'+escapeXml(cta)+'</text>'+
+      '</svg>'
+    );
+  }
+
   if (marketplaceMode && ['B','C','D','E'].includes(grammar)) {
     const w=format.width,h=format.height;
     const accent = grammar === 'D' ? '#F0CA6A' : '#FFD51B';
