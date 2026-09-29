@@ -452,6 +452,24 @@ export async function refundChargesSplitCardHomologation(chargeIdInput, options 
   return { ...response, chargeId, payload };
 }
 
+export async function settleChargesSplitHomologationTransaction(chargeIdInput) {
+  const chargeId = String(chargeIdInput || '').replace(/\D/g, '');
+  if (!chargeId) {
+    const error = new Error('charge_id Efí inválido.');
+    error.code = 'EFI_CHARGE_ID_INVALID';
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const response = await efiChargesRequest({
+    environment: 'homologation',
+    method: 'put',
+    path: '/v1/charge/' + chargeId + '/settle'
+  });
+
+  return { ...response, chargeId };
+}
+
 export async function efiPixRequest(options = {}) {
   const env = normalizeEnvironment(options.environment || 'homologation');
   const config = getEfiConfig(env);
