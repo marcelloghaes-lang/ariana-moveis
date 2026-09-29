@@ -403,6 +403,24 @@ export async function getChargesSplitHomologationTransaction(chargeIdInput) {
   });
 }
 
+export async function cancelChargesSplitHomologationTransaction(chargeIdInput) {
+  const chargeId = String(chargeIdInput || '').replace(/\D/g, '');
+  if (!chargeId) {
+    const error = new Error('charge_id Efí inválido.');
+    error.code = 'EFI_CHARGE_ID_INVALID';
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const response = await efiChargesRequest({
+    environment: 'homologation',
+    method: 'put',
+    path: '/v1/charge/' + chargeId + '/cancel'
+  });
+
+  return { ...response, chargeId };
+}
+
 export async function efiPixRequest(options = {}) {
   const env = normalizeEnvironment(options.environment || 'homologation');
   const config = getEfiConfig(env);
