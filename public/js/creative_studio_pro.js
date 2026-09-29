@@ -246,9 +246,12 @@
     directProductSource = null;
   }
 
-  async function uploadOriginalSource(file) {
+  async function uploadOriginalSource(file, nameOverride = '') {
+    const blob = file instanceof Blob ? file : null;
+    if (!blob) throw new Error('Arquivo de imagem inválido.');
+    const filename = String(nameOverride || file.name || 'produto.png');
     const form = new FormData();
-    form.append('file', file);
+    form.append('file', blob, filename);
     const data = await api('/admin/creative-studio/pro/source-image', {
       method:'POST',
       body:form
@@ -258,12 +261,92 @@
     }
     return {
       sourceToken: String(data.sourceToken),
-      originalName: String(data.originalName || file.name || 'produto'),
-      mimeType: String(data.mimeType || file.type || ''),
-      bytes: Number(data.bytes || file.size || 0),
-      previewUrl: URL.createObjectURL(file),
-      sourceType: 'direct_original_upload'
+      originalName: String(data.originalName || filename || 'produto'),
+      mimeType: String(data.mimeType || blob.type || ''),
+      bytes: Number(data.bytes || blob.size || 0),
+      previewUrl: URL.createObjectURL(blob),
+      sourceType: 'direct_original_upload',
+      originalFile: file
     };
+  }
+
+  function isExpiredCreativeSourceError(error) {
+    const message = String(error?.message || error || '').toLowerCase();
+    return message.includes('imagem original temporária expirou')
+      || message.includes('creative_source_expired')
+      || message.includes('original temporaria expirou');
+  }
+
+  async function recoverDirectUploadBlob(entry = {}) {
+    if (entry?.originalFile instanceof Blob) return entry.originalFile;
+    const url = String(entry?.previewUrl || entry?.imageUrl || '').trim();
+    if (!url.startsWith('blob:')) return null;
+    try {
+      const response = await fetch(url);
+      if (!response.ok) return null;
+      return await response.blob();
+    } catch {
+      return null;
+    }
+  }
+
+  async function refreshExpiredDirectSources() {
+    let refreshed = 0;
+
+    for (let index = 0; index < heroSlots.length; index += 1) {
+      const item = heroSlots[index];
+      if (!item || item.sourceType !== 'direct_original_upload') continue;
+      const blob = await recoverDirectUploadBlob(item);
+      if (!blob) continue;
+      const source = await uploadOriginalSource(blob, item.sourceOriginalName || item.name || ('produto-' + (index + 1) + '.png'));
+      const oldPreview = String(item.imageUrl || '');
+      heroSlots[index] = {
+        ...item,
+        imageUrl: source.previewUrl,
+        sourceToken: source.sourceToken,
+        sourceOriginalName: source.originalName,
+        sourceOriginalMimeType: source.mimeType,
+        sourceOriginalBytes: source.bytes,
+        sourceType: source.sourceType,
+        originalFile: item.originalFile || blob
+      };
+      if (oldPreview.startsWith('blob:') && oldPreview !== source.previewUrl) revokeObjectUrl(oldPreview);
+      refreshed += 1;
+    }
+
+    if (directProductSource?.sourceType === 'direct_original_upload') {
+      const blob = await recoverDirectUploadBlob(directProductSource);
+      if (blob) {
+        const oldPreview = String(directProductSource.previewUrl || '');
+        const source = await uploadOriginalSource(blob, directProductSource.originalName || 'produto.png');
+        directProductSource = {
+          ...source,
+          originalFile: directProductSource.originalFile || blob
+        };
+        if (selectedProduct?.__directOriginal) {
+          selectedProduct = {
+            ...selectedProduct,
+            imageUrl: source.previewUrl,
+            sourceToken: source.sourceToken,
+            sourceOriginalName: source.originalName,
+            sourceOriginalMimeType: source.mimeType,
+            sourceOriginalBytes: source.bytes,
+            sourceType: source.sourceType,
+            originalFile: selectedProduct.originalFile || blob
+          };
+          els.imageUrl.value = source.previewUrl;
+        }
+        if (oldPreview.startsWith('blob:') && oldPreview !== source.previewUrl) revokeObjectUrl(oldPreview);
+        refreshed += 1;
+      }
+    }
+
+    if (refreshed) {
+      renderHeroSlots();
+      renderSelectedProducts();
+      lastCopyResearchSignature = '';
+    }
+    return refreshed;
   }
 
   function selectedFormat() {
@@ -576,6 +659,7 @@
         sourceOriginalMimeType: source.mimeType,
         sourceOriginalBytes: source.bytes,
         sourceType: source.sourceType,
+        originalFile: source.originalFile || file,
         category: inferredCategory,
         categoryName: previous.categoryName || inferredCategory,
         __heroUploaded: true,
@@ -1256,6 +1340,7 @@
         sourceOriginalMimeType: source.mimeType,
         sourceOriginalBytes: source.bytes,
         sourceType: source.sourceType,
+        originalFile: source.originalFile || file,
         category: inferredCategory,
         categoryName: selectedProduct?.categoryName || inferredCategory,
         __directOriginal: true
@@ -1451,7 +1536,8 @@
     els.previewLoading.classList.toggle('hidden',!busy);
   }
 
-  async function generatePreview() {
+  async function generatePreview(options = {}) {
+    const retryExpiredSource = options?.retryExpiredSource !== false;
     setBusy(true);
 
     await applyInternetCampaignCopy();
@@ -1503,6 +1589,19 @@
         status('Prévia Pro aprovada na qualidade mínima. Confira a arte antes de salvar.', 'ok');
       }
     } catch (error) {
+      if (retryExpiredSource && isExpiredCreativeSourceError(error)) {
+        try {
+          status('A imagem temporária perdeu o vínculo após reinício do servidor. Reconectando os produtos automaticamente...', '');
+          const refreshed = await refreshExpiredDirectSources();
+          if (refreshed > 0) {
+            setBusy(false);
+            return generatePreview({ retryExpiredSource:false });
+          }
+        } catch (refreshError) {
+          status('Não consegui reconectar a imagem temporária: ' + refreshError.message, 'error');
+          return;
+        }
+      }
       status('Falha ao gerar a prévia Pro: ' + error.message,'error');
     } finally {
       setBusy(false);
