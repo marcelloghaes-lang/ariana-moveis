@@ -71,6 +71,7 @@
       <button class="btn light" onclick="queryChargesSplitTransaction()">Consultar transação</button>
       <button class="btn light" onclick="cancelChargesSplitTransaction()">Cancelar cobrança de Homologação</button>
       <button class="btn" onclick="runBoletoSplitTest()">Emitir boleto teste com Split</button>
+      <button id="boletoCancelBtn" class="btn light" onclick="runBoletoCancelTest()">Testar boleto + cancelamento</button>
     </div>
     <pre id="chargesOut" class="pre">Aguardando configuração do payee_code do fabricante.</pre>
 
@@ -253,6 +254,70 @@ async function runBoletoSplitTest(){
   }
   chargesOut.textContent=JSON.stringify(d,null,2);
  }catch(e){chargesOut.textContent='Falha: '+e.message}
+}
+
+async function runBoletoCancelTest(){
+ const btn=document.getElementById('boletoCancelBtn');
+ if(!confirm('Criar um boleto Split e cancelá-lo em seguida somente na Homologação Efí?'))return;
+ btn.disabled=true;
+ const result={
+  ok:false,
+  provider:'efi',
+  environment:'homologation',
+  scenario:'boleto_split_cancel',
+  steps:{}
+ };
+ try{
+  chargesOut.textContent='Etapa 1/3 — criando boleto Split em Homologação...';
+  const boleto=await api('/admin/payments/efi/homologation/split-charges/boleto-test',{
+   method:'POST',
+   body:JSON.stringify(chargesSplitBody())
+  });
+  result.steps.boleto={
+   ok:Boolean(boleto?.ok),
+   chargeId:boleto?.chargeId||null,
+   status:boleto?.status||null,
+   payment:boleto?.payment||null,
+   total:boleto?.total||null,
+   split:boleto?.split||null
+  };
+  if(!boleto?.chargeId) throw new Error('Efí não retornou chargeId para o boleto de teste.');
+
+  const id=String(boleto.chargeId);
+  document.getElementById('chargesChargeId').value=id;
+  localStorage.setItem('efiLastChargesSplitChargeId',id);
+
+  chargesOut.textContent='Etapa 1/3 OK — boleto '+id+' em '+(boleto.status||'waiting')+'.\n\nEtapa 2/3 — cancelando cobrança...';
+  const canceled=await api('/admin/payments/efi/homologation/split-charges/transaction/'+encodeURIComponent(id)+'/cancel',{
+   method:'PUT',
+   body:'{}'
+  });
+  result.steps.cancel=canceled;
+
+  chargesOut.textContent='Etapas 1/3 e 2/3 OK.\n\nEtapa 3/3 — consultando status final...';
+  const query=await api('/admin/payments/efi/homologation/split-charges/transaction/'+encodeURIComponent(id));
+  const data=query?.data?.data||query?.data||{};
+  const finalStatus=String(data?.status||canceled?.status||'').toLowerCase();
+  result.steps.query={
+   ok:Boolean(query?.ok),
+   status:data?.status||canceled?.status||null,
+   payment:data?.payment?.payment_method||null
+  };
+  result.ok=finalStatus==='canceled';
+  result.summary={
+   chargeId:id,
+   initialStatus:boleto?.status||null,
+   cancelHttpStatus:canceled?.cancelHttpStatus||null,
+   finalStatus:data?.status||canceled?.status||null,
+   split:boleto?.split||null
+  };
+  chargesOut.textContent=JSON.stringify(result,null,2);
+ }catch(e){
+  result.error=e?.message||String(e);
+  chargesOut.textContent=JSON.stringify(result,null,2);
+ }finally{
+  btn.disabled=false;
+ }
 }
 
 async function runCardSplitTest(){
