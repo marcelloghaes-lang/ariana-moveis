@@ -641,7 +641,7 @@ test('Marketplace Ariana exporta presets e gramáticas no manifesto', () => {
   assert.equal(manifest.rules.branding.ownSiteUrlInsideOwnSiteBanner, false);
 });
 
-test('Marketplace Ariana Hero Desktop renderiza em 3x e exporta na dimensão oficial', async () => {
+test('Marketplace Ariana Hero Desktop renderiza em 2x estável e exporta na dimensão oficial', async () => {
   const result = await generateCreativeBannerProMulti(
     [MULTI_TV, MULTI_FRIDGE, MULTI_WASHER],
     {
@@ -660,8 +660,8 @@ test('Marketplace Ariana Hero Desktop renderiza em 3x e exporta na dimensão ofi
   const meta = await sharp(result.buffer).metadata();
   assert.equal(meta.width, 1920);
   assert.equal(meta.height, 480);
-  assert.equal(result.meta.renderScale, 3);
-  assert.equal(result.meta.renderQuality, 'supersampled_3x_lanczos3_selective_sharpen');
+  assert.equal(result.meta.renderScale, 2);
+  assert.equal(result.meta.renderQuality, 'supersampled_2x_lanczos3_selective_sharpen');
   assert.equal(result.meta.quality.blockSave, false);
 });
 
