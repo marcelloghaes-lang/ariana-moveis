@@ -32,6 +32,17 @@ export default function registerEfiRoutes(app, context = {}) {
     }).catch(() => null);
   }
 
+  function chargesTestRecipients(body = {}) {
+    const supplied = Array.isArray(body?.recipients)
+      ? body.recipients.filter((item) => String(item?.payeeCode || item?.payee_code || '').trim())
+      : [];
+    if (supplied.length) return supplied;
+
+    const payeeCode = String(process.env.EFI_HOMOLOG_TEST_PAYEE_CODE || '').trim();
+    if (!payeeCode) return [];
+    return [{ percentage: Number(body?.sellerPercent ?? 88), payeeCode }];
+  }
+
   function safeEqualText(a = '', b = '') {
     const left = Buffer.from(String(a || ''), 'utf8');
     const right = Buffer.from(String(b || ''), 'utf8');
@@ -561,7 +572,7 @@ export default function registerEfiRoutes(app, context = {}) {
       const created = await createChargesSplitHomologationTransaction({
         environment: 'homologation',
         platformPercent: req.body?.platformPercent ?? 12,
-        recipients: req.body?.recipients || [],
+        recipients: chargesTestRecipients(req.body),
         feeMode: req.body?.feeMode ?? 2,
         itemName: req.body?.itemName || 'Produto teste Ariana Marketplace - Cartao',
         unitValueCents: req.body?.unitValueCents || 1100,
@@ -638,7 +649,7 @@ export default function registerEfiRoutes(app, context = {}) {
       const created = await createChargesSplitHomologationTransaction({
         environment: 'homologation',
         platformPercent: req.body?.platformPercent ?? 12,
-        recipients: req.body?.recipients || [],
+        recipients: chargesTestRecipients(req.body),
         feeMode: req.body?.feeMode ?? 2,
         itemName: req.body?.itemName || 'Produto teste Ariana Marketplace - Boleto',
         unitValueCents: req.body?.unitValueCents || 1100,
