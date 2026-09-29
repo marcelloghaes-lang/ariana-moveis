@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, createPixHomologationTestCharge, createPixWebhookHomologationProbe, linkPixChargeToSplit, getPixSplitCharge, runPixSplitHomologationTest, configurePixWebhook, getPixWebhook, buildChargesSplitPercentagePayload, createChargesSplitHomologationTransaction, getChargesSplitHomologationTransaction } from '../services/efiService.js';
+import { efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, createPixHomologationTestCharge, createPixWebhookHomologationProbe, linkPixChargeToSplit, getPixSplitCharge, runPixSplitHomologationTest, configurePixWebhook, getPixWebhook, buildChargesSplitPercentagePayload, createChargesSplitHomologationTransaction, payChargesSplitBoletoHomologation, getChargesSplitHomologationTransaction } from '../services/efiService.js';
 
 function safeProviderError(error = {}) {
   const providerData = error?.providerData || {};
@@ -535,6 +535,81 @@ export default function registerEfiRoutes(app, context = {}) {
     }
   });
 
+  app.post('/api/admin/payments/efi/homologation/split-charges/boleto-test', adminRequired, async (req, res) => {
+    try {
+      const created = await createChargesSplitHomologationTransaction({
+        environment: 'homologation',
+        platformPercent: req.body?.platformPercent ?? 12,
+        recipients: req.body?.recipients || [],
+        feeMode: req.body?.feeMode ?? 2,
+        itemName: req.body?.itemName || 'Produto teste Ariana Marketplace - Boleto',
+        unitValueCents: req.body?.unitValueCents || 1100,
+        amount: req.body?.amount || 1,
+        customId: req.body?.customId || ('ARIANA-EFI-BOLETO-' + Date.now())
+      });
+      const chargeId = created.data?.data?.charge_id || created.data?.charge_id || null;
+      if (!chargeId) throw new Error('Efí não retornou charge_id para o teste de boleto.');
+
+      const paid = await payChargesSplitBoletoHomologation(chargeId, {});
+      const queried = await getChargesSplitHomologationTransaction(chargeId);
+
+      const data = queried.data?.data || queried.data || {};
+      const repasses = data?.items?.[0]?.marketplace?.repasses || [];
+      const response = {
+        ok: true,
+        provider: 'efi',
+        environment: 'homologation',
+        chargeId,
+        status: data?.status || paid.data?.data?.status || paid.data?.status || null,
+        total: data?.total || created.data?.data?.total || created.data?.total || null,
+        payment: data?.payment?.payment_method || paid.data?.data?.payment || paid.data?.payment || 'banking_billet',
+        boleto: {
+          barcode: paid.data?.data?.barcode || paid.data?.barcode || null,
+          link: paid.data?.data?.billet_link || paid.data?.data?.link || paid.data?.billet_link || paid.data?.link || null,
+          pdf: paid.data?.data?.pdf?.charge || paid.data?.pdf?.charge || null,
+          expireAt: paid.data?.data?.expire_at || paid.data?.expire_at || null
+        },
+        split: {
+          repassesCount: Array.isArray(repasses) ? repasses.length : 0,
+          sellerPercentage: Array.isArray(repasses) ? (repasses.find((x) => Number(x?.percentage) === 8800)?.percentage ?? repasses[0]?.percentage ?? null) : null
+        }
+      };
+
+      await audit({
+        eventType: 'efi_homologation_boleto_split_test',
+        status: 'success',
+        statusCode: 200,
+        message: 'Boleto Split da API Cobranças criado em Homologação.',
+        environment: 'homologation',
+        integrationId: String(chargeId),
+        metadata: {
+          chargeId,
+          status: response.status,
+          payment: response.payment,
+          repassesCount: response.split.repassesCount,
+          sellerPercentage: response.split.sellerPercentage
+        }
+      });
+
+      return res.json(response);
+    } catch (error) {
+      const safe = safeProviderError(error);
+      await audit({
+        eventType: 'efi_homologation_boleto_split_test',
+        status: 'error',
+        statusCode: safe.statusCode,
+        message: safe.message,
+        environment: 'homologation'
+      });
+      return res.status(safe.statusCode >= 400 && safe.statusCode < 600 ? safe.statusCode : 500).json({
+        ok: false,
+        provider: 'efi',
+        environment: 'homologation',
+        ...safe
+      });
+    }
+  });
+
   app.get('/api/admin/payments/efi/homologation/split-charges/transaction/:chargeId', adminRequired, async (req, res) => {
     try {
       const result = await getChargesSplitHomologationTransaction(req.params.chargeId);
@@ -651,6 +726,57 @@ if (
         }));
       } catch (error) {
         console.error('[EFI CHARGES SPLIT PROBE] ERROR', JSON.stringify(safeProviderError(error)));
+      }
+    }, 12000);
+    timer.unref?.();
+  }
+
+
+  if (
+    String(process.env.EFI_INTERNAL_BOLETO_SPLIT_PROBE_ON_START || 'false').toLowerCase() === 'true' &&
+    !globalThis.__arianaEfiBoletoSplitProbeStarted
+  ) {
+    globalThis.__arianaEfiBoletoSplitProbeStarted = true;
+    const timer = setTimeout(async () => {
+      try {
+        const payeeCode = String(process.env.EFI_HOMOLOG_TEST_PAYEE_CODE || '').trim();
+        if (!payeeCode) throw new Error('EFI_HOMOLOG_TEST_PAYEE_CODE não configurado.');
+
+        const created = await createChargesSplitHomologationTransaction({
+          environment: 'homologation',
+          platformPercent: 12,
+          recipients: [{ percentage: 88, payeeCode }],
+          feeMode: 2,
+          itemName: 'Produto teste Ariana Marketplace - Boleto',
+          unitValueCents: 1100,
+          amount: 1,
+          customId: 'ARIANA-EFI-BOLETO-PROBE-' + Date.now()
+        });
+
+        const chargeId = created.data?.data?.charge_id || created.data?.charge_id || null;
+        if (!chargeId) throw new Error('Efí não retornou charge_id.');
+
+        const paid = await payChargesSplitBoletoHomologation(chargeId, {});
+        const queried = await getChargesSplitHomologationTransaction(chargeId);
+        const data = queried.data?.data || queried.data || {};
+        const repasses = data?.items?.[0]?.marketplace?.repasses || [];
+
+        console.log('[EFI BOLETO SPLIT PROBE] RESULT', JSON.stringify({
+          ok: true,
+          chargeId,
+          createStatus: created.status,
+          payStatus: paid.status,
+          queryStatus: queried.status,
+          chargeStatus: data?.status || null,
+          paymentMethod: data?.payment?.payment_method || paid.data?.data?.payment || paid.data?.payment || null,
+          total: data?.total || null,
+          repassesCount: Array.isArray(repasses) ? repasses.length : 0,
+          sellerPercentage: Array.isArray(repasses) ? (repasses.find((x) => Number(x?.percentage) === 8800)?.percentage ?? repasses[0]?.percentage ?? null) : null,
+          boletoLink: Boolean(paid.data?.data?.billet_link || paid.data?.data?.link || paid.data?.billet_link || paid.data?.link),
+          environment: 'homologation'
+        }));
+      } catch (error) {
+        console.error('[EFI BOLETO SPLIT PROBE] ERROR', JSON.stringify(safeProviderError(error)));
       }
     }, 12000);
     timer.unref?.();
