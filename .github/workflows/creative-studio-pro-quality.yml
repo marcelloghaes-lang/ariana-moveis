@@ -14,9 +14,15 @@ on:
       - 'functions/tests/creative-campaign-ai-director-service.test.mjs'
       - 'functions/tests/creative-campaign-research-service.test.mjs'
       - 'functions/tests/creative-product-rebuild-service.test.mjs'
+      - 'functions/tests/creative-cutout-bank-service.test.mjs'
       - 'functions/tests/render-creative-banner-pro-snapshots.mjs'
       - 'public/js/creative_studio_pro.js'
       - 'public/creative_studio_pro.html'
+      - 'public/js/creative_cutout_studio.js'
+      - 'public/creative_cutout_studio.html'
+      - 'public/css/creative_cutout_studio.css'
+      - 'public/manifest-creative-cutout-studio.json'
+      - 'public/sw-creative-cutout-studio.js'
       - 'public/js/creative_cutout_studio.js'
       - 'public/creative_cutout_studio.html'
       - 'public/css/creative_cutout_studio.css'
@@ -28,11 +34,16 @@ on:
     paths:
       - 'functions/creative-banner-pro-generator.js'
       - 'functions/routes/adminCoreRoutes.js'
+      - 'functions/routes/creativeCutoutStudioRoutes.js'
+      - 'functions/services/creativeCutoutBankService.js'
+      - 'functions/services/creativeProductRebuildService.js'
       - 'functions/services/creativeCampaignResearchService.js'
       - 'functions/services/creativeCampaignAiDirectorService.js'
       - 'functions/tests/creative-banner-pro-generator.test.mjs'
       - 'functions/tests/creative-campaign-ai-director-service.test.mjs'
       - 'functions/tests/creative-campaign-research-service.test.mjs'
+      - 'functions/tests/creative-product-rebuild-service.test.mjs'
+      - 'functions/tests/creative-cutout-bank-service.test.mjs'
       - 'functions/tests/render-creative-banner-pro-snapshots.mjs'
       - 'public/js/creative_studio_pro.js'
       - 'public/creative_studio_pro.html'
@@ -65,7 +76,7 @@ jobs:
           node --check ../public/js/creative_cutout_studio.js
           node --check ../public/sw-creative-cutout-studio.js
       - name: Creative Studio Pro regressions
-        run: node --test tests/creative-banner-pro-generator.test.mjs tests/creative-campaign-research-service.test.mjs tests/creative-campaign-ai-director-service.test.mjs tests/creative-product-rebuild-service.test.mjs
+        run: node --test tests/creative-banner-pro-generator.test.mjs tests/creative-campaign-research-service.test.mjs tests/creative-campaign-ai-director-service.test.mjs tests/creative-product-rebuild-service.test.mjs tests/creative-cutout-bank-service.test.mjs
 
       - name: Render visual snapshots
         run: node tests/render-creative-banner-pro-snapshots.mjs

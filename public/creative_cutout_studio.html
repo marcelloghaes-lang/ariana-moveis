@@ -36,7 +36,7 @@
       <div>
         <span class="eyebrow">FASE 1 • RECORTE + BANCO MESTRE</span>
         <h1>Prepare uma vez. Use a imagem aprovada sempre.</h1>
-        <p>Envie a foto original. Produtos simples são recortados; ventiladores e estruturas difíceis são reconstruídos integralmente pela IA a partir do original antes de entrar no Banco Mestre.</p>
+        <p>Envie a foto original. O Studio preserva primeiro os pixels reais em alta qualidade, tenta o recorte real e só usa IA como fallback quando o quality gate reprovar.</p>
       </div>
       <div class="summary-grid" aria-label="Resumo do banco">
         <div><b id="summary-total">—</b><span>Total</span></div>
@@ -92,7 +92,7 @@
 
         <div class="phase-note">
           <b>Nesta fase</b>
-          <p>O Creative Studio Pro ainda não busca automaticamente o Banco Mestre. Essa ligação fica para a Fase 2 depois que os recortes estiverem aprovados.</p>
+          <p>O Creative Studio Pro ainda não busca automaticamente o Banco Mestre. Nesta fase, o foco é criar PNGs Mestres fiéis ao produto real e aprovados visualmente.</p>
         </div>
       </aside>
 
@@ -164,7 +164,7 @@
     </article>
   </template>
 
-  <script src="./js/creative_cutout_studio.js?v=20260928-master-original-1"></script>
+  <script src="./js/creative_cutout_studio.js?v=20260928-preserve-original-1"></script>
   <script src="./pwa-register.js?v=20260928-6" data-sw="./sw-creative-cutout-studio.js" data-scope="./creative_cutout_studio.html"></script>
 </body>
 </html>
