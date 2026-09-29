@@ -1617,7 +1617,46 @@
     }
   }
 
+  function downloadPreviewBlob(blob) {
+    if (!(blob instanceof Blob) || blob.size <= 0) {
+      throw new Error('A prévia aprovada não está disponível para salvar.');
+    }
+    const baseName = contentMode === 'multi_product'
+      ? (els.brandLabel.value.trim() || 'campanha-ariana')
+      : (els.productName.value || 'banner-ariana-pro');
+    const fileName = normalize(baseName).replace(/\s+/g,'-') + '-' + selectedFormat() + '-pro.png';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url),1500);
+  }
+
   async function saveHighResolution() {
+    if (!qualityAllowsSave) {
+      status('O PNG em alta só é liberado quando o controle de qualidade está aprovado.', 'error');
+      return;
+    }
+
+    // A prévia Pro já é renderizada na dimensão final oficial (ex.: 1920x480)
+    // com o mesmo pipeline de qualidade. Salvar o próprio preview evita uma
+    // segunda renderização pesada no backend e torna o botão confiável.
+    if (previewBlob instanceof Blob && previewBlob.size > 0) {
+      try {
+        els.saveButton.disabled = true;
+        downloadPreviewBlob(previewBlob);
+        status('PNG Pro em alta salvo no dispositivo.', 'ok');
+      } catch (error) {
+        status('Falha ao salvar: ' + error.message, 'error');
+      } finally {
+        els.saveButton.disabled = !previewBlob || !qualityAllowsSave;
+      }
+      return;
+    }
+
     let payload;
     try {
       payload = buildPayload();
@@ -1633,19 +1672,9 @@
         method:'POST',
         body:JSON.stringify(payload)
       },'blob');
-      const baseName = contentMode === 'multi_product'
-        ? (els.brandLabel.value.trim() || 'campanha-ariana')
-        : (els.productName.value || 'banner-ariana-pro');
-      const fileName = normalize(baseName).replace(/\s+/g,'-') + '-' + selectedFormat() + '-pro.png';
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url),1000);
-      status('PNG Pro salvo no dispositivo.', 'ok');
+      previewBlob = blob;
+      downloadPreviewBlob(blob);
+      status('PNG Pro em alta salvo no dispositivo.', 'ok');
     } catch (error) {
       status('Falha ao salvar: ' + error.message,'error');
     } finally {
