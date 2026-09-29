@@ -117,7 +117,7 @@ async function imageMetadata(buffer) {
 
 function qualityScore(asset = {}, productText = '') {
   const repair = asset.repairMetrics || {};
-  const fan = isFanCreativeProduct(productText);
+  const difficult = isDifficultCreativeProduct(productText);
   const width = Number(asset.width || 0);
   const height = Number(asset.height || 0);
   const longEdge = Math.max(width, height);
@@ -130,8 +130,8 @@ function qualityScore(asset = {}, productText = '') {
   if (repair.whiteHaloOk !== false) score += 14;
   if (repair.thinStructureDamageOk !== false) score += 14;
 
-  if (fan) {
-    if (longEdge >= 1300 && shortEdge >= 480) score += 4;
+  if (difficult) {
+    if (longEdge >= 1200 && shortEdge >= 420) score += 4;
     else score -= 16;
   } else if (longEdge >= 700) {
     score += 4;
@@ -486,8 +486,8 @@ export async function reprocessCreativeCutoutAsset({
   const requestedMode = mode === 'ai_repair' ? 'ai_repair' : 'standard';
   const safeMode = difficultProduct ? 'ai_master' : requestedMode;
   const startedAt = now();
-  const processingLeaseMs = safeMode === 'ai_repair'
-    ? 8 * 60 * 1000
+  const processingLeaseMs = ['ai_repair','ai_master'].includes(safeMode)
+    ? 15 * 60 * 1000
     : 4 * 60 * 1000;
   const expiresAt = new Date(startedAt.getTime() + processingLeaseMs);
 
