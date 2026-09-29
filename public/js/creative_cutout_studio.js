@@ -278,7 +278,10 @@
   }
 
   function processingMessage(asset = {}) {
-    const mode = asset?.processing?.mode === 'ai_repair' ? 'A IA está reconstruindo' : 'O recorte está sendo reprocessado';
+    const aiMode = ['ai_repair','ai_master'].includes(String(asset?.processing?.mode || ''));
+    const mode = aiMode
+      ? 'A IA está reconstruindo o produto original em Master HQ'
+      : 'O recorte está sendo reprocessado';
     return mode + '. Você pode sair desta tela; ao voltar, o resultado será atualizado automaticamente.';
   }
 
@@ -286,11 +289,20 @@
     if (!card) return;
     const busy = processingActive(asset);
     card.querySelectorAll('button[data-action]').forEach(button => {
+      const action = button.dataset.action;
       if (busy) {
-        button.disabled = button.dataset.action !== 'download';
+        button.disabled = action !== 'download' || !asset.cutoutUrl;
         return;
       }
-      button.disabled = button.dataset.action === 'approve' && !asset.cutoutUrl;
+      if (action === 'approve') {
+        button.disabled = !asset.cutoutUrl || (asset.masterRebuildRequired && !asset.masterReady);
+        return;
+      }
+      if (action === 'download') {
+        button.disabled = !asset.cutoutUrl;
+        return;
+      }
+      button.disabled = false;
     });
   }
 
@@ -339,6 +351,26 @@
     );
   }
 
+  function isDifficultAsset(asset = {}) {
+    if (asset.difficultProduct === true || asset.masterRebuildRequired === true) return true;
+    return /(ventilador|\bfan\b|cadeira|banqueta|cesto|fruteira|grade|grelha|ripad|aramad|treli[cç]a|estrutura\s+vazada|vazad[oa])/i.test(
+      [asset.category, asset.name].filter(Boolean).join(' ')
+    );
+  }
+
+  function isDifficultInput() {
+    return /(ventilador|\bfan\b|cadeira|banqueta|cesto|fruteira|grade|grelha|ripad|aramad|treli[cç]a|estrutura\s+vazada|vazad[oa])/i.test(
+      [els.category?.value, els.name?.value].filter(Boolean).join(' ')
+    );
+  }
+
+  function syncCreateButtonCopy() {
+    if (!els.create) return;
+    els.create.textContent = isDifficultInput()
+      ? 'Reconstruir original HQ e adicionar'
+      : 'Recortar e adicionar ao Banco Mestre';
+  }
+
   function syncPanelMode() {
     const master = currentStatus === 'approved';
     if (els.panelEyebrow) els.panelEyebrow.textContent = master ? '📁 BANCO MESTRE' : 'ÁREA DE TRABALHO';
@@ -351,6 +383,8 @@
   }
 
   function shortMode(mode = '') {
+    if (mode === 'ai_master') return 'IA Master HQ';
+    if (mode === 'ai_master_failed') return 'IA Master pendente';
     if (mode === 'ai_repair') return 'IA';
     if (/superres/i.test(mode)) return 'Super-res';
     if (/cloudinary/i.test(mode)) return 'Segmentação';
@@ -410,9 +444,7 @@
     node.querySelector('.quality-resolution').textContent = asset.processed
       ? Number(asset.processed.width || 0) + '×' + Number(asset.processed.height || 0)
       : '—';
-    node.querySelector('.quality-mode').textContent = asset.processMode === 'ai_repair'
-      ? 'IA'
-      : shortMode(q.removalMode || asset.processMode);
+    node.querySelector('.quality-mode').textContent = shortMode(asset.processMode || q.removalMode);
 
     const flags = node.querySelector('.quality-flags');
     for (const [label, ok] of qualityFlags(asset)) {
@@ -441,8 +473,14 @@
 
 
     const aiButton = node.querySelector('[data-action="ai"]');
-    if (aiButton && isFanAsset(asset)) {
-      aiButton.textContent = 'Reconstruir ventilador HQ';
+    const reprocessButton = node.querySelector('[data-action="reprocess"]');
+    if (aiButton && isDifficultAsset(asset)) {
+      aiButton.textContent = isFanAsset(asset)
+        ? 'Reconstruir ventilador original HQ'
+        : 'Reconstruir produto original HQ';
+    }
+    if (reprocessButton && isDifficultAsset(asset)) {
+      reprocessButton.classList.add('hidden');
     }
 
     if (asset.status === 'approved') {
@@ -472,9 +510,10 @@
     const originalStage = node.querySelector('.original-stage');
     const cutoutStage = node.querySelector('.cutout-stage');
 
+    const showCandidate = !asset.masterRebuildRequired || asset.masterReady;
     const [originalUrl, cutoutUrl] = await Promise.all([
       secureBlobUrl(asset.originalUrl),
-      asset.cutoutUrl ? secureBlobUrl(asset.cutoutUrl) : Promise.resolve('')
+      showCandidate && asset.cutoutUrl ? secureBlobUrl(asset.cutoutUrl) : Promise.resolve('')
     ]);
 
     originalStage.innerHTML = '';
@@ -490,7 +529,9 @@
       cutout.alt = 'Recorte de ' + (asset.name || 'produto');
       cutoutStage.appendChild(cutout);
     } else {
-      cutoutStage.textContent = 'Sem recorte';
+      cutoutStage.innerHTML = asset.masterRebuildRequired
+        ? '<span>Reconstrução IA Master HQ pendente.<br>O recorte comum não será usado para este produto.</span>'
+        : '<span>Sem recorte</span>';
     }
   }
 
@@ -510,7 +551,11 @@
     try {
       if (action === 'reprocess' || action === 'ai') {
         message.textContent = action === 'ai'
-          ? 'A IA está reconstruindo e validando o mesmo produto. Isso pode levar alguns segundos...'
+          ? (
+              isDifficultAsset(asset)
+                ? 'Reconstruindo o produto inteiro a partir da foto original em Master HQ. O sistema não vai aceitar modelo genérico.'
+                : 'A IA está reconstruindo e validando o mesmo produto. Isso pode levar alguns segundos...'
+            )
           : 'Reprocessando o arquivo original...';
         const result = await api('/admin/creative-cutout-studio/assets/' + asset.id + '/reprocess', {
           method:'POST',
@@ -524,7 +569,9 @@
           ) {
             throw new Error('A IA não confirmou uma reconstrução segura. O recorte anterior foi mantido.');
           }
-          message.textContent = 'Nova imagem reconstruída pela IA e validada. Compare antes de aprovar.';
+          message.textContent = isDifficultAsset(asset)
+            ? 'PNG Mestre reconstruído do original e aprovado pelo controle de fidelidade. Compare antes de aprovar.'
+            : 'Nova imagem reconstruída pela IA e validada. Compare antes de aprovar.';
         } else {
           message.textContent = 'Novo recorte criado a partir do original.';
         }
@@ -611,7 +658,12 @@
   async function createAsset() {
     if (!selectedFile) return;
     els.create.disabled = true;
-    setStatus(els.uploadStatus, 'Enviando o original e preparando o primeiro recorte...');
+    setStatus(
+      els.uploadStatus,
+      isDifficultInput()
+        ? 'Produto difícil detectado. Enviando o original direto para reconstrução integral IA Master HQ...'
+        : 'Enviando o original e preparando o primeiro recorte...'
+    );
 
     try {
       const form = new FormData();
@@ -626,11 +678,22 @@
         body:form
       });
 
-      setStatus(
-        els.uploadStatus,
-        'Imagem adicionada. Compare o original com o recorte e aprove somente quando estiver correto.',
-        'ok'
-      );
+      const createdAsset = data.asset || {};
+      if (createdAsset.masterRebuildRequired && !createdAsset.masterReady) {
+        setStatus(
+          els.uploadStatus,
+          'Original salvo. A reconstrução Master HQ ainda não foi aprovada; o sistema não usou um recorte comum como substituto.',
+          'error'
+        );
+      } else {
+        setStatus(
+          els.uploadStatus,
+          createdAsset.masterRebuildRequired
+            ? 'Imagem Mestre HQ reconstruída a partir do original. Compare e aprove somente se estiver fiel.'
+            : 'Imagem adicionada. Compare o original com o recorte e aprove somente quando estiver correto.',
+          'ok'
+        );
+      }
 
       selectedFile = null;
       els.file.value = '';
@@ -674,6 +737,9 @@
   });
 
   els.create.addEventListener('click', createAsset);
+  els.name?.addEventListener('input', syncCreateButtonCopy);
+  els.category?.addEventListener('input', syncCreateButtonCopy);
+  syncCreateButtonCopy();
   els.installApp?.addEventListener('click', promptInstall);
   syncInstallButton();
 
