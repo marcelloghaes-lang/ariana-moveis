@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, createPixHomologationTestCharge, createPixWebhookHomologationProbe, linkPixChargeToSplit, getPixSplitCharge, runPixSplitHomologationTest, configurePixWebhook, getPixWebhook } from '../services/efiService.js';
+import { efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, createPixHomologationTestCharge, createPixWebhookHomologationProbe, linkPixChargeToSplit, getPixSplitCharge, runPixSplitHomologationTest, configurePixWebhook, getPixWebhook, buildChargesSplitPercentagePayload, createChargesSplitHomologationTransaction, getChargesSplitHomologationTransaction } from '../services/efiService.js';
 
 function safeProviderError(error = {}) {
   const providerData = error?.providerData || {};
@@ -463,6 +463,99 @@ export default function registerEfiRoutes(app, context = {}) {
     }
   });
 
+  app.post('/api/admin/payments/efi/homologation/split-charges/preview', adminRequired, async (req, res) => {
+    try {
+      const payload = buildChargesSplitPercentagePayload({
+        platformPercent: req.body?.platformPercent,
+        recipients: req.body?.recipients || [],
+        feeMode: req.body?.feeMode ?? 1,
+        itemName: req.body?.itemName || 'Produto teste Ariana Marketplace',
+        unitValueCents: req.body?.unitValueCents || 1100,
+        amount: req.body?.amount || 1,
+        customId: req.body?.customId || ''
+      });
+      return res.json({
+        ok: true,
+        provider: 'efi',
+        environment: 'homologation',
+        sendsMoney: false,
+        paymentCreated: false,
+        payload
+      });
+    } catch (error) {
+      return res.status(400).json({ ok: false, provider: 'efi', error: error.message || 'Split de Cobranças inválido.' });
+    }
+  });
+
+  app.post('/api/admin/payments/efi/homologation/split-charges/transaction', adminRequired, async (req, res) => {
+    try {
+      const result = await createChargesSplitHomologationTransaction({
+        environment: 'homologation',
+        platformPercent: req.body?.platformPercent,
+        recipients: req.body?.recipients || [],
+        feeMode: req.body?.feeMode ?? 1,
+        itemName: req.body?.itemName || 'Produto teste Ariana Marketplace',
+        unitValueCents: req.body?.unitValueCents || 1100,
+        amount: req.body?.amount || 1,
+        customId: req.body?.customId || ''
+      });
+      const chargeId = result.data?.data?.charge_id || result.data?.charge_id || null;
+      await audit({
+        eventType: 'efi_homologation_charges_split_transaction',
+        status: 'success',
+        statusCode: result.status,
+        message: 'Transação Split da API Cobranças criada em Homologação.',
+        environment: 'homologation',
+        integrationId: chargeId ? String(chargeId) : null,
+        request: result.payload,
+        response: result.data
+      });
+      return res.status(result.status).json({
+        ok: true,
+        provider: 'efi',
+        environment: 'homologation',
+        chargeId,
+        data: result.data || null
+      });
+    } catch (error) {
+      const safe = safeProviderError(error);
+      await audit({
+        eventType: 'efi_homologation_charges_split_transaction',
+        status: 'error',
+        statusCode: safe.statusCode,
+        message: safe.message,
+        environment: 'homologation'
+      });
+      return res.status(safe.statusCode >= 400 && safe.statusCode < 600 ? safe.statusCode : 500).json({
+        ok: false,
+        provider: 'efi',
+        environment: 'homologation',
+        ...safe
+      });
+    }
+  });
+
+  app.get('/api/admin/payments/efi/homologation/split-charges/transaction/:chargeId', adminRequired, async (req, res) => {
+    try {
+      const result = await getChargesSplitHomologationTransaction(req.params.chargeId);
+      return res.json({
+        ok: true,
+        provider: 'efi',
+        environment: 'homologation',
+        chargeId: String(req.params.chargeId || ''),
+        data: result.data || null
+      });
+    } catch (error) {
+      const safe = safeProviderError(error);
+      return res.status(safe.statusCode >= 400 && safe.statusCode < 600 ? safe.statusCode : 500).json({
+        ok: false,
+        provider: 'efi',
+        environment: 'homologation',
+        ...safe
+      });
+    }
+  });
+
   app.get('/api/admin/payments/efi/sellers/:sellerId/recipient', adminRequired, async (req, res) => {
     const sellerId = String(req.params.sellerId || '').trim();
     const seller = Seller ? await Seller.findOne({ sellerId }).lean().catch(() => null) : null;
@@ -474,15 +567,17 @@ export default function registerEfiRoutes(app, context = {}) {
     const sellerId = String(req.params.sellerId || '').trim();
     const account = String(req.body?.account || req.body?.conta || '').replace(/\D/g, '');
     const document = String(req.body?.document || req.body?.cpf || req.body?.cnpj || '').replace(/\D/g, '');
+    const payeeCode = String(req.body?.payeeCode || req.body?.payee_code || '').trim();
     if (!account) return res.status(400).json({ ok: false, error: 'Conta Efí do seller é obrigatória.' });
     if (![11,14].includes(document.length)) return res.status(400).json({ ok: false, error: 'CPF/CNPJ do seller é inválido.' });
+    if (payeeCode && !/^[A-Za-z0-9_-]{16,100}$/.test(payeeCode)) return res.status(400).json({ ok: false, error: 'Identificador de conta (payee_code) Efí inválido.' });
     const seller = Seller ? await Seller.findOne({ sellerId }) : null;
     if (!seller) return res.status(404).json({ ok: false, error: 'Seller não encontrado.' });
     const metadata = seller.metadata && typeof seller.metadata === 'object' ? { ...seller.metadata } : {};
-    metadata.efi = { account, document, documentType: document.length === 14 ? 'cnpj' : 'cpf', active: req.body?.active !== false, updatedAt: new Date() };
+    metadata.efi = { account, document, payeeCode, documentType: document.length === 14 ? 'cnpj' : 'cpf', active: req.body?.active !== false, updatedAt: new Date() };
     seller.metadata = metadata;
     await seller.save();
-    await audit({ eventType: 'efi_seller_recipient_updated', status: 'success', statusCode: 200, message: 'Conta Efí do seller atualizada.', environment: 'homologation', integrationId: sellerId, metadata: { sellerId, account, documentType: metadata.efi.documentType } });
+    await audit({ eventType: 'efi_seller_recipient_updated', status: 'success', statusCode: 200, message: 'Conta Efí do seller atualizada.', environment: 'homologation', integrationId: sellerId, metadata: { sellerId, account, payeeCodeConfigured: Boolean(payeeCode), documentType: metadata.efi.documentType } });
     return res.json({ ok: true, sellerId, recipient: metadata.efi });
   });
 
