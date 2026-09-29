@@ -33,8 +33,23 @@
       <div><label class="label">Conta Efí do fabricante</label><input id="sellerAccount" class="input" placeholder="Número da conta Efí"></div>
       <div><label class="label">CPF/CNPJ do favorecido</label><input id="sellerDocument" class="input" placeholder="Somente números"></div>
     </div>
-    <div class="row"><button class="btn light" onclick="previewSplit()">Validar estrutura</button><button class="btn" onclick="createSplitConfig()">Criar configuração no Sandbox Efí</button></div>
+    <div class="row"><button class="btn light" onclick="previewSplit()">Validar estrutura</button><button class="btn" onclick="createSplitConfig()">Criar configuração na Homologação Efí</button></div>
     <pre id="splitOut" class="pre">Nenhuma configuração enviada.</pre>
+  </div>
+
+  <div class="card">
+    <h2>Teste completo da cobrança Pix Split</h2>
+    <p class="muted">Cria uma cobrança somente na Homologação da Efí, vincula ao Split ativo e consulta o resultado. Produção e checkout continuam desligados.</p>
+    <div class="note"><b>Valor recomendado: R$ 11,00.</b> Na Homologação, valores acima de R$ 10,00 permanecem ATIVOS, permitindo validar o vínculo antes de qualquer simulação de pagamento.</div>
+    <div class="grid" style="margin-top:14px">
+      <div><label class="label">ID da configuração Split</label><input id="splitConfigId" class="input" placeholder="Carregar última configuração criada"></div>
+      <div><label class="label">Valor da cobrança de teste</label><input id="testAmount" class="input" type="number" min="10.01" max="1000" step="0.01" value="11.00"></div>
+    </div>
+    <div class="row">
+      <button class="btn light" onclick="loadLastSplitConfig()">Carregar última configuração</button>
+      <button id="runTestBtn" class="btn" onclick="runFullSplitTest()">Criar cobrança + vincular + consultar</button>
+    </div>
+    <pre id="testOut" class="pre">Aguardando teste de Homologação.</pre>
   </div>
 
   <div class="card">
@@ -77,11 +92,49 @@ async function previewSplit(){
 }
 async function createSplitConfig(){
  if(!confirm('Criar esta configuração de split apenas no ambiente de Homologação da Efí?'))return;
- try{const d=await api('/admin/payments/efi/homologation/split-pix/config',{method:'POST',body:JSON.stringify(splitBody())});splitOut.textContent=JSON.stringify(d,null,2)}
- catch(e){splitOut.textContent='Falha: '+e.message}
+ try{
+  const d=await api('/admin/payments/efi/homologation/split-pix/config',{method:'POST',body:JSON.stringify(splitBody())});
+  splitOut.textContent=JSON.stringify(d,null,2);
+  const id=d?.data?.id||'';
+  if(id){
+   document.getElementById('splitConfigId').value=id;
+   localStorage.setItem('efiLastSplitConfigId',id);
+  }
+ } catch(e){splitOut.textContent='Falha: '+e.message}
+}
+async function loadLastSplitConfig(){
+ const input=document.getElementById('splitConfigId');
+ const cached=localStorage.getItem('efiLastSplitConfigId')||'';
+ if(cached) input.value=cached;
+ try{
+  const d=await api('/admin/payments/efi/homologation/split-pix/last-config');
+  if(d?.splitConfigId){
+   input.value=d.splitConfigId;
+   localStorage.setItem('efiLastSplitConfigId',d.splitConfigId);
+   testOut.textContent='Configuração carregada: '+d.splitConfigId+(d.status?' | status '+d.status:'');
+  }
+ }catch(e){
+  if(!input.value) testOut.textContent='Não foi possível carregar automaticamente: '+e.message;
+ }
+}
+async function runFullSplitTest(){
+ const splitConfigId=document.getElementById('splitConfigId').value.trim();
+ const amount=Number(document.getElementById('testAmount').value||11);
+ if(!splitConfigId){testOut.textContent='Informe ou carregue o ID da configuração Split.';return}
+ if(!(amount>10&&amount<=1000)){testOut.textContent='Use um valor acima de R$ 10,00 e até R$ 1.000,00.';return}
+ if(!confirm('Executar o teste completo somente na Homologação Efí? Nenhuma venda real será criada.'))return;
+ const btn=document.getElementById('runTestBtn');
+ btn.disabled=true;
+ testOut.textContent='Criando cobrança Pix de Homologação, vinculando ao Split e consultando o resultado...';
+ try{
+  const d=await api('/admin/payments/efi/homologation/split-pix/test-flow',{method:'POST',body:JSON.stringify({splitConfigId,amount})});
+  testOut.textContent=JSON.stringify(d,null,2);
+ }catch(e){testOut.textContent='Falha: '+e.message}
+ finally{btn.disabled=false}
 }
 if(!token()) location.href='/admin_login.html';
 loadStatus();
+loadLastSplitConfig();
 </script>
 </body>
 </html>
