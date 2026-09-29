@@ -11,7 +11,7 @@ const DEFAULT_VALIDATION_MODEL = String(
 ).trim();
 const CACHE_TTL_MS = Number(process.env.CREATIVE_REBUILD_CACHE_TTL_MS || 6 * 60 * 60 * 1000);
 const CACHE_LIMIT = Number(process.env.CREATIVE_REBUILD_CACHE_LIMIT || 40);
-const PROMPT_VERSION = 'ariana-product-rebuild/v4-fan-master-hq';
+const PROMPT_VERSION = 'ariana-product-rebuild/v5-hard-product-master-from-original';
 const DEFAULT_IMAGE_QUALITY = String(process.env.CREATIVE_REBUILD_QUALITY || 'medium').trim();
 
 export const DIFFICULT_PRODUCT_PATTERN =
@@ -101,16 +101,17 @@ function cacheSet(key, value) {
   }
 }
 
-async function prepareReferencePng(buffer, { fanMaster = false } = {}) {
+async function prepareReferencePng(buffer, { masterHQ = false } = {}) {
   const source = sharp(buffer, { failOn: 'none' }).rotate();
   const meta = await source.metadata();
   const width = Number(meta.width || 0);
   const height = Number(meta.height || 0);
-  const outputSize = fanMaster
-    ? (height >= width ? '1024x1536' : '1536x1024')
+  const ratio = width > 0 && height > 0 ? width / height : 1;
+  const outputSize = masterHQ
+    ? (ratio < 0.86 ? '1024x1536' : ratio > 1.16 ? '1536x1024' : '1024x1024')
     : '1024x1024';
 
-  const maxReferenceEdge = fanMaster ? 2048 : 1536;
+  const maxReferenceEdge = masterHQ ? 2048 : 1536;
   const png = await source
     .resize({
       width: maxReferenceEdge,
@@ -126,11 +127,16 @@ async function prepareReferencePng(buffer, { fanMaster = false } = {}) {
     sourceWidth: width,
     sourceHeight: height,
     outputSize,
-    fanMaster
+    masterHQ
   };
 }
 
-export function buildProductRebuildPrompt(productText = '', { masterRepair = false, fanMaster = false } = {}) {
+export function buildProductRebuildPrompt(productText = '', {
+  masterRepair = false,
+  fanMaster = false,
+  difficultMaster = false,
+  correctionFeedback = ''
+} = {}) {
   const label = clean(productText, 180) || 'produto';
   const lines = [
     'Use a imagem enviada como referência visual obrigatória do mesmo produto: ' + label + '.',
@@ -156,6 +162,19 @@ export function buildProductRebuildPrompt(productText = '', { masterRepair = fal
     );
   }
 
+  if (difficultMaster) {
+    lines.push(
+      'MODO RECONSTRUÇÃO MASTER DE FIDELIDADE ESTRITA.',
+      'A fotografia original é a única verdade visual. Não crie um produto genérico, parecido, inspirado, modernizado ou de outro modelo.',
+      'Reconstrua o MESMO objeto da foto do zero, preservando os detalhes específicos que o distinguem: desenho, proporções, peças, encaixes, espessuras, cores e acabamento.',
+      'Se houver marca, logotipo, etiqueta, comando, grade, aro, puxador, botão, base, pé ou detalhe identificável, mantenha posição, forma e aparência compatíveis com a referência.',
+      'Não substitua a marca, não invente uma marca e não troque o produto por um modelo de catálogo diferente.',
+      'Se algum detalhe estiver pouco legível, preserve a forma visual sem inventar texto novo.',
+      'O produto deve ocupar a maior área útil possível sem cortar nenhuma parte, com nitidez de catálogo e fundo realmente transparente.',
+      'A saída será um PNG Mestre de publicidade; qualidade apenas aceitável ou genérica deve ser considerada falha.'
+    );
+  }
+
   if (fanMaster) {
     lines.push(
       'MODO VENTILADOR MASTER: reconstrua o ventilador inteiro a partir da fotografia original; não repare nem reaproveite uma máscara defeituosa.',
@@ -165,6 +184,14 @@ export function buildProductRebuildPrompt(productText = '', { masterRepair = fal
       'O ventilador deve ocupar aproximadamente 88% a 94% da altura útil da imagem, centralizado e completamente visível, para maximizar a resolução real do produto.',
       'Priorize nitidez de catálogo: arames, bordas, logotipo, botões e encaixes devem ficar definidos, sem aparência borrada ou pintura digital.',
       'A imagem final precisa ser adequada como arquivo mestre para publicidade e banners, não apenas como prévia.'
+    );
+  }
+
+  if (correctionFeedback) {
+    lines.push(
+      'A tentativa anterior foi reprovada pelo controle de fidelidade.',
+      'Corrija obrigatoriamente estes pontos na nova tentativa: ' + clean(correctionFeedback, 400) + '.',
+      'Não compense a correção inventando novas peças ou mudando o modelo.'
     );
   }
 
@@ -179,19 +206,26 @@ async function callImageEdit(reference, productText, {
   imageQuality = DEFAULT_IMAGE_QUALITY,
   masterRepair = false,
   fanMaster = false,
+  difficultMaster = false,
+  correctionFeedback = '',
   timeoutMs = Number(process.env.CREATIVE_REBUILD_TIMEOUT_MS || 85000)
 } = {}) {
   if (!apiKey) throw new Error('creative_rebuild_openai_key_missing');
 
   // Ventiladores em modo Master HQ usam saída alta/vertical e podem levar
   // bem mais que o recorte comum. Não abortar uma reconstrução boa aos 85s.
-  const effectiveTimeoutMs = fanMaster
-    ? Math.max(Number(timeoutMs || 0), Number(process.env.CREATIVE_FAN_MASTER_TIMEOUT_MS || 240000))
+  const effectiveTimeoutMs = difficultMaster
+    ? Math.max(Number(timeoutMs || 0), Number(process.env.CREATIVE_MASTER_REBUILD_TIMEOUT_MS || 240000))
     : Number(timeoutMs || 85000);
 
   const form = new FormData();
   form.append('model', imageModel);
-  form.append('prompt', buildProductRebuildPrompt(productText, { masterRepair, fanMaster }));
+  form.append('prompt', buildProductRebuildPrompt(productText, {
+    masterRepair,
+    fanMaster,
+    difficultMaster,
+    correctionFeedback
+  }));
   form.append('background', 'transparent');
   form.append('output_format', 'png');
   form.append('quality', imageQuality);
@@ -275,6 +309,7 @@ async function callVisionValidation(referenceBuffer, rebuiltBuffer, productText,
   fetchImpl = fetch,
   apiKey = String(process.env.OPENAI_API_KEY || '').trim(),
   validationModel = DEFAULT_VALIDATION_MODEL,
+  strictIdentity = false,
   timeoutMs = Number(process.env.CREATIVE_REBUILD_VALIDATION_TIMEOUT_MS || 30000)
 } = {}) {
   if (!apiKey) throw new Error('creative_rebuild_validation_key_missing');
@@ -286,6 +321,9 @@ async function callVisionValidation(referenceBuffer, rebuiltBuffer, productText,
     'Verifique silhueta, proporções, quantidade e posição das partes, base/pés/hastes/grades/pás/ripas, cores e marca.',
     'Para estruturas vazadas, confirme que os espaços que deveriam ser abertos estão transparentes/limpos e que nenhuma grade ou peça real foi apagada.',
     'Reprove se houver peças inventadas, produto diferente, base diferente, número de pás/partes diferente, marca trocada, vazados preenchidos ou estrutura deformada.',
+    strictIdentity
+      ? 'VALIDAÇÃO ESTRITA: reprove qualquer resultado que pareça um produto genérico ou apenas semelhante. O modelo precisa manter os detalhes específicos visíveis da referência.'
+      : 'Use o critério normal de fidelidade visual.',
     'Produto informado: ' + clean(productText, 180)
   ].join('\n');
 
@@ -347,7 +385,7 @@ async function callVisionValidation(referenceBuffer, rebuiltBuffer, productText,
     parsed.brandingFaithful &&
     parsed.voidsClean &&
     parsed.noExtraObjects &&
-    Number(parsed.confidence || 0) >= 0.78
+    Number(parsed.confidence || 0) >= (strictIdentity ? 0.88 : 0.78)
   );
 
   return {
@@ -444,7 +482,8 @@ export async function rebuildCreativeProductFromReference({
   force = false
 } = {}) {
   const detectedEligibility = shouldRebuildCreativeProduct(asset, productText);
-  const fanMaster = force && isFanCreativeProduct(productText);
+  const difficultMaster = force && isDifficultCreativeProduct(productText);
+  const fanMaster = difficultMaster && isFanCreativeProduct(productText);
   const eligibility = force
     ? {
         required: true,
@@ -518,7 +557,7 @@ export async function rebuildCreativeProductFromReference({
     return failedAsset(asset, eligibility, true, 'ai_rebuild_reference_missing');
   }
 
-  const reference = await prepareReferencePng(referenceBuffer, { fanMaster });
+  const reference = await prepareReferencePng(referenceBuffer, { masterHQ: difficultMaster });
   const key = crypto
     .createHash('sha256')
     .update(PROMPT_VERSION)
@@ -526,7 +565,7 @@ export async function rebuildCreativeProductFromReference({
     .update(validationModel)
     .update(productText)
     .update(force ? 'forced-master-repair' : 'automatic-rebuild')
-    .update(fanMaster ? 'fan-master-hq' : 'standard-master')
+    .update(difficultMaster ? 'difficult-master-hq' : 'standard-master')
     .update(reference.outputSize)
     .update(reference.buffer)
     .digest('hex');
@@ -546,41 +585,58 @@ export async function rebuildCreativeProductFromReference({
 
   const job = (async () => {
     try {
-      const generated = await callImageEdit(reference, productText, {
-        fetchImpl,
-        apiKey,
-        imageModel,
-        imageQuality: fanMaster ? 'high' : DEFAULT_IMAGE_QUALITY,
-        masterRepair: force,
-        fanMaster
-      });
-      const output = await inspectTransparentOutput(generated.buffer);
-      if (!output.safe) {
-        return failedAsset(asset, eligibility, true, 'ai_rebuild_transparency_quality_failed', {
-          attempted: true,
-          model: generated.model,
-          transparentRatio: output.transparentRatio,
-          opaqueRatio: output.opaqueRatio,
-          partialRatio: output.partialRatio
-        });
-      }
+      const maxAttempts = difficultMaster
+        ? Math.max(1, Math.min(Number(process.env.CREATIVE_MASTER_REBUILD_MAX_ATTEMPTS || 2), 3))
+        : 1;
+      let correctionFeedback = '';
+      let lastFailure = null;
 
-      const masterResolutionOk = !fanMaster || (
-        Math.max(output.width, output.height) >= 1300 &&
-        Math.min(output.width, output.height) >= 480
-      );
-      if (!masterResolutionOk) {
-        return failedAsset(asset, eligibility, true, 'ai_rebuild_master_resolution_too_low', {
-          attempted: true,
-          model: generated.model,
-          width: output.width,
-          height: output.height,
-          outputSize: reference.outputSize,
-          fanMaster: true
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        const generated = await callImageEdit(reference, productText, {
+          fetchImpl,
+          apiKey,
+          imageModel,
+          imageQuality: difficultMaster ? 'high' : DEFAULT_IMAGE_QUALITY,
+          masterRepair: force,
+          fanMaster,
+          difficultMaster,
+          correctionFeedback
         });
-      }
+        const output = await inspectTransparentOutput(generated.buffer);
+        if (!output.safe) {
+          lastFailure = {
+            attempted: true,
+            model: generated.model,
+            transparentRatio: output.transparentRatio,
+            opaqueRatio: output.opaqueRatio,
+            partialRatio: output.partialRatio,
+            attempt
+          };
+          correctionFeedback = 'transparência ou contorno inadequados; preserve o produto inteiro e remova somente o fundo real';
+          if (difficultMaster && attempt < maxAttempts) continue;
+          return failedAsset(asset, eligibility, true, 'ai_rebuild_transparency_quality_failed', lastFailure);
+        }
 
-      const validation = await callVisionValidation(
+        const masterResolutionOk = !difficultMaster || (
+          Math.max(output.width, output.height) >= 1200 &&
+          Math.min(output.width, output.height) >= 420
+        );
+        if (!masterResolutionOk) {
+          lastFailure = {
+            attempted: true,
+            model: generated.model,
+            width: output.width,
+            height: output.height,
+            outputSize: reference.outputSize,
+            difficultMaster: true,
+            attempt
+          };
+          correctionFeedback = 'produto saiu pequeno demais; ocupe mais a área útil sem cortar nenhuma parte';
+          if (attempt < maxAttempts) continue;
+          return failedAsset(asset, eligibility, true, 'ai_rebuild_master_resolution_too_low', lastFailure);
+        }
+
+        const validation = await callVisionValidation(
         reference.buffer,
         output.buffer,
         productText,
@@ -588,7 +644,8 @@ export async function rebuildCreativeProductFromReference({
           fetchImpl,
           apiKey,
           validationModel,
-          timeoutMs: fanMaster
+          strictIdentity: difficultMaster,
+          timeoutMs: difficultMaster
             ? Math.max(
                 Number(process.env.CREATIVE_REBUILD_VALIDATION_TIMEOUT_MS || 30000),
                 60000
@@ -597,18 +654,25 @@ export async function rebuildCreativeProductFromReference({
         }
       );
 
-      if (!validation.safe) {
-        return failedAsset(asset, eligibility, true, 'ai_rebuild_visual_fidelity_failed', {
-          attempted: true,
-          model: generated.model,
-          validation,
-          transparentRatio: output.transparentRatio,
-          opaqueRatio: output.opaqueRatio,
-          partialRatio: output.partialRatio
-        });
-      }
+        if (!validation.safe) {
+          lastFailure = {
+            attempted: true,
+            model: generated.model,
+            validation,
+            transparentRatio: output.transparentRatio,
+            opaqueRatio: output.opaqueRatio,
+            partialRatio: output.partialRatio,
+            attempt
+          };
+          correctionFeedback = validation.reason || 'produto reconstruído não manteve fidelidade suficiente';
+          if (attempt < maxAttempts) continue;
+          return failedAsset(asset, eligibility, true, 'ai_rebuild_visual_fidelity_failed', {
+            ...lastFailure,
+            attempts: maxAttempts
+          });
+        }
 
-      const result = {
+        const result = {
         ...asset,
         buffer: output.buffer,
         width: output.width,
@@ -645,11 +709,14 @@ export async function rebuildCreativeProductFromReference({
           reason: 'ok',
           model: generated.model,
           validationModel: validation.model,
-          imageQuality: fanMaster ? 'high' : DEFAULT_IMAGE_QUALITY,
+          imageQuality: difficultMaster ? 'high' : DEFAULT_IMAGE_QUALITY,
           fanMaster,
+          difficultMaster,
           requestedOutputSize: reference.outputSize,
           masterResolutionOk,
           validation,
+          attempt,
+          maxAttempts,
           transparentRatio: output.transparentRatio,
           opaqueRatio: output.opaqueRatio,
           partialRatio: output.partialRatio,
@@ -657,8 +724,15 @@ export async function rebuildCreativeProductFromReference({
         }
       };
 
-      cacheSet(key, result);
-      return result;
+        cacheSet(key, result);
+        return result;
+      }
+
+      return failedAsset(asset, eligibility, true, 'ai_rebuild_visual_fidelity_failed', {
+        attempted: true,
+        difficultMaster,
+        reason: lastFailure?.validation?.reason || 'no_safe_master_candidate'
+      });
     } catch (error) {
       console.warn('[creative-product-rebuild] reconstrução bloqueada:', error?.message || error);
       return failedAsset(asset, eligibility, true, 'ai_rebuild_failed', {
