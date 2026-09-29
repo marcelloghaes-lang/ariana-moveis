@@ -473,7 +473,7 @@ export function buildAiDirectorRequest(products = [], now = new Date(), creative
     'Quando o estilo for Marketplace Ariana, use lógica visual de grande varejo sem copiar identidade, slogan, arte ou layout proprietário de terceiros.',
     'No Marketplace Ariana, preserve azul Ariana, amarelo/dourado, logo oficial e texto integrado à composição; não use cápsulas nem botões desenhados como padrão do banner principal.',
     'Use 1 produto principal e 2 ou 3 de apoio quando houver múltiplos produtos; varie de verdade a composição conforme a gramática solicitada.',
-    'Gramáticas: A = texto à esquerda/produtos à direita; B = texto central/topo com herói central e apoios laterais; C = headline no topo e grupo abaixo; D = fabricante/linha premium; E = mini cards de apoio.',
+    'Gramáticas: A = texto à esquerda/produtos à direita; B = texto central/topo com herói central e apoios laterais; C = headline no topo e grupo abaixo; D = fabricante/linha premium; E = mini cards de apoio; F = atacado com texto à esquerda, produtos centrais e condição à direita; G = seleção comercial com produtos sobre palco; H = oportunidade/estoque em movimento com CTA forte; I = tecnologia escura de alto contraste.',
     'Estilo de geração: ' + context.generationStyle + '. Preset Marketplace: ' + context.marketplacePreset + '. Gramática: ' + context.layoutGrammar + '. Objetivo: ' + context.objective + '.',
     'Escolha qual produto deve ser o herói visual pelo impacto da foto e pela coerência com a categoria.',
     'A composição alvo desta chamada é: ' + context.formatLabel + ', usando o template ' + context.templateLabel + ' e o modo ' + context.contentMode + '.',
