@@ -78,6 +78,7 @@
     <hr style="border:0;border-top:1px solid #e2e8f0;margin:22px 0">
     <h3 style="margin:0 0 8px">Teste de cartão Split</h3>
     <p class="muted">A tokenização acontece diretamente no navegador usando a biblioteca oficial da Efí. Os dados do cartão de teste não passam pelo backend da Ariana; somente o payment_token é enviado.</p>
+    <div class="note warn" style="margin-top:12px"><b>Limitação Efí:</b> estorno de cartão não está disponível para vendas de marketplace/Split. O painel bloqueia esse teste para evitar cobranças desnecessárias em Homologação.</div>
     <div class="note"><b>Use somente cartão de Homologação.</b> O exemplo abaixo é o cartão de teste documentado pela Efí e está configurado para aprovação no Sandbox.</div>
     <div class="grid" style="margin-top:14px">
       <div><label class="label">Número do cartão teste</label><input id="cardNumber" class="input" value="4485785674290087" autocomplete="off"></div>
@@ -91,7 +92,7 @@
     <div class="row">
       <button id="cardTestBtn" class="btn" onclick="runCardSplitTest()">Tokenizar + testar cartão aprovado</button>
       <button id="cardDeclineBtn" class="btn light" onclick="runCardSplitDeclinedTest()">Testar cartão recusado (Sandbox)</button>
-      <button id="cardRefundBtn" class="btn light" onclick="runCardRefundTest()">Testar cartão aprovado + estorno</button>
+      <button id="cardRefundBtn" class="btn light" disabled title="A Efí não disponibiliza estorno de cartão para vendas marketplace/Split.">Estorno marketplace indisponível na Efí</button>
     </div>
     <pre id="cardOut" class="pre">Aguardando teste de cartão em Homologação.</pre>
   </div>
@@ -455,101 +456,18 @@ async function cancelChargesSplitTransaction(){
 
 
 async function runCardRefundTest(){
- const btn=document.getElementById('cardRefundBtn');
- if(!window.EfiPay?.CreditCard){cardOut.textContent='Biblioteca oficial de tokenização da Efí não carregou. Atualize a página e tente novamente.';return}
- if(!confirm('Criar uma cobrança aprovada e estorná-la em seguida somente no Sandbox/Homologação Efí?'))return;
- btn.disabled=true;
- const result={
+ cardOut.textContent=JSON.stringify({
   ok:false,
   provider:'efi',
   environment:'homologation',
   scenario:'card_split_refund',
-  feeMode:2,
-  steps:{}
- };
- try{
-  cardOut.textContent='Etapa 1/4 — tokenizando cartão aprovado no navegador...';
-  const cfg=await api('/admin/payments/efi/homologation/card/tokenization-config');
-  const tokenResult=await EfiPay.CreditCard
-   .setAccount(cfg.accountIdentifier)
-   .setEnvironment('sandbox')
-   .setCreditCardData({
-    brand:'visa',
-    number:document.getElementById('cardNumber').value.replace(/\D/g,''),
-    cvv:document.getElementById('cardCvv').value.replace(/\D/g,''),
-    expirationMonth:document.getElementById('cardExpMonth').value.trim(),
-    expirationYear:document.getElementById('cardExpYear').value.trim(),
-    holderName:document.getElementById('cardHolderName').value.trim(),
-    holderDocument:document.getElementById('cardHolderDocument').value.replace(/\D/g,''),
-    reuse:false
-   })
-   .getPaymentToken();
-
-  if(!tokenResult?.payment_token) throw new Error('Efí não retornou payment_token.');
-
-  cardOut.textContent='Etapa 1/4 OK.\n\nEtapa 2/4 — criando e aprovando cobrança Split...';
-  const body=chargesSplitBody();
-  body.feeMode=2;
-  body.paymentToken=tokenResult.payment_token;
-  body.installments=Number(document.getElementById('cardInstallments').value||1);
-
-  const paid=await api('/admin/payments/efi/homologation/split-charges/card-test',{
-   method:'POST',
-   body:JSON.stringify(body)
-  });
-  result.steps.payment={
-   ok:Boolean(paid?.ok),
-   chargeId:paid?.chargeId||null,
-   status:paid?.status||null,
-   total:paid?.total||null,
-   payment:paid?.payment||null,
-   installments:paid?.installments||null,
-   split:paid?.split||null
-  };
-
-  const paidStatus=String(paid?.status||'').toLowerCase();
-  if(!['approved','paid'].includes(paidStatus)) throw new Error('A cobrança de cartão não ficou aprovada/paga; estorno não executado.');
-  if(!paid?.chargeId) throw new Error('Efí não retornou chargeId da cobrança aprovada.');
-
-  const id=String(paid.chargeId);
-  document.getElementById('chargesChargeId').value=id;
-  localStorage.setItem('efiLastChargesSplitChargeId',id);
-
-  cardOut.textContent='Etapas 1/4 e 2/4 OK — cobrança '+id+' aprovada.\n\nEtapa 3/4 — liquidando no Sandbox quando necessário e solicitando estorno total...';
-  const refunded=await api('/admin/payments/efi/homologation/split-charges/card/'+encodeURIComponent(id)+'/refund',{
-   method:'POST',
-   body:'{}'
-  });
-  result.steps.refund=refunded;
-
-  cardOut.textContent='Etapas 1/4, 2/4 e 3/4 OK.\n\nEtapa 4/4 — consultando status final...';
-  const query=await api('/admin/payments/efi/homologation/split-charges/transaction/'+encodeURIComponent(id));
-  const data=query?.data?.data||query?.data||{};
-  const finalStatus=String(data?.status||refunded?.status||'').toLowerCase();
-
-  result.steps.query={
-   ok:Boolean(query?.ok),
-   status:data?.status||refunded?.status||null,
-   payment:data?.payment?.payment_method||null
-  };
-  result.ok=finalStatus==='refunded';
-  result.summary={
-   chargeId:id,
-   initialStatus:paid?.status||null,
-   settleHttpStatus:refunded?.settleHttpStatus||null,
-   refundHttpStatus:refunded?.refundHttpStatus||null,
-   finalStatus:data?.status||refunded?.status||null,
-   split:paid?.split||null,
-   cardMask:tokenResult.card_mask||null
-  };
-  cardOut.textContent=JSON.stringify(result,null,2);
- }catch(e){
-  result.error=e?.message||String(e);
-  cardOut.textContent=JSON.stringify(result,null,2);
- }finally{
-  btn.disabled=false;
- }
+  marketplaceSplit:true,
+  supported:false,
+  code:'EFI_MARKETPLACE_REFUND_UNSUPPORTED',
+  message:'A Efí não disponibiliza estorno de cartão para vendas marketplace/Split por este endpoint.'
+ },null,2);
 }
+
 
 async function queryChargesSplitTransaction(){
  const id=document.getElementById('chargesChargeId').value.trim()||localStorage.getItem('efiLastChargesSplitChargeId')||'';
