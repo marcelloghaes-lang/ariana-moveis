@@ -1860,18 +1860,18 @@ function multiShowcaseStageSvg(format, count = 3, opts = {}) {
   const grammar = marketplaceMode ? resolveMarketplaceGrammar(opts.layoutGrammar, opts.marketplacePreset) : 'A';
 
   if (marketplaceMode && grammar === 'E') {
-    const n=clamp(Math.round(Number(count)||3),2,5);
-    const desktop=!mobile;
-    const start=desktop?(n===2?.46:n===3?.41:.38):.07;
-    const cardW=desktop?(n===2?.245:n===3?.185:.145):((.86-(n-1)*.025)/n);
-    const gap=desktop?.025:.025;
-    const top=desktop?.30:.43;
-    const height=desktop?.57:.34;
-    const cards=Array.from({length:n},(_,i)=>{
-      const x=Math.round(w*(start+i*(cardW+gap)));
-      return '<rect x="'+x+'" y="'+Math.round(h*top)+'" width="'+Math.round(w*cardW)+'" height="'+Math.round(h*height)+'" rx="'+Math.round(Math.min(w,h)*.018)+'" fill="#ffffff" fill-opacity=".075" stroke="#ffffff" stroke-opacity=".13" stroke-width="2"/>';
+    const n = clamp(Math.round(Number(count) || 3), 2, 5);
+    const desktop = !mobile;
+    const startX = desktop ? (n === 2 ? 0.46 : n === 3 ? 0.41 : 0.38) : 0.07;
+    const cardW = desktop ? (n === 2 ? 0.245 : n === 3 ? 0.185 : 0.145) : ((0.86 - (n - 1) * 0.025) / n);
+    const gap = 0.025;
+    const top = desktop ? 0.30 : 0.43;
+    const cardH = desktop ? 0.57 : 0.34;
+    const cards = Array.from({ length: n }, (_, i) => {
+      const x = Math.round(w * (startX + i * (cardW + gap)));
+      return '<rect x="' + x + '" y="' + Math.round(h * top) + '" width="' + Math.round(w * cardW) + '" height="' + Math.round(h * cardH) + '" rx="' + Math.round(Math.min(w,h) * 0.018) + '" fill="#ffffff" fill-opacity=".075" stroke="#ffffff" stroke-opacity=".13" stroke-width="2"/>';
     }).join('');
-    return Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+cards+'</svg>');
+    return Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '">' + cards + '</svg>');
   }
 
   // Base propositalmente discreta: nada de aro, elipse ou palco amarelo.
