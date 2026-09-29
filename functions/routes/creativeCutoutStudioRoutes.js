@@ -171,7 +171,7 @@ export default function registerCreativeCutoutStudioRoutes(app, context = {}) {
         return res.status(422).json({
           ok: false,
           code: error.code,
-          error: 'Este produto difícil só pode ser aprovado depois de uma reconstrução IA Master HQ validada a partir da foto original.'
+          error: 'Este produto só pode ser aprovado depois de existir um PNG Mestre seguro: original preservado, recorte real aprovado ou IA fallback validada.'
         });
       }
       return res.status(500).json({ ok: false, error: error.message || 'Falha ao aprovar o recorte.' });
