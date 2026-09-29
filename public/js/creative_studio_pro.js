@@ -30,11 +30,12 @@
   });
 
   const TEMPLATE_STORAGE_KEY = 'ariana_creative_imported_templates_v1';
+  const HIDDEN_TEMPLATE_STORAGE_KEY = 'ariana_creative_hidden_templates_v1';
   const BUILTIN_TEMPLATE_PROFILES = Object.freeze({
     marketplace: { renderer:'marketplace', generationStyle:'marketplace', preset:'impact', grammar:'A', objective:'commercial' },
     premium: { renderer:'premium', generationStyle:'premium', preset:'manufacturer', grammar:'D', objective:'manufacturer' },
     campaign: { renderer:'campaign', generationStyle:'marketplace', preset:'opportunity', grammar:'C', objective:'commercial_campaign' },
-    retail_stock: { renderer:'retail_stock', generationStyle:'marketplace', preset:'opportunity', grammar:'A', objective:'commercial_campaign' },
+    retail_stock: { renderer:'retail_stock', generationStyle:'marketplace', preset:'opportunity', grammar:'F', objective:'commercial_campaign' },
     category_selection: { renderer:'category_selection', generationStyle:'marketplace', preset:'selection', grammar:'G', objective:'category' },
     stock_movement: { renderer:'stock_movement', generationStyle:'marketplace', preset:'opportunity', grammar:'H', objective:'commercial_campaign' },
     tech_store: { renderer:'tech_store', generationStyle:'marketplace', preset:'selection', grammar:'I', objective:'category' },
@@ -53,6 +54,34 @@
 
   function saveImportedTemplates() {
     localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(importedTemplates.slice(0,30)));
+  }
+
+  function hiddenTemplateIds() {
+    try {
+      const rows = JSON.parse(localStorage.getItem(HIDDEN_TEMPLATE_STORAGE_KEY) || '[]');
+      return new Set(Array.isArray(rows) ? rows.filter(Boolean) : []);
+    } catch {
+      return new Set();
+    }
+  }
+
+  function setHiddenTemplateIds(set) {
+    localStorage.setItem(HIDDEN_TEMPLATE_STORAGE_KEY, JSON.stringify([...set]));
+  }
+
+  function hasProductsForPreview() {
+    if (contentMode === 'multi_product') return selectedProducts.length >= 2;
+    return Boolean(els.productName?.value?.trim() && els.imageUrl?.value?.trim());
+  }
+
+  let templatePreviewTimer = null;
+  function scheduleTemplatePreview() {
+    if (!hasProductsForPreview()) return;
+    clearTimeout(templatePreviewTimer);
+    templatePreviewTimer = setTimeout(() => {
+      status('Template aplicado. Gerando nova prévia com os produtos já escolhidos...', 'ok');
+      generatePreview().catch(error => status('Falha ao gerar a prévia do template: ' + (error?.message || error), 'error'));
+    }, 160);
   }
 
   function importedTemplateById(id = '') {
@@ -307,8 +336,13 @@
     lastCopyResearchSignature = '';
     qualityAllowsSave = false;
     if (els.saveButton) els.saveButton.disabled = true;
+    updateSelectedTemplateSummary();
+    if (els.templateLibraryDialog?.open) {
+      els.templateLibraryDialog.close();
+    }
     if (announce) {
-      status('Template "' + (manifest?.label || document.querySelector('input[name="template-pro"]:checked')?.closest('.template-card')?.querySelector('b')?.textContent || id) + '" ativado. A próxima prévia usará esta direção.', 'ok');
+      status('Template "' + (manifest?.label || document.querySelector('input[name="template-pro"]:checked')?.closest('.template-card')?.querySelector('b')?.textContent || id) + '" ativado.', 'ok');
+      scheduleTemplatePreview();
     }
   }
 
@@ -1567,6 +1601,72 @@
     }
     els.clearImportedTemplates?.classList.toggle('hidden', importedTemplates.length === 0);
     bindTemplateRadios();
+    renderTemplateManagementControls();
+    applyHiddenTemplates();
+    updateSelectedTemplateSummary();
+  }
+
+  function updateSelectedTemplateSummary() {
+    const input = document.querySelector('input[name="template-pro"]:checked');
+    const card = input?.closest('.template-card');
+    if (!card || !els.selectedTemplateSummary) return;
+    const preview = card.querySelector('.template-preview');
+    const title = card.querySelector('b')?.textContent || 'Template';
+    const description = card.querySelector('small')?.textContent || 'Template selecionado';
+    els.selectedTemplateSummary.innerHTML =
+      '<span class="' + escapeHtml(preview?.className || 'template-preview marketplace') + '"><i></i><i></i><i></i></span>' +
+      '<div><b>' + escapeHtml(title) + '</b><small>' + escapeHtml(description) + '</small></div>';
+  }
+
+  function applyHiddenTemplates() {
+    const hidden = hiddenTemplateIds();
+    document.querySelectorAll('.template-card').forEach(card => {
+      const id = card.querySelector('input[name="template-pro"]')?.value || '';
+      const imported = card.classList.contains('imported-template');
+      card.classList.toggle('hidden-template-card', !imported && hidden.has(id));
+    });
+  }
+
+  function renderTemplateManagementControls() {
+    const hidden = hiddenTemplateIds();
+    document.querySelectorAll('.template-card').forEach(card => {
+      card.querySelector('.template-card-actions')?.remove();
+      const input = card.querySelector('input[name="template-pro"]');
+      if (!input) return;
+      const id = input.value;
+      const imported = card.classList.contains('imported-template');
+      const actions = document.createElement('div');
+      actions.className = 'template-card-actions';
+      const action = document.createElement('button');
+      action.type = 'button';
+      action.className = 'template-card-action ' + (imported ? 'danger' : '');
+      action.dataset.templateManageId = id;
+      action.dataset.templateManageAction = imported ? 'delete' : 'hide';
+      action.textContent = imported ? 'Excluir template' : (hidden.has(id) ? 'Oculto' : 'Ocultar da pasta');
+      actions.appendChild(action);
+      card.appendChild(actions);
+    });
+  }
+
+  function hideNativeTemplate(id) {
+    const hidden = hiddenTemplateIds();
+    hidden.add(id);
+    setHiddenTemplateIds(hidden);
+    if (selectedTemplate() === id) {
+      setRadioValue('template-pro','marketplace');
+      applyTemplateProfile('marketplace',{announce:false});
+    }
+    renderTemplateManagementControls();
+    applyHiddenTemplates();
+    updateSelectedTemplateSummary();
+    status('Modelo ocultado da pasta. Você pode restaurar os modelos nativos quando quiser.', 'ok');
+  }
+
+  function restoreNativeTemplates() {
+    localStorage.removeItem(HIDDEN_TEMPLATE_STORAGE_KEY);
+    renderTemplateManagementControls();
+    applyHiddenTemplates();
+    status('Todos os modelos nativos voltaram para a pasta.', 'ok');
   }
 
   function bindTemplateRadios() {
@@ -1829,6 +1929,28 @@
       status('Formato alterado. A IA vai recalcular a direção e os textos na próxima prévia.', 'ok');
     }));
     bindTemplateRadios();
+    els.openTemplateLibrary?.addEventListener('click', () => {
+      renderImportedTemplates();
+      if (typeof els.templateLibraryDialog?.showModal === 'function') els.templateLibraryDialog.showModal();
+      else els.templateLibraryDialog?.setAttribute('open','');
+    });
+    els.closeTemplateLibrary?.addEventListener('click', () => els.templateLibraryDialog?.close());
+    els.templateLibraryDialog?.addEventListener('click', event => {
+      if (event.target === els.templateLibraryDialog) els.templateLibraryDialog.close();
+    });
+    byId('template-grid')?.addEventListener('click', event => {
+      const button = event.target.closest('[data-template-manage-action]');
+      if (!button) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const id = button.dataset.templateManageId || '';
+      if (button.dataset.templateManageAction === 'delete') {
+        if (window.confirm('Excluir este template JSON da pasta?')) removeImportedTemplate(id);
+      } else if (button.dataset.templateManageAction === 'hide') {
+        hideNativeTemplate(id);
+      }
+    });
+    els.restoreNativeTemplates?.addEventListener('click', restoreNativeTemplates);
     els.uploadTemplateInput?.addEventListener('change', async event => {
       const file = event.target.files?.[0];
       event.target.value = '';
@@ -1885,6 +2007,11 @@
     Object.assign(els,{
       installAppButton:byId('install-app-button'),
       downloadTemplateButton:byId('download-template-button'),
+      openTemplateLibrary:byId('open-template-library'),
+      closeTemplateLibrary:byId('close-template-library'),
+      templateLibraryDialog:byId('template-library-dialog'),
+      selectedTemplateSummary:byId('selected-template-summary'),
+      restoreNativeTemplates:byId('restore-native-templates'),
       uploadTemplateInput:byId('upload-template-input'),
       importedTemplateList:byId('imported-template-list'),
       clearImportedTemplates:byId('clear-imported-templates'),
@@ -1940,6 +2067,9 @@
     updateChoiceCards();
     applyGenerationStyle();
     applyMode('with_price');
+    renderTemplateManagementControls();
+    applyHiddenTemplates();
+    updateSelectedTemplateSummary();
     renderHeroSlots();
     catalogReadyPromise = loadProducts();
   }

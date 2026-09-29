@@ -1225,7 +1225,12 @@ app.post('/api/admin/creative-studio/pro/research-copy', adminRequired, async (r
     const context = {
       format: req.body?.context?.format,
       template: req.body?.context?.template,
-      contentMode: req.body?.context?.contentMode
+      templateLibraryId: req.body?.context?.templateLibraryId,
+      contentMode: req.body?.context?.contentMode,
+      generationStyle: req.body?.context?.generationStyle,
+      marketplacePreset: req.body?.context?.marketplacePreset,
+      layoutGrammar: req.body?.context?.layoutGrammar,
+      objective: req.body?.context?.objective
     };
     const result = await researchCreativeCampaignWithAi(products, context);
     return res.json(result);

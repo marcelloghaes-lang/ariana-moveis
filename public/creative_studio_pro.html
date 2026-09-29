@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-title" content="Creative Studio">
   <link rel="manifest" href="./manifest-creative-studio-pro.json?v=20260928-6">
   <link rel="apple-touch-icon" href="./pwa-icons/banners-192.png">
-  <link rel="stylesheet" href="./css/creative_studio_pro.css?v=20260929-2">
+  <link rel="stylesheet" href="./css/creative_studio_pro.css?v=20260929-3">
 </head>
 <body>
   <header class="topbar">
@@ -96,8 +96,39 @@
       </section>
 
       <section class="step">
-        <div class="step-head"><span>3</span><div><strong>Biblioteca de Templates Pro</strong><small>Modelos de grande varejo, campanhas Ariana e templates JSON importados.</small></div></div>
-        <div class="template-grid" id="template-grid">
+        <div class="step-head"><span>3</span><div><strong>Template da campanha</strong><small>Escolha um modelo dentro da pasta de templates sem poluir a área de trabalho.</small></div></div>
+        <div class="template-folder-summary">
+          <div id="selected-template-summary" class="selected-template-summary">
+            <span class="template-preview marketplace"><i></i><i></i><i></i></span>
+            <div><b>Marketplace Impacto</b><small>Template selecionado</small></div>
+          </div>
+          <button id="open-template-library" class="template-folder-button" type="button">📁 Abrir pasta de templates</button>
+        </div>
+        <div class="template-quick-actions">
+          <button id="download-template-button" class="template-download-button" type="button">Baixar template selecionado</button>
+          <small>Os modelos ficam organizados dentro da pasta. Templates JSON importados podem ser excluídos e modelos nativos podem ser ocultados.</small>
+        </div>
+      </section>
+
+      <dialog id="template-library-dialog" class="template-library-dialog">
+        <div class="template-library-shell">
+          <div class="template-library-head">
+            <div>
+              <span class="eyebrow">PASTA DE TEMPLATES</span>
+              <h2>Biblioteca de Templates Pro</h2>
+              <p>Escolha o modelo da campanha. Ao selecionar um template, o Studio aplica a direção e gera uma nova prévia quando já houver produtos escolhidos.</p>
+            </div>
+            <button id="close-template-library" class="template-library-close" type="button" aria-label="Fechar">×</button>
+          </div>
+          <div class="template-library-toolbar">
+            <label class="template-upload-button">
+              <input id="upload-template-input" type="file" accept="application/json,.json">
+              <span>Importar template JSON</span>
+            </label>
+            <button id="restore-native-templates" class="template-download-button" type="button">Restaurar modelos ocultos</button>
+            <button id="clear-imported-templates" class="template-clear-button hidden" type="button">Excluir todos importados</button>
+          </div>
+          <div class="template-grid" id="template-grid">
           <label class="template-card selected" data-template-profile="marketplace">
             <input type="radio" name="template-pro" value="marketplace" checked>
             <span class="template-preview marketplace"><i></i><i></i><i></i></span>
@@ -147,25 +178,26 @@
             <small>Fabricante ou linha em composição elegante de varejo.</small>
           </label>
         </div>
-        <div id="imported-template-list" class="imported-template-list hidden"></div>
-        <div class="template-tools">
-          <button id="download-template-button" class="template-download-button" type="button">Baixar template selecionado</button>
-          <label class="template-upload-button">
-            <input id="upload-template-input" type="file" accept="application/json,.json">
-            <span>Importar template JSON</span>
-          </label>
-          <button id="clear-imported-templates" class="template-clear-button hidden" type="button">Limpar importados</button>
-          <small class="template-tools-help">Aceita arquivos <b>ariana-creative-template/v1</b>. O Studio valida o JSON, cria um modelo na biblioteca e aplica renderer, estilo, formatos, regras de copy e configuração selecionada sem alterar os templates nativos.</small>
+          <div id="imported-template-list" class="imported-template-list hidden"></div>
+          <small class="template-tools-help">Aceita arquivos <b>ariana-creative-template/v1</b>. O Studio valida o JSON e mantém os templates importados dentro desta pasta.</small>
         </div>
-      </section>
+      </dialog>
 
       <section class="step">
         <div class="step-head"><span>4</span><div><strong>Produto</strong><small>Use o catálogo da Ariana ou envie outra imagem.</small></div></div>
+        <div class="external-cutout-notice">
+          <div>
+            <span class="eyebrow">RECORTE EXTERNO</span>
+            <b>Use o Ariana Cutout Studio para preparar os PNGs dos produtos</b>
+            <small>O cortador continua separado do gerador. Aprove o PNG Mestre no Cutout Studio e depois use a imagem no banner.</small>
+          </div>
+          <a class="external-cutout-button" href="./creative_cutout_studio.html" target="_blank" rel="noopener">Abrir Cutout Studio</a>
+        </div>
         <div class="hero-auto-card">
           <div>
             <span class="eyebrow">DIREÇÃO DE ARTE AUTOMÁTICA</span>
             <b>Montar Hero profissional com 3 produtos</b>
-            <small>O Studio escolhe a composição, define 1 produto principal + 2 de apoio e prepara a campanha desktop/mobile.</small>
+            <small>O Studio monta a composição usando os produtos selecionados; o trabalho de recorte permanece no Cutout Studio externo.</small>
           </div>
           <button id="auto-hero-button" class="auto-hero-button" type="button" disabled>Carregando catálogo...</button>
         </div>
@@ -248,7 +280,7 @@
           <label class="upload full" for="image-file">
             <input id="image-file" type="file" accept="image/png,image/jpeg,image/webp">
             <span class="upload-icon">↑</span>
-            <span><b>Enviar imagem</b><small>O Pro tentará remover automaticamente fundo branco ou uniforme conectado às bordas.</small></span>
+            <span><b>Enviar PNG do produto</b><small>Preferencialmente use o PNG Mestre aprovado no Ariana Cutout Studio.</small></span>
           </label>
           <div id="upload-status" class="inline-status full"></div>
         </div>
@@ -402,7 +434,7 @@
     </section>
   </main>
 
-  <script src="./js/creative_studio_pro.js?v=20260929-2"></script>
+  <script src="./js/creative_studio_pro.js?v=20260929-3"></script>
   <script src="./pwa-register.js?v=20260928-6" data-sw="./sw-creative-studio-pro.js" data-scope="./creative_studio_pro.html"></script>
 </body>
 </html>
