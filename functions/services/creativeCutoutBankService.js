@@ -216,7 +216,7 @@ async function preserveTransparentOriginalIfSafe(originalBuffer, validatedAsset,
 }
 
 
-async function cutoutUniformDarkBackgroundOriginal(originalBuffer, productText = '') {
+export async function cutoutUniformDarkBackgroundOriginal(originalBuffer, productText = '') {
   if (!isDifficultCreativeProduct(productText)) return null;
 
   const source = sharp(originalBuffer, { failOn: 'none' })
