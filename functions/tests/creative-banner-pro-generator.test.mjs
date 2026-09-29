@@ -612,7 +612,7 @@ test('gramáticas F-I geram composições de varejo distintas sem quebrar qualit
     const result = await generateCreativeBannerProMulti(
       [MULTI_TV, MULTI_FRIDGE, MULTI_WASHER],
       {
-        outputFormat:'hero_desktop',
+        outputFormat:'secondary_desktop',
         templatePro:template,
         generationStyle:'marketplace',
         marketplacePreset: grammar === 'G' || grammar === 'I' ? 'selection' : 'opportunity',
