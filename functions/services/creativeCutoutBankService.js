@@ -2,6 +2,7 @@ import sharp from 'sharp';
 import { prepareProProductAsset } from '../creative-banner-pro-generator.js';
 import {
   rebuildCreativeProductFromReference,
+  isDifficultCreativeProduct,
   isFanCreativeProduct
 } from './creativeProductRebuildService.js';
 
@@ -140,6 +141,15 @@ function qualityScore(asset = {}, productText = '') {
 }
 
 function publicAsset(doc = {}) {
+  const productText = [doc.category, doc.name].filter(Boolean).join(' ');
+  const difficultProduct = isDifficultCreativeProduct(productText);
+  const masterReady = difficultProduct
+    ? (
+        doc.processMode === 'ai_master' &&
+        doc.ai?.safe === true &&
+        doc.quality?.masterResolutionOk === true
+      )
+    : Boolean(doc.processedFileId);
   return {
     id: String(doc._id || ''),
     name: doc.name || '',
@@ -153,6 +163,9 @@ function publicAsset(doc = {}) {
     processed: doc.processed || null,
     quality: doc.quality || null,
     ai: doc.ai || null,
+    difficultProduct,
+    masterRebuildRequired: difficultProduct,
+    masterReady,
     processing: doc.processing || null,
     lastProcessingError: doc.lastProcessingError || null,
     createdAt: doc.createdAt || null,
@@ -176,18 +189,53 @@ async function processBuffer({
   mode = 'standard'
 }) {
   const productText = [category, name].filter(Boolean).join(' ');
-  let asset = await prepareProProductAsset({
-    name: name || 'Produto',
-    category: category || '',
-    originalBuffer,
-    sourceType: 'creative_cutout_bank_original'
-  }, {
-    removeBackground: true,
-    removeLightBackground: true
-  });
+  const difficultProduct = isDifficultCreativeProduct(productText);
+  const forceMaster = difficultProduct || mode === 'ai_repair' || mode === 'ai_master';
+
+  let asset;
+  let effectiveMode = mode;
+
+  if (difficultProduct) {
+    // Produtos vazados/finos não passam mais pelo Recorte Pro.
+    // A referência original vai direto para reconstrução integral por IA.
+    const originalMeta = await imageMetadata(originalBuffer);
+    asset = {
+      buffer: originalBuffer,
+      width: originalMeta.width,
+      height: originalMeta.height,
+      sourceWidth: originalMeta.width,
+      sourceHeight: originalMeta.height,
+      backgroundRemoved: false,
+      cutoutSafe: false,
+      cutoutReason: 'master_rebuild_required',
+      removalMode: 'original_reference_only',
+      removedRatio: 0,
+      confidence: 0,
+      repairMetrics: {
+        attempted: false,
+        difficultProduct: true,
+        internalBackgroundOk: false,
+        whiteHaloOk: false,
+        thinStructureDamageOk: false,
+        safe: false,
+        reason: 'master_rebuild_required'
+      }
+    };
+    effectiveMode = 'ai_master';
+  } else {
+    asset = await prepareProProductAsset({
+      name: name || 'Produto',
+      category: category || '',
+      originalBuffer,
+      sourceType: 'creative_cutout_bank_original'
+    }, {
+      removeBackground: true,
+      removeLightBackground: true
+    });
+  }
 
   let aiMetrics = null;
-  if (mode === 'ai_repair') {
+  if (forceMaster) {
     const rebuilt = await rebuildCreativeProductFromReference({
       referenceBuffer: originalBuffer,
       asset,
@@ -209,7 +257,7 @@ async function processBuffer({
       const reason =
         rebuilt?.rebuildMetrics?.reason ||
         rebuilt?.cutoutReason ||
-        'ai_master_repair_rejected';
+        'ai_master_rebuild_rejected';
       const error = new Error('creative_cutout_ai_repair_rejected:' + reason);
       error.code = 'creative_cutout_ai_repair_rejected';
       error.aiReason = reason;
@@ -218,12 +266,19 @@ async function processBuffer({
     }
 
     asset = rebuilt;
+    effectiveMode = difficultProduct ? 'ai_master' : 'ai_repair';
   }
 
   const outputMeta = await imageMetadata(asset.buffer);
+  const longEdge = Math.max(Number(asset.width || outputMeta.width || 0), Number(asset.height || outputMeta.height || 0));
+  const shortEdge = Math.min(Number(asset.width || outputMeta.width || 0), Number(asset.height || outputMeta.height || 0));
+  const masterResolutionOk = difficultProduct
+    ? longEdge >= 1200 && shortEdge >= 420
+    : true;
+
   return {
     buffer: asset.buffer,
-    mode,
+    mode: effectiveMode,
     quality: {
       score: qualityScore(asset, productText),
       safe: asset.cutoutSafe !== false && Boolean(asset.backgroundRemoved),
@@ -234,12 +289,8 @@ async function processBuffer({
       internalBackgroundOk: asset.repairMetrics?.internalBackgroundOk !== false,
       whiteHaloOk: asset.repairMetrics?.whiteHaloOk !== false,
       thinStructureDamageOk: asset.repairMetrics?.thinStructureDamageOk !== false,
-      masterResolutionOk: isFanCreativeProduct(productText)
-        ? (
-            Math.max(Number(asset.width || 0), Number(asset.height || 0)) >= 1300 &&
-            Math.min(Number(asset.width || 0), Number(asset.height || 0)) >= 480
-          )
-        : true,
+      masterResolutionOk,
+      difficultProduct,
       repairMetrics: asset.repairMetrics || null
     },
     processed: outputMeta,
@@ -283,12 +334,18 @@ export async function createCreativeCutoutAsset({
 
   let processedResult = null;
   let processedFileId = null;
+  const cleanName = cleanText(name || originalName || 'Produto');
+  const cleanCategory = cleanText(category || '');
+  const productText = [cleanCategory, cleanName].filter(Boolean).join(' ');
+  const difficultProduct = isDifficultCreativeProduct(productText);
+  const initialMode = difficultProduct ? 'ai_master' : 'standard';
+
   try {
     processedResult = await processBuffer({
       originalBuffer,
-      name: cleanText(name || originalName || 'Produto'),
-      category: cleanText(category || ''),
-      mode: 'standard'
+      name: cleanName,
+      category: cleanCategory,
+      mode: initialMode
     });
 
     processedFileId = await putBuffer(
@@ -296,18 +353,18 @@ export async function createCreativeCutoutAsset({
       processedResult.buffer,
       safeFilename(name || originalName || 'produto') + '-recorte.png',
       'image/png',
-      { assetId: String(id), kind: 'cutout', version: 1, mode: 'standard' }
+      { assetId: String(id), kind: 'cutout', version: 1, mode: processedResult.mode }
     );
 
     const doc = {
       _id: id,
-      name: cleanText(name || originalName || 'Produto'),
-      category: cleanText(category || ''),
+      name: cleanName,
+      category: cleanCategory,
       sku: cleanText(sku || '', 80),
       notes: cleanText(notes || '', 500),
       status: 'pending',
       version: 1,
-      processMode: 'standard',
+      processMode: processedResult.mode,
       originalFileId,
       processedFileId,
       approvedFileId: null,
@@ -329,6 +386,53 @@ export async function createCreativeCutoutAsset({
     return publicAsset(doc);
   } catch (error) {
     if (processedFileId) await deleteGridFile(bucket, mongoose, processedFileId);
+
+    if (difficultProduct) {
+      const failedDoc = {
+        _id: id,
+        name: cleanName,
+        category: cleanCategory,
+        sku: cleanText(sku || '', 80),
+        notes: cleanText(notes || '', 500),
+        status: 'pending',
+        version: 1,
+        processMode: 'ai_master_failed',
+        originalFileId,
+        processedFileId: null,
+        approvedFileId: null,
+        original: {
+          filename: cleanText(originalName || 'produto', 220),
+          mimeType: mimeType || '',
+          ...originalMeta
+        },
+        processed: null,
+        quality: {
+          score: 0,
+          safe: false,
+          reason: error?.aiReason || error?.code || 'ai_master_rebuild_failed',
+          removalMode: 'original_reference_only',
+          confidence: 0,
+          internalBackgroundOk: false,
+          whiteHaloOk: false,
+          thinStructureDamageOk: false,
+          masterResolutionOk: false,
+          difficultProduct: true
+        },
+        ai: error?.aiMetrics || null,
+        lastProcessingError: {
+          mode: 'ai_master',
+          failedAt: now(),
+          reason: cleanText(error?.aiReason || error?.code || error?.message || 'ai_master_rebuild_failed', 220)
+        },
+        createdAt,
+        updatedAt: now(),
+        approvedAt: null,
+        rejectedAt: null
+      };
+      await collection.insertOne(failedDoc);
+      return publicAsset(failedDoc);
+    }
+
     await deleteGridFile(bucket, mongoose, originalFileId);
     throw error;
   }
@@ -377,7 +481,10 @@ export async function reprocessCreativeCutoutAsset({
 
   const bucket = bucketFor(mongoose);
   const collection = collectionFor(mongoose);
-  const safeMode = mode === 'ai_repair' ? 'ai_repair' : 'standard';
+  const productText = [doc.category, doc.name].filter(Boolean).join(' ');
+  const difficultProduct = isDifficultCreativeProduct(productText);
+  const requestedMode = mode === 'ai_repair' ? 'ai_repair' : 'standard';
+  const safeMode = difficultProduct ? 'ai_master' : requestedMode;
   const startedAt = now();
   const processingLeaseMs = safeMode === 'ai_repair'
     ? 8 * 60 * 1000
@@ -447,7 +554,7 @@ export async function reprocessCreativeCutoutAsset({
           processed: result.processed,
           quality: result.quality,
           ai: result.ai,
-          processMode: safeMode,
+          processMode: result.mode,
           status: 'pending',
           version: nextVersion,
           updatedAt,
@@ -512,14 +619,14 @@ export async function approveCreativeCutoutAsset({ mongoose, id }) {
   if (!doc || !doc.processedFileId) return null;
 
   const productText = [doc.category, doc.name].filter(Boolean).join(' ');
-  if (isFanCreativeProduct(productText)) {
-    const fanMasterReady =
-      doc.processMode === 'ai_repair' &&
+  if (isDifficultCreativeProduct(productText)) {
+    const masterReady =
+      doc.processMode === 'ai_master' &&
       doc.ai?.safe === true &&
       doc.quality?.masterResolutionOk === true;
-    if (!fanMasterReady) {
-      const error = new Error('creative_cutout_fan_master_required');
-      error.code = 'creative_cutout_fan_master_required';
+    if (!masterReady) {
+      const error = new Error('creative_cutout_master_rebuild_required');
+      error.code = 'creative_cutout_master_rebuild_required';
       throw error;
     }
   }
