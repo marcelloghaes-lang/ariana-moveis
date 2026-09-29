@@ -337,7 +337,13 @@ export async function createCreativeCutoutAsset({
 export async function listCreativeCutoutAssets({ mongoose, status = '', limit = 60 } = {}) {
   await ensureIndexes(mongoose);
   const collection = collectionFor(mongoose);
-  const filter = status && status !== 'all' ? { status } : {};
+  const normalizedStatus = String(status || '').trim().toLowerCase();
+  const filter =
+    normalizedStatus === 'workspace'
+      ? { status: { $ne: 'approved' } }
+      : normalizedStatus && normalizedStatus !== 'all'
+        ? { status: normalizedStatus }
+        : {};
   const rows = await collection
     .find(filter)
     .sort({ updatedAt: -1 })
@@ -373,7 +379,10 @@ export async function reprocessCreativeCutoutAsset({
   const collection = collectionFor(mongoose);
   const safeMode = mode === 'ai_repair' ? 'ai_repair' : 'standard';
   const startedAt = now();
-  const expiresAt = new Date(startedAt.getTime() + 4 * 60 * 1000);
+  const processingLeaseMs = safeMode === 'ai_repair'
+    ? 8 * 60 * 1000
+    : 4 * 60 * 1000;
+  const expiresAt = new Date(startedAt.getTime() + processingLeaseMs);
 
   const activeUntil = doc.processing?.expiresAt
     ? new Date(doc.processing.expiresAt).getTime()
@@ -501,6 +510,19 @@ export async function approveCreativeCutoutAsset({ mongoose, id }) {
   const collection = collectionFor(mongoose);
   const doc = await collection.findOne({ _id });
   if (!doc || !doc.processedFileId) return null;
+
+  const productText = [doc.category, doc.name].filter(Boolean).join(' ');
+  if (isFanCreativeProduct(productText)) {
+    const fanMasterReady =
+      doc.processMode === 'ai_repair' &&
+      doc.ai?.safe === true &&
+      doc.quality?.masterResolutionOk === true;
+    if (!fanMasterReady) {
+      const error = new Error('creative_cutout_fan_master_required');
+      error.code = 'creative_cutout_fan_master_required';
+      throw error;
+    }
+  }
 
   const timestamp = now();
   await collection.updateOne(

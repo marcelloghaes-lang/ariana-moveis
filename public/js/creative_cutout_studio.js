@@ -4,7 +4,7 @@
   const API = String(window.API_BASE || 'https://ariana-backend.onrender.com/api').replace(/\/+$/,'');
   const blobUrls = new Set();
   const assetBlobUrls = new Set();
-  let currentStatus = 'all';
+  let currentStatus = 'workspace';
   let selectedFile = null;
   let deferredInstallPrompt = null;
   let processingPollTimer = null;
@@ -25,6 +25,9 @@
     bankStatus: $('bank-status'),
     grid: $('asset-grid'),
     filters: $('filters'),
+    panelEyebrow: $('panel-eyebrow'),
+    panelTitle: $('panel-title'),
+    panelHelp: $('panel-help'),
     template: $('asset-card-template'),
     total: $('summary-total'),
     pending: $('summary-pending'),
@@ -330,6 +333,23 @@
     return 'Pendente';
   }
 
+  function isFanAsset(asset = {}) {
+    return /(?:ventilador|\bfan\b)/i.test(
+      [asset.category, asset.name].filter(Boolean).join(' ')
+    );
+  }
+
+  function syncPanelMode() {
+    const master = currentStatus === 'approved';
+    if (els.panelEyebrow) els.panelEyebrow.textContent = master ? '📁 BANCO MESTRE' : 'ÁREA DE TRABALHO';
+    if (els.panelTitle) els.panelTitle.textContent = master ? 'Imagens aprovadas' : 'Itens para revisar';
+    if (els.panelHelp) {
+      els.panelHelp.textContent = master
+        ? 'Aqui ficam somente os PNGs Mestres já aprovados. Eles não aparecem mais na área de trabalho.'
+        : 'Aqui ficam somente itens pendentes, em processamento ou rejeitados. Ao aprovar, o produto sai desta área e vai para o Banco Mestre.';
+    }
+  }
+
   function shortMode(mode = '') {
     if (mode === 'ai_repair') return 'IA';
     if (/superres/i.test(mode)) return 'Super-res';
@@ -419,6 +439,18 @@
       message.className = 'asset-message ok';
     }
 
+
+    const aiButton = node.querySelector('[data-action="ai"]');
+    if (aiButton && isFanAsset(asset)) {
+      aiButton.textContent = 'Reconstruir ventilador HQ';
+    }
+
+    if (asset.status === 'approved') {
+      node.classList.add('master-card');
+      node.querySelectorAll('[data-action="reprocess"], [data-action="ai"], [data-action="approve"], [data-action="reject"]')
+        .forEach(button => button.classList.add('hidden'));
+    }
+
     restoreCardButtons(node, asset);
 
     node.addEventListener('click', event => {
@@ -502,7 +534,7 @@
           method:'POST',
           body:'{}'
         });
-        message.textContent = 'PNG aprovado no Banco Mestre.';
+        message.textContent = 'PNG aprovado e movido para o Banco Mestre.';
         message.className = 'asset-message ok';
       } else if (action === 'reject') {
         await api('/admin/creative-cutout-studio/assets/' + asset.id + '/reject', {
@@ -542,8 +574,12 @@
   }
 
   async function loadAssets() {
-    setStatus(els.bankStatus, 'Carregando Banco Mestre...');
-    const suffix = currentStatus === 'all' ? '' : ('?status=' + encodeURIComponent(currentStatus));
+    syncPanelMode();
+    setStatus(
+      els.bankStatus,
+      currentStatus === 'approved' ? 'Carregando Banco Mestre...' : 'Carregando área de trabalho...'
+    );
+    const suffix = '?status=' + encodeURIComponent(currentStatus);
     try {
       const data = await api('/admin/creative-cutout-studio/assets' + suffix);
       const assets = Array.isArray(data.assets) ? data.assets : [];
@@ -551,7 +587,9 @@
       revokeAssetBlobUrls();
       els.grid.innerHTML = '';
       if (!assets.length) {
-        els.grid.innerHTML = '<div class="empty-state"><strong>Nenhuma imagem neste filtro</strong><span>Adicione uma imagem ou escolha outro status.</span></div>';
+        els.grid.innerHTML = currentStatus === 'approved'
+          ? '<div class="empty-state"><strong>Banco Mestre vazio</strong><span>Quando você aprovar um PNG, ele será movido para esta pasta.</span></div>'
+          : '<div class="empty-state"><strong>Nenhum item para revisar</strong><span>Adicione uma imagem ou escolha outro status.</span></div>';
       } else {
         for (const asset of assets) els.grid.appendChild(buildCard(asset));
       }
@@ -642,7 +680,7 @@
   els.filters.addEventListener('click', event => {
     const button = event.target.closest('button[data-status]');
     if (!button) return;
-    currentStatus = button.dataset.status || 'all';
+    currentStatus = button.dataset.status || 'workspace';
     els.filters.querySelectorAll('button').forEach(item => item.classList.toggle('active', item === button));
     loadAssets();
   });

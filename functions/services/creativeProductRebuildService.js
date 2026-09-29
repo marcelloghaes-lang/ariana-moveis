@@ -183,6 +183,12 @@ async function callImageEdit(reference, productText, {
 } = {}) {
   if (!apiKey) throw new Error('creative_rebuild_openai_key_missing');
 
+  // Ventiladores em modo Master HQ usam saída alta/vertical e podem levar
+  // bem mais que o recorte comum. Não abortar uma reconstrução boa aos 85s.
+  const effectiveTimeoutMs = fanMaster
+    ? Math.max(Number(timeoutMs || 0), Number(process.env.CREATIVE_FAN_MASTER_TIMEOUT_MS || 240000))
+    : Number(timeoutMs || 85000);
+
   const form = new FormData();
   form.append('model', imageModel);
   form.append('prompt', buildProductRebuildPrompt(productText, { masterRepair, fanMaster }));
@@ -207,7 +213,7 @@ async function callImageEdit(reference, productText, {
       Authorization: 'Bearer ' + apiKey
     },
     body: form,
-    signal: AbortSignal.timeout(timeoutMs)
+    signal: AbortSignal.timeout(effectiveTimeoutMs)
   });
 
   if (!response.ok) {
@@ -581,7 +587,13 @@ export async function rebuildCreativeProductFromReference({
         {
           fetchImpl,
           apiKey,
-          validationModel
+          validationModel,
+          timeoutMs: fanMaster
+            ? Math.max(
+                Number(process.env.CREATIVE_REBUILD_VALIDATION_TIMEOUT_MS || 30000),
+                60000
+              )
+            : Number(process.env.CREATIVE_REBUILD_VALIDATION_TIMEOUT_MS || 30000)
         }
       );
 
