@@ -232,3 +232,59 @@ test('diretor IA aceita imagem temporária data URL de upload direto', () => {
   assert.equal(images.length, 1);
   assert.match(images[0].image_url, /^data:image\/jpeg;base64,/i);
 });
+
+
+test('diretor IA recebe o briefing completo do Marketplace Ariana', () => {
+  const request = buildAiDirectorRequest(
+    PRODUCTS,
+    new Date('2026-09-29T12:00:00Z'),
+    {
+      format: 'hero_desktop',
+      template: 'marketplace',
+      contentMode: 'multi_product',
+      generationStyle: 'marketplace',
+      marketplacePreset: 'selection',
+      layoutGrammar: 'B',
+      objective: 'category'
+    }
+  );
+  const developer = request.input.find(item => item.role === 'developer');
+  const user = request.input.find(item => item.role === 'user');
+  const textBody = developer.content.map(item => item.text || '').join(' ');
+  const userBody = user.content.map(item => item.text || '').join(' ');
+  assert.match(textBody, /Marketplace Ariana/i);
+  assert.match(textBody, /Gramáticas: A/i);
+  assert.match(userBody, /Preset Marketplace Ariana: selection/i);
+  assert.match(userBody, /Gramática de layout: B/i);
+  assert.match(userBody, /Objetivo: category/i);
+});
+
+test('categorias prioritárias recebem copy específica e não genérica', () => {
+  const cases = [
+    {
+      product:{name:'Ventilador de Coluna 40cm',category:'Ventiladores'},
+      expected:'MAIS VENTO, MAIS CONFORTO'
+    },
+    {
+      product:{name:'Air Fryer 5L',category:'Fritadeiras'},
+      expected:'MAIS PRATICIDADE PARA SUA COZINHA'
+    },
+    {
+      product:{name:'Smart TV 55 4K',category:'TVs'},
+      expected:'IMAGEM QUE TRANSFORMA SUA CASA'
+    },
+    {
+      product:{name:'Impressora Multifuncional EcoTank',category:'Impressoras'},
+      expected:'MAIS PRODUTIVIDADE PARA O SEU NEGÓCIO'
+    }
+  ];
+  for (const item of cases) {
+    const fixed = fixCopyByVisualCategory({
+      badge:'SELEÇÃO ARIANA',
+      headline:'ESCOLHAS PARA SUA CASA',
+      subtitle:'Produtos para sua casa.',
+      cta:'CONFIRA'
+    }, '', [{index:0,label:item.product.name,confidence:.99}], [item.product]);
+    assert.equal(fixed.copy.headline, item.expected);
+  }
+});

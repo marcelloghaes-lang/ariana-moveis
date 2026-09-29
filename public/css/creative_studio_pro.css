@@ -502,3 +502,28 @@ button,a{touch-action:manipulation}
     grid-column:1/-1;
   }
 }
+
+
+/* Marketplace Ariana: controles isolados da camada de recorte/render existente. */
+.generation-style-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.generation-style-grid .choice{min-height:92px;align-items:flex-start;text-align:left}
+.generation-style-grid .choice b{font-size:13px}
+.marketplace-controls{
+  margin-top:14px;
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+  padding:14px;
+  border:1px solid rgba(0,71,171,.12);
+  border-radius:16px;
+  background:linear-gradient(180deg,rgba(0,71,171,.035),rgba(255,213,27,.035));
+}
+.marketplace-controls.hidden{display:none}
+.marketplace-controls .full{grid-column:1/-1}
+@media (max-width:900px){
+  .generation-style-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .marketplace-controls{grid-template-columns:1fr}
+}
+@media (max-width:560px){
+  .generation-style-grid{grid-template-columns:1fr}
+}

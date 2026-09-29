@@ -38,6 +38,50 @@ export const PRO_TEMPLATES = Object.freeze({
   })
 });
 
+export const MARKETPLACE_ARIANA_PRESETS = Object.freeze({
+  impact: Object.freeze({
+    label: 'Varejo Impacto Ariana',
+    objective: 'commercial',
+    preferredGrammar: 'A',
+    description: 'Headline forte, categoria clara e grupo de produtos com linguagem comercial.'
+  }),
+  selection: Object.freeze({
+    label: 'Seleção Ariana',
+    objective: 'category',
+    preferredGrammar: 'B',
+    description: 'Foco em categoria, visual limpo e composição de 2 a 4 produtos.'
+  }),
+  manufacturer: Object.freeze({
+    label: 'Fabricante em Destaque',
+    objective: 'manufacturer',
+    preferredGrammar: 'D',
+    description: 'Fabricante ou linha em destaque, texto curto e acabamento premium.'
+  }),
+  opportunity: Object.freeze({
+    label: 'Campanha de Oportunidade',
+    objective: 'commercial_campaign',
+    preferredGrammar: 'C',
+    description: 'Campanha de maior impacto. Informações comerciais só entram quando explicitamente fornecidas.'
+  }),
+  mini_cards: Object.freeze({
+    label: 'Grade Comercial / Mini Cards',
+    objective: 'category',
+    preferredGrammar: 'E',
+    description: 'Cards menores para homepage, vitrines e campanhas de apoio.'
+  })
+});
+
+function resolveMarketplacePreset(value = '') {
+  const key = String(value || '').trim().toLowerCase();
+  return MARKETPLACE_ARIANA_PRESETS[key] ? key : 'impact';
+}
+
+function resolveMarketplaceGrammar(value = '', preset = 'impact') {
+  const raw = String(value || '').trim().toUpperCase();
+  if (['A','B','C','D','E'].includes(raw)) return raw;
+  return MARKETPLACE_ARIANA_PRESETS[resolveMarketplacePreset(preset)]?.preferredGrammar || 'A';
+}
+
 function number(value, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -134,6 +178,30 @@ export function getProTemplateManifest(value = '') {
     style: {
       mood: template.mood,
       accent: template.accent
+    },
+    marketplaceAriana: {
+      generationStyles: ['classic','premium','marketplace','institutional'],
+      presets: Object.entries(MARKETPLACE_ARIANA_PRESETS).map(([presetId, preset]) => ({
+        id: presetId,
+        label: preset.label,
+        objective: preset.objective,
+        preferredGrammar: preset.preferredGrammar,
+        description: preset.description
+      })),
+      layoutGrammars: {
+        A: 'texto à esquerda; produtos à direita',
+        B: 'texto central/topo; produto principal central; apoios laterais',
+        C: 'headline no topo; grupo de produtos abaixo; CTA discreto no rodapé',
+        D: 'fabricante/linha em destaque; composição premium',
+        E: 'mini campanhas em cards quadrados/retangulares'
+      },
+      palette: {
+        primary: '#0047AB',
+        highlight: '#FFD51B',
+        premium: '#F0CA6A',
+        deepBlue: '#071B3B',
+        white: '#FFFFFF'
+      }
     },
     supportedFormats: Object.entries(PRO_BANNER_FORMATS).map(([formatId, item]) => ({
       id: formatId,
@@ -977,6 +1045,12 @@ function normalizedOptions(product = {}, options = {}) {
   const showPrice = requestedPrice && cashPrice > 0;
   const template = resolveProTemplate(options.templatePro || options.template);
   const format = resolveProFormat(options.outputFormat || options.format);
+  const generationStyle = ['classic','premium','marketplace','institutional'].includes(String(options.generationStyle || '').trim().toLowerCase())
+    ? String(options.generationStyle).trim().toLowerCase()
+    : 'classic';
+  const marketplacePreset = resolveMarketplacePreset(options.marketplacePreset);
+  const layoutGrammar = resolveMarketplaceGrammar(options.layoutGrammar, marketplacePreset);
+  const campaignObjective = clean(options.campaignObjective || MARKETPLACE_ARIANA_PRESETS[marketplacePreset]?.objective || 'product', 32);
   const productName = clean(options.productName || product.name || product.title || 'Produto Ariana Móveis', 110);
   const manualCopy = options && typeof options.manualCopy === 'object' && options.manualCopy
     ? options.manualCopy
@@ -1018,6 +1092,10 @@ function normalizedOptions(product = {}, options = {}) {
   return {
     format,
     template,
+    generationStyle,
+    marketplacePreset,
+    layoutGrammar,
+    campaignObjective,
     showPrice,
     cashPrice,
     fullPrice,
@@ -1674,9 +1752,30 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
 }
 
 
-function multiProductSlots(format, count = 2) {
+function multiProductSlots(format, count = 2, opts = {}) {
   const n = clamp(Math.round(Number(count) || 2), 2, 5);
   const mobile = format.device === 'mobile';
+  const marketplaceMode = opts.generationStyle === 'marketplace';
+  const grammar = marketplaceMode ? resolveMarketplaceGrammar(opts.layoutGrammar, opts.marketplacePreset) : 'A';
+
+  if (marketplaceMode && !mobile && grammar === 'B') {
+    if (n === 2) return [{ x:.29,y:.43,w:.25,h:.45 },{ x:.52,y:.43,w:.25,h:.45 }];
+    if (n === 3) return [{ x:.39,y:.32,w:.25,h:.56 },{ x:.20,y:.47,w:.20,h:.38 },{ x:.62,y:.48,w:.19,h:.37 }];
+    if (n === 4) return [{ x:.16,y:.49,w:.18,h:.34 },{ x:.32,y:.38,w:.21,h:.46 },{ x:.51,y:.38,w:.21,h:.46 },{ x:.69,y:.49,w:.17,h:.34 }];
+  }
+  if (marketplaceMode && !mobile && grammar === 'C') {
+    if (n === 2) return [{ x:.51,y:.35,w:.22,h:.49 },{ x:.72,y:.35,w:.22,h:.49 }];
+    if (n === 3) return [{ x:.62,y:.27,w:.22,h:.60 },{ x:.48,y:.45,w:.17,h:.39 },{ x:.81,y:.46,w:.15,h:.37 }];
+  }
+  if (marketplaceMode && !mobile && grammar === 'D') {
+    if (n === 2) return [{ x:.60,y:.18,w:.19,h:.68 },{ x:.78,y:.27,w:.16,h:.57 }];
+    if (n === 3) return [{ x:.68,y:.13,w:.20,h:.73 },{ x:.56,y:.36,w:.15,h:.48 },{ x:.84,y:.39,w:.12,h:.44 }];
+  }
+  if (marketplaceMode && !mobile && grammar === 'E') {
+    const start = n === 2 ? .48 : n === 3 ? .43 : .40;
+    const cardW = n === 2 ? .22 : n === 3 ? .17 : .14;
+    return Array.from({length:n},(_,i)=>({ x:start+i*(cardW+.025), y:.35, w:cardW, h:.45 }));
+  }
 
   if (mobile) {
     if (format.id === 'square') {
@@ -1754,9 +1853,26 @@ function multiProductSlots(format, count = 2) {
 }
 
 
-function multiShowcaseStageSvg(format, count = 3) {
+function multiShowcaseStageSvg(format, count = 3, opts = {}) {
   const w=format.width,h=format.height;
   const mobile=format.device==='mobile';
+  const marketplaceMode = opts.generationStyle === 'marketplace';
+  const grammar = marketplaceMode ? resolveMarketplaceGrammar(opts.layoutGrammar, opts.marketplacePreset) : 'A';
+
+  if (marketplaceMode && grammar === 'E') {
+    const n = clamp(Math.round(Number(count) || 3), 2, 5);
+    const desktop = !mobile;
+    const startX = desktop ? (n === 2 ? 0.46 : n === 3 ? 0.41 : 0.38) : 0.07;
+    const cardW = desktop ? (n === 2 ? 0.245 : n === 3 ? 0.185 : 0.145) : ((0.86 - (n - 1) * 0.025) / n);
+    const gap = 0.025;
+    const top = desktop ? 0.30 : 0.43;
+    const cardH = desktop ? 0.57 : 0.34;
+    const cards = Array.from({ length: n }, (_, i) => {
+      const x = Math.round(w * (startX + i * (cardW + gap)));
+      return '<rect x="' + x + '" y="' + Math.round(h * top) + '" width="' + Math.round(w * cardW) + '" height="' + Math.round(h * cardH) + '" rx="' + Math.round(Math.min(w,h) * 0.018) + '" fill="#ffffff" fill-opacity=".075" stroke="#ffffff" stroke-opacity=".13" stroke-width="2"/>';
+    }).join('');
+    return Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '">' + cards + '</svg>');
+  }
 
   // Base propositalmente discreta: nada de aro, elipse ou palco amarelo.
   // Apenas uma sombra suave para assentar visualmente os produtos no fundo.
@@ -1781,6 +1897,79 @@ function multiShowcaseStageSvg(format, count = 3) {
 
 function multiCampaignOverlay(format, opts, count = 2) {
   const mobile = format.device === 'mobile';
+  const marketplaceMode = opts.generationStyle === 'marketplace';
+  const grammar = marketplaceMode ? resolveMarketplaceGrammar(opts.layoutGrammar, opts.marketplacePreset) : 'A';
+  if (marketplaceMode && ['B','C','D','E'].includes(grammar)) {
+    const w=format.width,h=format.height;
+    const accent = grammar === 'D' ? '#F0CA6A' : '#FFD51B';
+    const headline=clean(opts.headline,72);
+    const support=clean(opts.subtitle,120);
+    const topLabel=clean(opts.badge,42);
+    const cta=clean(opts.cta,42);
+    const premium = grammar === 'D';
+
+    if (mobile) {
+      const cx=Math.round(w*.5);
+      const titleY=Math.round(h*(grammar==='E'?.18:.20));
+      return Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+        (topLabel?'<text x="'+cx+'" y="'+Math.round(h*.12)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.021)+'" font-weight="900" letter-spacing="2" fill="'+accent+'">'+escapeXml(topLabel)+'</text>':'')+
+        linesSvg(wrap(headline,24,2),{x:cx,y:titleY,size:Math.round(w*.048),lineHeight:Math.round(w*.052),fill:'#ffffff',weight:950,anchor:'middle'})+
+        '<text x="'+cx+'" y="'+Math.round(h*.31)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.020)+'" font-weight="650" fill="#ffffff" opacity=".88">'+escapeXml(support)+'</text>'+
+        '<line x1="'+Math.round(w*.30)+'" y1="'+Math.round(h*.88)+'" x2="'+Math.round(w*.70)+'" y2="'+Math.round(h*.88)+'" stroke="'+accent+'" stroke-opacity=".75" stroke-width="2"/>'+
+        '<text x="'+cx+'" y="'+Math.round(h*.925)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(w*.018)+'" font-weight="900" fill="#ffffff">'+escapeXml(cta)+' →</text>'+
+        '</svg>'
+      );
+    }
+
+    if (grammar === 'B') {
+      const cx=Math.round(w*.50);
+      return Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+        (topLabel?'<text x="'+cx+'" y="'+Math.round(h*.15)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.030)+'" font-weight="900" letter-spacing="2.4" fill="'+accent+'">'+escapeXml(topLabel)+'</text>':'')+
+        linesSvg(wrap(headline,38,2),{x:cx,y:Math.round(h*.29),size:Math.round(h*.090),lineHeight:Math.round(h*.092),fill:'#ffffff',weight:950,anchor:'middle'})+
+        '<text x="'+cx+'" y="'+Math.round(h*.46)+'" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.035)+'" font-weight="700" fill="#ffffff" opacity=".88">'+escapeXml(support)+'</text>'+
+        '<text x="'+Math.round(w*.055)+'" y="'+Math.round(h*.91)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.030)+'" font-weight="900" fill="#ffffff">'+escapeXml(cta)+' →</text>'+
+        '</svg>'
+      );
+    }
+
+    if (grammar === 'C') {
+      const x=Math.round(w*.055);
+      return Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+        (topLabel?'<text x="'+x+'" y="'+Math.round(h*.16)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.030)+'" font-weight="900" letter-spacing="2.2" fill="'+accent+'">'+escapeXml(topLabel)+'</text>':'')+
+        linesSvg(wrap(headline,46,2),{x,y:Math.round(h*.31),size:Math.round(h*.092),lineHeight:Math.round(h*.094),fill:'#ffffff',weight:950})+
+        '<text x="'+x+'" y="'+Math.round(h*.52)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.035)+'" font-weight="700" fill="#ffffff" opacity=".88">'+escapeXml(support)+'</text>'+
+        '<line x1="'+x+'" y1="'+Math.round(h*.88)+'" x2="'+Math.round(w*.36)+'" y2="'+Math.round(h*.88)+'" stroke="'+accent+'" stroke-width="3" stroke-opacity=".78"/>'+
+        '<text x="'+x+'" y="'+Math.round(h*.945)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.030)+'" font-weight="900" fill="#ffffff">'+escapeXml(cta)+' →</text>'+
+        '</svg>'
+      );
+    }
+
+    if (grammar === 'D') {
+      const x=Math.round(w*.055);
+      return Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+        '<line x1="'+x+'" y1="'+Math.round(h*.19)+'" x2="'+Math.round(w*.20)+'" y2="'+Math.round(h*.19)+'" stroke="'+accent+'" stroke-width="3" stroke-opacity=".85"/>'+
+        (topLabel?'<text x="'+x+'" y="'+Math.round(h*.29)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.027)+'" font-weight="850" letter-spacing="3" fill="'+accent+'">'+escapeXml(topLabel)+'</text>':'')+
+        linesSvg(wrap(headline,30,2),{x,y:Math.round(h*.43),size:Math.round(h*.084),lineHeight:Math.round(h*.088),fill:'#ffffff',weight:900})+
+        '<text x="'+x+'" y="'+Math.round(h*.65)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.033)+'" font-weight="600" fill="#ffffff" opacity=".82">'+escapeXml(support)+'</text>'+
+        '<text x="'+x+'" y="'+Math.round(h*.88)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.028)+'" font-weight="850" fill="'+accent+'">'+escapeXml(cta)+' →</text>'+
+        '</svg>'
+      );
+    }
+
+    const x=Math.round(w*.055);
+    return Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+      (topLabel?'<text x="'+x+'" y="'+Math.round(h*.16)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.029)+'" font-weight="900" letter-spacing="2.2" fill="'+accent+'">'+escapeXml(topLabel)+'</text>':'')+
+      linesSvg(wrap(headline,34,2),{x,y:Math.round(h*.31),size:Math.round(h*.088),lineHeight:Math.round(h*.090),fill:'#ffffff',weight:950})+
+      '<text x="'+x+'" y="'+Math.round(h*.53)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.033)+'" font-weight="700" fill="#ffffff" opacity=".86">'+escapeXml(support)+'</text>'+
+      '<text x="'+x+'" y="'+Math.round(h*.91)+'" font-family="Arial,Helvetica,sans-serif" font-size="'+Math.round(h*.028)+'" font-weight="900" fill="#ffffff">'+escapeXml(cta)+' →</text>'+
+      '</svg>'
+    );
+  }
   const template = resolveProTemplate(opts.template);
   const accent = template === 'premium' ? '#F0CA6A' : '#FFD51B';
   const titleFill = '#ffffff';
@@ -2160,11 +2349,11 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
     rows.map(product => prepareProProductAsset(product, opts))
   );
   const qualityResult=multiQuality(assets,brandAsset,format,opts,campaignBrandAsset);
-  const slots=multiProductSlots(format,rows.length);
+  const slots=multiProductSlots(format,rows.length,opts);
 
   const layers=[
     {input:backgroundSvg(format,opts.template),left:0,top:0},
-    {input:multiShowcaseStageSvg(format,rows.length),left:0,top:0}
+    {input:multiShowcaseStageSvg(format,rows.length,opts),left:0,top:0}
   ];
   layers.push(await logoLayer(format,brandAsset));
   if(campaignBrandAsset?.backgroundRemoved){
@@ -2222,6 +2411,10 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
       multiProduct:true,
       format,
       template:opts.template,
+      generationStyle:opts.generationStyle,
+      marketplacePreset:opts.marketplacePreset,
+      layoutGrammar:opts.layoutGrammar,
+      campaignObjective:opts.campaignObjective,
       productCount:rows.length,
       products:assets.map((asset,index)=>({
         index,
