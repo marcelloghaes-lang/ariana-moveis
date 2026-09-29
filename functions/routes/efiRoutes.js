@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { getEfiConfig, efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, createPixHomologationTestCharge, createPixWebhookHomologationProbe, linkPixChargeToSplit, getPixSplitCharge, runPixSplitHomologationTest, configurePixWebhook, getPixWebhook, buildChargesSplitPercentagePayload, createChargesSplitHomologationTransaction, payChargesSplitBoletoHomologation, payChargesSplitCardHomologation, getChargesSplitHomologationTransaction, cancelChargesSplitHomologationTransaction } from '../services/efiService.js';
+import { getEfiConfig, efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, createPixHomologationTestCharge, createPixWebhookHomologationProbe, linkPixChargeToSplit, getPixSplitCharge, runPixSplitHomologationTest, configurePixWebhook, getPixWebhook, buildChargesSplitPercentagePayload, createChargesSplitHomologationTransaction, payChargesSplitBoletoHomologation, payChargesSplitCardHomologation, getChargesSplitHomologationTransaction, cancelChargesSplitHomologationTransaction, refundChargesSplitCardHomologation } from '../services/efiService.js';
 
 function safeProviderError(error = {}) {
   const providerData = error?.providerData || {};
@@ -794,6 +794,81 @@ export default function registerEfiRoutes(app, context = {}) {
       const safe = safeProviderError(error);
       await audit({
         eventType: 'efi_homologation_charge_canceled',
+        status: 'error',
+        statusCode: safe.statusCode,
+        message: safe.message,
+        environment: 'homologation',
+        integrationId: String(req.params.chargeId || '')
+      });
+      return res.status(safe.statusCode >= 400 && safe.statusCode < 600 ? safe.statusCode : 500).json({
+        ok: false,
+        provider: 'efi',
+        environment: 'homologation',
+        ...safe
+      });
+    }
+  });
+
+  app.post('/api/admin/payments/efi/homologation/split-charges/card/:chargeId/refund', adminRequired, async (req, res) => {
+    try {
+      const chargeId = String(req.params.chargeId || '').replace(/\D/g, '');
+      const before = await getChargesSplitHomologationTransaction(chargeId);
+      const beforeData = before.data?.data || before.data || {};
+      const beforeStatus = String(beforeData?.status || '').toLowerCase();
+
+      if (!['paid','approved'].includes(beforeStatus)) {
+        return res.status(409).json({
+          ok: false,
+          provider: 'efi',
+          environment: 'homologation',
+          chargeId,
+          status: beforeStatus || null,
+          error: 'O estorno de cartão exige uma cobrança aprovada/paga em Homologação.'
+        });
+      }
+
+      const refunded = await refundChargesSplitCardHomologation(chargeId, {
+        amount: req.body?.amount
+      });
+      const after = await getChargesSplitHomologationTransaction(chargeId);
+      const afterData = after.data?.data || after.data || {};
+      const repasses = afterData?.items?.[0]?.marketplace?.repasses || [];
+
+      await audit({
+        eventType: 'efi_homologation_card_refunded',
+        status: 'success',
+        statusCode: refunded.status,
+        message: 'Cartão Efí estornado em Homologação.',
+        environment: 'homologation',
+        integrationId: chargeId,
+        metadata: {
+          chargeId,
+          beforeStatus: beforeStatus || null,
+          afterStatus: afterData?.status || null,
+          refundAmount: req.body?.amount ?? null,
+          repassesCount: Array.isArray(repasses) ? repasses.length : 0
+        }
+      });
+
+      return res.json({
+        ok: true,
+        provider: 'efi',
+        environment: 'homologation',
+        chargeId,
+        beforeStatus: beforeStatus || null,
+        refundHttpStatus: refunded.status,
+        status: afterData?.status || null,
+        total: afterData?.total || null,
+        payment: afterData?.payment?.payment_method || 'credit_card',
+        split: {
+          repassesCount: Array.isArray(repasses) ? repasses.length : 0,
+          sellerPercentage: Array.isArray(repasses) ? (repasses.find((x) => Number(x?.percentage) === 8800)?.percentage ?? repasses[0]?.percentage ?? null) : null
+        }
+      });
+    } catch (error) {
+      const safe = safeProviderError(error);
+      await audit({
+        eventType: 'efi_homologation_card_refunded',
         status: 'error',
         statusCode: safe.statusCode,
         message: safe.message,
