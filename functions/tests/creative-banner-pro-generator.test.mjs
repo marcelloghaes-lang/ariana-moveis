@@ -601,6 +601,37 @@ test('Marketplace Ariana exporta presets e gramáticas no manifesto', () => {
   assert.equal(manifest.rules.branding.ownSiteUrlInsideOwnSiteBanner, false);
 });
 
+test('Marketplace Ariana refinado muda composição A sem alterar recorte ou quality gate', async () => {
+  const base = {
+    outputFormat: 'hero_desktop',
+    templatePro: 'marketplace',
+    headline: 'MAIS VENTO PARA APROVEITAR O SEU ESPAÇO',
+    subtitle: 'Modelos de mesa, coluna e parede para refrescar sua rotina.',
+    badge: 'VENTILADORES',
+    cta: 'CONFIRA OS MODELOS',
+    removeBackground: true
+  };
+
+  const classic = await generateCreativeBannerProMulti(
+    [MULTI_TV, MULTI_FRIDGE, MULTI_WASHER],
+    { ...base, generationStyle: 'classic' }
+  );
+  const marketplace = await generateCreativeBannerProMulti(
+    [MULTI_TV, MULTI_FRIDGE, MULTI_WASHER],
+    {
+      ...base,
+      generationStyle: 'marketplace',
+      marketplacePreset: 'impact',
+      layoutGrammar: 'A'
+    }
+  );
+
+  assert.equal(classic.meta.quality.blockSave, false);
+  assert.equal(marketplace.meta.quality.blockSave, false);
+  assert.equal(marketplace.meta.layoutGrammar, 'A');
+  assert.notDeepEqual(classic.buffer, marketplace.buffer);
+});
+
 test('Marketplace Ariana gera variações reais para as gramáticas A-E sem alterar o quality gate', async () => {
   const buffers = [];
   for (const grammar of ['A','B','C','D','E']) {
