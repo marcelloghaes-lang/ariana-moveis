@@ -39,7 +39,7 @@
 
   <div class="card">
     <h2>Teste completo da cobrança Pix Split</h2>
-    <p class="muted">Cria uma cobrança somente na Homologação da Efí, vincula ao Split ativo e consulta o resultado. Produção e checkout continuam desligados.</p>
+    <p class="muted">Executa em três etapas separadas: cria a cobrança na Homologação, vincula ao Split ativo e consulta o vínculo. Assim cada etapa fica visível e evitamos uma requisição longa.</p>
     <div class="note"><b>Valor recomendado: R$ 11,00.</b> Na Homologação, valores acima de R$ 10,00 permanecem ATIVOS, permitindo validar o vínculo antes de qualquer simulação de pagamento.</div>
     <div class="grid" style="margin-top:14px">
       <div><label class="label">ID da configuração Split</label><input id="splitConfigId" class="input" placeholder="Carregar última configuração criada"></div>
@@ -125,12 +125,31 @@ async function runFullSplitTest(){
  if(!confirm('Executar o teste completo somente na Homologação Efí? Nenhuma venda real será criada.'))return;
  const btn=document.getElementById('runTestBtn');
  btn.disabled=true;
- testOut.textContent='Criando cobrança Pix de Homologação, vinculando ao Split e consultando o resultado...';
+ const result={ok:false,provider:'efi',environment:'homologation',splitConfigId,steps:{}};
  try{
-  const d=await api('/admin/payments/efi/homologation/split-pix/test-flow',{method:'POST',body:JSON.stringify({splitConfigId,amount})});
-  testOut.textContent=JSON.stringify(d,null,2);
- }catch(e){testOut.textContent='Falha: '+e.message}
- finally{btn.disabled=false}
+  testOut.textContent='Etapa 1/3 — criando cobrança Pix de Homologação...';
+  const charge=await api('/admin/payments/efi/homologation/split-pix/test-charge',{method:'POST',body:JSON.stringify({amount})});
+  result.steps.charge=charge;
+  testOut.textContent='Etapa 1/3 OK — cobrança '+(charge.status||'criada')+'.\n\nEtapa 2/3 — vinculando cobrança ao Split...';
+  if(String(charge.status||'').toUpperCase()!=='ATIVA') throw new Error('A cobrança não ficou ATIVA; vínculo não executado.');
+  const link=await api('/admin/payments/efi/homologation/split-pix/link',{method:'POST',body:JSON.stringify({txid:charge.txid,splitConfigId})});
+  result.steps.link=link;
+  testOut.textContent='Etapa 1/3 OK.\nEtapa 2/3 OK — vínculo confirmado.\n\nEtapa 3/3 — consultando cobrança com Split...';
+  const query=await api('/admin/payments/efi/homologation/split-pix/query/'+encodeURIComponent(charge.txid));
+  result.steps.query=query;
+  result.ok=Boolean(link.linked&&query.splitDetected&&query.config?.id===splitConfigId);
+  result.summary={
+    txid:charge.txid,
+    chargeStatus:charge.status,
+    linked:Boolean(link.linked),
+    splitDetected:Boolean(query.splitDetected),
+    splitConfigId:query.config?.id||splitConfigId
+  };
+  testOut.textContent=JSON.stringify(result,null,2);
+ }catch(e){
+  result.error=e.message;
+  testOut.textContent=JSON.stringify(result,null,2);
+ }finally{btn.disabled=false}
 }
 if(!token()) location.href='/admin_login.html';
 loadStatus();
