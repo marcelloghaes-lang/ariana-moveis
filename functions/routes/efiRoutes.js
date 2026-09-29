@@ -419,4 +419,30 @@ export default function registerEfiRoutes(app, context = {}) {
   });
 
 
+
+  if (
+    String(process.env.EFI_INTERNAL_CONFIGURE_WEBHOOK_ON_START || 'false').toLowerCase() === 'true' &&
+    !globalThis.__arianaEfiWebhookBootstrapStarted
+  ) {
+    globalThis.__arianaEfiWebhookBootstrapStarted = true;
+    const timer = setTimeout(async () => {
+      const webhookUrl = String(process.env.EFI_HOMOLOG_WEBHOOK_URL || '').trim();
+      try {
+        const configured = await configurePixWebhook({ environment: 'homologation', webhookUrl });
+        const verified = await getPixWebhook({ environment: 'homologation' });
+        console.log('[EFI WEBHOOK BOOTSTRAP] RESULT', JSON.stringify({
+          ok: true,
+          configureStatus: configured.status,
+          verifyStatus: verified.status,
+          configured: Boolean(verified.data?.webhookUrl),
+          environment: 'homologation'
+        }));
+      } catch (error) {
+        const safe = safeProviderError(error);
+        console.error('[EFI WEBHOOK BOOTSTRAP] ERROR', JSON.stringify(safe));
+      }
+    }, 8000);
+    timer.unref?.();
+  }
+
 }
