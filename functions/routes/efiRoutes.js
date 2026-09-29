@@ -1,4 +1,5 @@
-import { efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, createPixHomologationTestCharge, linkPixChargeToSplit, getPixSplitCharge, runPixSplitHomologationTest } from '../services/efiService.js';
+import crypto from 'crypto';
+import { efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, createPixHomologationTestCharge, linkPixChargeToSplit, getPixSplitCharge, runPixSplitHomologationTest, configurePixWebhook, getPixWebhook } from '../services/efiService.js';
 
 function safeProviderError(error = {}) {
   const providerData = error?.providerData || {};
@@ -31,6 +32,76 @@ export default function registerEfiRoutes(app, context = {}) {
     }).catch(() => null);
   }
 
+  function safeEqualText(a = '', b = '') {
+    const left = Buffer.from(String(a || ''), 'utf8');
+    const right = Buffer.from(String(b || ''), 'utf8');
+    return left.length === right.length && left.length > 0 && crypto.timingSafeEqual(left, right);
+  }
+
+  app.post('/api/webhooks/efi/pix-homologation', async (req, res) => {
+    const expected = String(process.env.EFI_HOMOLOG_WEBHOOK_FORWARD_TOKEN || '').trim();
+    const received = String(req.headers['x-efi-webhook-forward-token'] || '').trim();
+    if (!expected || !safeEqualText(received, expected)) {
+      return res.status(401).json({ ok: false, error: 'Webhook não autorizado.' });
+    }
+
+    try {
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      const items = Array.isArray(body.pix) ? body.pix : [];
+      if (!items.length) {
+        await audit({
+          eventType: 'efi_homologation_webhook_handshake',
+          status: 'success',
+          statusCode: 200,
+          message: 'Handshake/teste de webhook Efí recebido.',
+          environment: 'homologation'
+        });
+        return res.status(200).send('200');
+      }
+
+      for (const item of items) {
+        const txid = String(item?.txid || '').trim();
+        const endToEndId = String(item?.endToEndId || '').trim();
+        const splitId = String(item?.gnExtras?.split?.id || '').trim();
+        const splitRevision = item?.gnExtras?.split?.revisao ?? null;
+        const value = String(item?.valor || '').trim();
+        const timestamp = String(item?.horario || '').trim();
+
+        await audit({
+          eventType: 'efi_homologation_pix_received',
+          status: 'success',
+          statusCode: 200,
+          message: splitId ? 'Pix recebido com Split em Homologação.' : 'Pix recebido em Homologação.',
+          environment: 'homologation',
+          integrationId: txid || endToEndId || null,
+          response: {
+            txid: txid || null,
+            endToEndId: endToEndId || null,
+            value: value || null,
+            timestamp: timestamp || null,
+            split: splitId ? { id: splitId, revisao: splitRevision } : null
+          },
+          metadata: {
+            txid: txid || null,
+            endToEndId: endToEndId || null,
+            splitConfigId: splitId || null,
+            splitRevision,
+            value: value || null
+          }
+        });
+      }
+
+      console.log('[EFI WEBHOOK HOMOLOG] callback recebido', {
+        count: items.length,
+        splitCount: items.filter((item) => item?.gnExtras?.split?.id).length
+      });
+      return res.status(200).send('200');
+    } catch (error) {
+      console.error('[EFI WEBHOOK HOMOLOG] erro', error?.message || error);
+      return res.status(500).json({ ok: false, error: 'Falha ao processar webhook Efí.' });
+    }
+  });
+
   app.get('/api/admin/payments/efi/status', adminRequired, async (_req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     return res.json({
@@ -41,6 +112,62 @@ export default function registerEfiRoutes(app, context = {}) {
       homologation: efiConfigSummary('homologation'),
       production: efiConfigSummary('production')
     });
+  });
+
+  app.get('/api/admin/payments/efi/homologation/webhook/status', adminRequired, async (_req, res) => {
+    try {
+      const result = await getPixWebhook({ environment: 'homologation' });
+      return res.json({
+        ok: true,
+        provider: 'efi',
+        environment: 'homologation',
+        configured: true,
+        data: result.data || null
+      });
+    } catch (error) {
+      const safe = safeProviderError(error);
+      if (safe.statusCode === 404) {
+        return res.json({ ok: true, provider: 'efi', environment: 'homologation', configured: false, data: null });
+      }
+      return res.status(safe.statusCode >= 400 && safe.statusCode < 600 ? safe.statusCode : 500).json({
+        ok: false, provider: 'efi', environment: 'homologation', ...safe
+      });
+    }
+  });
+
+  app.post('/api/admin/payments/efi/homologation/webhook/configure', adminRequired, async (req, res) => {
+    try {
+      const webhookUrl = String(req.body?.webhookUrl || process.env.EFI_HOMOLOG_WEBHOOK_URL || '').trim();
+      const result = await configurePixWebhook({ environment: 'homologation', webhookUrl });
+      await audit({
+        eventType: 'efi_homologation_webhook_configured',
+        status: 'success',
+        statusCode: result.status,
+        message: 'Webhook Pix Efí configurado em Homologação.',
+        environment: 'homologation',
+        request: { webhookUrl },
+        response: result.data || null
+      });
+      return res.status(result.status).json({
+        ok: true,
+        provider: 'efi',
+        environment: 'homologation',
+        webhookUrl,
+        data: result.data || null
+      });
+    } catch (error) {
+      const safe = safeProviderError(error);
+      await audit({
+        eventType: 'efi_homologation_webhook_configured',
+        status: 'error',
+        statusCode: safe.statusCode,
+        message: safe.message,
+        environment: 'homologation'
+      });
+      return res.status(safe.statusCode >= 400 && safe.statusCode < 600 ? safe.statusCode : 500).json({
+        ok: false, provider: 'efi', environment: 'homologation', ...safe
+      });
+    }
   });
 
   app.post('/api/admin/payments/efi/homologation/auth-test', adminRequired, async (_req, res) => {
