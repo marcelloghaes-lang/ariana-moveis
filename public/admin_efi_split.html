@@ -69,6 +69,7 @@
       <button class="btn light" onclick="previewChargesSplit()">Validar estrutura Boleto/Cartão</button>
       <button class="btn" onclick="createChargesSplitTransaction()">Criar transação de teste</button>
       <button class="btn light" onclick="queryChargesSplitTransaction()">Consultar transação</button>
+      <button class="btn light" onclick="cancelChargesSplitTransaction()">Cancelar cobrança de Homologação</button>
       <button class="btn" onclick="runBoletoSplitTest()">Emitir boleto teste com Split</button>
     </div>
     <pre id="chargesOut" class="pre">Aguardando configuração do payee_code do fabricante.</pre>
@@ -88,6 +89,7 @@
     </div>
     <div class="row">
       <button id="cardTestBtn" class="btn" onclick="runCardSplitTest()">Tokenizar + testar cartão aprovado</button>
+      <button id="cardDeclineBtn" class="btn light" onclick="runCardSplitDeclinedTest()">Testar cartão recusado (Sandbox)</button>
     </div>
     <pre id="cardOut" class="pre">Aguardando teste de cartão em Homologação.</pre>
   </div>
@@ -300,6 +302,72 @@ async function runCardSplitTest(){
  }catch(e){
   cardOut.textContent='Falha: '+(e?.error_description||e?.message||String(e));
  }finally{btn.disabled=false}
+}
+
+async function runCardSplitDeclinedTest(){
+ const btn=document.getElementById('cardDeclineBtn');
+ if(!window.EfiPay?.CreditCard){cardOut.textContent='Biblioteca oficial de tokenização da Efí não carregou. Atualize a página e tente novamente.';return}
+ if(!confirm('Executar cenário oficial de recusa somente no Sandbox/Homologação Efí?'))return;
+ btn.disabled=true;
+ cardOut.textContent='Tokenizando cartão de Homologação terminado em 2 para simular recusa de segurança...';
+ try{
+  const cfg=await api('/admin/payments/efi/homologation/card/tokenization-config');
+  const testCard='4485785674290012';
+  const tokenResult=await EfiPay.CreditCard
+   .setAccount(cfg.accountIdentifier)
+   .setEnvironment('sandbox')
+   .setCreditCardData({
+    brand:'visa',
+    number:testCard,
+    cvv:'123',
+    expirationMonth:'05',
+    expirationYear:'2029',
+    holderName:'Gorbadoc Oldbuck',
+    holderDocument:'94271564656',
+    reuse:false
+   })
+   .getPaymentToken();
+
+  if(!tokenResult?.payment_token) throw new Error('Efí não retornou payment_token para o cenário de recusa.');
+  const body=chargesSplitBody();
+  body.paymentToken=tokenResult.payment_token;
+  body.installments=1;
+
+  try{
+   const d=await api('/admin/payments/efi/homologation/split-charges/card-test',{method:'POST',body:JSON.stringify(body)});
+   cardOut.textContent=JSON.stringify({
+    ok:false,
+    expected:'declined',
+    received:d.status||'approved',
+    warning:'O Sandbox não recusou o cenário como esperado.',
+    chargeId:d.chargeId||null
+   },null,2);
+  }catch(e){
+   cardOut.textContent=JSON.stringify({
+    ok:true,
+    provider:'efi',
+    environment:'homologation',
+    scenario:'card_declined_security',
+    expected:'recusa',
+    result:'recusa confirmada',
+    reason:e?.message||String(e),
+    cardMask:tokenResult.card_mask||'XXXXXXXXXXXX0012'
+   },null,2);
+  }
+ }catch(e){
+  cardOut.textContent='Falha antes do teste de recusa: '+(e?.error_description||e?.message||String(e));
+ }finally{btn.disabled=false}
+}
+
+async function cancelChargesSplitTransaction(){
+ const id=document.getElementById('chargesChargeId').value.trim()||localStorage.getItem('efiLastChargesSplitChargeId')||'';
+ if(!id){chargesOut.textContent='Informe um Charge ID de Homologação para cancelar.';return}
+ if(!confirm('Cancelar esta cobrança somente na Homologação Efí?'))return;
+ chargesOut.textContent='Cancelando cobrança '+id+' em Homologação...';
+ try{
+  const d=await api('/admin/payments/efi/homologation/split-charges/transaction/'+encodeURIComponent(id)+'/cancel',{method:'PUT',body:'{}'});
+  chargesOut.textContent=JSON.stringify(d,null,2);
+ }catch(e){chargesOut.textContent='Falha ao cancelar: '+e.message}
 }
 
 async function queryChargesSplitTransaction(){
