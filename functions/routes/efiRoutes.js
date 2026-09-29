@@ -1,4 +1,4 @@
-import { efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, runPixSplitHomologationTest } from '../services/efiService.js';
+import { efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, createPixHomologationTestCharge, linkPixChargeToSplit, getPixSplitCharge, runPixSplitHomologationTest } from '../services/efiService.js';
 
 function safeProviderError(error = {}) {
   const providerData = error?.providerData || {};
@@ -110,6 +110,117 @@ export default function registerEfiRoutes(app, context = {}) {
       });
     } catch (error) {
       return res.status(500).json({ ok: false, error: error.message || 'Falha ao recuperar última configuração Split Pix.' });
+    }
+  });
+
+  app.post('/api/admin/payments/efi/homologation/split-pix/test-charge', adminRequired, async (req, res) => {
+    try {
+      const amount = Number(req.body?.amount ?? 11);
+      console.log('[EFI SPLIT HOMOLOG] stage=create-charge start', { amount });
+      const result = await createPixHomologationTestCharge({
+        environment: 'homologation',
+        amount,
+        expiration: 3600,
+        description: 'Teste Split Pix Ariana Marketplace - Homologacao'
+      });
+      const response = {
+        ok: true,
+        provider: 'efi',
+        environment: 'homologation',
+        txid: result.txid,
+        status: result.data?.status || null,
+        amount: result.data?.valor?.original || result.payload?.valor?.original || null,
+        httpStatus: result.status,
+        location: result.data?.location || result.data?.loc?.location || null,
+        pixCopiaECola: result.data?.pixCopiaECola || null
+      };
+      console.log('[EFI SPLIT HOMOLOG] stage=create-charge success', { txid: response.txid, status: response.status, httpStatus: response.httpStatus });
+      await audit({
+        eventType: 'efi_homologation_split_test_charge',
+        status: 'success',
+        statusCode: result.status,
+        message: 'Cobrança Pix de teste criada em Homologação.',
+        environment: 'homologation',
+        metadata: { txid: result.txid, amount: response.amount, chargeStatus: response.status }
+      });
+      return res.status(result.status).json(response);
+    } catch (error) {
+      const safe = safeProviderError(error);
+      console.error('[EFI SPLIT HOMOLOG] stage=create-charge error', safe);
+      return res.status(safe.statusCode >= 400 && safe.statusCode < 600 ? safe.statusCode : 500).json({ ok: false, provider: 'efi', environment: 'homologation', ...safe });
+    }
+  });
+
+  app.post('/api/admin/payments/efi/homologation/split-pix/link', adminRequired, async (req, res) => {
+    try {
+      const txid = String(req.body?.txid || '').trim();
+      const splitConfigId = String(req.body?.splitConfigId || '').trim();
+      console.log('[EFI SPLIT HOMOLOG] stage=link start', { txid, splitConfigId });
+      const result = await linkPixChargeToSplit({ environment: 'homologation', txid, splitConfigId });
+      const response = {
+        ok: true,
+        provider: 'efi',
+        environment: 'homologation',
+        txid,
+        splitConfigId,
+        linked: result.status === 204,
+        httpStatus: result.status
+      };
+      console.log('[EFI SPLIT HOMOLOG] stage=link success', response);
+      await audit({
+        eventType: 'efi_homologation_split_test_link',
+        status: 'success',
+        statusCode: result.status,
+        message: 'Cobrança Pix vinculada ao Split em Homologação.',
+        environment: 'homologation',
+        integrationId: splitConfigId,
+        metadata: { txid, linked: response.linked }
+      });
+      return res.status(200).json(response);
+    } catch (error) {
+      const safe = safeProviderError(error);
+      console.error('[EFI SPLIT HOMOLOG] stage=link error', safe);
+      return res.status(safe.statusCode >= 400 && safe.statusCode < 600 ? safe.statusCode : 500).json({ ok: false, provider: 'efi', environment: 'homologation', ...safe });
+    }
+  });
+
+  app.get('/api/admin/payments/efi/homologation/split-pix/query/:txid', adminRequired, async (req, res) => {
+    try {
+      const txid = String(req.params.txid || '').trim();
+      console.log('[EFI SPLIT HOMOLOG] stage=query start', { txid });
+      const result = await getPixSplitCharge({ environment: 'homologation', txid });
+      const data = result.data || {};
+      const response = {
+        ok: true,
+        provider: 'efi',
+        environment: 'homologation',
+        txid: data.txid || txid,
+        status: data.status || null,
+        amount: data.valor?.original || null,
+        httpStatus: result.status,
+        config: data.config ? {
+          id: data.config.id || null,
+          status: data.config.status || null,
+          revisao: data.config.revisao ?? null,
+          descricao: data.config.descricao || null,
+          tipo: data.config.tipo || null
+        } : null,
+        splitDetected: Boolean(data.split || data.config)
+      };
+      console.log('[EFI SPLIT HOMOLOG] stage=query success', { txid: response.txid, status: response.status, splitDetected: response.splitDetected, configId: response.config?.id || null });
+      await audit({
+        eventType: 'efi_homologation_split_test_query',
+        status: 'success',
+        statusCode: result.status,
+        message: 'Cobrança Pix com Split consultada em Homologação.',
+        environment: 'homologation',
+        metadata: { txid, splitDetected: response.splitDetected, configId: response.config?.id || null }
+      });
+      return res.json(response);
+    } catch (error) {
+      const safe = safeProviderError(error);
+      console.error('[EFI SPLIT HOMOLOG] stage=query error', safe);
+      return res.status(safe.statusCode >= 400 && safe.statusCode < 600 ? safe.statusCode : 500).json({ ok: false, provider: 'efi', environment: 'homologation', ...safe });
     }
   });
 
