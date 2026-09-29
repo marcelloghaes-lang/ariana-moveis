@@ -587,7 +587,13 @@ export async function rebuildCreativeProductFromReference({
         {
           fetchImpl,
           apiKey,
-          validationModel
+          validationModel,
+          timeoutMs: fanMaster
+            ? Math.max(
+                Number(process.env.CREATIVE_REBUILD_VALIDATION_TIMEOUT_MS || 30000),
+                60000
+              )
+            : Number(process.env.CREATIVE_REBUILD_VALIDATION_TIMEOUT_MS || 30000)
         }
       );
 
