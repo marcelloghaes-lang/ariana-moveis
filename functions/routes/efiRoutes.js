@@ -121,7 +121,12 @@ export default function registerEfiRoutes(app, context = {}) {
       activeCheckoutProviderChanged: false,
       checkoutAttached: false,
       homologation: efiConfigSummary('homologation'),
-      production: efiConfigSummary('production')
+      production: efiConfigSummary('production'),
+      homologationCapabilities: {
+        approvedCardSplit: true,
+        declinedCardSandbox: true,
+        chargeCancellation: true
+      }
     });
   });
 
