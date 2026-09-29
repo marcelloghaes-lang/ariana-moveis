@@ -404,10 +404,11 @@
   function qualityFlags(asset) {
     const q = asset.quality || {};
     const flags = [
+      ['Fundo transparente', q.transparentBackgroundOk !== false],
       ['Fundo interno', q.internalBackgroundOk !== false],
       ['Halo', q.whiteHaloOk !== false],
       ['Peças finas', q.thinStructureDamageOk !== false],
-      ['Seguro', q.safe !== false]
+      ['Seguro', q.safe === true]
     ];
     if (q.masterResolutionOk !== undefined) {
       flags.splice(3, 0, ['Alta resolução', q.masterResolutionOk !== false]);
@@ -470,7 +471,9 @@
       message.textContent = 'Quality gate: ' + q.reason;
       message.className = 'asset-message error';
     } else if (asset.status === 'approved') {
-      message.textContent = 'PNG mestre aprovado e salvo.';
+      message.textContent = asset.originalDiscardedAt
+        ? 'PNG Mestre aprovado. O arquivo original foi descartado e somente o PNG aprovado permanece salvo.'
+        : 'PNG Mestre aprovado e salvo.';
       message.className = 'asset-message ok';
     }
 
@@ -515,15 +518,19 @@
 
     const showCandidate = !asset.masterRebuildRequired || asset.masterReady;
     const [originalUrl, cutoutUrl] = await Promise.all([
-      secureBlobUrl(asset.originalUrl),
+      asset.originalUrl ? secureBlobUrl(asset.originalUrl) : Promise.resolve(''),
       showCandidate && asset.cutoutUrl ? secureBlobUrl(asset.cutoutUrl) : Promise.resolve('')
     ]);
 
     originalStage.innerHTML = '';
-    const original = document.createElement('img');
-    original.src = originalUrl;
-    original.alt = 'Imagem original de ' + (asset.name || 'produto');
-    originalStage.appendChild(original);
+    if (originalUrl) {
+      const original = document.createElement('img');
+      original.src = originalUrl;
+      original.alt = 'Imagem original de ' + (asset.name || 'produto');
+      originalStage.appendChild(original);
+    } else {
+      originalStage.innerHTML = '<span>Original descartado após aprovação do PNG Mestre.</span>';
+    }
 
     cutoutStage.innerHTML = '';
     if (cutoutUrl) {
@@ -557,7 +564,7 @@
           ? (
               isDifficultAsset(asset)
                 ? 'Preparando a foto real em HQ. Primeiro preservamos/recortamos o original; a IA só entra se esse resultado for reprovado.'
-                : 'Refazendo o recorte real; a IA só entra como fallback se o quality gate reprovar.'
+                : 'Executando reparo com IA de verdade a partir do original. O resultado só será aceito se vier com fundo transparente validado.'
             )
           : 'Reprocessando a foto original...';
         const result = await api('/admin/creative-cutout-studio/assets/' + asset.id + '/reprocess', {
