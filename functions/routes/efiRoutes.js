@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, createPixHomologationTestCharge, linkPixChargeToSplit, getPixSplitCharge, runPixSplitHomologationTest, configurePixWebhook, getPixWebhook } from '../services/efiService.js';
+import { efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, createPixHomologationTestCharge, createPixWebhookHomologationProbe, linkPixChargeToSplit, getPixSplitCharge, runPixSplitHomologationTest, configurePixWebhook, getPixWebhook } from '../services/efiService.js';
 
 function safeProviderError(error = {}) {
   const providerData = error?.providerData || {};
@@ -167,6 +167,74 @@ export default function registerEfiRoutes(app, context = {}) {
       return res.status(safe.statusCode >= 400 && safe.statusCode < 600 ? safe.statusCode : 500).json({
         ok: false, provider: 'efi', environment: 'homologation', ...safe
       });
+    }
+  });
+
+  app.post('/api/admin/payments/efi/homologation/webhook/probe', adminRequired, async (req, res) => {
+    try {
+      const amount = Number(req.body?.amount ?? 1);
+      const result = await createPixWebhookHomologationProbe({
+        environment: 'homologation',
+        amount,
+        description: 'Teste Webhook Pix Ariana - Homologacao'
+      });
+      await audit({
+        eventType: 'efi_homologation_webhook_probe_created',
+        status: 'success',
+        statusCode: result.status,
+        message: 'Cobrança de teste criada para disparar webhook Efí.',
+        environment: 'homologation',
+        integrationId: result.txid,
+        metadata: {
+          txid: result.txid,
+          amount: result.data?.valor?.original || result.payload?.valor?.original || amount.toFixed(2),
+          chargeStatus: result.data?.status || null
+        }
+      });
+      return res.status(result.status).json({
+        ok: true,
+        provider: 'efi',
+        environment: 'homologation',
+        txid: result.txid,
+        status: result.data?.status || null,
+        amount: result.data?.valor?.original || result.payload?.valor?.original || amount.toFixed(2),
+        httpStatus: result.status
+      });
+    } catch (error) {
+      const safe = safeProviderError(error);
+      return res.status(safe.statusCode >= 400 && safe.statusCode < 600 ? safe.statusCode : 500).json({
+        ok: false,
+        provider: 'efi',
+        environment: 'homologation',
+        ...safe
+      });
+    }
+  });
+
+  app.get('/api/admin/payments/efi/homologation/webhook/last-event', adminRequired, async (_req, res) => {
+    try {
+      if (!IntegrationAuditLog?.findOne) {
+        return res.status(503).json({ ok: false, error: 'Auditoria de integrações indisponível.' });
+      }
+      const last = await IntegrationAuditLog.findOne({
+        scope: 'payments',
+        eventType: { $in: ['efi_homologation_pix_received','efi_homologation_webhook_handshake'] },
+        status: 'success'
+      }).sort({ createdAt: -1, _id: -1 }).lean();
+
+      if (!last) return res.status(404).json({ ok: false, error: 'Nenhum evento de webhook Efí recebido ainda.' });
+      return res.json({
+        ok: true,
+        provider: 'efi',
+        environment: 'homologation',
+        eventType: last.eventType,
+        createdAt: last.createdAt || null,
+        integrationId: last.integrationId || null,
+        response: last.response || null,
+        metadata: last.metadata || null
+      });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error.message || 'Falha ao consultar último webhook Efí.' });
     }
   });
 
@@ -442,6 +510,33 @@ export default function registerEfiRoutes(app, context = {}) {
         console.error('[EFI WEBHOOK BOOTSTRAP] ERROR', JSON.stringify(safe));
       }
     }, 8000);
+    timer.unref?.();
+  }
+
+
+  if (
+    String(process.env.EFI_INTERNAL_WEBHOOK_PROBE_ON_START || 'false').toLowerCase() === 'true' &&
+    !globalThis.__arianaEfiWebhookProbeStarted
+  ) {
+    globalThis.__arianaEfiWebhookProbeStarted = true;
+    const timer = setTimeout(async () => {
+      try {
+        const result = await createPixWebhookHomologationProbe({
+          environment: 'homologation',
+          amount: 1,
+          description: 'Teste Webhook Pix Ariana - Homologacao'
+        });
+        console.log('[EFI WEBHOOK PROBE] CREATED', JSON.stringify({
+          ok: true,
+          txid: result.txid,
+          status: result.data?.status || null,
+          amount: result.data?.valor?.original || result.payload?.valor?.original || '1.00',
+          httpStatus: result.status
+        }));
+      } catch (error) {
+        console.error('[EFI WEBHOOK PROBE] ERROR', JSON.stringify(safeProviderError(error)));
+      }
+    }, 12000);
     timer.unref?.();
   }
 
