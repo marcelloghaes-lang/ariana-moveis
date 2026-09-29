@@ -6,6 +6,7 @@
   <title>Efí Split | Ariana Móveis</title>
   <link rel="icon" href="/favicon.png">
   <script src="/js/api-config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/payment-token-efi@3.4.1/dist/payment-token-efi-umd.min.js"></script>
   <style>
     *{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:#f4f7fb;color:#0f172a}.wrap{max-width:1050px;margin:auto;padding:28px}.top{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:20px}.card{background:#fff;border:1px solid #dbe5f0;border-radius:20px;padding:22px;margin-bottom:18px;box-shadow:0 10px 28px rgba(15,23,42,.05)}h1,h2{margin:0 0 10px}.muted{color:#64748b;line-height:1.55}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}.stat{padding:14px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0}.ok{color:#15803d;font-weight:900}.warn{color:#b45309;font-weight:900}.danger{color:#b91c1c;font-weight:900}.btn{border:0;border-radius:12px;padding:12px 16px;font-weight:900;cursor:pointer;background:#0047ab;color:#fff}.btn.light{background:#eef4ff;color:#0047ab;border:1px solid #bfdbfe}.btn:disabled{opacity:.5;cursor:not-allowed}.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.input{width:100%;padding:11px 12px;border:1px solid #cbd5e1;border-radius:11px;font:inherit}.label{display:block;font-size:12px;font-weight:900;color:#475569;margin:10px 0 6px;text-transform:uppercase}.pre{background:#0b1220;color:#dbeafe;border-radius:14px;padding:14px;white-space:pre-wrap;word-break:break-word;min-height:80px}.note{padding:14px;border-radius:14px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;line-height:1.55}.note.warn{background:#fffbeb;border-color:#fde68a;color:#92400e}.pill{display:inline-block;padding:6px 9px;border-radius:999px;font-size:12px;font-weight:900;background:#e2e8f0}.pill.ok{background:#dcfce7}.pill.off{background:#fee2e2;color:#991b1b}@media(max-width:760px){.grid{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}.row .btn{width:100%}}</style>
 </head>
@@ -68,8 +69,27 @@
       <button class="btn light" onclick="previewChargesSplit()">Validar estrutura Boleto/Cartão</button>
       <button class="btn" onclick="createChargesSplitTransaction()">Criar transação de teste</button>
       <button class="btn light" onclick="queryChargesSplitTransaction()">Consultar transação</button>
+      <button class="btn" onclick="runBoletoSplitTest()">Emitir boleto teste com Split</button>
     </div>
     <pre id="chargesOut" class="pre">Aguardando configuração do payee_code do fabricante.</pre>
+
+    <hr style="border:0;border-top:1px solid #e2e8f0;margin:22px 0">
+    <h3 style="margin:0 0 8px">Teste de cartão Split</h3>
+    <p class="muted">A tokenização acontece diretamente no navegador usando a biblioteca oficial da Efí. Os dados do cartão de teste não passam pelo backend da Ariana; somente o payment_token é enviado.</p>
+    <div class="note"><b>Use somente cartão de Homologação.</b> O exemplo abaixo é o cartão de teste documentado pela Efí e está configurado para aprovação no Sandbox.</div>
+    <div class="grid" style="margin-top:14px">
+      <div><label class="label">Número do cartão teste</label><input id="cardNumber" class="input" value="4485785674290087" autocomplete="off"></div>
+      <div><label class="label">CVV teste</label><input id="cardCvv" class="input" value="123" autocomplete="off"></div>
+      <div><label class="label">Mês validade</label><input id="cardExpMonth" class="input" value="05"></div>
+      <div><label class="label">Ano validade</label><input id="cardExpYear" class="input" value="2029"></div>
+      <div><label class="label">Nome do portador teste</label><input id="cardHolderName" class="input" value="Gorbadoc Oldbuck"></div>
+      <div><label class="label">Documento do portador teste</label><input id="cardHolderDocument" class="input" value="94271564656"></div>
+      <div><label class="label">Parcelas</label><input id="cardInstallments" class="input" type="number" min="1" max="12" value="1"></div>
+    </div>
+    <div class="row">
+      <button id="cardTestBtn" class="btn" onclick="runCardSplitTest()">Tokenizar + testar cartão aprovado</button>
+    </div>
+    <pre id="cardOut" class="pre">Aguardando teste de cartão em Homologação.</pre>
   </div>
 
   <div class="card">
@@ -219,6 +239,71 @@ async function createChargesSplitTransaction(){
   chargesOut.textContent=JSON.stringify(d,null,2);
  }catch(e){chargesOut.textContent='Falha: '+e.message}
 }
+
+async function runBoletoSplitTest(){
+ if(!confirm('Emitir um boleto somente em Homologação Efí com Split 12%/88%? Ele não poderá ser pago em ambiente Sandbox.'))return;
+ chargesOut.textContent='Criando transação Split e associando boleto em Homologação...';
+ try{
+  const d=await api('/admin/payments/efi/homologation/split-charges/boleto-test',{method:'POST',body:JSON.stringify(chargesSplitBody())});
+  if(d?.chargeId){
+   document.getElementById('chargesChargeId').value=d.chargeId;
+   localStorage.setItem('efiLastChargesSplitChargeId',String(d.chargeId));
+  }
+  chargesOut.textContent=JSON.stringify(d,null,2);
+ }catch(e){chargesOut.textContent='Falha: '+e.message}
+}
+
+async function runCardSplitTest(){
+ const btn=document.getElementById('cardTestBtn');
+ const payeeCode=document.getElementById('chargesPayeeCode').value.trim();
+ if(!payeeCode){cardOut.textContent='Informe primeiro o payee_code do fabricante no bloco Boleto/Cartão.';return}
+ if(!window.EfiPay?.CreditCard){cardOut.textContent='Biblioteca oficial de tokenização da Efí não carregou. Atualize a página e tente novamente.';return}
+ if(!confirm('Executar cartão somente no Sandbox/Homologação Efí? Não use dados de cartão real nesta tela.'))return;
+ btn.disabled=true;
+ cardOut.textContent='Etapa 1/3 — carregando identificador da Ariana e tokenizando cartão no navegador...';
+ try{
+  const cfg=await api('/admin/payments/efi/homologation/card/tokenization-config');
+  const tokenResult=await EfiPay.CreditCard
+   .setAccount(cfg.accountIdentifier)
+   .setEnvironment('sandbox')
+   .setCreditCardData({
+    brand:'visa',
+    number:document.getElementById('cardNumber').value.replace(/\D/g,''),
+    cvv:document.getElementById('cardCvv').value.replace(/\D/g,''),
+    expirationMonth:document.getElementById('cardExpMonth').value.trim(),
+    expirationYear:document.getElementById('cardExpYear').value.trim(),
+    holderName:document.getElementById('cardHolderName').value.trim(),
+    holderDocument:document.getElementById('cardHolderDocument').value.replace(/\D/g,''),
+    reuse:false
+   })
+   .getPaymentToken();
+
+  if(!tokenResult?.payment_token) throw new Error('Efí não retornou payment_token.');
+  cardOut.textContent='Etapa 1/3 OK — token gerado no navegador.\n\nEtapa 2/3 — criando transação Split e enviando payment_token à Efí...';
+
+  const body=chargesSplitBody();
+  body.paymentToken=tokenResult.payment_token;
+  body.installments=Number(document.getElementById('cardInstallments').value||1);
+
+  const d=await api('/admin/payments/efi/homologation/split-charges/card-test',{method:'POST',body:JSON.stringify(body)});
+  cardOut.textContent=JSON.stringify({
+   ok:d.ok,
+   provider:d.provider,
+   environment:d.environment,
+   chargeId:d.chargeId,
+   status:d.status,
+   total:d.total,
+   payment:d.payment,
+   installments:d.installments,
+   installmentValue:d.installmentValue,
+   cardMask:tokenResult.card_mask||null,
+   split:d.split
+  },null,2);
+ }catch(e){
+  cardOut.textContent='Falha: '+(e?.error_description||e?.message||String(e));
+ }finally{btn.disabled=false}
+}
+
 async function queryChargesSplitTransaction(){
  const id=document.getElementById('chargesChargeId').value.trim()||localStorage.getItem('efiLastChargesSplitChargeId')||'';
  if(!id){chargesOut.textContent='Informe um Charge ID criado na Homologação.';return}
