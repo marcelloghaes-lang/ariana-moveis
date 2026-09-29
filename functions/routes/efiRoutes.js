@@ -1,4 +1,4 @@
-import { efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig } from '../services/efiService.js';
+import { efiConfigSummary, testEfiAuthentication, getEfiChargesAccessToken, getEfiPixAccessToken, buildPixSplitPercentagePayload, createPixSplitConfig } from '../services/efiService.js';
 
 function safeProviderError(error = {}) {
   const providerData = error?.providerData || {};
@@ -127,13 +127,31 @@ export default function registerEfiRoutes(app, context = {}) {
         checkoutAttached: summary.checkoutAttached,
         productionTrafficEnabled: summary.productionTrafficEnabled
       }));
+      const results = {};
       try {
-        const result = await testEfiAuthentication('homologation');
-        console.log('[EFI HOMOLOG AUTH TEST] RESULT', JSON.stringify(result));
+        const startedAt = Date.now();
+        const token = await getEfiChargesAccessToken('homologation', { forceRefresh: true });
+        results.charges = { ok: Boolean(token), ms: Date.now() - startedAt };
       } catch (error) {
         const safe = safeProviderError(error);
-        console.error('[EFI HOMOLOG AUTH TEST] ERROR', JSON.stringify(safe));
+        results.charges = { ok: false, ...safe };
       }
+
+      try {
+        const startedAt = Date.now();
+        const token = await getEfiPixAccessToken('homologation', { forceRefresh: true });
+        results.pix = { ok: Boolean(token), ms: Date.now() - startedAt };
+      } catch (error) {
+        const safe = safeProviderError(error);
+        results.pix = { ok: false, ...safe };
+      }
+
+      console.log('[EFI HOMOLOG AUTH TEST] RESULT', JSON.stringify({
+        ok: Boolean(results.charges?.ok && results.pix?.ok),
+        environment: 'homologation',
+        charges: results.charges,
+        pix: results.pix
+      }));
     }, 8000);
     timer.unref?.();
   }
