@@ -272,6 +272,60 @@ export async function createChargesSplitHomologationTransaction(options = {}) {
   return { ...response, payload };
 }
 
+
+function futureDateIso(days = 3) {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + Math.max(1, Number(days || 3)));
+  return d.toISOString().slice(0, 10);
+}
+
+export async function payChargesSplitBoletoHomologation(chargeIdInput, options = {}) {
+  const chargeId = String(chargeIdInput || '').replace(/\D/g, '');
+  if (!chargeId) {
+    const error = new Error('charge_id Efí inválido.');
+    error.code = 'EFI_CHARGE_ID_INVALID';
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const customer = options.customer && typeof options.customer === 'object'
+    ? options.customer
+    : {
+        name: 'Gorbadoc Oldbuck',
+        cpf: '94271564656',
+        email: 'homologacao@arianamoveis.com.br',
+        phone_number: '31985147119',
+        address: {
+          street: 'Avenida Juscelino Kubitschek',
+          number: '909',
+          neighborhood: 'Centro',
+          zipcode: '39740000',
+          city: 'Guanhaes',
+          complement: '',
+          state: 'MG'
+        }
+      };
+
+  const payload = {
+    payment: {
+      banking_billet: {
+        customer,
+        expire_at: String(options.expireAt || futureDateIso(3)),
+        message: String(options.message || 'Teste Boleto Split Ariana Marketplace - Homologacao').slice(0, 400)
+      }
+    }
+  };
+
+  const response = await efiChargesRequest({
+    environment: 'homologation',
+    method: 'post',
+    path: '/v1/charge/' + chargeId + '/pay',
+    data: payload
+  });
+
+  return { ...response, payload, chargeId };
+}
+
 export async function getChargesSplitHomologationTransaction(chargeIdInput) {
   const chargeId = String(chargeIdInput || '').replace(/\D/g, '');
   if (!chargeId) {
