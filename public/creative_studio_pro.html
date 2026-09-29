@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-title" content="Creative Studio">
   <link rel="manifest" href="./manifest-creative-studio-pro.json?v=20260928-6">
   <link rel="apple-touch-icon" href="./pwa-icons/banners-192.png">
-  <link rel="stylesheet" href="./css/creative_studio_pro.css?v=20260929-1">
+  <link rel="stylesheet" href="./css/creative_studio_pro.css?v=20260929-2">
 </head>
 <body>
   <header class="topbar">
@@ -85,6 +85,10 @@
               <option value="C">Estrutura C • headline no topo / grupo abaixo</option>
               <option value="D">Estrutura D • fabricante / premium</option>
               <option value="E">Estrutura E • mini campanhas em cards</option>
+              <option value="F">Estrutura F • atacado: texto / produtos / condição</option>
+              <option value="G">Estrutura G • seleção comercial com palco</option>
+              <option value="H">Estrutura H • oportunidade / estoque em movimento</option>
+              <option value="I">Estrutura I • tecnologia escura / alto contraste</option>
             </select>
           </label>
           <div class="hint full">Preço, desconto, PIX e parcelamento continuam desligados por padrão. Só entram quando o modo de campanha e os campos comerciais forem preenchidos pelo usuário.</div>
@@ -92,30 +96,66 @@
       </section>
 
       <section class="step">
-        <div class="step-head"><span>3</span><div><strong>Template Pro</strong><small>Três composições realmente diferentes.</small></div></div>
-        <div class="template-grid">
-          <label class="template-card selected">
+        <div class="step-head"><span>3</span><div><strong>Biblioteca de Templates Pro</strong><small>Modelos de grande varejo, campanhas Ariana e templates JSON importados.</small></div></div>
+        <div class="template-grid" id="template-grid">
+          <label class="template-card selected" data-template-profile="marketplace">
             <input type="radio" name="template-pro" value="marketplace" checked>
             <span class="template-preview marketplace"><i></i><i></i><i></i></span>
             <b>Marketplace Impacto</b>
-            <small>Preço forte, energia visual e CTA.</small>
+            <small>Leitura rápida de varejo com identidade Ariana.</small>
           </label>
-          <label class="template-card">
+          <label class="template-card" data-template-profile="premium">
             <input type="radio" name="template-pro" value="premium">
             <span class="template-preview premium"><i></i><i></i></span>
             <b>Premium Ariana</b>
             <small>Azul-marinho, dourado e acabamento elegante.</small>
           </label>
-          <label class="template-card">
+          <label class="template-card" data-template-profile="campaign">
             <input type="radio" name="template-pro" value="campaign">
             <span class="template-preview campaign"><i></i><i></i><i></i></span>
             <b>Campanha Forte</b>
-            <small>Visual de varejo, marca e ação promocional.</small>
+            <small>Visual promocional com energia e CTA.</small>
+          </label>
+          <label class="template-card" data-template-profile="retail_stock">
+            <input type="radio" name="template-pro" value="retail_stock">
+            <span class="template-preview retail-stock"><i></i><i></i><i></i></span>
+            <b>Atacado Impacto Ariana</b>
+            <small>Headline à esquerda, grupo central e condição comercial à direita.</small>
+          </label>
+          <label class="template-card" data-template-profile="category_selection">
+            <input type="radio" name="template-pro" value="category_selection">
+            <span class="template-preview category-selection"><i></i><i></i><i></i></span>
+            <b>Seleção Comercial</b>
+            <small>Categoria forte, 2–4 produtos grandes e palco de varejo.</small>
+          </label>
+          <label class="template-card" data-template-profile="stock_movement">
+            <input type="radio" name="template-pro" value="stock_movement">
+            <span class="template-preview stock-movement"><i></i><i></i><i></i></span>
+            <b>Estoque em Movimento</b>
+            <small>Campanha agressiva para oportunidade, giro e abastecimento.</small>
+          </label>
+          <label class="template-card" data-template-profile="tech_store">
+            <input type="radio" name="template-pro" value="tech_store">
+            <span class="template-preview tech-store"><i></i><i></i><i></i></span>
+            <b>Tecnologia para sua Loja</b>
+            <small>Fundo escuro, alto contraste e grupo central de eletrônicos.</small>
+          </label>
+          <label class="template-card" data-template-profile="premium_line">
+            <input type="radio" name="template-pro" value="premium_line">
+            <span class="template-preview premium-line"><i></i><i></i></span>
+            <b>Linha Premium Comercial</b>
+            <small>Fabricante ou linha em composição elegante de varejo.</small>
           </label>
         </div>
+        <div id="imported-template-list" class="imported-template-list hidden"></div>
         <div class="template-tools">
           <button id="download-template-button" class="template-download-button" type="button">Baixar template selecionado</button>
-          <small>Baixa o modelo com formatos, identidade, regras de copy, IA e quality gate para servir de base aos próximos templates.</small>
+          <label class="template-upload-button">
+            <input id="upload-template-input" type="file" accept="application/json,.json">
+            <span>Importar template JSON</span>
+          </label>
+          <button id="clear-imported-templates" class="template-clear-button hidden" type="button">Limpar importados</button>
+          <small class="template-tools-help">Aceita arquivos <b>ariana-creative-template/v1</b>. O Studio valida o JSON, cria um modelo na biblioteca e aplica renderer, estilo, formatos, regras de copy e configuração selecionada sem alterar os templates nativos.</small>
         </div>
       </section>
 
@@ -362,7 +402,7 @@
     </section>
   </main>
 
-  <script src="./js/creative_studio_pro.js?v=20260929-1"></script>
+  <script src="./js/creative_studio_pro.js?v=20260929-2"></script>
   <script src="./pwa-register.js?v=20260928-6" data-sw="./sw-creative-studio-pro.js" data-scope="./creative_studio_pro.html"></script>
 </body>
 </html>

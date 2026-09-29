@@ -29,6 +29,70 @@
     square: { label: 'PRÉVIA • CARD QUADRADO', size: '1080 × 1080 pixels' }
   });
 
+  const TEMPLATE_STORAGE_KEY = 'ariana_creative_imported_templates_v1';
+  const BUILTIN_TEMPLATE_PROFILES = Object.freeze({
+    marketplace: { renderer:'marketplace', generationStyle:'marketplace', preset:'impact', grammar:'A', objective:'commercial' },
+    premium: { renderer:'premium', generationStyle:'premium', preset:'manufacturer', grammar:'D', objective:'manufacturer' },
+    campaign: { renderer:'campaign', generationStyle:'marketplace', preset:'opportunity', grammar:'C', objective:'commercial_campaign' },
+    retail_stock: { renderer:'retail_stock', generationStyle:'marketplace', preset:'opportunity', grammar:'A', objective:'commercial_campaign' },
+    category_selection: { renderer:'category_selection', generationStyle:'marketplace', preset:'selection', grammar:'G', objective:'category' },
+    stock_movement: { renderer:'stock_movement', generationStyle:'marketplace', preset:'opportunity', grammar:'H', objective:'commercial_campaign' },
+    tech_store: { renderer:'tech_store', generationStyle:'marketplace', preset:'selection', grammar:'I', objective:'category' },
+    premium_line: { renderer:'premium_line', generationStyle:'marketplace', preset:'manufacturer', grammar:'D', objective:'manufacturer' }
+  });
+  let importedTemplates = [];
+
+  function loadImportedTemplates() {
+    try {
+      const rows = JSON.parse(localStorage.getItem(TEMPLATE_STORAGE_KEY) || '[]');
+      importedTemplates = Array.isArray(rows) ? rows.filter(Boolean).slice(0,30) : [];
+    } catch {
+      importedTemplates = [];
+    }
+  }
+
+  function saveImportedTemplates() {
+    localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(importedTemplates.slice(0,30)));
+  }
+
+  function importedTemplateById(id = '') {
+    return importedTemplates.find(item => (item?.libraryId || item?.id) === id) || null;
+  }
+
+  function rendererAlias(renderer = '') {
+    const value = String(renderer || '').trim().toLowerCase();
+    const aliases = {
+      marketplace:'marketplace',
+      retail_promo:'retail_stock',
+      promo_virada:'stock_movement',
+      retail_stock:'retail_stock',
+      category_selection:'category_selection',
+      stock_movement:'stock_movement',
+      tech_store:'tech_store',
+      premium_line:'premium_line',
+      premium:'premium',
+      campaign:'campaign'
+    };
+    return aliases[value] || 'marketplace';
+  }
+
+  function templateProfile(id = selectedTemplate()) {
+    if (BUILTIN_TEMPLATE_PROFILES[id]) return BUILTIN_TEMPLATE_PROFILES[id];
+    const imported = importedTemplateById(id);
+    if (!imported) return BUILTIN_TEMPLATE_PROFILES.marketplace;
+    const selected = imported.selectedConfiguration || {};
+    const renderer = rendererAlias(imported.renderer);
+    const fallback = BUILTIN_TEMPLATE_PROFILES[renderer] || BUILTIN_TEMPLATE_PROFILES.marketplace;
+    return {
+      renderer,
+      generationStyle: selected.generationStyle || fallback.generationStyle || 'marketplace',
+      preset: selected.marketplacePreset || fallback.preset || 'impact',
+      grammar: selected.layoutGrammar || fallback.grammar || 'A',
+      objective: selected.objective || fallback.objective || 'commercial',
+      manifest: imported
+    };
+  }
+
   function byId(id) { return document.getElementById(id); }
 
   function token() {
@@ -181,6 +245,10 @@
     return document.querySelector('input[name="template-pro"]:checked')?.value || 'marketplace';
   }
 
+  function selectedRenderTemplate() {
+    return templateProfile(selectedTemplate()).renderer || 'marketplace';
+  }
+
   function selectedGenerationStyle() {
     return document.querySelector('input[name="generation-style"]:checked')?.value || 'marketplace';
   }
@@ -195,10 +263,53 @@
 
   function campaignObjective() {
     if (contentMode === 'institutional') return 'institutional';
+    const profile = templateProfile();
+    if (profile?.objective) return profile.objective;
     if (selectedMarketplacePreset() === 'manufacturer') return 'manufacturer';
     if (selectedMarketplacePreset() === 'opportunity') return 'commercial_campaign';
     if (contentMode === 'multi_product' || selectedMarketplacePreset() === 'selection') return 'category';
     return 'product';
+  }
+
+  function setRadioValue(name, value) {
+    const input = document.querySelector('input[name="' + name + '"][value="' + value + '"]');
+    if (!input) return false;
+    input.checked = true;
+    return true;
+  }
+
+  function applyTemplateProfile(id = selectedTemplate(), { announce = true } = {}) {
+    const profile = templateProfile(id);
+    if (profile.generationStyle) {
+      setRadioValue('generation-style', profile.generationStyle);
+      applyGenerationStyle(profile.generationStyle);
+    }
+    if (els.marketplacePreset && profile.preset) els.marketplacePreset.value = profile.preset;
+    if (els.layoutGrammar && profile.grammar) {
+      const exists = Array.from(els.layoutGrammar.options).some(option => option.value === profile.grammar);
+      if (exists) els.layoutGrammar.value = profile.grammar;
+      else els.layoutGrammar.value = 'auto';
+    }
+    const manifest = profile.manifest;
+    const commerce = manifest?.rules?.commerce || {};
+    if (manifest) {
+      const supportsPrice = commerce.autoPrice === true || commerce.autoPix === true || commerce.autoInstallments === true;
+      if (supportsPrice && contentMode === 'no_price') applyMode('with_price');
+      const cfg = manifest.selectedConfiguration || {};
+      if (cfg.contentMode && ['with_price','no_price','institutional','multi_product'].includes(cfg.contentMode)) {
+        applyMode(cfg.contentMode);
+      }
+      if (cfg.format && document.querySelector('input[name="format"][value="' + cfg.format + '"]')) {
+        setRadioValue('format', cfg.format);
+      }
+    }
+    updateChoiceCards();
+    lastCopyResearchSignature = '';
+    qualityAllowsSave = false;
+    if (els.saveButton) els.saveButton.disabled = true;
+    if (announce) {
+      status('Template "' + (manifest?.label || document.querySelector('input[name="template-pro"]:checked')?.closest('.template-card')?.querySelector('b')?.textContent || id) + '" ativado. A próxima prévia usará esta direção.', 'ok');
+    }
   }
 
   function applyGenerationStyle(style = selectedGenerationStyle()) {
@@ -654,7 +765,8 @@
           products: rows,
           context: {
             format: selectedFormat(),
-            template: selectedTemplate(),
+            template: selectedRenderTemplate(),
+            templateLibraryId: selectedTemplate(),
             contentMode,
             generationStyle: selectedGenerationStyle(),
             marketplacePreset: selectedMarketplacePreset(),
@@ -1178,7 +1290,9 @@
         product: first,
         options: {
           outputFormat: selectedFormat(),
-          templatePro: selectedTemplate(),
+          templatePro: selectedRenderTemplate(),
+          templateLibraryId: selectedTemplate(),
+          importedTemplate: importedTemplateById(selectedTemplate()),
           generationStyle: selectedGenerationStyle(),
           marketplacePreset: selectedMarketplacePreset(),
           layoutGrammar: selectedLayoutGrammar(),
@@ -1234,7 +1348,9 @@
       },
       options: {
         outputFormat: selectedFormat(),
-        templatePro: selectedTemplate(),
+        templatePro: selectedRenderTemplate(),
+        templateLibraryId: selectedTemplate(),
+        importedTemplate: importedTemplateById(selectedTemplate()),
         generationStyle: selectedGenerationStyle(),
         marketplacePreset: selectedMarketplacePreset(),
         layoutGrammar: selectedLayoutGrammar(),
@@ -1395,16 +1511,115 @@
     }
   }
 
+  function validateTemplateManifest(manifest) {
+    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) throw new Error('O arquivo JSON não contém um template válido.');
+    if (manifest.schemaVersion !== 'ariana-creative-template/v1') throw new Error('Schema incompatível. Use ariana-creative-template/v1.');
+    if (!String(manifest.id || '').trim()) throw new Error('O template precisa ter um campo id.');
+    if (!String(manifest.label || '').trim()) throw new Error('O template precisa ter um campo label.');
+    if (!manifest.renderer) throw new Error('O template precisa informar renderer.');
+    if (manifest.rules && typeof manifest.rules !== 'object') throw new Error('O campo rules precisa ser um objeto.');
+    const sourceId = String(manifest.id).trim().slice(0,80);
+    const libraryId = BUILTIN_TEMPLATE_PROFILES[sourceId] ? 'json__' + sourceId : sourceId;
+    return {
+      ...manifest,
+      id: sourceId,
+      libraryId,
+      label: String(manifest.label).trim().slice(0,120),
+      description: String(manifest.description || '').trim().slice(0,400),
+      renderer: String(manifest.renderer).trim().slice(0,80),
+      importedAt: new Date().toISOString()
+    };
+  }
+
+  function importedPreviewClass(manifest) {
+    const renderer = rendererAlias(manifest?.renderer);
+    return renderer === 'retail_stock' ? 'retail-stock'
+      : renderer === 'category_selection' ? 'category-selection'
+      : renderer === 'stock_movement' ? 'stock-movement'
+      : renderer === 'tech_store' ? 'tech-store'
+      : renderer === 'premium_line' || renderer === 'premium' ? 'premium-line'
+      : renderer === 'campaign' ? 'campaign'
+      : 'marketplace';
+  }
+
+  function renderImportedTemplates() {
+    const grid = byId('template-grid');
+    if (!grid) return;
+    grid.querySelectorAll('.template-card.imported-template').forEach(node => node.remove());
+    for (const manifest of importedTemplates) {
+      const label = document.createElement('label');
+      label.className = 'template-card imported-template';
+      const libraryId = manifest.libraryId || manifest.id;
+      label.dataset.templateProfile = libraryId;
+      label.innerHTML =
+        '<input type="radio" name="template-pro" value="' + escapeHtml(libraryId) + '">' +
+        '<span class="template-preview ' + importedPreviewClass(manifest) + '"><i></i><i></i><i></i></span>' +
+        '<b>' + escapeHtml(manifest.label) + '</b>' +
+        '<small>' + escapeHtml(manifest.description || ('JSON • renderer ' + manifest.renderer)) + '</small>';
+      grid.appendChild(label);
+    }
+
+    if (els.importedTemplateList) {
+      els.importedTemplateList.classList.toggle('hidden', importedTemplates.length === 0);
+      els.importedTemplateList.innerHTML = importedTemplates.map(item =>
+        '<span class="imported-template-chip"><b>' + escapeHtml(item.label) + '</b><span>' + escapeHtml(item.renderer) + '</span><button type="button" data-remove-imported-template="' + escapeHtml(item.libraryId || item.id) + '">×</button></span>'
+      ).join('');
+    }
+    els.clearImportedTemplates?.classList.toggle('hidden', importedTemplates.length === 0);
+    bindTemplateRadios();
+  }
+
+  function bindTemplateRadios() {
+    document.querySelectorAll('input[name="template-pro"]').forEach(input => {
+      if (input.dataset.boundTemplate === '1') return;
+      input.dataset.boundTemplate = '1';
+      input.addEventListener('change',() => applyTemplateProfile(input.value));
+    });
+  }
+
+  async function importTemplateJson(file) {
+    if (!file) return;
+    if (file.size > 512 * 1024) throw new Error('Template JSON muito grande. Limite: 512 KB.');
+    const raw = await file.text();
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch { throw new Error('O arquivo não contém JSON válido.'); }
+    const manifest = validateTemplateManifest(parsed);
+    const existing = importedTemplates.findIndex(item => (item.libraryId || item.id) === manifest.libraryId);
+    if (existing >= 0) importedTemplates.splice(existing,1,manifest);
+    else importedTemplates.unshift(manifest);
+    importedTemplates = importedTemplates.slice(0,30);
+    saveImportedTemplates();
+    renderImportedTemplates();
+    const input = document.querySelector('input[name="template-pro"][value="' + CSS.escape(manifest.libraryId) + '"]');
+    if (input) {
+      input.checked = true;
+      applyTemplateProfile(manifest.libraryId, { announce:false });
+    }
+    status('Template JSON "' + manifest.label + '" importado e adicionado à biblioteca.', 'ok');
+  }
+
+  function removeImportedTemplate(id) {
+    importedTemplates = importedTemplates.filter(item => (item.libraryId || item.id) !== id);
+    saveImportedTemplates();
+    if (selectedTemplate() === id) {
+      setRadioValue('template-pro','marketplace');
+      applyTemplateProfile('marketplace',{announce:false});
+    }
+    renderImportedTemplates();
+    status('Template importado removido da biblioteca local.', 'ok');
+  }
+
   async function downloadSelectedTemplate() {
     const button = els.downloadTemplateButton;
     const templateId = selectedTemplate();
+    const importedManifest = importedTemplateById(templateId);
     if (button) {
       button.disabled = true;
       button.textContent = 'Preparando template...';
     }
 
     try {
-      const manifest = await api('/admin/creative-studio/pro/templates/' + encodeURIComponent(templateId));
+      const manifest = importedManifest || await api('/admin/creative-studio/pro/templates/' + encodeURIComponent(selectedRenderTemplate()));
       const exported = {
         ...manifest,
         selectedConfiguration: {
@@ -1613,13 +1828,26 @@
       els.saveButton.disabled = true;
       status('Formato alterado. A IA vai recalcular a direção e os textos na próxima prévia.', 'ok');
     }));
-    document.querySelectorAll('input[name="template-pro"]').forEach(input => input.addEventListener('change',() => {
-      updateChoiceCards();
-      lastCopyResearchSignature = '';
-      qualityAllowsSave = false;
-      els.saveButton.disabled = true;
-      status('Template alterado. A próxima prévia usará este modelo e a IA vai adaptar a campanha.', 'ok');
-    }));
+    bindTemplateRadios();
+    els.uploadTemplateInput?.addEventListener('change', async event => {
+      const file = event.target.files?.[0];
+      event.target.value = '';
+      try { await importTemplateJson(file); }
+      catch (error) { status('Falha ao importar template: ' + error.message, 'error'); }
+    });
+    els.importedTemplateList?.addEventListener('click', event => {
+      const button = event.target.closest('[data-remove-imported-template]');
+      if (button) removeImportedTemplate(button.dataset.removeImportedTemplate);
+    });
+    els.clearImportedTemplates?.addEventListener('click', () => {
+      if (!window.confirm('Remover todos os templates JSON importados deste navegador?')) return;
+      importedTemplates = [];
+      saveImportedTemplates();
+      setRadioValue('template-pro','marketplace');
+      renderImportedTemplates();
+      applyTemplateProfile('marketplace',{announce:false});
+      status('Templates JSON importados foram limpos.', 'ok');
+    });
     document.querySelectorAll('input[name="generation-style"]').forEach(input => input.addEventListener('change',() => {
       applyGenerationStyle(input.value);
       status(
@@ -1657,6 +1885,9 @@
     Object.assign(els,{
       installAppButton:byId('install-app-button'),
       downloadTemplateButton:byId('download-template-button'),
+      uploadTemplateInput:byId('upload-template-input'),
+      importedTemplateList:byId('imported-template-list'),
+      clearImportedTemplates:byId('clear-imported-templates'),
       marketplaceControls:byId('marketplace-controls'),
       marketplacePreset:byId('marketplace-preset'),
       layoutGrammar:byId('layout-grammar'),
@@ -1702,6 +1933,8 @@
       qualityList:byId('quality-list')
     });
 
+    loadImportedTemplates();
+    renderImportedTemplates();
     bind();
     bindInstallApp();
     updateChoiceCards();
