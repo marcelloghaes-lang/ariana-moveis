@@ -1154,7 +1154,12 @@ function normalizedOptions(product = {}, options = {}) {
 
 function highQualityRenderFormat(format, opts = {}) {
   if (opts.generationStyle !== 'marketplace') return format;
-  const scale = format.id === 'hero_desktop' ? 3 : 2;
+
+  // 2x é o ponto estável no Render Starter (512 MB).
+  // O Hero em 3x podia ultrapassar a memória durante a composição multi-produto
+  // e o processo era reiniciado no meio da requisição, causando "Failed to fetch".
+  const scale = 2;
+
   return {
     ...format,
     width: format.width * scale,
@@ -1861,9 +1866,7 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
       template: opts.template,
       showPrice: opts.showPrice,
       renderQuality: opts.generationStyle === 'marketplace'
-        ? (renderFormat.renderScale === 3
-            ? 'supersampled_3x_lanczos3_selective_sharpen'
-            : 'supersampled_2x_lanczos3_selective_sharpen')
+        ? 'supersampled_2x_lanczos3_selective_sharpen'
         : 'standard',
       renderScale: opts.generationStyle === 'marketplace' ? (renderFormat.renderScale || 2) : 1,
       product: {
@@ -2669,9 +2672,7 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
       layoutGrammar:opts.layoutGrammar,
       campaignObjective:opts.campaignObjective,
       renderQuality:opts.generationStyle === 'marketplace'
-        ? (renderFormat.renderScale === 3
-            ? 'supersampled_3x_lanczos3_selective_sharpen'
-            : 'supersampled_2x_lanczos3_selective_sharpen')
+        ? 'supersampled_2x_lanczos3_selective_sharpen'
         : 'standard',
       renderScale:opts.generationStyle === 'marketplace' ? (renderFormat.renderScale || 2) : 1,
       productCount:rows.length,
