@@ -421,6 +421,37 @@ export async function cancelChargesSplitHomologationTransaction(chargeIdInput) {
   return { ...response, chargeId };
 }
 
+export async function refundChargesSplitCardHomologation(chargeIdInput, options = {}) {
+  const chargeId = String(chargeIdInput || '').replace(/\D/g, '');
+  if (!chargeId) {
+    const error = new Error('charge_id Efí inválido.');
+    error.code = 'EFI_CHARGE_ID_INVALID';
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const amount = options.amount == null || options.amount === ''
+    ? null
+    : Math.floor(Number(options.amount));
+
+  if (amount !== null && (!Number.isFinite(amount) || amount < 1)) {
+    const error = new Error('Valor do estorno Efí inválido.');
+    error.code = 'EFI_REFUND_AMOUNT_INVALID';
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const payload = amount === null ? {} : { amount };
+  const response = await efiChargesRequest({
+    environment: 'homologation',
+    method: 'post',
+    path: '/v1/charge/card/' + chargeId + '/refund',
+    data: payload
+  });
+
+  return { ...response, chargeId, payload };
+}
+
 export async function efiPixRequest(options = {}) {
   const env = normalizeEnvironment(options.environment || 'homologation');
   const config = getEfiConfig(env);
