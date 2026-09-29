@@ -1118,6 +1118,47 @@ function normalizedOptions(product = {}, options = {}) {
   };
 }
 
+function highQualityRenderFormat(format, opts = {}) {
+  if (opts.generationStyle !== 'marketplace') return format;
+  return {
+    ...format,
+    width: format.width * 2,
+    height: format.height * 2,
+    renderScale: 2
+  };
+}
+
+async function finalizeBannerBuffer(layers, renderFormat, finalFormat, highQuality = false) {
+  // Primeiro compõe o canvas inteiro na resolução de trabalho. O Sharp executa
+  // resize antes de composite dentro do mesmo pipeline, então o downscale precisa
+  // obrigatoriamente acontecer em uma segunda etapa para não reduzir o canvas
+  // antes de receber as camadas 2x.
+  const composed = await sharp({
+    create: {
+      width: renderFormat.width,
+      height: renderFormat.height,
+      channels: 4,
+      background: { r: 0, g: 71, b: 171, alpha: 1 }
+    }
+  })
+    .composite(layers)
+    .png({ compressionLevel: 9, adaptiveFiltering: true })
+    .toBuffer();
+
+  if (highQuality && (renderFormat.width !== finalFormat.width || renderFormat.height !== finalFormat.height)) {
+    return sharp(composed)
+      .resize(finalFormat.width, finalFormat.height, {
+        fit: 'fill',
+        kernel: sharp.kernel.lanczos3
+      })
+      .sharpen({ sigma: 0.55 })
+      .png({ compressionLevel: 9, adaptiveFiltering: true })
+      .toBuffer();
+  }
+
+  return composed;
+}
+
 function composition(format, asset, opts) {
   const mobile = format.device === 'mobile';
   const aspect = asset.width / Math.max(1, asset.height);
@@ -1666,26 +1707,32 @@ export async function analyzeCreativeBannerPro(product = {}, options = {}) {
 export async function generateCreativeBannerPro(product = {}, options = {}) {
   const opts = normalizedOptions(product, options);
   const format = opts.format;
+  const renderFormat = highQualityRenderFormat(format, opts);
   const asset = await prepareProProductAsset(product, opts);
   const brandAsset = await prepareOfficialLogoAsset();
   const campaignBrandAsset = opts.brandLogoUrl ? await prepareCampaignBrandLogo(opts.brandLogoUrl) : null;
   opts.hasBrandLogo = Boolean(campaignBrandAsset?.backgroundRemoved);
-  const comp = composition(format, asset, opts);
-  const productLayer = await productComposite(asset, format, comp);
+  const comp = composition(renderFormat, asset, opts);
+  const productLayer = await productComposite(
+    asset,
+    renderFormat,
+    comp,
+    { softMarketplaceShadow: opts.generationStyle === 'marketplace' }
+  );
 
   const layers = [
-    { input: backgroundSvg(format, opts.template), left: 0, top: 0 }
+    { input: backgroundSvg(renderFormat, opts.template), left: 0, top: 0 }
   ];
 
-  const logo = await logoLayer(format, brandAsset);
+  const logo = await logoLayer(renderFormat, brandAsset);
   if (logo) layers.push(logo);
   if (opts.template === 'campaign' && campaignBrandAsset?.backgroundRemoved) {
-    const manufacturerLogo = await campaignBrandLogoLayer(format, campaignBrandAsset);
+    const manufacturerLogo = await campaignBrandLogoLayer(renderFormat, campaignBrandAsset);
     if (manufacturerLogo) layers.push(manufacturerLogo);
   }
 
   if (!asset.backgroundRemoved) {
-    layers.push({ input: fallbackPanelSvg(format, comp, opts.template), left: 0, top: 0 });
+    layers.push({ input: fallbackPanelSvg(renderFormat, comp, opts.template), left: 0, top: 0 });
   } else {
     layers.push({
       input: productLayer.shadow,
@@ -1703,22 +1750,17 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
   });
 
   layers.push({
-    input: format.device === 'mobile' ? overlayMobile(format, opts) : overlayDesktop(format, opts),
+    input: renderFormat.device === 'mobile' ? overlayMobile(renderFormat, opts) : overlayDesktop(renderFormat, opts),
     left: 0,
     top: 0
   });
 
-  const buffer = await sharp({
-    create: {
-      width: format.width,
-      height: format.height,
-      channels: 4,
-      background: { r: 0, g: 71, b: 171, alpha: 1 }
-    }
-  })
-    .composite(layers)
-    .png({ compressionLevel: 9, adaptiveFiltering: true })
-    .toBuffer();
+  const buffer = await finalizeBannerBuffer(
+    layers,
+    renderFormat,
+    format,
+    opts.generationStyle === 'marketplace'
+  );
 
   return {
     buffer,
@@ -1726,6 +1768,8 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
       format,
       template: opts.template,
       showPrice: opts.showPrice,
+      renderQuality: opts.generationStyle === 'marketplace' ? 'supersampled_2x_lanczos3_sharpen' : 'standard',
+      renderScale: opts.generationStyle === 'marketplace' ? 2 : 1,
       product: {
         sourceWidth: asset.sourceWidth,
         sourceHeight: asset.sourceHeight,
@@ -2397,6 +2441,7 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
     contentMode:'multi_product'
   });
   const format=opts.format;
+  const renderFormat=highQualityRenderFormat(format,opts);
   const brandAsset=await prepareOfficialLogoAsset();
   const campaignBrandAsset=opts.brandLogoUrl ? await prepareCampaignBrandLogo(opts.brandLogoUrl) : null;
   opts.hasBrandLogo=Boolean(campaignBrandAsset?.backgroundRemoved);
@@ -2404,19 +2449,19 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
     rows.map(product => prepareProProductAsset(product, opts))
   );
   const qualityResult=multiQuality(assets,brandAsset,format,opts,campaignBrandAsset);
-  const slots=multiProductSlots(format,rows.length,opts);
+  const slots=multiProductSlots(renderFormat,rows.length,opts);
 
   const layers=[
-    {input:backgroundSvg(format,opts.template),left:0,top:0}
+    {input:backgroundSvg(renderFormat,opts.template),left:0,top:0}
   ];
-  const marketplacePolish = marketplaceArianaPolishSvg(format, opts);
+  const marketplacePolish = marketplaceArianaPolishSvg(renderFormat, opts);
   if (marketplacePolish) {
     layers.push({input:marketplacePolish,left:0,top:0});
   }
-  layers.push({input:multiShowcaseStageSvg(format,rows.length,opts),left:0,top:0});
-  layers.push(await logoLayer(format,brandAsset));
+  layers.push({input:multiShowcaseStageSvg(renderFormat,rows.length,opts),left:0,top:0});
+  layers.push(await logoLayer(renderFormat,brandAsset));
   if(campaignBrandAsset?.backgroundRemoved){
-    const manufacturerLogo=await campaignBrandLogoLayer(format,campaignBrandAsset);
+    const manufacturerLogo=await campaignBrandLogoLayer(renderFormat,campaignBrandAsset);
     if(manufacturerLogo) layers.push(manufacturerLogo);
   }
 
@@ -2425,7 +2470,7 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
     const slot=slots[index];
     const layer=await productComposite(
       asset,
-      format,
+      renderFormat,
       {product:slot},
       {softMarketplaceShadow: opts.generationStyle === 'marketplace'}
     );
@@ -2438,7 +2483,7 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
       });
     }else{
       layers.push({
-        input:fallbackPanelSvg(format,{product:slot},opts.template),
+        input:fallbackPanelSvg(renderFormat,{product:slot},opts.template),
         left:0,
         top:0
       });
@@ -2452,22 +2497,17 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
   }
 
   layers.push({
-    input:multiCampaignOverlay(format,opts,rows.length),
+    input:multiCampaignOverlay(renderFormat,opts,rows.length),
     left:0,
     top:0
   });
 
-  const buffer=await sharp({
-    create:{
-      width:format.width,
-      height:format.height,
-      channels:4,
-      background:{r:0,g:71,b:171,alpha:1}
-    }
-  })
-    .composite(layers)
-    .png({compressionLevel:9,adaptiveFiltering:true})
-    .toBuffer();
+  const buffer=await finalizeBannerBuffer(
+    layers,
+    renderFormat,
+    format,
+    opts.generationStyle === 'marketplace'
+  );
 
   return {
     buffer,
@@ -2479,6 +2519,8 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
       marketplacePreset:opts.marketplacePreset,
       layoutGrammar:opts.layoutGrammar,
       campaignObjective:opts.campaignObjective,
+      renderQuality:opts.generationStyle === 'marketplace' ? 'supersampled_2x_lanczos3_sharpen' : 'standard',
+      renderScale:opts.generationStyle === 'marketplace' ? 2 : 1,
       productCount:rows.length,
       products:assets.map((asset,index)=>({
         index,
