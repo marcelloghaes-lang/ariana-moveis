@@ -1120,11 +1120,12 @@ function normalizedOptions(product = {}, options = {}) {
 
 function highQualityRenderFormat(format, opts = {}) {
   if (opts.generationStyle !== 'marketplace') return format;
+  const scale = format.id === 'hero_desktop' ? 3 : 2;
   return {
     ...format,
-    width: format.width * 2,
-    height: format.height * 2,
-    renderScale: 2
+    width: format.width * scale,
+    height: format.height * scale,
+    renderScale: scale
   };
 }
 
@@ -1462,13 +1463,21 @@ async function productComposite(asset, format, comp, renderOptions = {}) {
     h: Math.round(format.height * comp.product.h)
   };
 
-  const product = await sharp(asset.buffer)
+  const highDefinition = renderOptions.highDefinition === true;
+  let productPipeline = sharp(asset.buffer)
     .resize(Math.max(80, box.w), Math.max(80, box.h), {
       fit: 'contain',
+      kernel: sharp.kernel.lanczos3,
       background: { r: 255, g: 255, b: 255, alpha: 0 },
       withoutEnlargement: false
-    })
-    .png()
+    });
+
+  if (highDefinition) {
+    productPipeline = productPipeline.sharpen({ sigma: 0.72 });
+  }
+
+  const product = await productPipeline
+    .png({ compressionLevel: 9, adaptiveFiltering: true })
     .toBuffer();
 
   const meta = await sharp(product).metadata();
@@ -1768,8 +1777,12 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
       format,
       template: opts.template,
       showPrice: opts.showPrice,
-      renderQuality: opts.generationStyle === 'marketplace' ? 'supersampled_2x_lanczos3_sharpen' : 'standard',
-      renderScale: opts.generationStyle === 'marketplace' ? 2 : 1,
+      renderQuality: opts.generationStyle === 'marketplace'
+        ? (renderFormat.renderScale === 3
+            ? 'supersampled_3x_lanczos3_selective_sharpen'
+            : 'supersampled_2x_lanczos3_selective_sharpen')
+        : 'standard',
+      renderScale: opts.generationStyle === 'marketplace' ? (renderFormat.renderScale || 2) : 1,
       product: {
         sourceWidth: asset.sourceWidth,
         sourceHeight: asset.sourceHeight,
@@ -2472,7 +2485,10 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
       asset,
       renderFormat,
       {product:slot},
-      {softMarketplaceShadow: opts.generationStyle === 'marketplace'}
+      {
+        softMarketplaceShadow: opts.generationStyle === 'marketplace',
+        highDefinition: opts.generationStyle === 'marketplace'
+      }
     );
     if(asset.backgroundRemoved){
       layers.push({
@@ -2519,8 +2535,12 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
       marketplacePreset:opts.marketplacePreset,
       layoutGrammar:opts.layoutGrammar,
       campaignObjective:opts.campaignObjective,
-      renderQuality:opts.generationStyle === 'marketplace' ? 'supersampled_2x_lanczos3_sharpen' : 'standard',
-      renderScale:opts.generationStyle === 'marketplace' ? 2 : 1,
+      renderQuality:opts.generationStyle === 'marketplace'
+        ? (renderFormat.renderScale === 3
+            ? 'supersampled_3x_lanczos3_selective_sharpen'
+            : 'supersampled_2x_lanczos3_selective_sharpen')
+        : 'standard',
+      renderScale:opts.generationStyle === 'marketplace' ? (renderFormat.renderScale || 2) : 1,
       productCount:rows.length,
       products:assets.map((asset,index)=>({
         index,

@@ -601,7 +601,7 @@ test('Marketplace Ariana exporta presets e gramáticas no manifesto', () => {
   assert.equal(manifest.rules.branding.ownSiteUrlInsideOwnSiteBanner, false);
 });
 
-test('Marketplace Ariana renderiza em 2x e exporta na dimensão oficial', async () => {
+test('Marketplace Ariana Hero Desktop renderiza em 3x e exporta na dimensão oficial', async () => {
   const result = await generateCreativeBannerProMulti(
     [MULTI_TV, MULTI_FRIDGE, MULTI_WASHER],
     {
@@ -620,8 +620,32 @@ test('Marketplace Ariana renderiza em 2x e exporta na dimensão oficial', async 
   const meta = await sharp(result.buffer).metadata();
   assert.equal(meta.width, 1920);
   assert.equal(meta.height, 480);
+  assert.equal(result.meta.renderScale, 3);
+  assert.equal(result.meta.renderQuality, 'supersampled_3x_lanczos3_selective_sharpen');
+  assert.equal(result.meta.quality.blockSave, false);
+});
+
+test('Marketplace Ariana mantém 2x nos demais formatos para controlar custo de render', async () => {
+  const result = await generateCreativeBannerProMulti(
+    [MULTI_TV, MULTI_FRIDGE, MULTI_WASHER],
+    {
+      outputFormat: 'secondary_desktop',
+      templatePro: 'marketplace',
+      generationStyle: 'marketplace',
+      marketplacePreset: 'impact',
+      layoutGrammar: 'A',
+      headline: 'SELEÇÃO ARIANA',
+      subtitle: 'Produtos em destaque.',
+      badge: 'DESTAQUES',
+      cta: 'CONFIRA'
+    }
+  );
+
+  const meta = await sharp(result.buffer).metadata();
+  assert.equal(meta.width, 1600);
+  assert.equal(meta.height, 400);
   assert.equal(result.meta.renderScale, 2);
-  assert.equal(result.meta.renderQuality, 'supersampled_2x_lanczos3_sharpen');
+  assert.equal(result.meta.renderQuality, 'supersampled_2x_lanczos3_selective_sharpen');
   assert.equal(result.meta.quality.blockSave, false);
 });
 
