@@ -45,6 +45,7 @@ const enterpriseCatalogSyncJobSchema = new mongoose.Schema({
   payload: mongoose.Schema.Types.Mixed,
   options: mongoose.Schema.Types.Mixed,
   startedAt: Date,
+  heartbeatAt: Date,
   finishedAt: Date,
   durationMs: { type: Number, default: 0 },
   attempts: { type: Number, default: 0 },
@@ -89,6 +90,7 @@ async function processEnterpriseCatalogSyncJob(jobId = '') {
   job.status = 'processing';
   job.statusLabel = 'Processando';
   job.startedAt = startedAt;
+  job.heartbeatAt = startedAt;
   job.attempts = Number(job.attempts || 0) + 1;
   await job.save();
 
@@ -103,36 +105,74 @@ async function processEnterpriseCatalogSyncJob(jobId = '') {
   let skippedProducts = 0;
 
   try {
-    for (let i = 0; i < items.length; i += 1) {
-      const item = items[i];
-      const validation = validateEnterpriseCatalogItem(item, i);
-      if (!validation.ok) {
-        skippedProducts += 1;
-        errors.push({ index: i, sku: validation.sku || '', errors: validation.errors });
-        continue;
+    const concurrency = Math.min(25, Math.max(4, Number(process.env.ENTERPRISE_CATALOG_SYNC_CONCURRENCY || 16)));
+
+    for (let offset = 0; offset < items.length; offset += concurrency) {
+      const batch = items.slice(offset, offset + concurrency);
+      const batchResults = await Promise.all(batch.map(async (item, localIndex) => {
+        const i = offset + localIndex;
+        const validation = validateEnterpriseCatalogItem(item, i);
+        if (!validation.ok) {
+          return { ok: false, skipped: true, error: { index: i, sku: validation.sku || '', errors: validation.errors } };
+        }
+
+        try {
+          const payload = enterpriseCompatProductPayload(item, parent, partner);
+          payload.sellerId = String(payload.sellerId || job.partnerId || job.manufacturer || 'enterprise').trim();
+          payload.sellerName = String(payload.sellerName || job.manufacturer || partner.tradeName || partner.companyName || 'Enterprise').trim();
+          payload.metadata = { ...(payload.metadata || {}), enterpriseSyncJobId: job.jobId, enterprisePartnerId: job.partnerId, enterpriseEnvironment: job.environment };
+
+          const filter = { sku: payload.sku, sellerId: payload.sellerId };
+          const before = await ProductModel.findOne(filter).select('_id').lean();
+          const product = await ProductModel.findOneAndUpdate(
+            filter,
+            { $set: payload, $setOnInsert: { createdAt: new Date() } },
+            { upsert: true, new: true }
+          );
+
+          return {
+            ok: true,
+            created: !before,
+            result: {
+              ok: true,
+              action: before ? 'updated' : 'created',
+              sku: payload.sku,
+              id: String(product._id),
+              price: product.price,
+              stock: product.stock
+            }
+          };
+        } catch (itemError) {
+          return {
+            ok: false,
+            skipped: true,
+            error: { index: i, sku: String(item.sku || item.codigo || ''), error: itemError.message || 'item_sync_failed' }
+          };
+        }
+      }));
+
+      for (const row of batchResults) {
+        if (row.ok) {
+          if (row.created) createdProducts += 1;
+          else updatedProducts += 1;
+          results.push(row.result);
+        } else {
+          skippedProducts += 1;
+          errors.push(row.error);
+        }
       }
 
-      try {
-        const payload = enterpriseCompatProductPayload(item, parent, partner);
-        payload.sellerId = String(payload.sellerId || job.partnerId || job.manufacturer || 'enterprise').trim();
-        payload.sellerName = String(payload.sellerName || job.manufacturer || partner.tradeName || partner.companyName || 'Enterprise').trim();
-        payload.metadata = { ...(payload.metadata || {}), enterpriseSyncJobId: job.jobId, enterprisePartnerId: job.partnerId, enterpriseEnvironment: job.environment };
+      const processed = Math.min(items.length, offset + batch.length);
+      job.heartbeatAt = new Date();
+      job.statusLabel = `Processando ${processed}/${items.length}`;
+      job.createdProducts = createdProducts;
+      job.updatedProducts = updatedProducts;
+      job.skippedProducts = skippedProducts;
+      job.errorCount = errors.length;
+      await job.save();
 
-        const filter = { sku: payload.sku, sellerId: payload.sellerId };
-        const before = await ProductModel.findOne(filter).lean();
-        const product = await ProductModel.findOneAndUpdate(
-          filter,
-          { $set: payload, $setOnInsert: { createdAt: new Date() } },
-          { upsert: true, new: true }
-        );
-
-        if (before) updatedProducts += 1;
-        else createdProducts += 1;
-
-        results.push({ ok: true, action: before ? 'updated' : 'created', sku: payload.sku, id: String(product._id), price: product.price, stock: product.stock });
-      } catch (itemError) {
-        skippedProducts += 1;
-        errors.push({ index: i, sku: String(item.sku || item.codigo || ''), error: itemError.message || 'item_sync_failed' });
+      if (processed === items.length || processed % Math.max(concurrency * 10, 100) === 0) {
+        console.log(`[ENTERPRISE CATALOG SYNC] ${job.jobId}: ${processed}/${items.length}`);
       }
     }
 
@@ -179,10 +219,37 @@ async function processEnterpriseCatalogSyncJob(jobId = '') {
 }
 
 async function processPendingEnterpriseCatalogSyncJobs(limit = 3) {
+  const staleMs = Math.max(120000, Number(process.env.ENTERPRISE_CATALOG_SYNC_STALE_MS || 300000));
+  const staleBefore = new Date(Date.now() - staleMs);
+
+  const recovered = await EnterpriseCatalogSyncJob.updateMany(
+    {
+      status: 'processing',
+      $or: [
+        { heartbeatAt: { $lt: staleBefore } },
+        { heartbeatAt: { $exists: false }, startedAt: { $lt: staleBefore } },
+        { heartbeatAt: null, startedAt: { $lt: staleBefore } }
+      ]
+    },
+    {
+      $set: {
+        status: 'queued',
+        statusLabel: 'Recuperado após interrupção',
+        nextAttemptAt: new Date(),
+        lastError: 'Processamento interrompido; retomado automaticamente'
+      }
+    }
+  ).catch(() => null);
+
+  if (Number(recovered?.modifiedCount || 0) > 0) {
+    console.log(`[ENTERPRISE CATALOG SYNC] ${recovered.modifiedCount} job(s) recuperado(s)`);
+  }
+
   const rows = await EnterpriseCatalogSyncJob.find({
     status: { $in: ['queued', 'retry'] },
     nextAttemptAt: { $lte: new Date() }
   }).sort({ createdAt: 1 }).limit(Math.max(1, Number(limit || 3)));
+
   for (const row of rows) {
     await processEnterpriseCatalogSyncJob(row.jobId);
   }
