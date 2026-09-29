@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, createPixHomologationTestCharge, createPixWebhookHomologationProbe, revisePixChargeAmount, linkPixChargeToSplit, getPixSplitCharge, runPixSplitHomologationTest, configurePixWebhook, getPixWebhook } from '../services/efiService.js';
+import { efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, createPixHomologationTestCharge, createPixWebhookHomologationProbe, linkPixChargeToSplit, getPixSplitCharge, runPixSplitHomologationTest, configurePixWebhook, getPixWebhook } from '../services/efiService.js';
 
 function safeProviderError(error = {}) {
   const providerData = error?.providerData || {};
@@ -488,33 +488,7 @@ export default function registerEfiRoutes(app, context = {}) {
 
 
 
-  if (
-    String(process.env.EFI_INTERNAL_CONFIGURE_WEBHOOK_ON_START || 'false').toLowerCase() === 'true' &&
-    !globalThis.__arianaEfiWebhookBootstrapStarted
-  ) {
-    globalThis.__arianaEfiWebhookBootstrapStarted = true;
-    const timer = setTimeout(async () => {
-      const webhookUrl = String(process.env.EFI_HOMOLOG_WEBHOOK_URL || '').trim();
-      try {
-        const configured = await configurePixWebhook({ environment: 'homologation', webhookUrl });
-        const verified = await getPixWebhook({ environment: 'homologation' });
-        console.log('[EFI WEBHOOK BOOTSTRAP] RESULT', JSON.stringify({
-          ok: true,
-          configureStatus: configured.status,
-          verifyStatus: verified.status,
-          configured: Boolean(verified.data?.webhookUrl),
-          environment: 'homologation'
-        }));
-      } catch (error) {
-        const safe = safeProviderError(error);
-        console.error('[EFI WEBHOOK BOOTSTRAP] ERROR', JSON.stringify(safe));
-      }
-    }, 8000);
-    timer.unref?.();
-  }
-
-
-  if (
+if (
     String(process.env.EFI_INTERNAL_WEBHOOK_PROBE_ON_START || 'false').toLowerCase() === 'true' &&
     !globalThis.__arianaEfiWebhookProbeStarted
   ) {
@@ -541,66 +515,5 @@ export default function registerEfiRoutes(app, context = {}) {
   }
 
 
-
-  if (
-    String(process.env.EFI_INTERNAL_SPLIT_SETTLEMENT_PROBE_ON_START || 'false').toLowerCase() === 'true' &&
-    !globalThis.__arianaEfiSplitSettlementProbeStarted
-  ) {
-    globalThis.__arianaEfiSplitSettlementProbeStarted = true;
-    const timer = setTimeout(async () => {
-      try {
-        if (!IntegrationAuditLog?.findOne) throw new Error('Auditoria de integrações indisponível.');
-        const lastConfig = await IntegrationAuditLog.findOne({
-          scope: 'payments',
-          eventType: 'efi_homologation_split_config_created',
-          status: 'success'
-        }).sort({ createdAt: -1, _id: -1 }).lean();
-
-        const splitConfigId = String(lastConfig?.response?.id || '').trim();
-        if (!splitConfigId) throw new Error('Nenhuma configuração Split Pix homologada encontrada.');
-
-        const charge = await createPixWebhookHomologationProbe({
-          environment: 'homologation',
-          amount: 1,
-          description: 'Teste liquidacao Split Pix Ariana - Homologacao'
-        });
-
-        const createdStatus = String(charge.data?.status || '').toUpperCase();
-        if (createdStatus !== 'ATIVA') {
-          throw new Error('Cobrança de R$ 1,00 não permaneceu ATIVA tempo suficiente para vincular o Split.');
-        }
-
-        const link = await linkPixChargeToSplit({
-          environment: 'homologation',
-          txid: charge.txid,
-          splitConfigId
-        });
-
-        await new Promise((resolve) => setTimeout(resolve, 4000));
-
-        let verification = null;
-        try {
-          verification = await getPixSplitCharge({
-            environment: 'homologation',
-            txid: charge.txid
-          });
-        } catch (_) {}
-
-        console.log('[EFI SPLIT SETTLEMENT PROBE] RESULT', JSON.stringify({
-          ok: true,
-          splitConfigId,
-          txid: charge.txid,
-          createdStatus: charge.data?.status || null,
-          amount: charge.data?.valor?.original || charge.payload?.valor?.original || '1.00',
-          linkStatus: link.status,
-          verificationStatus: verification?.data?.status || null,
-          splitDetected: Boolean(verification?.data?.split || verification?.data?.config)
-        }));
-      } catch (error) {
-        console.error('[EFI SPLIT SETTLEMENT PROBE] ERROR', JSON.stringify(safeProviderError(error)));
-      }
-    }, 12000);
-    timer.unref?.();
-  }
 
 }
