@@ -129,6 +129,39 @@ button,a{touch-action:manipulation}
 }
 .template-download-button:hover{background:#eef6ff;border-color:#8fb5e3}
 .template-download-button:disabled{opacity:.55;cursor:not-allowed}
+.template-preview.retail-stock{background:linear-gradient(135deg,#064eae,#058ce9 58%,#03b8d9)}
+.template-preview.retail-stock:before{content:"";position:absolute;inset:auto 0 0;height:15%;background:#0b2bd5}
+.template-preview.retail-stock i:nth-child(1){position:absolute;width:31%;height:12%;left:6%;top:20%;background:#fff;border-radius:4px}
+.template-preview.retail-stock i:nth-child(2){position:absolute;width:30%;height:62%;left:40%;top:16%;background:#d9e5ee;border-radius:10px}
+.template-preview.retail-stock i:nth-child(3){position:absolute;width:21%;height:24%;right:5%;top:28%;background:#fff;border-radius:5px}
+.template-preview.category-selection{background:linear-gradient(135deg,#07124d,#101378 60%,#2019a3)}
+.template-preview.category-selection i:nth-child(1){position:absolute;width:32%;height:10%;left:6%;top:22%;background:#ff8c00;border-radius:3px}
+.template-preview.category-selection i:nth-child(2){position:absolute;width:42%;height:64%;left:38%;top:14%;background:#eef3f7;border-radius:12px}
+.template-preview.category-selection i:nth-child(3){position:absolute;width:15%;height:22%;right:4%;top:31%;background:#ff8c00;border-radius:4px}
+.template-preview.stock-movement{background:linear-gradient(135deg,#06144f,#1020b5 62%,#17175e)}
+.template-preview.stock-movement i:nth-child(1){position:absolute;width:34%;height:10%;left:6%;top:20%;background:#ff7b00;border-radius:3px}
+.template-preview.stock-movement i:nth-child(2){position:absolute;width:39%;height:58%;left:42%;top:18%;background:#f4f6f8;border-radius:11px}
+.template-preview.stock-movement i:nth-child(3){position:absolute;width:23%;height:13%;left:6%;bottom:10%;background:#ff7b00;border-radius:999px}
+.template-preview.tech-store{background:radial-gradient(circle at 82% 72%,#36ff00 0,#0c5e22 18%,#080808 45%,#050505 100%)}
+.template-preview.tech-store i:nth-child(1){position:absolute;width:35%;height:11%;left:5%;top:18%;background:#67ff00;border-radius:3px}
+.template-preview.tech-store i:nth-child(2){position:absolute;width:43%;height:55%;left:37%;top:24%;background:#d9e2ef;border-radius:10px}
+.template-preview.tech-store i:nth-child(3){position:absolute;width:17%;height:20%;right:4%;top:27%;background:#67ff00;border-radius:3px}
+.template-preview.premium-line{background:linear-gradient(135deg,#061932,#0b3566 60%,#03111f)}
+.template-preview.premium-line:before{content:"";position:absolute;right:8%;top:10%;width:42%;height:80%;border:2px solid #f0ca6a66;border-radius:50%}
+.template-preview.premium-line i:nth-child(1){position:absolute;width:38%;height:8%;left:7%;top:25%;background:#f0ca6a;border-radius:5px}
+.template-preview.premium-line i:nth-child(2){position:absolute;width:44%;height:26%;left:7%;top:43%;background:#ffffffd9;border-radius:5px}
+.template-upload-button{position:relative;display:inline-flex;align-items:center;border:1px solid #2d70c7;background:#0b5fc4;color:#fff;border-radius:12px;padding:11px 14px;font-weight:900;font-size:11px;cursor:pointer;box-shadow:0 4px 12px #10284414}
+.template-upload-button:hover{background:#084e9f}
+.template-upload-button input{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
+.template-clear-button{border:1px solid #e3bdc0;background:#fff7f7;color:#9b3038;border-radius:12px;padding:11px 14px;font-weight:900;font-size:11px;cursor:pointer}
+.template-tools-help{flex-basis:100%!important;min-width:100%!important}
+.imported-template-list{margin-top:12px;padding:12px;border:1px solid #d8e5f4;background:#f8fbff;border-radius:14px;display:flex;gap:8px;flex-wrap:wrap}
+.imported-template-chip{display:flex;align-items:center;gap:8px;border:1px solid #bad0e8;background:#fff;border-radius:11px;padding:8px 10px;font-size:10px;color:#31506f}
+.imported-template-chip b{color:#0a356c}
+.imported-template-chip button{border:0;background:#eef5fd;color:#9b3038;border-radius:7px;padding:3px 6px;cursor:pointer;font-weight:900}
+.template-card.imported-template{border-style:dashed}
+.template-card.imported-template:after{content:"JSON";position:absolute;top:7px;right:7px;font-size:8px;font-weight:950;letter-spacing:.08em;color:#0a5aaa;background:#e8f3ff;border-radius:999px;padding:3px 6px}
+
 .fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .field{display:flex;flex-direction:column;gap:6px}
 .field.full,.upload.full,.inline-status.full{grid-column:1/-1}
