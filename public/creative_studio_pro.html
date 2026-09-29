@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-title" content="Creative Studio">
   <link rel="manifest" href="./manifest-creative-studio-pro.json?v=20260928-6">
   <link rel="apple-touch-icon" href="./pwa-icons/banners-192.png">
-  <link rel="stylesheet" href="./css/creative_studio_pro.css?v=20260928-10">
+  <link rel="stylesheet" href="./css/creative_studio_pro.css?v=20260929-1">
 </head>
 <body>
   <header class="topbar">
@@ -53,6 +53,41 @@
           <button type="button" data-mode="no_price">Sem preço</button>
           <button type="button" data-mode="institutional">Institucional</button>
           <button type="button" data-mode="multi_product">Multi-produto</button>
+        </div>
+      </section>
+
+      <section class="step marketplace-style-step">
+        <div class="step-head"><span>2A</span><div><strong>Estilo de geração</strong><small>O estilo orienta hierarquia, copy e composição sem alterar os templates já existentes.</small></div></div>
+        <div class="choice-grid generation-style-grid" id="generation-style">
+          <label class="choice"><input type="radio" name="generation-style" value="classic"><b>Ariana Clássico</b><small>Visual tradicional da Ariana.</small></label>
+          <label class="choice"><input type="radio" name="generation-style" value="premium"><b>Ariana Premium</b><small>Mais elegante e institucional.</small></label>
+          <label class="choice selected"><input type="radio" name="generation-style" value="marketplace" checked><b>Marketplace Ariana</b><small>Hierarquia de grande varejo, com identidade Ariana.</small></label>
+          <label class="choice"><input type="radio" name="generation-style" value="institutional"><b>Institucional Ariana</b><small>Marca, categoria e presença institucional.</small></label>
+        </div>
+
+        <div id="marketplace-controls" class="marketplace-controls">
+          <label class="field">
+            <span>Preset Marketplace Ariana</span>
+            <select id="marketplace-preset">
+              <option value="impact" selected>Varejo Impacto Ariana</option>
+              <option value="selection">Seleção Ariana</option>
+              <option value="manufacturer">Fabricante em Destaque</option>
+              <option value="opportunity">Campanha de Oportunidade</option>
+              <option value="mini_cards">Grade Comercial / Mini Cards</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Estrutura de layout</span>
+            <select id="layout-grammar">
+              <option value="auto" selected>Automática</option>
+              <option value="A">Estrutura A • texto à esquerda / produtos à direita</option>
+              <option value="B">Estrutura B • texto no topo / herói central</option>
+              <option value="C">Estrutura C • headline no topo / grupo abaixo</option>
+              <option value="D">Estrutura D • fabricante / premium</option>
+              <option value="E">Estrutura E • mini campanhas em cards</option>
+            </select>
+          </label>
+          <div class="hint full">Preço, desconto, PIX e parcelamento continuam desligados por padrão. Só entram quando o modo de campanha e os campos comerciais forem preenchidos pelo usuário.</div>
         </div>
       </section>
 
@@ -327,7 +362,7 @@
     </section>
   </main>
 
-  <script src="./js/creative_studio_pro.js?v=20260928-21"></script>
+  <script src="./js/creative_studio_pro.js?v=20260929-1"></script>
   <script src="./pwa-register.js?v=20260928-6" data-sw="./sw-creative-studio-pro.js" data-scope="./creative_studio_pro.html"></script>
 </body>
 </html>
