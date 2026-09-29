@@ -393,6 +393,47 @@ export async function runPixSplitHomologationTest(options = {}) {
   };
 }
 
+
+export async function configurePixWebhook(options = {}) {
+  const environment = normalizeEnvironment(options.environment || 'homologation');
+  const config = getEfiConfig(environment);
+  if (!config.pixKey) {
+    const error = new Error('Chave Pix Efí não configurada.');
+    error.code = 'EFI_PIX_KEY_MISSING';
+    error.statusCode = 503;
+    throw error;
+  }
+  const webhookUrl = String(options.webhookUrl || '').trim();
+  if (!/^https:\/\/.+/i.test(webhookUrl)) {
+    const error = new Error('URL HTTPS do webhook Efí é obrigatória.');
+    error.code = 'EFI_WEBHOOK_URL_INVALID';
+    error.statusCode = 400;
+    throw error;
+  }
+  return efiPixRequest({
+    environment,
+    method: 'put',
+    path: '/v2/webhook/' + encodeURIComponent(config.pixKey),
+    data: { webhookUrl }
+  });
+}
+
+export async function getPixWebhook(options = {}) {
+  const environment = normalizeEnvironment(options.environment || 'homologation');
+  const config = getEfiConfig(environment);
+  if (!config.pixKey) {
+    const error = new Error('Chave Pix Efí não configurada.');
+    error.code = 'EFI_PIX_KEY_MISSING';
+    error.statusCode = 503;
+    throw error;
+  }
+  return efiPixRequest({
+    environment,
+    method: 'get',
+    path: '/v2/webhook/' + encodeURIComponent(config.pixKey)
+  });
+}
+
 export async function testEfiAuthentication(environment = 'homologation') {
   const env = normalizeEnvironment(environment);
   const chargesStarted = Date.now();
