@@ -1413,7 +1413,7 @@ function overlayMobile(format, opts) {
   return marketplaceMobileOverlay(format, opts);
 }
 
-async function productComposite(asset, format, comp) {
+async function productComposite(asset, format, comp, renderOptions = {}) {
   const box = {
     x: Math.round(format.width * comp.product.x),
     y: Math.round(format.height * comp.product.y),
@@ -1436,10 +1436,14 @@ async function productComposite(asset, format, comp) {
   const left = Math.round(box.x + (box.w - pw)/2);
   const top = Math.round(box.y + (box.h - ph)/2);
 
+  const softMarketplaceShadow = renderOptions.softMarketplaceShadow === true;
   const shadow = await sharp(product)
-    .blur(Math.max(5, Math.round(Math.min(format.width, format.height) * .014)))
+    .blur(Math.max(4, Math.round(Math.min(format.width, format.height) * (softMarketplaceShadow ? .010 : .014))))
     .tint('#00142F')
-    .modulate({ brightness: .35, saturation: .3 })
+    .modulate({
+      brightness: softMarketplaceShadow ? .52 : .35,
+      saturation: softMarketplaceShadow ? .18 : .3
+    })
     .png()
     .toBuffer();
 
@@ -1448,8 +1452,8 @@ async function productComposite(asset, format, comp) {
     shadow,
     productLeft: left,
     productTop: top,
-    shadowLeft: left + Math.round(format.width*.008),
-    shadowTop: top + Math.round(format.height*.018)
+    shadowLeft: left + Math.round(format.width*(softMarketplaceShadow ? .004 : .008)),
+    shadowTop: top + Math.round(format.height*(softMarketplaceShadow ? .010 : .018))
   };
 }
 
@@ -1758,6 +1762,14 @@ function multiProductSlots(format, count = 2, opts = {}) {
   const marketplaceMode = opts.generationStyle === 'marketplace';
   const grammar = marketplaceMode ? resolveMarketplaceGrammar(opts.layoutGrammar, opts.marketplacePreset) : 'A';
 
+  if (marketplaceMode && !mobile && grammar === 'A') {
+    // Marketplace Ariana refinado: 1 herói realmente dominante + 2 apoios
+    // próximos, formando um conjunto comercial coeso sem invadir a área de texto.
+    if (n === 2) return [{ x:.655,y:.105,w:.235,h:.745 },{ x:.815,y:.285,w:.145,h:.535 }];
+    if (n === 3) return [{ x:.655,y:.055,w:.245,h:.815 },{ x:.555,y:.305,w:.145,h:.525 },{ x:.825,y:.315,w:.135,h:.505 }];
+    if (n === 4) return [{ x:.650,y:.075,w:.225,h:.785 },{ x:.535,y:.330,w:.135,h:.485 },{ x:.825,y:.315,w:.125,h:.500 },{ x:.885,y:.395,w:.095,h:.405 }];
+  }
+
   if (marketplaceMode && !mobile && grammar === 'B') {
     if (n === 2) return [{ x:.29,y:.43,w:.25,h:.45 },{ x:.52,y:.43,w:.25,h:.45 }];
     if (n === 3) return [{ x:.39,y:.32,w:.25,h:.56 },{ x:.20,y:.47,w:.20,h:.38 },{ x:.62,y:.48,w:.19,h:.37 }];
@@ -1891,6 +1903,49 @@ function multiShowcaseStageSvg(format, count = 3, opts = {}) {
     '<defs><filter id="sg" x="-30%" y="-220%" width="160%" height="540%"><feGaussianBlur stdDeviation="'+Math.max(8,Math.round(h*.018))+'"/></filter></defs>'+
     '<ellipse cx="'+Math.round(w*.79)+'" cy="'+Math.round(h*.835)+'" rx="'+Math.round(w*.205)+'" ry="'+Math.round(h*.030)+'" fill="#00163D" opacity=".38" filter="url(#sg)"/>'+
     '<ellipse cx="'+Math.round(w*.79)+'" cy="'+Math.round(h*.826)+'" rx="'+Math.round(w*.165)+'" ry="'+Math.round(h*.012)+'" fill="#ffffff" opacity=".07"/>'+
+    '</svg>'
+  );
+}
+
+function marketplaceArianaPolishSvg(format, opts = {}) {
+  if (opts.generationStyle !== 'marketplace') return null;
+
+  const w = format.width;
+  const h = format.height;
+  const mobile = format.device === 'mobile';
+  const grammar = resolveMarketplaceGrammar(opts.layoutGrammar, opts.marketplacePreset);
+
+  // Camada exclusivamente visual do modo Marketplace Ariana.
+  // Não toca em recorte, qualidade, preços ou regras comerciais.
+  const heroCx = mobile ? .52 : (grammar === 'B' ? .50 : grammar === 'C' ? .72 : grammar === 'D' ? .76 : .78);
+  const heroCy = mobile ? .61 : .52;
+  const beamOpacity = grammar === 'D' ? .10 : .16;
+  const sweepOpacity = grammar === 'D' ? .08 : .12;
+
+  return Buffer.from(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+    '<defs>'+
+      '<radialGradient id="mpHeroGlow" cx="'+Math.round(heroCx*100)+'%" cy="'+Math.round(heroCy*100)+'%" r="48%">'+
+        '<stop offset="0" stop-color="#5DB8FF" stop-opacity=".24"/>'+
+        '<stop offset=".52" stop-color="#1B73D8" stop-opacity=".10"/>'+
+        '<stop offset="1" stop-color="#003A8E" stop-opacity="0"/>'+
+      '</radialGradient>'+
+      '<linearGradient id="mpBlueVeil" x1="0" y1="0" x2="1" y2="0">'+
+        '<stop offset="0" stop-color="#0047AB" stop-opacity="0"/>'+
+        '<stop offset=".45" stop-color="#0047AB" stop-opacity=".06"/>'+
+        '<stop offset="1" stop-color="#00357F" stop-opacity=".22"/>'+
+      '</linearGradient>'+
+      '<filter id="mpSoft"><feGaussianBlur stdDeviation="'+Math.max(5,Math.round(h*.012))+'"/></filter>'+
+    '</defs>'+
+    '<rect width="100%" height="100%" fill="url(#mpHeroGlow)"/>'+
+    // suaviza a dominância visual da faixa amarela no centro sem removê-la
+    (!mobile
+      ? '<path d="M'+Math.round(w*.615)+' 0 L'+Math.round(w*.715)+' 0 L'+Math.round(w*.640)+' '+h+' L'+Math.round(w*.535)+' '+h+' Z" fill="#0047AB" opacity="'+beamOpacity+'"/>'
+      : '')+
+    '<rect x="'+Math.round(w*.48)+'" y="0" width="'+Math.round(w*.52)+'" height="'+h+'" fill="url(#mpBlueVeil)"/>'+
+    // linhas de movimento muito discretas: leitura de varejo, sem virar efeito chamativo
+    '<path d="M'+Math.round(w*.18)+' '+Math.round(h*.56)+' C'+Math.round(w*.38)+' '+Math.round(h*.45)+' '+Math.round(w*.58)+' '+Math.round(h*.48)+' '+Math.round(w*.90)+' '+Math.round(h*.33)+'" fill="none" stroke="#ffffff" stroke-opacity="'+sweepOpacity+'" stroke-width="'+Math.max(2,Math.round(h*.006))+'" filter="url(#mpSoft)"/>'+
+    '<path d="M'+Math.round(w*.24)+' '+Math.round(h*.64)+' C'+Math.round(w*.43)+' '+Math.round(h*.54)+' '+Math.round(w*.64)+' '+Math.round(h*.57)+' '+Math.round(w*.94)+' '+Math.round(h*.43)+'" fill="none" stroke="#ffffff" stroke-opacity="'+(sweepOpacity*.72).toFixed(3)+'" stroke-width="'+Math.max(1,Math.round(h*.004))+'" filter="url(#mpSoft)"/>'+
     '</svg>'
   );
 }
@@ -2352,9 +2407,13 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
   const slots=multiProductSlots(format,rows.length,opts);
 
   const layers=[
-    {input:backgroundSvg(format,opts.template),left:0,top:0},
-    {input:multiShowcaseStageSvg(format,rows.length,opts),left:0,top:0}
+    {input:backgroundSvg(format,opts.template),left:0,top:0}
   ];
+  const marketplacePolish = marketplaceArianaPolishSvg(format, opts);
+  if (marketplacePolish) {
+    layers.push({input:marketplacePolish,left:0,top:0});
+  }
+  layers.push({input:multiShowcaseStageSvg(format,rows.length,opts),left:0,top:0});
   layers.push(await logoLayer(format,brandAsset));
   if(campaignBrandAsset?.backgroundRemoved){
     const manufacturerLogo=await campaignBrandLogoLayer(format,campaignBrandAsset);
@@ -2364,7 +2423,12 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
   for(let index=0;index<assets.length;index+=1){
     const asset=assets[index];
     const slot=slots[index];
-    const layer=await productComposite(asset,format,{product:slot});
+    const layer=await productComposite(
+      asset,
+      format,
+      {product:slot},
+      {softMarketplaceShadow: opts.generationStyle === 'marketplace'}
+    );
     if(asset.backgroundRemoved){
       layers.push({
         input:layer.shadow,
