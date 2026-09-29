@@ -508,6 +508,19 @@ export async function approveCreativeCutoutAsset({ mongoose, id }) {
   const doc = await collection.findOne({ _id });
   if (!doc || !doc.processedFileId) return null;
 
+  const productText = [doc.category, doc.name].filter(Boolean).join(' ');
+  if (isFanCreativeProduct(productText)) {
+    const fanMasterReady =
+      doc.processMode === 'ai_repair' &&
+      doc.ai?.safe === true &&
+      doc.quality?.masterResolutionOk === true;
+    if (!fanMasterReady) {
+      const error = new Error('creative_cutout_fan_master_required');
+      error.code = 'creative_cutout_fan_master_required';
+      throw error;
+    }
+  }
+
   const timestamp = now();
   await collection.updateOne(
     { _id },
