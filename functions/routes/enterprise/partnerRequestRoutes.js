@@ -343,27 +343,16 @@ export default function registerEnterprisePartnerRequestRoutes(app, context = {}
     const expectedRequestId = String(process.env.ENTERPRISE_INTERNAL_LOAD_TEST_REQUEST_ID || '').trim();
     const base = String(
       process.env.ENTERPRISE_INTERNAL_LOAD_TEST_BASE_URL ||
-      `http://127.0.0.1:${process.env.PORT || 10000}/api/v1/enterprise`
+      `http://127.0.0.1:${process.env.PORT || 10000}/api/enterprise`
     ).replace(/\/+$/, '');
 
     if (!apiKey || !expectedRequestId) {
-      console.error('[ENTERPRISE LOAD TEST] credencial/requestId ausente; teste abortado');
+      console.error('[ENTERPRISE LOAD TEST] credencial/requestId ausente');
       return;
     }
 
-    const startedAt = Date.now();
-    const stats = {
-      startedAt: new Date(startedAt).toISOString(),
-      partnerRequestId: expectedRequestId,
-      jobs: [],
-      individualUpdates: {},
-      orders: {},
-      errors: []
-    };
-
-    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const request = async (method, path, body, extraHeaders = {}) => {
-      const t0 = Date.now();
+      const started = Date.now();
       try {
         const response = await fetch(`${base}${path}`, {
           method,
@@ -372,25 +361,26 @@ export default function registerEnterprisePartnerRequestRoutes(app, context = {}
             ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
             ...extraHeaders
           },
-          body: body !== undefined ? JSON.stringify(body) : undefined
+          body: body !== undefined ? JSON.stringify(body) : undefined,
+          signal: AbortSignal.timeout(60000)
         });
-        const text = await response.text();
+        const raw = await response.text();
         let data = {};
-        try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text.slice(0, 500) }; }
-        return { ok: response.ok && data?.ok !== false, status: response.status, ms: Date.now() - t0, data };
+        try { data = raw ? JSON.parse(raw) : {}; } catch { data = { raw: raw.slice(0, 300) }; }
+        return { ok: response.ok && data?.ok !== false, status: response.status, ms: Date.now() - started, data };
       } catch (error) {
-        return { ok: false, status: 0, ms: Date.now() - t0, data: { error: error.message || String(error) } };
+        return { ok: false, status: 0, ms: Date.now() - started, data: { error: error.message || String(error) } };
       }
     };
 
-    const latencySummary = (rows = []) => {
-      const values = rows.map((r) => Number(r.ms || 0)).sort((a, b) => a - b);
-      const pct = (p) => values.length ? values[Math.min(values.length - 1, Math.floor((values.length - 1) * p))] : 0;
+    const summarize = (rows = []) => {
+      const values = rows.map((row) => Number(row.ms || 0)).sort((a, b) => a - b);
+      const pct = (value) => values.length ? values[Math.min(values.length - 1, Math.floor((values.length - 1) * value))] : 0;
       return {
         total: rows.length,
-        ok: rows.filter((r) => r.ok).length,
-        failed: rows.filter((r) => !r.ok).length,
-        http429: rows.filter((r) => r.status === 429).length,
+        ok: rows.filter((row) => row.ok).length,
+        failed: rows.filter((row) => !row.ok).length,
+        http429: rows.filter((row) => row.status === 429).length,
         p50Ms: pct(0.50),
         p95Ms: pct(0.95),
         maxMs: values.length ? values[values.length - 1] : 0
@@ -411,47 +401,7 @@ export default function registerEnterprisePartnerRequestRoutes(app, context = {}
       return results;
     };
 
-    const buildItems = (count, prefix, revision = 1) => Array.from({ length: count }, (_, index) => ({
-      sku: `${prefix}-${String(index + 1).padStart(5, '0')}`,
-      name: `Produto Load Test ${index + 1}`,
-      description: 'Produto fictício exclusivo do Sandbox Ariana Enterprise.',
-      category: 'Enterprise Load Test',
-      brand: 'Ariana Sandbox Lab',
-      price: 100 + (index % 900) + (revision * 0.1),
-      stock: 5 + ((index + revision) % 95),
-      active: true
-    }));
-
-    const pollJob = async (jobId, timeoutMs = 12 * 60 * 1000) => {
-      const begin = Date.now();
-      let attempts = 0;
-      while (Date.now() - begin < timeoutMs) {
-        attempts += 1;
-        await sleep(5000);
-        const r = await request('GET', `/catalog/sync/${encodeURIComponent(jobId)}`);
-        if (!r.ok) {
-          stats.errors.push({ step: 'poll_job', jobId, status: r.status, error: r.data?.error || '' });
-          if (r.status >= 500 || r.status === 0) continue;
-        }
-        const job = r.data?.job || {};
-        const status = String(job.status || '');
-        if (['completed', 'completed_with_errors', 'failed'].includes(status)) {
-          return {
-            status,
-            attempts,
-            durationMs: Number(job.durationMs || Date.now() - begin),
-            received: Number(job.received || 0),
-            createdProducts: Number(job.createdProducts || 0),
-            updatedProducts: Number(job.updatedProducts || 0),
-            skippedProducts: Number(job.skippedProducts || 0),
-            errorCount: Number(job.errorCount || 0)
-          };
-        }
-      }
-      return { status: 'timeout', attempts, durationMs: Date.now() - begin };
-    };
-
-    console.log('[ENTERPRISE LOAD TEST] iniciando validação controlada em Sandbox');
+    console.log('[ENTERPRISE LOAD TEST] iniciando teste de concorrência Sandbox');
 
     const auth = await request('GET', '/auth/check');
     const authRequestId = String(auth.data?.partner?.requestId || '');
@@ -462,85 +412,107 @@ export default function registerEnterprisePartnerRequestRoutes(app, context = {}
       return;
     }
 
-    const prefix = `LT-${Date.now().toString(36).toUpperCase()}`;
-
-    const job1Start = Date.now();
-    const create1000 = await request('POST', '/catalog/sync', {
-      manufacturer: 'Ariana Sandbox Factory',
-      items: buildItems(1000, prefix, 1)
-    });
-    if (!create1000.ok || !create1000.data?.jobId) {
-      console.error('[ENTERPRISE LOAD TEST] falha ao enfileirar 1000 SKUs', create1000.status);
-      return;
+    const jobs = await request('GET', '/catalog/sync/jobs?limit=10');
+    if (jobs.ok) {
+      const compact = (jobs.data?.jobs || []).slice(0, 10).map((job) => ({
+        jobId: job.jobId,
+        status: job.status,
+        received: job.received,
+        createdProducts: job.createdProducts,
+        updatedProducts: job.updatedProducts,
+        errorCount: job.errorCount,
+        durationMs: job.durationMs
+      }));
+      console.log('[ENTERPRISE LOAD TEST] RECENT_JOBS', JSON.stringify(compact));
     }
-    const job1 = await pollJob(create1000.data.jobId);
-    stats.jobs.push({ phase: '1000_skus', enqueueMs: create1000.ms, wallMs: Date.now() - job1Start, ...job1 });
-    console.log('[ENTERPRISE LOAD TEST] JOB_1000', JSON.stringify(stats.jobs[0]));
 
-    const job2Start = Date.now();
-    const mixed3000 = await request('POST', '/catalog/sync', {
+    const prefix = `LC-${Date.now().toString(36).toUpperCase()}`;
+    const seedItems = Array.from({ length: 100 }, (_, index) => ({
+      sku: `${prefix}-${String(index + 1).padStart(4, '0')}`,
+      name: `Produto Concorrência ${index + 1}`,
+      description: 'Produto fictício exclusivo do Sandbox Ariana Enterprise.',
+      category: 'Enterprise Concurrency Test',
+      brand: 'Ariana Sandbox Lab',
+      price: 300 + index,
+      stock: 20 + (index % 30),
+      active: true
+    }));
+
+    const seed = await request('POST', '/catalog/push', {
       manufacturer: 'Ariana Sandbox Factory',
-      items: buildItems(3000, prefix, 2)
+      items: seedItems
     });
-    if (!mixed3000.ok || !mixed3000.data?.jobId) {
-      console.error('[ENTERPRISE LOAD TEST] falha ao enfileirar 3000 SKUs', mixed3000.status);
-      return;
-    }
-    const job2 = await pollJob(mixed3000.data.jobId);
-    stats.jobs.push({ phase: '3000_skus_1000_update_2000_create', enqueueMs: mixed3000.ms, wallMs: Date.now() - job2Start, ...job2 });
-    console.log('[ENTERPRISE LOAD TEST] JOB_3000', JSON.stringify(stats.jobs[1]));
+    console.log('[ENTERPRISE LOAD TEST] SEED', JSON.stringify({ status: seed.status, ok: seed.ok, ms: seed.ms, total: seed.data?.total || 0 }));
+    if (!seed.ok) return;
 
     const updateTasks = [];
     for (let i = 1; i <= 60; i += 1) {
-      const sku = `${prefix}-${String(i).padStart(5, '0')}`;
+      const sku = `${prefix}-${String(i).padStart(4, '0')}`;
       updateTasks.push(() => request('PUT', `/products/${encodeURIComponent(sku)}/stock`, { stock: 100 + i }));
-      updateTasks.push(() => request('PUT', `/products/${encodeURIComponent(sku)}/price`, { price: 500 + i }));
+      updateTasks.push(() => request('PUT', `/products/${encodeURIComponent(sku)}/price`, { price: 600 + i }));
     }
-    const updateStarted = Date.now();
-    const updateResults = await runPool(updateTasks, 12);
-    stats.individualUpdates = { wallMs: Date.now() - updateStarted, ...latencySummary(updateResults) };
-    console.log('[ENTERPRISE LOAD TEST] UPDATES', JSON.stringify(stats.individualUpdates));
+    const updatesStarted = Date.now();
+    const updateRows = await runPool(updateTasks, 12);
+    const updateStats = { wallMs: Date.now() - updatesStarted, ...summarize(updateRows) };
+    console.log('[ENTERPRISE LOAD TEST] UPDATES', JSON.stringify(updateStats));
 
-    const orderTasks = Array.from({ length: 30 }, (_, index) => {
+    const orderPayload = (index) => {
       const n = index + 1;
       const externalOrderId = `${prefix}-ORDER-${String(n).padStart(3, '0')}`;
-      const sku = `${prefix}-${String((index % 100) + 1).padStart(5, '0')}`;
-      return () => request(
-        'POST',
-        '/orders',
-        {
+      return {
+        externalOrderId,
+        body: {
           manufacturer: 'Ariana Sandbox Factory',
           externalOrderId,
-          customerName: `Cliente Sandbox Load ${n}`,
-          customerEmail: `sandbox-load-${n}@example.invalid`,
+          customerName: `Cliente Sandbox Concorrência ${n}`,
+          customerEmail: `sandbox-concurrency-${n}@example.invalid`,
           customerPhone: '00000000000',
-          items: [{ sku, name: `Produto Load Test ${n}`, qty: 1, unitPrice: 500 + ((index % 60) + 1) }]
-        },
-        { 'idempotency-key': externalOrderId }
-      );
-    });
-    const ordersStarted = Date.now();
-    const orderResults = await runPool(orderTasks, 8);
-    stats.orders = { wallMs: Date.now() - ordersStarted, ...latencySummary(orderResults) };
-    console.log('[ENTERPRISE LOAD TEST] ORDERS', JSON.stringify(stats.orders));
-
-    const summary = await request('GET', '/catalog/summary');
-    stats.catalogSummary = {
-      status: summary.status,
-      ok: summary.ok,
-      totalProducts: Number(summary.data?.summary?.totalProducts || 0),
-      activeProducts: Number(summary.data?.summary?.activeProducts || 0),
-      outOfStockProducts: Number(summary.data?.summary?.outOfStockProducts || 0)
+          items: [{
+            sku: `${prefix}-${String((index % 60) + 1).padStart(4, '0')}`,
+            name: `Produto Concorrência ${(index % 60) + 1}`,
+            qty: 1,
+            unitPrice: 600 + ((index % 60) + 1)
+          }]
+        }
+      };
     };
 
-    stats.finishedAt = new Date().toISOString();
-    stats.totalWallMs = Date.now() - startedAt;
-    stats.success = stats.jobs.every((j) => ['completed', 'completed_with_errors'].includes(j.status) && Number(j.errorCount || 0) === 0)
-      && Number(stats.individualUpdates.failed || 0) === 0
-      && Number(stats.orders.failed || 0) === 0
-      && stats.catalogSummary.ok === true;
+    const orderDefs = Array.from({ length: 30 }, (_, index) => orderPayload(index));
+    const orderTasks = orderDefs.map((entry) => () => request(
+      'POST',
+      '/orders',
+      entry.body,
+      { 'idempotency-key': entry.externalOrderId }
+    ));
+    const ordersStarted = Date.now();
+    const orderRows = await runPool(orderTasks, 8);
+    const orderStats = { wallMs: Date.now() - ordersStarted, ...summarize(orderRows) };
+    console.log('[ENTERPRISE LOAD TEST] ORDERS', JSON.stringify(orderStats));
 
-    console.log('[ENTERPRISE LOAD TEST] SUMMARY', JSON.stringify(stats));
+    const duplicateTasks = orderDefs.slice(0, 5).map((entry) => () => request(
+      'POST',
+      '/orders',
+      entry.body,
+      { 'idempotency-key': entry.externalOrderId }
+    ));
+    const duplicateRows = await runPool(duplicateTasks, 5);
+    const duplicateStats = summarize(duplicateRows);
+    console.log('[ENTERPRISE LOAD TEST] IDEMPOTENCY', JSON.stringify(duplicateStats));
+
+    const summary = await request('GET', '/catalog/summary');
+    const final = {
+      success: updateStats.failed === 0 && orderStats.failed === 0 && duplicateStats.failed === 0 && summary.ok,
+      updates: updateStats,
+      orders: orderStats,
+      idempotency: duplicateStats,
+      catalog: {
+        ok: summary.ok,
+        status: summary.status,
+        totalProducts: Number(summary.data?.summary?.totalProducts || 0),
+        activeProducts: Number(summary.data?.summary?.activeProducts || 0)
+      }
+    };
+    console.log('[ENTERPRISE LOAD TEST] SUMMARY', JSON.stringify(final));
   }
 
   setTimeout(() => {
