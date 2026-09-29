@@ -53,6 +53,19 @@
   </div>
 
   <div class="card">
+    <h2>Webhook Pix Efí</h2>
+    <p class="muted">Recebe as confirmações da Efí depois que um Pix muda de status. O endpoint final exige mTLS na borda antes de encaminhar o callback ao backend da Ariana.</p>
+    <div class="grid">
+      <div style="grid-column:1/-1"><label class="label">URL pública mTLS</label><input id="webhookUrl" class="input" placeholder="https://seu-dominio/efi-pix-homolog?ignorar="></div>
+    </div>
+    <div class="row">
+      <button class="btn light" onclick="checkWebhook()">Consultar webhook na Efí</button>
+      <button class="btn" onclick="configureWebhook()">Cadastrar webhook na Efí</button>
+    </div>
+    <pre id="webhookOut" class="pre">Webhook ainda não consultado.</pre>
+  </div>
+
+  <div class="card">
     <h2>Credenciais esperadas no Render</h2>
     <p class="muted">Não cole Client Secret nem certificado nesta página. Eles devem existir somente no ambiente seguro do backend.</p>
     <pre class="pre">EFI_ENABLED=false
@@ -150,6 +163,25 @@ async function runFullSplitTest(){
   result.error=e.message;
   testOut.textContent=JSON.stringify(result,null,2);
  }finally{btn.disabled=false}
+}
+
+async function checkWebhook(){
+ webhookOut.textContent='Consultando webhook Pix na Efí...';
+ try{
+  const d=await api('/admin/payments/efi/homologation/webhook/status');
+  webhookOut.textContent=JSON.stringify(d,null,2);
+  if(d?.data?.webhookUrl) document.getElementById('webhookUrl').value=d.data.webhookUrl;
+ }catch(e){webhookOut.textContent='Falha: '+e.message}
+}
+async function configureWebhook(){
+ const webhookUrl=document.getElementById('webhookUrl').value.trim();
+ if(!webhookUrl){webhookOut.textContent='Informe a URL pública mTLS antes de cadastrar.';return}
+ if(!confirm('Cadastrar esta URL somente para o webhook Pix de Homologação da Efí?'))return;
+ webhookOut.textContent='Cadastrando webhook na Efí e aguardando o teste mTLS...';
+ try{
+  const d=await api('/admin/payments/efi/homologation/webhook/configure',{method:'POST',body:JSON.stringify({webhookUrl})});
+  webhookOut.textContent=JSON.stringify(d,null,2);
+ }catch(e){webhookOut.textContent='Falha: '+e.message}
 }
 if(!token()) location.href='/admin_login.html';
 loadStatus();
