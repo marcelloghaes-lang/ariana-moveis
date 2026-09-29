@@ -34,6 +34,7 @@ import registerCrediarioConversationRoutes from './routes/crediarioConversationR
 import registerAdminUserRoutes from './routes/adminUserRoutes.js';
 import createTelevendasRoutes from './routes/televendas/index.js';
 import registerCieloRoutes from './routes/cieloRoutes.js';
+import registerEfiRoutes from './routes/efiRoutes.js';
 import { releaseExpiredStockReservations } from './services/stockReservationService.js';
 import { startAdminWhatsappReminderWorker } from './services/adminWhatsappAlertService.js';
 import { startErpDailyDueWhatsappWorker, startErpFifteenDayOverdueWhatsappWorker, listErpFifteenDayOverdueAudit } from './services/erp/erpDailyDueWhatsappService.js';
@@ -3458,6 +3459,12 @@ registerCieloRoutes(app, {
   redact,
   toJSON,
   now
+});
+
+registerEfiRoutes(app, {
+  adminRequired,
+  IntegrationAuditLog,
+  Seller
 });
 
 registerLegacyRoutes(app, {
