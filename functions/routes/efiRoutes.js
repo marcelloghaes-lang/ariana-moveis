@@ -611,4 +611,49 @@ if (
 
 
 
+
+  if (
+    String(process.env.EFI_INTERNAL_CHARGES_SPLIT_PROBE_ON_START || 'false').toLowerCase() === 'true' &&
+    !globalThis.__arianaEfiChargesSplitProbeStarted
+  ) {
+    globalThis.__arianaEfiChargesSplitProbeStarted = true;
+    const timer = setTimeout(async () => {
+      try {
+        const payeeCode = String(process.env.EFI_HOMOLOG_TEST_PAYEE_CODE || '').trim();
+        if (!payeeCode) throw new Error('EFI_HOMOLOG_TEST_PAYEE_CODE não configurado.');
+        const created = await createChargesSplitHomologationTransaction({
+          environment: 'homologation',
+          platformPercent: 12,
+          recipients: [{ percentage: 88, payeeCode }],
+          feeMode: 2,
+          itemName: 'Produto teste Ariana Marketplace - Boleto/Cartao',
+          unitValueCents: 1100,
+          amount: 1,
+          customId: 'ARIANA-EFI-CHARGES-SPLIT-PROBE-' + Date.now()
+        });
+        const chargeId = created.data?.data?.charge_id || created.data?.charge_id || null;
+        let queried = null;
+        if (chargeId) {
+          queried = await getChargesSplitHomologationTransaction(chargeId);
+        }
+        const repasses = queried?.data?.data?.items?.[0]?.marketplace?.repasses
+          || queried?.data?.items?.[0]?.marketplace?.repasses
+          || [];
+        console.log('[EFI CHARGES SPLIT PROBE] RESULT', JSON.stringify({
+          ok: true,
+          chargeId,
+          createStatus: created.status,
+          chargeStatus: queried?.data?.data?.status || queried?.data?.status || created.data?.data?.status || null,
+          total: queried?.data?.data?.total || queried?.data?.total || created.data?.data?.total || null,
+          repassesCount: Array.isArray(repasses) ? repasses.length : 0,
+          sellerPercentage: Array.isArray(repasses) ? (repasses[0]?.percentage ?? null) : null,
+          environment: 'homologation'
+        }));
+      } catch (error) {
+        console.error('[EFI CHARGES SPLIT PROBE] ERROR', JSON.stringify(safeProviderError(error)));
+      }
+    }, 12000);
+    timer.unref?.();
+  }
+
 }
