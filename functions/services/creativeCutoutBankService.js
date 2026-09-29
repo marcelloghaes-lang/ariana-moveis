@@ -337,7 +337,13 @@ export async function createCreativeCutoutAsset({
 export async function listCreativeCutoutAssets({ mongoose, status = '', limit = 60 } = {}) {
   await ensureIndexes(mongoose);
   const collection = collectionFor(mongoose);
-  const filter = status && status !== 'all' ? { status } : {};
+  const normalizedStatus = String(status || '').trim().toLowerCase();
+  const filter =
+    normalizedStatus === 'workspace'
+      ? { status: { $ne: 'approved' } }
+      : normalizedStatus && normalizedStatus !== 'all'
+        ? { status: normalizedStatus }
+        : {};
   const rows = await collection
     .find(filter)
     .sort({ updatedAt: -1 })
