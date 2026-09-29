@@ -541,6 +541,7 @@ export default function registerEfiRoutes(app, context = {}) {
   }
 
 
+
   if (
     String(process.env.EFI_INTERNAL_SPLIT_SETTLEMENT_PROBE_ON_START || 'false').toLowerCase() === 'true' &&
     !globalThis.__arianaEfiSplitSettlementProbeStarted
@@ -558,27 +559,21 @@ export default function registerEfiRoutes(app, context = {}) {
         const splitConfigId = String(lastConfig?.response?.id || '').trim();
         if (!splitConfigId) throw new Error('Nenhuma configuração Split Pix homologada encontrada.');
 
-        const charge = await createPixHomologationTestCharge({
+        const charge = await createPixWebhookHomologationProbe({
           environment: 'homologation',
-          amount: 11,
-          expiration: 3600,
+          amount: 1,
           description: 'Teste liquidacao Split Pix Ariana - Homologacao'
         });
 
-        if (String(charge.data?.status || '').toUpperCase() !== 'ATIVA') {
-          throw new Error('Cobrança inicial do teste de liquidação não ficou ATIVA.');
+        const createdStatus = String(charge.data?.status || '').toUpperCase();
+        if (createdStatus !== 'ATIVA') {
+          throw new Error('Cobrança de R$ 1,00 não permaneceu ATIVA tempo suficiente para vincular o Split.');
         }
 
         const link = await linkPixChargeToSplit({
           environment: 'homologation',
           txid: charge.txid,
           splitConfigId
-        });
-
-        const revised = await revisePixChargeAmount({
-          environment: 'homologation',
-          txid: charge.txid,
-          amount: 1
         });
 
         await new Promise((resolve) => setTimeout(resolve, 4000));
@@ -596,9 +591,8 @@ export default function registerEfiRoutes(app, context = {}) {
           splitConfigId,
           txid: charge.txid,
           createdStatus: charge.data?.status || null,
+          amount: charge.data?.valor?.original || charge.payload?.valor?.original || '1.00',
           linkStatus: link.status,
-          revisedStatus: revised.data?.status || null,
-          revisedAmount: revised.data?.valor?.original || '1.00',
           verificationStatus: verification?.data?.status || null,
           splitDetected: Boolean(verification?.data?.split || verification?.data?.config)
         }));
