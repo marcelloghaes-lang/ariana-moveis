@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { getEfiConfig, efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, createPixHomologationTestCharge, createPixWebhookHomologationProbe, linkPixChargeToSplit, getPixSplitCharge, runPixSplitHomologationTest, configurePixWebhook, getPixWebhook, buildChargesSplitPercentagePayload, createChargesSplitHomologationTransaction, payChargesSplitBoletoHomologation, payChargesSplitCardHomologation, getChargesSplitHomologationTransaction, cancelChargesSplitHomologationTransaction, refundChargesSplitCardHomologation } from '../services/efiService.js';
+import { getEfiConfig, efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, createPixHomologationTestCharge, createPixWebhookHomologationProbe, linkPixChargeToSplit, getPixSplitCharge, runPixSplitHomologationTest, configurePixWebhook, getPixWebhook, buildChargesSplitPercentagePayload, createChargesSplitHomologationTransaction, payChargesSplitBoletoHomologation, payChargesSplitCardHomologation, getChargesSplitHomologationTransaction, cancelChargesSplitHomologationTransaction, refundChargesSplitCardHomologation, settleChargesSplitHomologationTransaction } from '../services/efiService.js';
 
 function safeProviderError(error = {}) {
   const providerData = error?.providerData || {};
@@ -827,6 +827,25 @@ export default function registerEfiRoutes(app, context = {}) {
         });
       }
 
+      let settled = null;
+      if (beforeStatus === 'approved') {
+        settled = await settleChargesSplitHomologationTransaction(chargeId);
+        const paidCheck = await getChargesSplitHomologationTransaction(chargeId);
+        const paidData = paidCheck.data?.data || paidCheck.data || {};
+        const paidStatus = String(paidData?.status || '').toLowerCase();
+        if (paidStatus !== 'paid') {
+          return res.status(409).json({
+            ok: false,
+            provider: 'efi',
+            environment: 'homologation',
+            chargeId,
+            status: paidStatus || null,
+            settleHttpStatus: settled.status,
+            error: 'A liquidação de Homologação não alterou a cobrança para paid.'
+          });
+        }
+      }
+
       const refunded = await refundChargesSplitCardHomologation(chargeId, {
         amount: req.body?.amount
       });
@@ -856,6 +875,7 @@ export default function registerEfiRoutes(app, context = {}) {
         environment: 'homologation',
         chargeId,
         beforeStatus: beforeStatus || null,
+        settleHttpStatus: settled?.status || null,
         refundHttpStatus: refunded.status,
         status: afterData?.status || null,
         total: afterData?.total || null,
