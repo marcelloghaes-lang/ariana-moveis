@@ -56,7 +56,7 @@
   }
 
   function importedTemplateById(id = '') {
-    return importedTemplates.find(item => item?.id === id) || null;
+    return importedTemplates.find(item => (item?.libraryId || item?.id) === id) || null;
   }
 
   function rendererAlias(renderer = '') {
@@ -1518,9 +1518,12 @@
     if (!String(manifest.label || '').trim()) throw new Error('O template precisa ter um campo label.');
     if (!manifest.renderer) throw new Error('O template precisa informar renderer.');
     if (manifest.rules && typeof manifest.rules !== 'object') throw new Error('O campo rules precisa ser um objeto.');
+    const sourceId = String(manifest.id).trim().slice(0,80);
+    const libraryId = BUILTIN_TEMPLATE_PROFILES[sourceId] ? 'json__' + sourceId : sourceId;
     return {
       ...manifest,
-      id: String(manifest.id).trim().slice(0,80),
+      id: sourceId,
+      libraryId,
       label: String(manifest.label).trim().slice(0,120),
       description: String(manifest.description || '').trim().slice(0,400),
       renderer: String(manifest.renderer).trim().slice(0,80),
@@ -1546,9 +1549,10 @@
     for (const manifest of importedTemplates) {
       const label = document.createElement('label');
       label.className = 'template-card imported-template';
-      label.dataset.templateProfile = manifest.id;
+      const libraryId = manifest.libraryId || manifest.id;
+      label.dataset.templateProfile = libraryId;
       label.innerHTML =
-        '<input type="radio" name="template-pro" value="' + escapeHtml(manifest.id) + '">' +
+        '<input type="radio" name="template-pro" value="' + escapeHtml(libraryId) + '">' +
         '<span class="template-preview ' + importedPreviewClass(manifest) + '"><i></i><i></i><i></i></span>' +
         '<b>' + escapeHtml(manifest.label) + '</b>' +
         '<small>' + escapeHtml(manifest.description || ('JSON • renderer ' + manifest.renderer)) + '</small>';
@@ -1558,7 +1562,7 @@
     if (els.importedTemplateList) {
       els.importedTemplateList.classList.toggle('hidden', importedTemplates.length === 0);
       els.importedTemplateList.innerHTML = importedTemplates.map(item =>
-        '<span class="imported-template-chip"><b>' + escapeHtml(item.label) + '</b><span>' + escapeHtml(item.renderer) + '</span><button type="button" data-remove-imported-template="' + escapeHtml(item.id) + '">×</button></span>'
+        '<span class="imported-template-chip"><b>' + escapeHtml(item.label) + '</b><span>' + escapeHtml(item.renderer) + '</span><button type="button" data-remove-imported-template="' + escapeHtml(item.libraryId || item.id) + '">×</button></span>'
       ).join('');
     }
     els.clearImportedTemplates?.classList.toggle('hidden', importedTemplates.length === 0);
@@ -1580,22 +1584,22 @@
     let parsed;
     try { parsed = JSON.parse(raw); } catch { throw new Error('O arquivo não contém JSON válido.'); }
     const manifest = validateTemplateManifest(parsed);
-    const existing = importedTemplates.findIndex(item => item.id === manifest.id);
+    const existing = importedTemplates.findIndex(item => (item.libraryId || item.id) === manifest.libraryId);
     if (existing >= 0) importedTemplates.splice(existing,1,manifest);
     else importedTemplates.unshift(manifest);
     importedTemplates = importedTemplates.slice(0,30);
     saveImportedTemplates();
     renderImportedTemplates();
-    const input = document.querySelector('input[name="template-pro"][value="' + CSS.escape(manifest.id) + '"]');
+    const input = document.querySelector('input[name="template-pro"][value="' + CSS.escape(manifest.libraryId) + '"]');
     if (input) {
       input.checked = true;
-      applyTemplateProfile(manifest.id, { announce:false });
+      applyTemplateProfile(manifest.libraryId, { announce:false });
     }
     status('Template JSON "' + manifest.label + '" importado e adicionado à biblioteca.', 'ok');
   }
 
   function removeImportedTemplate(id) {
-    importedTemplates = importedTemplates.filter(item => item.id !== id);
+    importedTemplates = importedTemplates.filter(item => (item.libraryId || item.id) !== id);
     saveImportedTemplates();
     if (selectedTemplate() === id) {
       setRadioValue('template-pro','marketplace');
