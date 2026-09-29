@@ -589,3 +589,41 @@ test('campanha com logo do fabricante renderiza sem caixa branca', async () => {
   assert.equal(meta.width, 1080);
   assert.equal(meta.height, 1080);
 });
+
+
+test('Marketplace Ariana exporta presets e gramáticas no manifesto', () => {
+  const manifest = getProTemplateManifest('marketplace');
+  assert.equal(Array.isArray(manifest.marketplaceAriana?.presets), true);
+  assert.equal(manifest.marketplaceAriana.presets.length, 5);
+  assert.equal(manifest.marketplaceAriana.presets.some(item => item.id === 'manufacturer'), true);
+  assert.equal(manifest.marketplaceAriana.layoutGrammars.E, 'mini campanhas em cards quadrados/retangulares');
+  assert.equal(manifest.rules.commerce.autoPrice, false);
+  assert.equal(manifest.rules.branding.ownSiteUrlInsideOwnSiteBanner, false);
+});
+
+test('Marketplace Ariana gera variações reais para as gramáticas A-E sem alterar o quality gate', async () => {
+  const buffers = [];
+  for (const grammar of ['A','B','C','D','E']) {
+    const result = await generateCreativeBannerProMulti(
+      [MULTI_TV, MULTI_FRIDGE, MULTI_WASHER],
+      {
+        outputFormat: 'hero_desktop',
+        templatePro: grammar === 'D' ? 'premium' : 'marketplace',
+        generationStyle: 'marketplace',
+        marketplacePreset: grammar === 'D' ? 'manufacturer' : grammar === 'E' ? 'mini_cards' : 'impact',
+        layoutGrammar: grammar,
+        headline: 'TECNOLOGIA PARA SUA CASA',
+        subtitle: 'Uma seleção Ariana com produtos em destaque.',
+        badge: grammar === 'D' ? 'FABRICANTE EM DESTAQUE' : 'SELEÇÃO ARIANA',
+        cta: 'CONFIRA'
+      }
+    );
+    assert.equal(result.meta.generationStyle, 'marketplace');
+    assert.equal(result.meta.layoutGrammar, grammar);
+    assert.equal(result.meta.quality.blockSave, false);
+    buffers.push(result.buffer);
+  }
+  for (let i = 1; i < buffers.length; i += 1) {
+    assert.notDeepEqual(buffers[i - 1], buffers[i]);
+  }
+});
