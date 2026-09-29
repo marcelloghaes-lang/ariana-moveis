@@ -47,9 +47,17 @@ function safeCreativeContext(input = {}) {
   const formats = new Set(['hero_desktop','hero_mobile','secondary_desktop','secondary_mobile','square']);
   const templates = new Set(['marketplace','premium','campaign']);
   const modes = new Set(['with_price','no_price','institutional','multi_product']);
+  const styles = new Set(['classic','premium','marketplace','institutional']);
+  const presets = new Set(['impact','selection','manufacturer','opportunity','mini_cards']);
+  const grammars = new Set(['A','B','C','D','E','auto']);
+  const objectives = new Set(['institutional','category','manufacturer','commercial_campaign','product']);
   const format = formats.has(String(input?.format || '').trim()) ? String(input.format).trim() : 'hero_desktop';
   const template = templates.has(String(input?.template || '').trim()) ? String(input.template).trim() : 'marketplace';
   const contentMode = modes.has(String(input?.contentMode || '').trim()) ? String(input.contentMode).trim() : 'multi_product';
+  const generationStyle = styles.has(String(input?.generationStyle || '').trim()) ? String(input.generationStyle).trim() : 'classic';
+  const marketplacePreset = presets.has(String(input?.marketplacePreset || '').trim()) ? String(input.marketplacePreset).trim() : 'impact';
+  const layoutGrammar = grammars.has(String(input?.layoutGrammar || '').trim()) ? String(input.layoutGrammar).trim() : 'auto';
+  const objective = objectives.has(String(input?.objective || '').trim()) ? String(input.objective).trim() : 'product';
 
   const formatLabels = {
     hero_desktop: 'Hero Desktop 1920x480',
@@ -70,7 +78,11 @@ function safeCreativeContext(input = {}) {
     formatLabel: formatLabels[format],
     template,
     templateLabel: templateLabels[template],
-    contentMode
+    contentMode,
+    generationStyle,
+    marketplacePreset,
+    layoutGrammar,
+    objective
   };
 }
 
@@ -121,6 +133,102 @@ const VISUAL_CATEGORY_RULES = Object.freeze({
       headline: 'SOM PARA TODOS OS MOMENTOS',
       subtitle: 'Potência, conectividade e música para curtir cada momento do seu jeito.',
       cta: 'VEJA AS NOVIDADES'
+    }
+  },
+  ventiladores: {
+    label: 'VENTILADORES',
+    detect: ['ventilador','ventilacao','climatizador'],
+    badgeTerms: ['ventilador','ventilacao','conforto','clima'],
+    headlineTerms: ['vento','conforto','refres','ventil'],
+    subtitleTerms: ['vento','conforto','refres','rotina','ambiente'],
+    forbiddenGeneric: [
+      'boas escolhas para sua casa',
+      'escolhas para sua casa',
+      'produtos para sua casa',
+      'selecao ariana',
+      'tecnologia para sua casa',
+      'tecnologia e boas escolhas',
+      'solucoes que facilitam o seu dia a dia',
+      'solucoes para facilitar a rotina',
+      'facilitar a rotina'
+    ],
+    fallback: {
+      badge: 'VENTILADORES',
+      headline: 'MAIS VENTO, MAIS CONFORTO',
+      subtitle: 'Ventilação para deixar seus ambientes mais agradáveis em todos os momentos.',
+      cta: 'VEJA A SELEÇÃO'
+    }
+  },
+  air_fryer: {
+    label: 'FRITADEIRAS',
+    detect: ['air fryer','fritadeira','fritadeira eletrica'],
+    badgeTerms: ['fritadeira','cozinha','praticidade'],
+    headlineTerms: ['praticidade','cozinha','sabor','agilidade','rotina'],
+    subtitleTerms: ['praticidade','cozinha','sabor','agilidade','rotina'],
+    forbiddenGeneric: [
+      'boas escolhas para sua casa',
+      'escolhas para sua casa',
+      'produtos para sua casa',
+      'selecao ariana',
+      'tecnologia para sua casa',
+      'tecnologia e boas escolhas',
+      'solucoes que facilitam o seu dia a dia',
+      'solucoes para facilitar a rotina',
+      'facilitar a rotina'
+    ],
+    fallback: {
+      badge: 'FRITADEIRAS',
+      headline: 'MAIS PRATICIDADE PARA SUA COZINHA',
+      subtitle: 'Sabor e agilidade para facilitar sua rotina todos os dias.',
+      cta: 'CONHEÇA A SELEÇÃO'
+    }
+  },
+  tvs: {
+    label: 'TVS & ENTRETENIMENTO',
+    detect: ['smart tv','televisor','televisao',' tv '],
+    badgeTerms: ['tv','entretenimento','imagem','tecnologia'],
+    headlineTerms: ['imagem','tecnologia','entretenimento','sala','conexao'],
+    subtitleTerms: ['imagem','tecnologia','entretenimento','qualidade','conexao','sala'],
+    forbiddenGeneric: [
+      'boas escolhas para sua casa',
+      'escolhas para sua casa',
+      'produtos para sua casa',
+      'selecao ariana',
+      'tecnologia para sua casa',
+      'tecnologia e boas escolhas',
+      'solucoes que facilitam o seu dia a dia',
+      'solucoes para facilitar a rotina',
+      'facilitar a rotina'
+    ],
+    fallback: {
+      badge: 'TVS & ENTRETENIMENTO',
+      headline: 'IMAGEM QUE TRANSFORMA SUA CASA',
+      subtitle: 'Mais tecnologia, qualidade e conexão para o seu entretenimento.',
+      cta: 'VEJA AS OPÇÕES'
+    }
+  },
+  impressoras: {
+    label: 'IMPRESSORAS',
+    detect: ['impressora','multifuncional','laserjet','ecotank'],
+    badgeTerms: ['impressora','produtividade','trabalho'],
+    headlineTerms: ['produtividade','imprima','trabalho','negocio','solucoes'],
+    subtitleTerms: ['produtividade','imprima','trabalho','casa','negocio','produza'],
+    forbiddenGeneric: [
+      'boas escolhas para sua casa',
+      'escolhas para sua casa',
+      'produtos para sua casa',
+      'selecao ariana',
+      'tecnologia para sua casa',
+      'tecnologia e boas escolhas',
+      'solucoes que facilitam o seu dia a dia',
+      'solucoes para facilitar a rotina',
+      'facilitar a rotina'
+    ],
+    fallback: {
+      badge: 'IMPRESSORAS',
+      headline: 'MAIS PRODUTIVIDADE PARA O SEU NEGÓCIO',
+      subtitle: 'Soluções inteligentes para imprimir melhor em casa ou no trabalho.',
+      cta: 'CONFIRA A LINHA'
     }
   }
 });
@@ -362,10 +470,16 @@ export function buildAiDirectorRequest(products = [], now = new Date(), creative
     'NÃO copie slogans, textos, layouts exclusivos, identidade de marca ou arte de terceiros. Extraia padrões gerais: hierarquia, tom, quantidade de texto, composição, foco de produto e direção de campanha.',
     'A saída deve ser original para Ariana Móveis.',
     'Nunca invente nem inclua preço, percentual, PIX, parcelamento, frete ou desconto se isso não estiver explicitamente autorizado.',
-    'O banner terá texto à esquerda e produtos à direita. Escolha qual produto deve ser o herói visual pelo impacto da foto.',
+    'Quando o estilo for Marketplace Ariana, use lógica visual de grande varejo sem copiar identidade, slogan, arte ou layout proprietário de terceiros.',
+    'No Marketplace Ariana, preserve azul Ariana, amarelo/dourado, logo oficial e texto integrado à composição; não use cápsulas nem botões desenhados como padrão do banner principal.',
+    'Use 1 produto principal e 2 ou 3 de apoio quando houver múltiplos produtos; varie de verdade a composição conforme a gramática solicitada.',
+    'Gramáticas: A = texto à esquerda/produtos à direita; B = texto central/topo com herói central e apoios laterais; C = headline no topo e grupo abaixo; D = fabricante/linha premium; E = mini cards de apoio.',
+    'Estilo de geração: ' + context.generationStyle + '. Preset Marketplace: ' + context.marketplacePreset + '. Gramática: ' + context.layoutGrammar + '. Objetivo: ' + context.objective + '.',
+    'Escolha qual produto deve ser o herói visual pelo impacto da foto e pela coerência com a categoria.',
     'A composição alvo desta chamada é: ' + context.formatLabel + ', usando o template ' + context.templateLabel + ' e o modo ' + context.contentMode + '.',
     'Adapte o tamanho e a concisão da copy ao formato: telas quadradas/mobile aceitam título curto e legível; faixas desktop devem ser ainda mais diretas.',
     'O template escolhido deve influenciar o tom: Marketplace Impacto = varejo direto; Premium Ariana = linguagem elegante e sóbria; Campanha Forte = energia promocional sem inventar condições comerciais.',
+    'Preset Varejo Impacto Ariana: headline forte e categoria clara. Seleção Ariana: foco em categoria e visual limpo. Fabricante em Destaque: textos curtos, elegantes e marca/linha em evidência. Campanha de Oportunidade: mais energia, mas sem inventar preço, percentual ou condição. Grade Comercial / Mini Cards: copy curta e modular.',
     'Evite frases genéricas quebradas como "Campanha escolhidos para sua casa". Escreva português natural, comercial e curto.',
     'A categoria visual reconhecida nas fotos é a referência principal para a copy. Se as imagens mostram claramente uma categoria, não use copy institucional genérica.',
     'Quando a categoria for áudio/som/caixas de som, use vocabulário específico como som, potência, música, conectividade, entretenimento, energia e momentos.',
@@ -381,6 +495,10 @@ export function buildAiDirectorRequest(products = [], now = new Date(), creative
     'Formato alvo: ' + context.formatLabel + '.',
     'Template alvo: ' + context.templateLabel + '.',
     'Modo: ' + context.contentMode + '.',
+    'Estilo: ' + context.generationStyle + '.',
+    'Preset Marketplace Ariana: ' + context.marketplacePreset + '.',
+    'Gramática de layout: ' + context.layoutGrammar + '.',
+    'Objetivo: ' + context.objective + '.',
     'Catálogo:',
     JSON.stringify(catalog)
   ].join('\n');
