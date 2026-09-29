@@ -591,6 +591,46 @@ test('campanha com logo do fabricante renderiza sem caixa branca', async () => {
 });
 
 
+test('biblioteca de varejo expõe os novos renderers Ariana', () => {
+  for (const id of ['retail_stock','category_selection','stock_movement','tech_store','premium_line']) {
+    const manifest = getProTemplateManifest(id);
+    assert.equal(manifest.id, id);
+    assert.equal(manifest.renderer, id);
+    assert.equal(manifest.schemaVersion, 'ariana-creative-template/v1');
+  }
+});
+
+test('gramáticas F-I geram composições de varejo distintas sem quebrar quality gate', async () => {
+  const configs = [
+    ['retail_stock','F'],
+    ['category_selection','G'],
+    ['stock_movement','H'],
+    ['tech_store','I']
+  ];
+  const buffers = [];
+  for (const [template, grammar] of configs) {
+    const result = await generateCreativeBannerProMulti(
+      [MULTI_TV, MULTI_FRIDGE, MULTI_WASHER],
+      {
+        outputFormat:'hero_desktop',
+        templatePro:template,
+        generationStyle:'marketplace',
+        marketplacePreset: grammar === 'G' || grammar === 'I' ? 'selection' : 'opportunity',
+        layoutGrammar:grammar,
+        headline:'SELEÇÃO COMERCIAL ARIANA',
+        subtitle:'Produtos em destaque para uma campanha de grande varejo.',
+        badge:'DESTAQUES',
+        cta:'CONFIRA'
+      }
+    );
+    assert.equal(result.meta.template, template);
+    assert.equal(result.meta.layoutGrammar, grammar);
+    assert.equal(result.meta.quality.blockSave, false);
+    buffers.push(result.buffer);
+  }
+  for (let i=1;i<buffers.length;i+=1) assert.notDeepEqual(buffers[i-1],buffers[i]);
+});
+
 test('Marketplace Ariana exporta presets e gramáticas no manifesto', () => {
   const manifest = getProTemplateManifest('marketplace');
   assert.equal(Array.isArray(manifest.marketplaceAriana?.presets), true);
