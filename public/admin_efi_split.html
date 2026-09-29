@@ -515,7 +515,7 @@ async function runCardRefundTest(){
   document.getElementById('chargesChargeId').value=id;
   localStorage.setItem('efiLastChargesSplitChargeId',id);
 
-  cardOut.textContent='Etapas 1/4 e 2/4 OK — cobrança '+id+' aprovada.\n\nEtapa 3/4 — solicitando estorno total...';
+  cardOut.textContent='Etapas 1/4 e 2/4 OK — cobrança '+id+' aprovada.\n\nEtapa 3/4 — liquidando no Sandbox quando necessário e solicitando estorno total...';
   const refunded=await api('/admin/payments/efi/homologation/split-charges/card/'+encodeURIComponent(id)+'/refund',{
    method:'POST',
    body:'{}'
@@ -536,6 +536,7 @@ async function runCardRefundTest(){
   result.summary={
    chargeId:id,
    initialStatus:paid?.status||null,
+   settleHttpStatus:refunded?.settleHttpStatus||null,
    refundHttpStatus:refunded?.refundHttpStatus||null,
    finalStatus:data?.status||refunded?.status||null,
    split:paid?.split||null,
