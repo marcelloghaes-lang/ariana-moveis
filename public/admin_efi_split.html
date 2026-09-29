@@ -335,12 +335,25 @@ async function runCardSplitDeclinedTest(){
 
   try{
    const d=await api('/admin/payments/efi/homologation/split-charges/card-test',{method:'POST',body:JSON.stringify(body)});
+   const normalizedStatus=String(d?.status||'').toLowerCase();
+   const declined=['unpaid','declined','refused','denied','failed'].includes(normalizedStatus);
+   if(d?.chargeId){
+    document.getElementById('chargesChargeId').value=String(d.chargeId);
+    localStorage.setItem('efiLastChargesSplitChargeId',String(d.chargeId));
+   }
    cardOut.textContent=JSON.stringify({
-    ok:false,
-    expected:'declined',
-    received:d.status||'approved',
-    warning:'O Sandbox não recusou o cenário como esperado.',
-    chargeId:d.chargeId||null
+    ok:declined,
+    provider:'efi',
+    environment:'homologation',
+    scenario:'card_declined_security',
+    expected:'recusa',
+    result:declined?'recusa confirmada':'cenário não recusado como esperado',
+    status:d.status||null,
+    chargeId:d.chargeId||null,
+    total:d.total||null,
+    payment:d.payment||'credit_card',
+    cardMask:tokenResult.card_mask||'XXXXXXXXXXXX0012',
+    split:d.split||null
    },null,2);
   }catch(e){
    cardOut.textContent=JSON.stringify({
