@@ -109,4 +109,33 @@ export default function registerEfiRoutes(app, context = {}) {
     await audit({ eventType: 'efi_seller_recipient_updated', status: 'success', statusCode: 200, message: 'Conta Efí do seller atualizada.', environment: 'homologation', integrationId: sellerId, metadata: { sellerId, account, documentType: metadata.efi.documentType } });
     return res.json({ ok: true, sellerId, recipient: metadata.efi });
   });
+
+  if (
+    String(process.env.EFI_INTERNAL_HOMOLOG_AUTH_TEST || 'false').toLowerCase() === 'true' &&
+    !globalThis.__arianaEfiHomologAuthSmokeStarted
+  ) {
+    globalThis.__arianaEfiHomologAuthSmokeStarted = true;
+    const timer = setTimeout(async () => {
+      const summary = efiConfigSummary('homologation');
+      console.log('[EFI HOMOLOG AUTH TEST] CONFIG', JSON.stringify({
+        environment: summary.environment,
+        clientIdConfigured: summary.clientIdConfigured,
+        clientSecretConfigured: summary.clientSecretConfigured,
+        certificateConfigured: summary.certificateConfigured,
+        certificateReadable: summary.certificateReadable,
+        pixKeyConfigured: summary.pixKeyConfigured,
+        checkoutAttached: summary.checkoutAttached,
+        productionTrafficEnabled: summary.productionTrafficEnabled
+      }));
+      try {
+        const result = await testEfiAuthentication('homologation');
+        console.log('[EFI HOMOLOG AUTH TEST] RESULT', JSON.stringify(result));
+      } catch (error) {
+        const safe = safeProviderError(error);
+        console.error('[EFI HOMOLOG AUTH TEST] ERROR', JSON.stringify(safe));
+      }
+    }, 8000);
+    timer.unref?.();
+  }
+
 }
