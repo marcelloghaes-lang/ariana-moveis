@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, createPixHomologationTestCharge, createPixWebhookHomologationProbe, linkPixChargeToSplit, getPixSplitCharge, runPixSplitHomologationTest, configurePixWebhook, getPixWebhook } from '../services/efiService.js';
+import { efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, createPixHomologationTestCharge, createPixWebhookHomologationProbe, revisePixChargeAmount, linkPixChargeToSplit, getPixSplitCharge, runPixSplitHomologationTest, configurePixWebhook, getPixWebhook } from '../services/efiService.js';
 
 function safeProviderError(error = {}) {
   const providerData = error?.providerData || {};
@@ -535,6 +535,75 @@ export default function registerEfiRoutes(app, context = {}) {
         }));
       } catch (error) {
         console.error('[EFI WEBHOOK PROBE] ERROR', JSON.stringify(safeProviderError(error)));
+      }
+    }, 12000);
+    timer.unref?.();
+  }
+
+
+  if (
+    String(process.env.EFI_INTERNAL_SPLIT_SETTLEMENT_PROBE_ON_START || 'false').toLowerCase() === 'true' &&
+    !globalThis.__arianaEfiSplitSettlementProbeStarted
+  ) {
+    globalThis.__arianaEfiSplitSettlementProbeStarted = true;
+    const timer = setTimeout(async () => {
+      try {
+        if (!IntegrationAuditLog?.findOne) throw new Error('Auditoria de integrações indisponível.');
+        const lastConfig = await IntegrationAuditLog.findOne({
+          scope: 'payments',
+          eventType: 'efi_homologation_split_config_created',
+          status: 'success'
+        }).sort({ createdAt: -1, _id: -1 }).lean();
+
+        const splitConfigId = String(lastConfig?.response?.id || '').trim();
+        if (!splitConfigId) throw new Error('Nenhuma configuração Split Pix homologada encontrada.');
+
+        const charge = await createPixHomologationTestCharge({
+          environment: 'homologation',
+          amount: 11,
+          expiration: 3600,
+          description: 'Teste liquidacao Split Pix Ariana - Homologacao'
+        });
+
+        if (String(charge.data?.status || '').toUpperCase() !== 'ATIVA') {
+          throw new Error('Cobrança inicial do teste de liquidação não ficou ATIVA.');
+        }
+
+        const link = await linkPixChargeToSplit({
+          environment: 'homologation',
+          txid: charge.txid,
+          splitConfigId
+        });
+
+        const revised = await revisePixChargeAmount({
+          environment: 'homologation',
+          txid: charge.txid,
+          amount: 1
+        });
+
+        await new Promise((resolve) => setTimeout(resolve, 4000));
+
+        let verification = null;
+        try {
+          verification = await getPixSplitCharge({
+            environment: 'homologation',
+            txid: charge.txid
+          });
+        } catch (_) {}
+
+        console.log('[EFI SPLIT SETTLEMENT PROBE] RESULT', JSON.stringify({
+          ok: true,
+          splitConfigId,
+          txid: charge.txid,
+          createdStatus: charge.data?.status || null,
+          linkStatus: link.status,
+          revisedStatus: revised.data?.status || null,
+          revisedAmount: revised.data?.valor?.original || '1.00',
+          verificationStatus: verification?.data?.status || null,
+          splitDetected: Boolean(verification?.data?.split || verification?.data?.config)
+        }));
+      } catch (error) {
+        console.error('[EFI SPLIT SETTLEMENT PROBE] ERROR', JSON.stringify(safeProviderError(error)));
       }
     }, 12000);
     timer.unref?.();
