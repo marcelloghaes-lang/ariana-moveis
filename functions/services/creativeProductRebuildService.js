@@ -290,6 +290,7 @@ const VALIDATION_SCHEMA = {
     'brandingFaithful',
     'voidsClean',
     'noExtraObjects',
+    'notGeneric',
     'confidence',
     'reason'
   ],
@@ -300,6 +301,7 @@ const VALIDATION_SCHEMA = {
     brandingFaithful: { type: 'boolean' },
     voidsClean: { type: 'boolean' },
     noExtraObjects: { type: 'boolean' },
+    notGeneric: { type: 'boolean' },
     confidence: { type: 'number', minimum: 0, maximum: 1 },
     reason: { type: 'string' }
   }
@@ -321,6 +323,7 @@ async function callVisionValidation(referenceBuffer, rebuiltBuffer, productText,
     'Verifique silhueta, proporções, quantidade e posição das partes, base/pés/hastes/grades/pás/ripas, cores e marca.',
     'Para estruturas vazadas, confirme que os espaços que deveriam ser abertos estão transparentes/limpos e que nenhuma grade ou peça real foi apagada.',
     'Reprove se houver peças inventadas, produto diferente, base diferente, número de pás/partes diferente, marca trocada, vazados preenchidos ou estrutura deformada.',
+    'Defina notGeneric=true somente se a SEGUNDA imagem preservar características específicas do produto da PRIMEIRA e não parecer um item genérico da mesma categoria.',
     strictIdentity
       ? 'VALIDAÇÃO ESTRITA: reprove qualquer resultado que pareça um produto genérico ou apenas semelhante. O modelo precisa manter os detalhes específicos visíveis da referência.'
       : 'Use o critério normal de fidelidade visual.',
@@ -385,6 +388,7 @@ async function callVisionValidation(referenceBuffer, rebuiltBuffer, productText,
     parsed.brandingFaithful &&
     parsed.voidsClean &&
     parsed.noExtraObjects &&
+    (!strictIdentity || parsed.notGeneric) &&
     Number(parsed.confidence || 0) >= (strictIdentity ? 0.88 : 0.78)
   );
 
@@ -397,6 +401,7 @@ async function callVisionValidation(referenceBuffer, rebuiltBuffer, productText,
     brandingFaithful: Boolean(parsed.brandingFaithful),
     voidsClean: Boolean(parsed.voidsClean),
     noExtraObjects: Boolean(parsed.noExtraObjects),
+    notGeneric: Boolean(parsed.notGeneric),
     confidence: clamp(Number(parsed.confidence || 0), 0, 1),
     reason: clean(parsed.reason || (safe ? 'ok' : 'visual_fidelity_failed'), 220)
   };
