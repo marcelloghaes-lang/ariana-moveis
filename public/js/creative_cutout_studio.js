@@ -278,10 +278,10 @@
   }
 
   function processingMessage(asset = {}) {
-    const aiMode = ['ai_repair','ai_master'].includes(String(asset?.processing?.mode || ''));
-    const mode = aiMode
-      ? 'A IA está reconstruindo o produto original em Master HQ'
-      : 'O recorte está sendo reprocessado';
+    const difficult = isDifficultAsset(asset);
+    const mode = difficult
+      ? 'Tratando a foto original em HQ; a IA só será usada se o recorte real falhar'
+      : 'O recorte está sendo processado';
     return mode + '. Você pode sair desta tela; ao voltar, o resultado será atualizado automaticamente.';
   }
 
@@ -367,7 +367,7 @@
   function syncCreateButtonCopy() {
     if (!els.create) return;
     els.create.textContent = isDifficultInput()
-      ? 'Reconstruir original HQ e adicionar'
+      ? 'Preparar original HQ e adicionar'
       : 'Recortar e adicionar ao Banco Mestre';
   }
 
@@ -383,9 +383,12 @@
   }
 
   function shortMode(mode = '') {
-    if (mode === 'ai_master') return 'IA Master HQ';
-    if (mode === 'ai_master_failed') return 'IA Master pendente';
-    if (mode === 'ai_repair') return 'IA';
+    if (mode === 'original_preserved') return 'Original HQ';
+    if (mode === 'real_cutout') return 'Recorte real HQ';
+    if (mode === 'real_cutout_failed') return 'Recorte real reprovado';
+    if (mode === 'ai_master') return 'IA fallback HQ';
+    if (mode === 'ai_master_failed') return 'IA fallback pendente';
+    if (mode === 'ai_repair') return 'IA fallback';
     if (/superres/i.test(mode)) return 'Super-res';
     if (/cloudinary/i.test(mode)) return 'Segmentação';
     return 'Recorte Pro';
@@ -476,8 +479,8 @@
     const reprocessButton = node.querySelector('[data-action="reprocess"]');
     if (aiButton && isDifficultAsset(asset)) {
       aiButton.textContent = isFanAsset(asset)
-        ? 'Reconstruir ventilador original HQ'
-        : 'Reconstruir produto original HQ';
+        ? 'Preparar ventilador HQ'
+        : 'Preparar produto HQ';
     }
     if (reprocessButton && isDifficultAsset(asset)) {
       reprocessButton.classList.add('hidden');
@@ -553,27 +556,31 @@
         message.textContent = action === 'ai'
           ? (
               isDifficultAsset(asset)
-                ? 'Reconstruindo o produto inteiro a partir da foto original em Master HQ. O sistema não vai aceitar modelo genérico.'
-                : 'A IA está reconstruindo e validando o mesmo produto. Isso pode levar alguns segundos...'
+                ? 'Preparando a foto real em HQ. Primeiro preservamos/recortamos o original; a IA só entra se esse resultado for reprovado.'
+                : 'Refazendo o recorte real; a IA só entra como fallback se o quality gate reprovar.'
             )
-          : 'Reprocessando o arquivo original...';
+          : 'Reprocessando a foto original...';
         const result = await api('/admin/creative-cutout-studio/assets/' + asset.id + '/reprocess', {
           method:'POST',
           body:JSON.stringify({ mode: action === 'ai' ? 'ai_repair' : 'standard' })
         });
         if (action === 'ai') {
-          const rebuilt = result?.asset;
-          if (
-            rebuilt?.processMode !== 'ai_repair' ||
-            rebuilt?.ai?.safe !== true
-          ) {
-            throw new Error('A IA não confirmou uma reconstrução segura. O recorte anterior foi mantido.');
+          const prepared = result?.asset;
+          if (!prepared?.quality?.safe || !prepared?.cutoutUrl) {
+            throw new Error('O tratamento não produziu um PNG Mestre seguro. A imagem anterior foi mantida.');
           }
-          message.textContent = isDifficultAsset(asset)
-            ? 'PNG Mestre reconstruído do original e aprovado pelo controle de fidelidade. Compare antes de aprovar.'
-            : 'Nova imagem reconstruída pela IA e validada. Compare antes de aprovar.';
+
+          if (prepared.processMode === 'original_preserved') {
+            message.textContent = 'A foto original transparente foi preservada em alta qualidade, sem reconstrução por IA.';
+          } else if (prepared.processMode === 'real_cutout') {
+            message.textContent = 'O PNG foi criado preservando os pixels reais do produto. A IA não precisou ser usada.';
+          } else if (['ai_master','ai_repair'].includes(prepared.processMode)) {
+            message.textContent = 'O recorte real falhou no quality gate; a IA entrou somente como fallback e o resultado foi validado.';
+          } else {
+            message.textContent = 'PNG Mestre preparado e validado. Compare antes de aprovar.';
+          }
         } else {
-          message.textContent = 'Novo recorte criado a partir do original.';
+          message.textContent = 'Novo recorte criado a partir da foto original.';
         }
         message.className = 'asset-message ok';
       } else if (action === 'approve') {
@@ -661,7 +668,7 @@
     setStatus(
       els.uploadStatus,
       isDifficultInput()
-        ? 'Produto difícil detectado. Enviando o original direto para reconstrução integral IA Master HQ...'
+        ? 'Produto difícil detectado. Preservando a foto real primeiro; a IA só entra se o recorte original falhar...'
         : 'Enviando o original e preparando o primeiro recorte...'
     );
 
@@ -682,15 +689,31 @@
       if (createdAsset.masterRebuildRequired && !createdAsset.masterReady) {
         setStatus(
           els.uploadStatus,
-          'Original salvo. A reconstrução Master HQ ainda não foi aprovada; o sistema não usou um recorte comum como substituto.',
+          'Original salvo, mas ainda não existe PNG Mestre aprovado pelo quality gate. Nenhum resultado ruim foi promovido.',
           'error'
+        );
+      } else if (createdAsset.processMode === 'original_preserved') {
+        setStatus(
+          els.uploadStatus,
+          'A imagem original já tinha transparência válida e foi preservada em alta qualidade, sem IA.',
+          'ok'
+        );
+      } else if (createdAsset.processMode === 'real_cutout') {
+        setStatus(
+          els.uploadStatus,
+          'Recorte criado com os pixels reais da foto. A IA não precisou ser usada.',
+          'ok'
+        );
+      } else if (['ai_master','ai_repair'].includes(createdAsset.processMode)) {
+        setStatus(
+          els.uploadStatus,
+          'O recorte real foi reprovado; a IA entrou apenas como fallback e entregou um resultado validado.',
+          'ok'
         );
       } else {
         setStatus(
           els.uploadStatus,
-          createdAsset.masterRebuildRequired
-            ? 'Imagem Mestre HQ reconstruída a partir do original. Compare e aprove somente se estiver fiel.'
-            : 'Imagem adicionada. Compare o original com o recorte e aprove somente quando estiver correto.',
+          'Imagem adicionada. Compare o original com o resultado e aprove somente quando estiver correto.',
           'ok'
         );
       }
