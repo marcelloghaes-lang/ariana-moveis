@@ -641,6 +641,44 @@ test('Marketplace Ariana exporta presets e gramáticas no manifesto', () => {
   assert.equal(manifest.rules.branding.ownSiteUrlInsideOwnSiteBanner, false);
 });
 
+test('PNG Mestre aprovado do Cutout Bank entra no gerador sem novo recorte', async () => {
+  const master = await sharp({
+    create:{
+      width:900,
+      height:700,
+      channels:4,
+      background:{r:0,g:0,b:0,alpha:0}
+    }
+  })
+    .composite([{
+      input:Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="900" height="700">' +
+        '<rect x="110" y="80" width="680" height="500" rx="22" fill="#1b1f27"/>' +
+        '<rect x="135" y="105" width="630" height="440" fill="#2d78bd"/>' +
+        '<rect x="390" y="580" width="120" height="40" fill="#1b1f27"/>' +
+        '</svg>'
+      ),
+      left:0,
+      top:0
+    }])
+    .png()
+    .toBuffer();
+
+  const asset = await prepareProProductAsset({
+    name:'Smart TV teste',
+    category:'TVs',
+    originalBuffer:master,
+    sourceType:'approved_cutout_bank'
+  }, { removeBackground:true });
+
+  assert.equal(asset.sourceType,'approved_cutout_bank');
+  assert.equal(asset.backgroundRemoved,true);
+  assert.equal(asset.cutoutSafe,true);
+  assert.equal(asset.removalMode,'approved_cutout_bank');
+  assert.equal(asset.repairMetrics.approvedCutoutBank,true);
+  assert.equal(asset.repairMetrics.attempted,false);
+});
+
 test('Marketplace Ariana Hero Desktop renderiza em 2x estável e exporta na dimensão oficial', async () => {
   const result = await generateCreativeBannerProMulti(
     [MULTI_TV, MULTI_FRIDGE, MULTI_WASHER],

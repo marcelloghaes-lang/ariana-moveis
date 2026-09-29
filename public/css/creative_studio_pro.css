@@ -189,6 +189,29 @@ button,a{touch-action:manipulation}
 .external-cutout-notice b{font-size:12px;color:#0a356c}
 .external-cutout-notice small{font-size:10px;color:#61758a;line-height:1.4}
 .external-cutout-button{text-decoration:none;background:#0047ab;color:#fff;border-radius:11px;padding:10px 13px;font-size:10px;font-weight:900;white-space:nowrap}
+.external-cutout-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.external-cutout-link{text-decoration:none;border:1px solid #bad7f4;background:#fff;color:#0a4d9c;border-radius:11px;padding:10px 13px;font-size:10px;font-weight:900;white-space:nowrap}
+.hero-slot-bank,.single-cutout-bank-button{border:1px solid #9fc6ef;background:#eef7ff;color:#0753a4;border-radius:9px;padding:7px 9px;font-size:9px;font-weight:900;cursor:pointer}
+.single-cutout-bank-button{width:100%;padding:11px 13px;font-size:10px}
+.cutout-bank-dialog{width:min(1100px,95vw);max-height:88vh;border:0;border-radius:22px;padding:0;box-shadow:0 30px 90px #041a3b55}
+.cutout-bank-dialog::backdrop{background:#061a3777;backdrop-filter:blur(4px)}
+.cutout-bank-shell{background:#fff;padding:20px;max-height:88vh;overflow:auto}
+.cutout-bank-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start}
+.cutout-bank-head h2{margin:4px 0 6px;color:#0b315f;font-size:23px}
+.cutout-bank-head p{margin:0;color:#66758b;font-size:11px;line-height:1.5}
+.cutout-bank-toolbar{display:flex;gap:10px;align-items:center;margin:14px 0}
+.cutout-bank-toolbar input{flex:1;border:1px solid #cbdbea;border-radius:12px;padding:11px 13px;font-size:11px}
+.cutout-bank-toolbar span{font-size:10px;font-weight:900;color:#0a4d9c;background:#eef7ff;border-radius:999px;padding:9px 11px}
+.cutout-bank-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.cutout-bank-card{border:1px solid #d6e4f2;background:#fff;border-radius:15px;padding:10px;display:flex;flex-direction:column;gap:8px}
+.cutout-bank-thumb{aspect-ratio:1/1;background:repeating-conic-gradient(#eef2f6 0 25%,#fff 0 50%) 50%/18px 18px;border-radius:11px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.cutout-bank-thumb img{width:100%;height:100%;object-fit:contain}
+.cutout-bank-card b{font-size:11px;color:#0a356c;line-height:1.25}
+.cutout-bank-card small{font-size:9px;color:#6c7c90;line-height:1.35}
+.cutout-bank-card button{margin-top:auto;border:0;background:#075fc5;color:#fff;border-radius:9px;padding:8px 9px;font-size:9px;font-weight:900;cursor:pointer}
+.cutout-bank-empty{grid-column:1/-1;padding:24px;text-align:center;border:1px dashed #cbdbea;border-radius:14px;color:#6f7e90;font-size:11px}
+@media(max-width:900px){.cutout-bank-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
 @media(max-width:760px){
   .template-folder-summary,.external-cutout-notice{align-items:stretch;flex-direction:column}
   .template-folder-button,.external-cutout-button{text-align:center}

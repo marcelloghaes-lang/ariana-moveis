@@ -1739,6 +1739,66 @@ export async function prepareProProductAsset(product = {}, options = {}) {
   if (!directBuffer && !source) throw new Error('product_image_required');
   const raw = directBuffer || await loadImage(source);
   if (!raw) throw new Error('product_image_unavailable');
+
+  const sourceType = String(product.sourceType || '');
+  if (directBuffer && sourceType === 'approved_cutout_bank') {
+    const prepared = sharp(raw, { failOn: 'none' }).rotate().ensureAlpha();
+    const { data, info } = await prepared.raw().toBuffer({ resolveWithObject:true });
+    let transparent = 0;
+    let partial = 0;
+    const total = Math.max(1, info.width * info.height);
+    for (let i = 0; i < total; i += 1) {
+      const alpha = data[i * info.channels + 3];
+      if (alpha < 40) transparent += 1;
+      else if (alpha < 245) partial += 1;
+    }
+    const transparentRatio = transparent / total;
+    if (transparentRatio < 0.02) {
+      const error = new Error('approved_cutout_bank_png_has_no_transparent_background');
+      error.code = 'approved_cutout_bank_png_has_no_transparent_background';
+      throw error;
+    }
+
+    const png = await prepared.png({ compressionLevel:9, adaptiveFiltering:true }).toBuffer();
+    const trimmed = await sharp(png)
+      .trim({ background:{ r:0,g:0,b:0,alpha:0 }, threshold:4 })
+      .png({ compressionLevel:9, adaptiveFiltering:true })
+      .toBuffer();
+    const meta = await sharp(trimmed).metadata();
+
+    return {
+      buffer: trimmed,
+      sourceWidth: Number(info.width || meta.width || 0),
+      sourceHeight: Number(info.height || meta.height || 0),
+      width: Number(meta.width || info.width || 0),
+      height: Number(meta.height || info.height || 0),
+      qualityWidth: Number(meta.width || info.width || 0),
+      qualityHeight: Number(meta.height || info.height || 0),
+      backgroundRemoved: true,
+      removalMode: 'approved_cutout_bank',
+      removedRatio: transparentRatio,
+      confidence: 1,
+      cutoutSafe: true,
+      cutoutReason: 'ok',
+      repairMetrics: {
+        attempted:false,
+        safe:true,
+        internalBackgroundOk:true,
+        whiteHaloOk:true,
+        thinStructureDamageOk:true,
+        originalPixelsPreserved:true,
+        approvedCutoutBank:true,
+        transparentRatio,
+        partialAlphaRatio: partial / total,
+        reason:'approved_png_master_used_without_recut'
+      },
+      sourceType:'approved_cutout_bank',
+      sourceOriginalName:String(product.originalSourceName || product.name || ''),
+      sourceOriginalMimeType:String(product.originalSourceMimeType || 'image/png'),
+      sourceOriginalBytes:Number(product.originalSourceBytes || raw.length || 0)
+    };
+  }
+
   const productText = productCategoryText(product);
   const baseAsset = await removeConnectedBackground(
     raw,

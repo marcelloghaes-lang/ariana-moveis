@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-title" content="Creative Studio">
   <link rel="manifest" href="./manifest-creative-studio-pro.json?v=20260928-6">
   <link rel="apple-touch-icon" href="./pwa-icons/banners-192.png">
-  <link rel="stylesheet" href="./css/creative_studio_pro.css?v=20260929-3">
+  <link rel="stylesheet" href="./css/creative_studio_pro.css?v=20260929-4">
 </head>
 <body>
   <header class="topbar">
@@ -183,15 +183,37 @@
         </div>
       </dialog>
 
+      <dialog id="cutout-bank-dialog" class="cutout-bank-dialog">
+        <div class="cutout-bank-shell">
+          <div class="cutout-bank-head">
+            <div>
+              <span class="eyebrow">BANCO MESTRE</span>
+              <h2>Imagens aprovadas no Ariana Cutout Studio</h2>
+              <p>Somente PNGs aprovados aparecem aqui. Escolha uma imagem e ela será usada diretamente no banner.</p>
+            </div>
+            <button id="close-cutout-bank" class="template-library-close" type="button" aria-label="Fechar">×</button>
+          </div>
+          <div class="cutout-bank-toolbar">
+            <input id="cutout-bank-search" type="search" placeholder="Buscar por nome, categoria ou SKU">
+            <span id="cutout-bank-target">Destino: produto principal</span>
+          </div>
+          <div id="cutout-bank-status" class="inline-status"></div>
+          <div id="cutout-bank-grid" class="cutout-bank-grid"></div>
+        </div>
+      </dialog>
+
       <section class="step">
         <div class="step-head"><span>4</span><div><strong>Produto</strong><small>Use o catálogo da Ariana ou envie outra imagem.</small></div></div>
         <div class="external-cutout-notice">
           <div>
-            <span class="eyebrow">RECORTE EXTERNO</span>
-            <b>Use o Ariana Cutout Studio para preparar os PNGs dos produtos</b>
-            <small>O cortador continua separado do gerador. Aprove o PNG Mestre no Cutout Studio e depois use a imagem no banner.</small>
+            <span class="eyebrow">BANCO MESTRE DE IMAGENS</span>
+            <b>Escolha aqui os PNGs já aprovados no Ariana Cutout Studio</b>
+            <small>O cortador continua separado do gerador. O Creative Studio usa diretamente o PNG Mestre aprovado, sem duplicar a imagem original.</small>
           </div>
-          <a class="external-cutout-button" href="./creative_cutout_studio.html" target="_blank" rel="noopener">Abrir Cutout Studio</a>
+          <div class="external-cutout-actions">
+            <button id="open-cutout-bank" class="external-cutout-button" type="button">📁 Abrir galeria aprovada</button>
+            <a class="external-cutout-link" href="./creative_cutout_studio.html" target="_blank" rel="noopener">Abrir cortador</a>
+          </div>
         </div>
         <div class="hero-auto-card">
           <div>
@@ -220,6 +242,7 @@
                 <small id="hero-slot-source-0">Nenhuma imagem selecionada</small>
               </div>
               <div class="hero-slot-actions">
+                <button type="button" class="hero-slot-bank" data-hero-bank-slot="0">Banco Mestre</button>
                 <button type="button" class="hero-slot-catalog" data-hero-catalog-slot="0">Escolher do catálogo</button>
                 <label class="hero-slot-upload">
                   <input type="file" accept="image/png,image/jpeg,image/webp" data-hero-upload-slot="0">
@@ -237,6 +260,7 @@
                 <small id="hero-slot-source-1">Nenhuma imagem selecionada</small>
               </div>
               <div class="hero-slot-actions">
+                <button type="button" class="hero-slot-bank" data-hero-bank-slot="1">Banco Mestre</button>
                 <button type="button" class="hero-slot-catalog" data-hero-catalog-slot="1">Escolher do catálogo</button>
                 <label class="hero-slot-upload">
                   <input type="file" accept="image/png,image/jpeg,image/webp" data-hero-upload-slot="1">
@@ -254,6 +278,7 @@
                 <small id="hero-slot-source-2">Nenhuma imagem selecionada</small>
               </div>
               <div class="hero-slot-actions">
+                <button type="button" class="hero-slot-bank" data-hero-bank-slot="2">Banco Mestre</button>
                 <button type="button" class="hero-slot-catalog" data-hero-catalog-slot="2">Escolher do catálogo</button>
                 <label class="hero-slot-upload">
                   <input type="file" accept="image/png,image/jpeg,image/webp" data-hero-upload-slot="2">
@@ -276,7 +301,8 @@
 
         <div class="fields" id="single-product-fields">
           <label class="field full"><span>Nome do produto</span><input id="product-name" maxlength="110" placeholder="Ex.: Smart TV 55 polegadas"></label>
-          <label class="field full"><span>Imagem do produto</span><input id="image-url" type="url" placeholder="https://..."></label>
+          <button id="single-cutout-bank" class="single-cutout-bank-button" type="button">📁 Escolher PNG no Banco Mestre</button>
+                    <label class="field full"><span>Imagem do produto</span><input id="image-url" type="url" placeholder="https://..."></label>
           <label class="upload full" for="image-file">
             <input id="image-file" type="file" accept="image/png,image/jpeg,image/webp">
             <span class="upload-icon">↑</span>
@@ -434,7 +460,7 @@
     </section>
   </main>
 
-  <script src="./js/creative_studio_pro.js?v=20260929-6"></script>
+  <script src="./js/creative_studio_pro.js?v=20260929-7"></script>
   <script src="./pwa-register.js?v=20260928-6" data-sw="./sw-creative-studio-pro.js" data-scope="./creative_studio_pro.html"></script>
 </body>
 </html>

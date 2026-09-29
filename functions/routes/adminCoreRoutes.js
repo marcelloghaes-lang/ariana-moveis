@@ -9,6 +9,7 @@ import {
   getProTemplateManifest
 } from '../creative-banner-pro-generator.js';
 import { researchCreativeCampaignWithAi } from '../services/creativeCampaignAiDirectorService.js';
+import { getCreativeCutoutFile } from '../services/creativeCutoutBankService.js';
 
 // ============================================================
 // ROTAS ADMIN CORE / UPLOAD / POSTERS / CRUD GENÉRICO
@@ -230,6 +231,50 @@ function resolveCreativeDirectSources(products = []) {
   return products.map(item => resolveCreativeDirectSource(item));
 }
 
+async function resolveCreativeBankProduct(product = {}) {
+  const direct = resolveCreativeDirectSource(product);
+  const assetId = String(
+    direct.cutoutAssetId ||
+    direct.masterAssetId ||
+    direct.creativeCutoutAssetId ||
+    ''
+  ).trim();
+
+  if (!assetId) return direct;
+
+  const file = await getCreativeCutoutFile({
+    mongoose,
+    id: assetId,
+    kind: 'approved'
+  });
+
+  if (!file?.buffer?.length) {
+    const error = new Error('PNG Mestre aprovado não encontrado no Banco Mestre.');
+    error.code = 'creative_cutout_master_not_found';
+    throw error;
+  }
+
+  return {
+    ...direct,
+    cutoutAssetId: assetId,
+    originalBuffer: file.buffer,
+    originalSourceName: file.filename || direct.name || 'produto.png',
+    originalSourceMimeType: file.contentType || 'image/png',
+    originalSourceBytes: Number(file.buffer.length || 0),
+    sourceToken: '',
+    persistentSourceUrl: '',
+    sourceType: 'approved_cutout_bank'
+  };
+}
+
+async function resolveCreativeBankProducts(products = []) {
+  const output = [];
+  for (const item of products) {
+    output.push(await resolveCreativeBankProduct(item));
+  }
+  return output;
+}
+
 
 function inferCreativeCategoryFromText(value = '') {
   const text = String(value || '')
@@ -292,7 +337,7 @@ async function creativeVisionDataUrl(sourcePath = '') {
 async function resolveCreativeResearchProducts(products = []) {
   const output = [];
   for (const raw of (Array.isArray(products) ? products : []).filter(Boolean).slice(0, 5)) {
-    const product = resolveCreativeDirectSource(raw);
+    const product = await resolveCreativeBankProduct(raw);
     const category =
       product.category ||
       product.categoryName ||
@@ -307,7 +352,9 @@ async function resolveCreativeResearchProducts(products = []) {
       product.imagem ||
       '';
 
-    if (product.originalSourcePath) {
+    if (Buffer.isBuffer(product.originalBuffer) && product.originalBuffer.length) {
+      imageUrl = 'data:image/png;base64,' + product.originalBuffer.toString('base64');
+    } else if (product.originalSourcePath) {
       const visionDataUrl = await creativeVisionDataUrl(product.originalSourcePath);
       if (visionDataUrl) imageUrl = visionDataUrl;
     }
@@ -1286,10 +1333,10 @@ app.post('/api/admin/creative-studio/pro/research-copy', adminRequired, async (r
 app.post('/api/admin/creative-studio/pro/analyze', adminRequired, async (req, res) => {
   try {
     const input = professionalCreativeInput(req.body || {});
-    const product = resolveCreativeDirectSource(input.product);
+    const product = await resolveCreativeBankProduct(input.product);
     const options = input.options;
     const products = Array.isArray(req.body?.products)
-      ? resolveCreativeDirectSources(req.body.products.filter(Boolean).slice(0, 5))
+      ? await resolveCreativeBankProducts(req.body.products.filter(Boolean).slice(0, 5))
       : [];
     const analysis = products.length >= 2
       ? await analyzeCreativeBannerProMulti(products, options)
@@ -1304,10 +1351,10 @@ app.post('/api/admin/creative-studio/pro/analyze', adminRequired, async (req, re
 app.post('/api/admin/creative-studio/pro/preview', adminRequired, async (req, res) => {
   try {
     const input = professionalCreativeInput(req.body || {});
-    const product = resolveCreativeDirectSource(input.product);
+    const product = await resolveCreativeBankProduct(input.product);
     const options = input.options;
     const products = Array.isArray(req.body?.products)
-      ? resolveCreativeDirectSources(req.body.products.filter(Boolean).slice(0, 5))
+      ? await resolveCreativeBankProducts(req.body.products.filter(Boolean).slice(0, 5))
       : [];
     const result = products.length >= 2
       ? await generateCreativeBannerProMulti(products, options)
@@ -1337,10 +1384,10 @@ app.post('/api/admin/creative-studio/pro/preview', adminRequired, async (req, re
 app.post('/api/admin/creative-studio/pro/render', adminRequired, async (req, res) => {
   try {
     const input = professionalCreativeInput(req.body || {});
-    const product = resolveCreativeDirectSource(input.product);
+    const product = await resolveCreativeBankProduct(input.product);
     const options = input.options;
     const products = Array.isArray(req.body?.products)
-      ? resolveCreativeDirectSources(req.body.products.filter(Boolean).slice(0, 5))
+      ? await resolveCreativeBankProducts(req.body.products.filter(Boolean).slice(0, 5))
       : [];
     const result = products.length >= 2
       ? await generateCreativeBannerProMulti(products, options)
