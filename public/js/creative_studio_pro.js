@@ -181,6 +181,37 @@
     return document.querySelector('input[name="template-pro"]:checked')?.value || 'marketplace';
   }
 
+  function selectedGenerationStyle() {
+    return document.querySelector('input[name="generation-style"]:checked')?.value || 'marketplace';
+  }
+
+  function selectedMarketplacePreset() {
+    return els.marketplacePreset?.value || 'impact';
+  }
+
+  function selectedLayoutGrammar() {
+    return els.layoutGrammar?.value || 'auto';
+  }
+
+  function campaignObjective() {
+    if (contentMode === 'institutional') return 'institutional';
+    if (selectedMarketplacePreset() === 'manufacturer') return 'manufacturer';
+    if (selectedMarketplacePreset() === 'opportunity') return 'commercial_campaign';
+    if (contentMode === 'multi_product' || selectedMarketplacePreset() === 'selection') return 'category';
+    return 'product';
+  }
+
+  function applyGenerationStyle(style = selectedGenerationStyle()) {
+    const normalizedStyle = ['classic','premium','marketplace','institutional'].includes(style) ? style : 'marketplace';
+    document.querySelectorAll('input[name="generation-style"]').forEach(input => {
+      input.closest('.choice')?.classList.toggle('selected', input.checked);
+    });
+    els.marketplaceControls?.classList.toggle('hidden', normalizedStyle !== 'marketplace');
+    lastCopyResearchSignature = '';
+    qualityAllowsSave = false;
+    if (els.saveButton) els.saveButton.disabled = true;
+  }
+
   function updateChoiceCards() {
     document.querySelectorAll('.choice').forEach(card => card.classList.toggle('selected', !!card.querySelector('input:checked')));
     document.querySelectorAll('.template-card').forEach(card => card.classList.toggle('selected', !!card.querySelector('input:checked')));
@@ -593,7 +624,11 @@
     const creativeContext = [
       selectedFormat(),
       selectedTemplate(),
-      contentMode
+      contentMode,
+      selectedGenerationStyle(),
+      selectedMarketplacePreset(),
+      selectedLayoutGrammar(),
+      campaignObjective()
     ].map(normalize).join(':');
     return creativeContext + '::' + productSignature;
   }
@@ -620,7 +655,11 @@
           context: {
             format: selectedFormat(),
             template: selectedTemplate(),
-            contentMode
+            contentMode,
+            generationStyle: selectedGenerationStyle(),
+            marketplacePreset: selectedMarketplacePreset(),
+            layoutGrammar: selectedLayoutGrammar(),
+            objective: campaignObjective()
           }
         })
       });
@@ -1140,6 +1179,10 @@
         options: {
           outputFormat: selectedFormat(),
           templatePro: selectedTemplate(),
+          generationStyle: selectedGenerationStyle(),
+          marketplacePreset: selectedMarketplacePreset(),
+          layoutGrammar: selectedLayoutGrammar(),
+          campaignObjective: campaignObjective(),
           contentMode: 'multi_product',
           showPrice: false,
           headline: manualCopy.headline,
@@ -1192,6 +1235,10 @@
       options: {
         outputFormat: selectedFormat(),
         templatePro: selectedTemplate(),
+        generationStyle: selectedGenerationStyle(),
+        marketplacePreset: selectedMarketplacePreset(),
+        layoutGrammar: selectedLayoutGrammar(),
+        campaignObjective: campaignObjective(),
         contentMode,
         showPrice,
         headline: manualCopy.headline,
@@ -1565,6 +1612,21 @@
       els.saveButton.disabled = true;
       status('Template alterado. A próxima prévia usará este modelo e a IA vai adaptar a campanha.', 'ok');
     }));
+    document.querySelectorAll('input[name="generation-style"]').forEach(input => input.addEventListener('change',() => {
+      applyGenerationStyle(input.value);
+      status(
+        input.value === 'marketplace'
+          ? 'Marketplace Ariana ativado. Preset, hierarquia e gramática visual serão considerados na próxima prévia.'
+          : 'Estilo de geração alterado. A próxima prévia será recalculada sem alterar seus templates existentes.',
+        'ok'
+      );
+    }));
+    [els.marketplacePreset, els.layoutGrammar].filter(Boolean).forEach(input => input.addEventListener('change',() => {
+      lastCopyResearchSignature = '';
+      qualityAllowsSave = false;
+      els.saveButton.disabled = true;
+      status('Direção Marketplace Ariana alterada. A próxima prévia usará a nova composição.', 'ok');
+    }));
     document.querySelectorAll('#content-mode button').forEach(button => button.addEventListener('click',() => applyMode(button.dataset.mode)));
 
     els.fullPrice.addEventListener('input',() => {
@@ -1587,6 +1649,9 @@
     Object.assign(els,{
       installAppButton:byId('install-app-button'),
       downloadTemplateButton:byId('download-template-button'),
+      marketplaceControls:byId('marketplace-controls'),
+      marketplacePreset:byId('marketplace-preset'),
+      layoutGrammar:byId('layout-grammar'),
       autoHeroButton:byId('auto-hero-button'),
       productSearch:byId('product-search'),
       productSearchLabel:byId('product-search-label'),
@@ -1632,6 +1697,7 @@
     bind();
     bindInstallApp();
     updateChoiceCards();
+    applyGenerationStyle();
     applyMode('with_price');
     renderHeroSlots();
     catalogReadyPromise = loadProducts();
