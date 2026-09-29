@@ -115,6 +115,102 @@ async function imageMetadata(buffer) {
   };
 }
 
+async function meaningfulAlphaRatio(buffer) {
+  const sample = sharp(buffer, { failOn: 'none' })
+    .rotate()
+    .resize({ width: 900, height: 900, fit: 'inside', withoutEnlargement: true })
+    .ensureAlpha();
+  const { data, info } = await sample.raw().toBuffer({ resolveWithObject: true });
+  const total = info.width * info.height;
+  let transparent = 0;
+  let partial = 0;
+  for (let i = 0; i < total; i += 1) {
+    const alpha = data[i * info.channels + 3];
+    if (alpha < 40) transparent += 1;
+    else if (alpha < 245) partial += 1;
+  }
+  return {
+    transparentRatio: transparent / Math.max(1, total),
+    partialRatio: partial / Math.max(1, total)
+  };
+}
+
+function realCutoutGate(asset = {}, productText = '') {
+  const repair = asset.repairMetrics || {};
+  const difficult = isDifficultCreativeProduct(productText);
+  const width = Number(asset.width || asset.qualityWidth || 0);
+  const height = Number(asset.height || asset.qualityHeight || 0);
+  const longEdge = Math.max(width, height);
+  const shortEdge = Math.min(width, height);
+  const resolutionOk = difficult
+    ? longEdge >= 1200 && shortEdge >= 420
+    : longEdge >= 700;
+
+  const safe =
+    Boolean(asset.buffer) &&
+    Boolean(asset.backgroundRemoved) &&
+    asset.cutoutSafe !== false &&
+    repair.safe !== false &&
+    repair.internalBackgroundOk !== false &&
+    repair.whiteHaloOk !== false &&
+    repair.thinStructureDamageOk !== false &&
+    resolutionOk;
+
+  let reason = 'ok';
+  if (!asset.backgroundRemoved) reason = asset.cutoutReason || 'background_not_removed';
+  else if (asset.cutoutSafe === false) reason = asset.cutoutReason || 'cutout_unsafe';
+  else if (repair.internalBackgroundOk === false) reason = 'internal_background_contamination';
+  else if (repair.whiteHaloOk === false) reason = 'white_halo_residual';
+  else if (repair.thinStructureDamageOk === false) reason = 'thin_structure_damage';
+  else if (!resolutionOk) reason = 'master_resolution_too_low';
+
+  return { safe, resolutionOk, reason, difficult, longEdge, shortEdge };
+}
+
+async function preserveTransparentOriginalIfSafe(originalBuffer, validatedAsset, productText = '') {
+  const alpha = await meaningfulAlphaRatio(originalBuffer);
+  if (alpha.transparentRatio < 0.025) return null;
+
+  const gate = realCutoutGate(validatedAsset, productText);
+  if (!gate.safe) return null;
+
+  const normalized = await sharp(originalBuffer, { failOn: 'none' })
+    .rotate()
+    .ensureAlpha()
+    .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 4 })
+    .png({ compressionLevel: 9, adaptiveFiltering: true })
+    .toBuffer();
+  const meta = await imageMetadata(normalized);
+
+  return {
+    ...validatedAsset,
+    buffer: normalized,
+    width: meta.width,
+    height: meta.height,
+    qualityWidth: meta.width,
+    qualityHeight: meta.height,
+    backgroundRemoved: true,
+    cutoutSafe: true,
+    cutoutReason: 'ok',
+    removalMode: 'original_alpha_preserved_hq',
+    confidence: 1,
+    repairMetrics: {
+      ...(validatedAsset.repairMetrics || {}),
+      safe: true,
+      internalBackgroundOk: validatedAsset.repairMetrics?.internalBackgroundOk !== false,
+      whiteHaloOk: validatedAsset.repairMetrics?.whiteHaloOk !== false,
+      thinStructureDamageOk: validatedAsset.repairMetrics?.thinStructureDamageOk !== false,
+      originalPixelsPreserved: true,
+      sourceAlphaTransparentRatio: alpha.transparentRatio,
+      sourceAlphaPartialRatio: alpha.partialRatio,
+      resolutionEnhanced: false,
+      qualityWidth: meta.width,
+      qualityHeight: meta.height,
+      reason: 'original_transparent_pixels_preserved'
+    }
+  };
+}
+
 function qualityScore(asset = {}, productText = '') {
   const repair = asset.repairMetrics || {};
   const difficult = isDifficultCreativeProduct(productText);
@@ -144,10 +240,10 @@ function publicAsset(doc = {}) {
   const productText = [doc.category, doc.name].filter(Boolean).join(' ');
   const difficultProduct = isDifficultCreativeProduct(productText);
   const masterReady = difficultProduct
-    ? (
-        doc.processMode === 'ai_master' &&
-        doc.ai?.safe === true &&
-        doc.quality?.masterResolutionOk === true
+    ? Boolean(
+        doc.processedFileId &&
+        doc.quality?.safe === true &&
+        doc.quality?.masterResolutionOk !== false
       )
     : Boolean(doc.processedFileId);
   return {
@@ -164,7 +260,7 @@ function publicAsset(doc = {}) {
     quality: doc.quality || null,
     ai: doc.ai || null,
     difficultProduct,
-    masterRebuildRequired: difficultProduct,
+    masterRebuildRequired: difficultProduct && !masterReady,
     masterReady,
     processing: doc.processing || null,
     lastProcessingError: doc.lastProcessingError || null,
@@ -190,52 +286,42 @@ async function processBuffer({
 }) {
   const productText = [category, name].filter(Boolean).join(' ');
   const difficultProduct = isDifficultCreativeProduct(productText);
-  const forceMaster = difficultProduct || mode === 'ai_repair' || mode === 'ai_master';
 
-  let asset;
-  let effectiveMode = mode;
+  // REGRA PRINCIPAL: sempre preservar a fotografia real primeiro.
+  // 1) tenta alpha original / recorte real; 2) valida; 3) só então usa IA como fallback.
+  const validatedRealAsset = await prepareProProductAsset({
+    name: name || 'Produto',
+    category: category || '',
+    originalBuffer,
+    sourceType: 'creative_cutout_bank_original'
+  }, {
+    removeBackground: true,
+    removeLightBackground: true
+  });
 
-  if (difficultProduct) {
-    // Produtos vazados/finos não passam mais pelo Recorte Pro.
-    // A referência original vai direto para reconstrução integral por IA.
-    const originalMeta = await imageMetadata(originalBuffer);
-    asset = {
-      buffer: originalBuffer,
-      width: originalMeta.width,
-      height: originalMeta.height,
-      sourceWidth: originalMeta.width,
-      sourceHeight: originalMeta.height,
-      backgroundRemoved: false,
-      cutoutSafe: false,
-      cutoutReason: 'master_rebuild_required',
-      removalMode: 'original_reference_only',
-      removedRatio: 0,
-      confidence: 0,
-      repairMetrics: {
-        attempted: false,
-        difficultProduct: true,
-        internalBackgroundOk: false,
-        whiteHaloOk: false,
-        thinStructureDamageOk: false,
-        safe: false,
-        reason: 'master_rebuild_required'
-      }
-    };
-    effectiveMode = 'ai_master';
-  } else {
-    asset = await prepareProProductAsset({
-      name: name || 'Produto',
-      category: category || '',
-      originalBuffer,
-      sourceType: 'creative_cutout_bank_original'
-    }, {
-      removeBackground: true,
-      removeLightBackground: true
-    });
-  }
+  const preservedOriginal = await preserveTransparentOriginalIfSafe(
+    originalBuffer,
+    validatedRealAsset,
+    productText
+  );
 
+  let asset = preservedOriginal || validatedRealAsset;
+  let realGate = realCutoutGate(asset, productText);
+  let effectiveMode = preservedOriginal
+    ? 'original_preserved'
+    : (realGate.safe ? 'real_cutout' : 'real_cutout_failed');
   let aiMetrics = null;
-  if (forceMaster) {
+  let aiFallbackUsed = false;
+
+  const allowAiFallback =
+    !realGate.safe &&
+    (
+      difficultProduct ||
+      mode === 'ai_repair' ||
+      mode === 'ai_master'
+    );
+
+  if (allowAiFallback) {
     const rebuilt = await rebuildCreativeProductFromReference({
       referenceBuffer: originalBuffer,
       asset,
@@ -262,16 +348,25 @@ async function processBuffer({
       error.code = 'creative_cutout_ai_repair_rejected';
       error.aiReason = reason;
       error.aiMetrics = aiMetrics;
+      error.realCutoutReason = realGate.reason;
       throw error;
     }
 
     asset = rebuilt;
+    aiFallbackUsed = true;
     effectiveMode = difficultProduct ? 'ai_master' : 'ai_repair';
+    realGate = realCutoutGate(asset, productText);
   }
 
   const outputMeta = await imageMetadata(asset.buffer);
-  const longEdge = Math.max(Number(asset.width || outputMeta.width || 0), Number(asset.height || outputMeta.height || 0));
-  const shortEdge = Math.min(Number(asset.width || outputMeta.width || 0), Number(asset.height || outputMeta.height || 0));
+  const longEdge = Math.max(
+    Number(asset.width || outputMeta.width || 0),
+    Number(asset.height || outputMeta.height || 0)
+  );
+  const shortEdge = Math.min(
+    Number(asset.width || outputMeta.width || 0),
+    Number(asset.height || outputMeta.height || 0)
+  );
   const masterResolutionOk = difficultProduct
     ? longEdge >= 1200 && shortEdge >= 420
     : true;
@@ -281,8 +376,14 @@ async function processBuffer({
     mode: effectiveMode,
     quality: {
       score: qualityScore(asset, productText),
-      safe: asset.cutoutSafe !== false && Boolean(asset.backgroundRemoved),
-      reason: asset.cutoutReason || 'ok',
+      safe:
+        asset.cutoutSafe !== false &&
+        Boolean(asset.backgroundRemoved) &&
+        asset.repairMetrics?.internalBackgroundOk !== false &&
+        asset.repairMetrics?.whiteHaloOk !== false &&
+        asset.repairMetrics?.thinStructureDamageOk !== false &&
+        masterResolutionOk,
+      reason: asset.cutoutReason || realGate.reason || 'ok',
       removalMode: asset.removalMode || '',
       removedRatio: Number(asset.removedRatio || 0),
       confidence: Number(asset.confidence || 0),
@@ -291,6 +392,10 @@ async function processBuffer({
       thinStructureDamageOk: asset.repairMetrics?.thinStructureDamageOk !== false,
       masterResolutionOk,
       difficultProduct,
+      originalPixelsPreserved: Boolean(asset.repairMetrics?.originalPixelsPreserved),
+      realCutoutAttempted: true,
+      aiFallbackUsed,
+      realCutoutReason: aiFallbackUsed ? (validatedRealAsset.cutoutReason || 'quality_gate_failed') : 'ok',
       repairMetrics: asset.repairMetrics || null
     },
     processed: outputMeta,
@@ -338,7 +443,7 @@ export async function createCreativeCutoutAsset({
   const cleanCategory = cleanText(category || '');
   const productText = [cleanCategory, cleanName].filter(Boolean).join(' ');
   const difficultProduct = isDifficultCreativeProduct(productText);
-  const initialMode = difficultProduct ? 'ai_master' : 'standard';
+  const initialMode = 'standard';
 
   try {
     processedResult = await processBuffer({
@@ -484,7 +589,7 @@ export async function reprocessCreativeCutoutAsset({
   const productText = [doc.category, doc.name].filter(Boolean).join(' ');
   const difficultProduct = isDifficultCreativeProduct(productText);
   const requestedMode = mode === 'ai_repair' ? 'ai_repair' : 'standard';
-  const safeMode = difficultProduct ? 'ai_master' : requestedMode;
+  const safeMode = requestedMode;
   const startedAt = now();
   const processingLeaseMs = ['ai_repair','ai_master'].includes(safeMode)
     ? 15 * 60 * 1000
@@ -621,9 +726,9 @@ export async function approveCreativeCutoutAsset({ mongoose, id }) {
   const productText = [doc.category, doc.name].filter(Boolean).join(' ');
   if (isDifficultCreativeProduct(productText)) {
     const masterReady =
-      doc.processMode === 'ai_master' &&
-      doc.ai?.safe === true &&
-      doc.quality?.masterResolutionOk === true;
+      Boolean(doc.processedFileId) &&
+      doc.quality?.safe === true &&
+      doc.quality?.masterResolutionOk !== false;
     if (!masterReady) {
       const error = new Error('creative_cutout_master_rebuild_required');
       error.code = 'creative_cutout_master_rebuild_required';
