@@ -2623,7 +2623,7 @@ async function handleGeneralIntent({
     saveStateSoon();
     await sendText(
       phone,
-      'O Marcelo está em outro atendimento no momento. Assim que ele terminar, ele retorna seu contato 😊\n\nEnquanto você aguarda, posso te mostrar produtos, preços e condições de pagamento.'
+      'Certo 😊 Sua conversa ficou sinalizada para o Marcelo. Assim que ele terminar o atendimento atual, ele retorna seu contato por aqui.'
     );
     await syncTicket(phone, {
       status: 'Aguardando retorno do Marcelo',
@@ -7926,9 +7926,119 @@ async function showMoreAdvancedAlternatives(phone, conv, baselineProduct, pushNa
   return true;
 }
 
+function deferredFutureProductCategory(text = '') {
+  const n = normalize(text);
+  const future = /\b(mais pra frente|mais pr frente|depois|quando eu terminar|quando terminar|quando eu acabar|quando acabar|quando eu quitar|quando quitar)\b/.test(n);
+  const purchaseLater = /\b(vou|quero|queria|pretendo|posso)\b.{0,35}\b(comprar|olhar|ver|pegar)\b/.test(n) || /\bai eu compro\b/.test(n);
+  if (!future || !purchaseLater) return '';
+  return detectCategory(text) || '';
+}
+
+function isPayBeforeShoppingDeferral(text = '') {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!n) return false;
+  const settleFirst = /\b(?:deixa(?: eu)?|vou|quero|preciso)?\s*(?:terminar|acabar|quitar|resolver)\b.{0,45}\b(?:pagar|pagamento|prestacao|prestacoes|parcela|parcelas|notinha|notinhas|conta|divida)\b.{0,20}\bprimeiro\b/.test(n) ||
+    /\b(?:pagar|quitar|resolver)\b.{0,35}\bprimeiro\b/.test(n) ||
+    /\bprimeiro\b.{0,25}\b(?:pagar|quitar|resolver)\b/.test(n);
+  const thenBuy = /\b(?:depois|mais pra frente|ai)\b.{0,35}\b(?:compro|comprar|olho|olhar|vejo|ver|pego|pegar)\b/.test(n);
+  return settleFirst || (thenBuy && /\b(?:pagar|quitar|resolver)\b/.test(n));
+}
+
 function asksPausePurchaseDecision(text = '') {
   const n = normalize(text);
-  return /\b(vou pensar|vou dar uma pensada|vou pensar um pouco|depois eu vejo|vou ver e te falo|mais tarde eu vejo|so estou olhando|so olhando)\b/.test(n);
+  return /\b(vou pensar|vou dar uma pensada|vou pensar um pouco|depois eu vejo|vou ver e te falo|mais tarde eu vejo|so estou olhando|so olhando)\b/.test(n) ||
+    Boolean(deferredFutureProductCategory(text)) ||
+    isPayBeforeShoppingDeferral(text);
+}
+
+function rememberPurchaseSelection(conv = {}, product = null, source = '') {
+  if (!conv || !product) return [];
+  const id = productId(product) || normalize(product?.name || '');
+  if (!id) return activePurchaseSelections(conv);
+  const now = Date.now();
+  const previous = Array.isArray(conv.purchaseSelections) ? conv.purchaseSelections : [];
+  const kept = previous.filter((item) => {
+    const itemId = productId(item?.product || item) || normalize(item?.product?.name || item?.name || '');
+    return itemId && itemId !== id && now - Number(item?.selectedAt || now) < 12 * 60 * 60 * 1000;
+  });
+  kept.push({ product: compactProduct(product), selectedAt: now, source: String(source || '').slice(0, 80) });
+  conv.purchaseSelections = kept.slice(-4);
+  saveStateSoon();
+  return activePurchaseSelections(conv);
+}
+
+function activePurchaseSelections(conv = {}) {
+  const now = Date.now();
+  const rows = Array.isArray(conv?.purchaseSelections) ? conv.purchaseSelections : [];
+  return rows
+    .filter((item) => item?.product && now - Number(item?.selectedAt || now) < 12 * 60 * 60 * 1000)
+    .map((item) => item.product);
+}
+
+function asksPurchaseBundleTotal(conv = {}, text = '') {
+  if (activePurchaseSelections(conv).length < 2) return false;
+  const n = normalize(text);
+  return /\b(soma|somar|junta|juntar|junto|juntos|os dois|as duas|total)\b/.test(n) &&
+    /\b(fogao|tv|televisao|produto|produtos|os dois|as duas|junto|juntos)\b/.test(n);
+}
+
+function purchaseBundleProductsFromText(conv = {}, text = '') {
+  const selected = activePurchaseSelections(conv);
+  if (selected.length < 2) return selected;
+  const n = normalize(text);
+  const mentioned = selected.filter((product) => {
+    const category = normalize(product?.category || '');
+    const name = normalize(product?.name || '');
+    if (category && n.includes(category)) return true;
+    const tokens = name.split(/\s+/).filter((t) => t.length >= 4);
+    return tokens.some((token) => n.includes(token));
+  });
+  return mentioned.length >= 2 ? mentioned : selected;
+}
+
+function creditBundlePlan(products = [], count = 0) {
+  const rows = Array.isArray(products) ? products.filter(Boolean) : [];
+  const base = Math.round(rows.reduce((sum, product) => sum + Number(productCashPrice(product) || 0), 0) * 100) / 100;
+  const max = CREDIT_MAX_INSTALLMENTS;
+  if (!count) return { base, max, divisor: 0, total: 0, installment: 0, invalid: false };
+  const divisor = creditDivisor(count);
+  if (!divisor || count < 1 || count > max) return { base, max, divisor: 0, total: 0, installment: 0, invalid: true };
+  const total = Math.round((base / divisor) * 100) / 100;
+  const installment = Math.round((total / count) * 100) / 100;
+  return { base, max, divisor, total, installment, invalid: false };
+}
+
+function extractDesiredMonthlyPayment(text = '') {
+  const n = normalize(text);
+  const contextual = /\b(parcela|parcelas|mensal|por mes|aproximad|aproximada|aproximadas|por volta)\b/.test(n);
+  if (!contextual) return 0;
+  const match = String(text || '').match(/(?:R\$\s*)?(\d{2,5}(?:[.,]\d{1,2})?)/i);
+  if (!match) return 0;
+  const value = Number(String(match[1]).replace(/\./g, '').replace(',', '.'));
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function activeCreditBundle(conv = {}) {
+  const bundle = conv?.lastCreditBundle;
+  if (!bundle || Number(conv?.creditBundleUntil || 0) <= Date.now()) return null;
+  return bundle;
+}
+
+function bestCreditBundleCount(products = [], target = 0) {
+  const desired = Number(target || 0);
+  if (!desired) return 10;
+  let best = null;
+  for (let count = 1; count <= CREDIT_MAX_INSTALLMENTS; count += 1) {
+    const plan = creditBundlePlan(products, count);
+    if (plan.invalid || !plan.installment) continue;
+    const diff = Math.abs(plan.installment - desired);
+    const candidate = { count, plan, diff };
+    if (!best || candidate.diff < best.diff || (candidate.diff === best.diff && candidate.count > best.count)) best = candidate;
+  }
+  return best?.count || 10;
 }
 
 function asksPurchaseClosing(text = '') {
@@ -8088,6 +8198,7 @@ function rememberCreditPlan(conv, product, count, plan) {
 }
 
 function ordinalIndex(text) {
+  if (isPayBeforeShoppingDeferral(text)) return -1;
   const n = normalize(text);
   const entries = [
     [0, ['primeiro', 'primeira', '1º', '1o']],
@@ -10073,6 +10184,87 @@ async function handleMessage({
     return;
   }
 
+  const futureCategory = deferredFutureProductCategory(text);
+  if (futureCategory || isPayBeforeShoppingDeferral(text)) {
+    conv.pendingAction = '';
+    conv.selectedProduct = null;
+    conv.lastProducts = [];
+    conv.allProductResults = [];
+    conv.productResultOffset = 0;
+    conv.lastIntent = '';
+    saveStateSoon();
+    await sendText(
+      phone,
+      futureCategory
+        ? `Entendi 😊 Vamos resolver essa parte primeiro. Quando você estiver pronto mais pra frente, eu te ajudo a escolher *${futureCategory}* sem problema.`
+        : 'Entendi 😊 Vamos resolver essa parte primeiro. Quando você quiser voltar a olhar os produtos, eu continuo com você daqui.'
+    );
+    return;
+  }
+
+  const desiredMonthly = extractDesiredMonthlyPayment(text);
+  if (desiredMonthly > 0 && (conv.preferredPurchasePayment === 'credit' || conv.pendingAction === 'installment_payment_method')) {
+    conv.preferredPurchasePayment = 'credit';
+    conv.desiredMonthlyPayment = desiredMonthly;
+    conv.pendingAction = 'credit_installments';
+    markCreditContext(conv);
+    saveStateSoon();
+    await sendText(
+      phone,
+      `Certo 😊 No *carnê*, vou considerar parcelas próximas de *${money(desiredMonthly)}*. Em quantas vezes você gostaria de fazer?`
+    );
+    return;
+  }
+
+  const bundleSelections = activePurchaseSelections(conv);
+  const normalizedBundleRequest = normalize(text);
+  const bundleCreditRequest = bundleSelections.length >= 2 &&
+    (asksMarceloOrCallback(text) || /\bmarcelo\b/.test(normalizedBundleRequest)) &&
+    /\b(conta|carne|crediario|por mes|mensal|pagar.*mes)\b/.test(normalizedBundleRequest);
+
+  if (bundleCreditRequest) {
+    conv.marceloCallbackRequested = true;
+    conv.marceloCallbackRequestedAt = Date.now();
+    conv.preferredPurchasePayment = 'credit';
+    markCreditContext(conv);
+    saveStateSoon();
+    const names = bundleSelections.map((product) => `*${product.name}*`).join(' + ');
+    await sendText(
+      phone,
+      `Entendi 😊 Você quer ver o *crediário/carnê* para ${names}. Já deixei os dois produtos registrados e *não vou reiniciar a busca*. Sua conversa ficou sinalizada para o Marcelo continuar essa análise com você.`
+    );
+    await syncTicket(phone, {
+      status: 'Aguardando Marcelo - crediário com múltiplos produtos',
+      message: text,
+      name: pushName,
+      metadata: { productIds: bundleSelections.map(productId), paymentMode: 'crediario', multipleProducts: true }
+    });
+    return;
+  }
+
+  if (asksPurchaseBundleTotal(conv, text)) {
+    const products = purchaseBundleProductsFromText(conv, text);
+    const count = bestCreditBundleCount(products, Number(conv.desiredMonthlyPayment || 0));
+    const plan = creditBundlePlan(products, count);
+    conv.preferredPurchasePayment = 'credit';
+    conv.lastCreditBundle = {
+      products: products.map(compactProduct),
+      count,
+      divisor: plan.divisor,
+      total: plan.total,
+      installment: plan.installment
+    };
+    conv.creditBundleUntil = Date.now() + 60 * 60 * 1000;
+    markCreditContext(conv);
+    saveStateSoon();
+    const names = products.map((product) => `*${product.name}*`).join(' + ');
+    await sendText(
+      phone,
+      `${names} juntos ficam com base à vista de *${money(plan.base)}*. No carnê, em *${count}x*, fica aproximadamente *${count}x de ${money(plan.installment)}*, total de *${money(plan.total)}*. A compra no crediário é sujeita à análise de crédito.`
+    );
+    return;
+  }
+
   if (await handlePendingListClarificationChoice({ phone, text, pushName, conv })) {
     return;
   }
@@ -10160,6 +10352,7 @@ async function handleMessage({
       }
 
       if (descriptiveSelectionOnly(text)) {
+        rememberPurchaseSelection(conv, listReference.product, 'explicit_list_selection');
         await sendText(
           phone,
           'Perfeito 😊 Você está falando de *' + listReference.product.name + '*. Quer ver mais fotos, preço no PIX, cartão, carnê, entrega ou outra informação dele?'
@@ -12270,7 +12463,17 @@ export const __test = {
   technicalFeatureWeight,
   technicalFeatureScore,
   showMoreAdvancedAlternatives,
+  deferredFutureProductCategory,
+  isPayBeforeShoppingDeferral,
   asksPausePurchaseDecision,
+  rememberPurchaseSelection,
+  activePurchaseSelections,
+  asksPurchaseBundleTotal,
+  purchaseBundleProductsFromText,
+  creditBundlePlan,
+  extractDesiredMonthlyPayment,
+  activeCreditBundle,
+  bestCreditBundleCount,
   asksPurchaseClosing,
   correctedPaymentMethod,
   isContextualProductConfirmation,
