@@ -1,4 +1,4 @@
-import { efiConfigSummary, testEfiAuthentication, getEfiChargesAccessToken, getEfiPixAccessToken, buildPixSplitPercentagePayload, createPixSplitConfig } from '../services/efiService.js';
+import { efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig } from '../services/efiService.js';
 
 function safeProviderError(error = {}) {
   const providerData = error?.providerData || {};
@@ -110,50 +110,5 @@ export default function registerEfiRoutes(app, context = {}) {
     return res.json({ ok: true, sellerId, recipient: metadata.efi });
   });
 
-
-  if (
-    String(process.env.EFI_INTERNAL_HOMOLOG_AUTH_TEST || 'false').toLowerCase() === 'true' &&
-    !globalThis.__arianaEfiHomologAuthSmokeStarted
-  ) {
-    globalThis.__arianaEfiHomologAuthSmokeStarted = true;
-    const timer = setTimeout(async () => {
-      const summary = efiConfigSummary('homologation');
-      console.log('[EFI HOMOLOG AUTH TEST] CONFIG', JSON.stringify({
-        environment: summary.environment,
-        clientIdConfigured: summary.clientIdConfigured,
-        clientSecretConfigured: summary.clientSecretConfigured,
-        certificateConfigured: summary.certificateConfigured,
-        certificateReadable: summary.certificateReadable,
-        pixKeyConfigured: summary.pixKeyConfigured,
-        checkoutAttached: summary.checkoutAttached,
-        productionTrafficEnabled: summary.productionTrafficEnabled
-      }));
-
-      const results = {};
-      try {
-        const startedAt = Date.now();
-        const token = await getEfiChargesAccessToken('homologation', { forceRefresh: true });
-        results.charges = { ok: Boolean(token), ms: Date.now() - startedAt };
-      } catch (error) {
-        results.charges = { ok: false, ...safeProviderError(error) };
-      }
-
-      try {
-        const startedAt = Date.now();
-        const token = await getEfiPixAccessToken('homologation', { forceRefresh: true });
-        results.pix = { ok: Boolean(token), ms: Date.now() - startedAt };
-      } catch (error) {
-        results.pix = { ok: false, ...safeProviderError(error) };
-      }
-
-      console.log('[EFI HOMOLOG AUTH TEST] RESULT', JSON.stringify({
-        ok: Boolean(results.charges?.ok && results.pix?.ok),
-        environment: 'homologation',
-        charges: results.charges,
-        pix: results.pix
-      }));
-    }, 8000);
-    timer.unref?.();
-  }
 
 }
