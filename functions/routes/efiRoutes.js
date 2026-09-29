@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { getEfiConfig, efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, createPixHomologationTestCharge, createPixWebhookHomologationProbe, linkPixChargeToSplit, getPixSplitCharge, runPixSplitHomologationTest, configurePixWebhook, getPixWebhook, buildChargesSplitPercentagePayload, createChargesSplitHomologationTransaction, payChargesSplitBoletoHomologation, payChargesSplitCardHomologation, getChargesSplitHomologationTransaction } from '../services/efiService.js';
+import { getEfiConfig, efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, createPixHomologationTestCharge, createPixWebhookHomologationProbe, linkPixChargeToSplit, getPixSplitCharge, runPixSplitHomologationTest, configurePixWebhook, getPixWebhook, buildChargesSplitPercentagePayload, createChargesSplitHomologationTransaction, payChargesSplitBoletoHomologation, payChargesSplitCardHomologation, getChargesSplitHomologationTransaction, cancelChargesSplitHomologationTransaction } from '../services/efiService.js';
 
 function safeProviderError(error = {}) {
   const providerData = error?.providerData || {};
@@ -731,6 +731,70 @@ export default function registerEfiRoutes(app, context = {}) {
       });
     } catch (error) {
       const safe = safeProviderError(error);
+      return res.status(safe.statusCode >= 400 && safe.statusCode < 600 ? safe.statusCode : 500).json({
+        ok: false,
+        provider: 'efi',
+        environment: 'homologation',
+        ...safe
+      });
+    }
+  });
+
+  app.put('/api/admin/payments/efi/homologation/split-charges/transaction/:chargeId/cancel', adminRequired, async (req, res) => {
+    try {
+      const chargeId = String(req.params.chargeId || '').replace(/\D/g, '');
+      const before = await getChargesSplitHomologationTransaction(chargeId);
+      const beforeData = before.data?.data || before.data || {};
+      const beforeStatus = String(beforeData?.status || '').toLowerCase();
+
+      if (!['new','waiting','unpaid','link'].includes(beforeStatus)) {
+        return res.status(409).json({
+          ok: false,
+          provider: 'efi',
+          environment: 'homologation',
+          chargeId,
+          status: beforeStatus || null,
+          error: 'Esta cobrança não está em um status cancelável pela API Efí.'
+        });
+      }
+
+      const canceled = await cancelChargesSplitHomologationTransaction(chargeId);
+      const after = await getChargesSplitHomologationTransaction(chargeId);
+      const afterData = after.data?.data || after.data || {};
+
+      await audit({
+        eventType: 'efi_homologation_charge_canceled',
+        status: 'success',
+        statusCode: canceled.status,
+        message: 'Cobrança Efí cancelada em Homologação.',
+        environment: 'homologation',
+        integrationId: chargeId,
+        metadata: {
+          chargeId,
+          beforeStatus: beforeStatus || null,
+          afterStatus: afterData?.status || null
+        }
+      });
+
+      return res.json({
+        ok: true,
+        provider: 'efi',
+        environment: 'homologation',
+        chargeId,
+        beforeStatus: beforeStatus || null,
+        cancelHttpStatus: canceled.status,
+        status: afterData?.status || null
+      });
+    } catch (error) {
+      const safe = safeProviderError(error);
+      await audit({
+        eventType: 'efi_homologation_charge_canceled',
+        status: 'error',
+        statusCode: safe.statusCode,
+        message: safe.message,
+        environment: 'homologation',
+        integrationId: String(req.params.chargeId || '')
+      });
       return res.status(safe.statusCode >= 400 && safe.statusCode < 600 ? safe.statusCode : 500).json({
         ok: false,
         provider: 'efi',
