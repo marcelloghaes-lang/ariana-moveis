@@ -591,7 +591,7 @@ export async function reprocessCreativeCutoutAsset({
   const requestedMode = mode === 'ai_repair' ? 'ai_repair' : 'standard';
   const safeMode = requestedMode;
   const startedAt = now();
-  const processingLeaseMs = ['ai_repair','ai_master'].includes(safeMode)
+  const processingLeaseMs = difficultProduct || ['ai_repair','ai_master'].includes(safeMode)
     ? 15 * 60 * 1000
     : 4 * 60 * 1000;
   const expiresAt = new Date(startedAt.getTime() + processingLeaseMs);
@@ -643,7 +643,7 @@ export async function reprocessCreativeCutoutAsset({
         assetId: String(doc._id),
         kind: 'cutout',
         version: nextVersion,
-        mode: safeMode
+        mode: result.mode
       }
     );
 
