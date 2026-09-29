@@ -154,9 +154,30 @@ function registerCreativeDirectSource(file) {
     mimeType: String(file.mimetype || ''),
     size: Number(file.size || 0),
     createdAt: nowMs,
-    expiresAt: nowMs + CREATIVE_SOURCE_TTL_MS
+    expiresAt: nowMs + CREATIVE_SOURCE_TTL_MS,
+    persistentUrl: '',
+    persistentPublicId: ''
   };
   creativeSourceRegistry.set(token, entry);
+  return entry;
+}
+
+async function persistCreativeDirectSource(entry) {
+  if (!entry?.path || !fs.existsSync(entry.path) || !isCloudinaryConfigured()) return entry;
+  try {
+    const safeBase = sanitizeIdPart(String(entry.originalName || 'produto').replace(/\.[a-z0-9]+$/i,'')) || 'produto';
+    const result = await cloudinary.uploader.upload(entry.path, {
+      folder: buildCloudinaryFolder('marketing/creative-studio-pro/sources'),
+      public_id: safeBase + '-' + entry.token,
+      resource_type: 'image',
+      overwrite: true,
+      invalidate: true
+    });
+    entry.persistentUrl = String(result?.secure_url || result?.url || '');
+    entry.persistentPublicId = String(result?.public_id || '');
+  } catch (error) {
+    console.warn('[creative-studio-pro] falha ao persistir imagem original no Cloudinary:', error?.message || error);
+  }
   return entry;
 }
 
@@ -172,6 +193,21 @@ function resolveCreativeDirectSource(product = {}) {
   cleanupCreativeSourceRegistry();
   const entry = creativeSourceRegistry.get(token);
   if (!entry || !entry.path || !fs.existsSync(entry.path)) {
+    const persistentUrl = String(
+      product.persistentSourceUrl ||
+      product.sourceUrl ||
+      product.imageUrl ||
+      product.mainImageUrl ||
+      ''
+    ).trim();
+    if (/^https?:\/\//i.test(persistentUrl)) {
+      return {
+        ...product,
+        imageUrl: persistentUrl,
+        sourceType: 'persistent_original_upload',
+        sourceToken: ''
+      };
+    }
     const error = new Error('A imagem original temporária expirou. Envie o arquivo novamente.');
     error.code = 'creative_source_expired';
     throw error;
@@ -184,7 +220,9 @@ function resolveCreativeDirectSource(product = {}) {
     originalSourceName: entry.originalName,
     originalSourceMimeType: entry.mimeType,
     originalSourceBytes: entry.size,
-    sourceType: 'direct_original_upload'
+    persistentSourceUrl: entry.persistentUrl || product.persistentSourceUrl || '',
+    imageUrl: entry.persistentUrl || product.imageUrl,
+    sourceType: entry.persistentUrl ? 'persistent_original_upload' : 'direct_original_upload'
   };
 }
 
@@ -1193,15 +1231,17 @@ app.post(
         return res.status(415).json({ ok: false, error: 'O arquivo enviado não é uma imagem válida.' });
       }
 
-      const entry = registerCreativeDirectSource(req.file);
+      const entry = await persistCreativeDirectSource(registerCreativeDirectSource(req.file));
       return res.json({
         ok: true,
         sourceToken: entry.token,
         originalName: entry.originalName,
         mimeType: entry.mimeType,
         bytes: entry.size,
+        persistentUrl: entry.persistentUrl || '',
+        persistentPublicId: entry.persistentPublicId || '',
         expiresInSeconds: Math.round(CREATIVE_SOURCE_TTL_MS / 1000),
-        sourceType: 'direct_original_upload'
+        sourceType: entry.persistentUrl ? 'persistent_original_upload' : 'direct_original_upload'
       });
     } catch (error) {
       if (req.file?.path && fs.existsSync(req.file.path)) {

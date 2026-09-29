@@ -259,13 +259,16 @@
     if (!data?.sourceToken) {
       throw new Error('O gerador não confirmou o recebimento da imagem original.');
     }
+    const persistentUrl = String(data.persistentUrl || '').trim();
     return {
       sourceToken: String(data.sourceToken),
       originalName: String(data.originalName || filename || 'produto'),
       mimeType: String(data.mimeType || blob.type || ''),
       bytes: Number(data.bytes || blob.size || 0),
-      previewUrl: URL.createObjectURL(blob),
-      sourceType: 'direct_original_upload',
+      previewUrl: persistentUrl || URL.createObjectURL(blob),
+      persistentUrl,
+      persistentPublicId: String(data.persistentPublicId || ''),
+      sourceType: String(data.sourceType || (persistentUrl ? 'persistent_original_upload' : 'direct_original_upload')),
       originalFile: file
     };
   }
@@ -302,7 +305,8 @@
       const oldPreview = String(item.imageUrl || '');
       heroSlots[index] = {
         ...item,
-        imageUrl: source.previewUrl,
+        imageUrl: source.persistentUrl || source.previewUrl,
+        persistentSourceUrl: source.persistentUrl || '',
         sourceToken: source.sourceToken,
         sourceOriginalName: source.originalName,
         sourceOriginalMimeType: source.mimeType,
@@ -326,7 +330,8 @@
         if (selectedProduct?.__directOriginal) {
           selectedProduct = {
             ...selectedProduct,
-            imageUrl: source.previewUrl,
+            imageUrl: source.persistentUrl || source.previewUrl,
+            persistentSourceUrl: source.persistentUrl || '',
             sourceToken: source.sourceToken,
             sourceOriginalName: source.originalName,
             sourceOriginalMimeType: source.mimeType,
@@ -334,7 +339,7 @@
             sourceType: source.sourceType,
             originalFile: selectedProduct.originalFile || blob
           };
-          els.imageUrl.value = source.previewUrl;
+          els.imageUrl.value = source.persistentUrl || source.previewUrl;
         }
         if (oldPreview.startsWith('blob:') && oldPreview !== source.previewUrl) revokeObjectUrl(oldPreview);
         refreshed += 1;
@@ -653,7 +658,8 @@
         ...previous,
         id: String(previous.id || previous._id || ('hero-upload-' + Date.now() + '-' + slot)),
         name: previous.name || previous.title || cleanName,
-        imageUrl: source.previewUrl,
+        imageUrl: source.persistentUrl || source.previewUrl,
+        persistentSourceUrl: source.persistentUrl || '',
         sourceToken: source.sourceToken,
         sourceOriginalName: source.originalName,
         sourceOriginalMimeType: source.mimeType,
@@ -1119,6 +1125,7 @@
       id: String(product.id || product._id || ''),
       name: product.name || product.title || 'Produto',
       imageUrl: imageOf(product),
+      persistentSourceUrl: String(product.persistentSourceUrl || product.persistentUrl || ''),
       sourceToken: String(product.sourceToken || ''),
       sourceOriginalName: String(product.sourceOriginalName || ''),
       sourceOriginalMimeType: String(product.sourceOriginalMimeType || ''),
@@ -1334,7 +1341,8 @@
       selectedProduct = {
         ...(selectedProduct || {}),
         name: selectedProduct?.name || selectedProduct?.title || cleanName,
-        imageUrl: source.previewUrl,
+        imageUrl: source.persistentUrl || source.previewUrl,
+        persistentSourceUrl: source.persistentUrl || '',
         sourceToken: source.sourceToken,
         sourceOriginalName: source.originalName,
         sourceOriginalMimeType: source.mimeType,
@@ -1453,6 +1461,7 @@
         id: String(selectedProduct?.id || selectedProduct?._id || ''),
         name,
         imageUrl,
+        persistentSourceUrl: String(directProductSource?.persistentUrl || selectedProduct?.persistentSourceUrl || ''),
         sourceToken: String(directProductSource?.sourceToken || selectedProduct?.sourceToken || ''),
         sourceOriginalName: String(directProductSource?.originalName || selectedProduct?.sourceOriginalName || ''),
         sourceOriginalMimeType: String(directProductSource?.mimeType || selectedProduct?.sourceOriginalMimeType || ''),
