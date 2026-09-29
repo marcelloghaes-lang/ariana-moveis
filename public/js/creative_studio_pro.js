@@ -1407,6 +1407,14 @@
       const manifest = await api('/admin/creative-studio/pro/templates/' + encodeURIComponent(templateId));
       const exported = {
         ...manifest,
+        selectedConfiguration: {
+          generationStyle: selectedGenerationStyle(),
+          marketplacePreset: selectedMarketplacePreset(),
+          layoutGrammar: selectedLayoutGrammar(),
+          objective: campaignObjective(),
+          contentMode,
+          format: selectedFormat()
+        },
         exportedAt: new Date().toISOString(),
         source: 'Ariana Creative Studio Pro'
       };
