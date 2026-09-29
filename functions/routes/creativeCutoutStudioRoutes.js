@@ -167,11 +167,11 @@ export default function registerCreativeCutoutStudioRoutes(app, context = {}) {
       return res.json({ ok: true, asset });
     } catch (error) {
       console.error('[creative-cutout-studio] approve:', error);
-      if (error?.code === 'creative_cutout_fan_master_required') {
+      if (error?.code === 'creative_cutout_master_rebuild_required') {
         return res.status(422).json({
           ok: false,
           code: error.code,
-          error: 'Ventilador só pode ser aprovado depois de uma reconstrução IA Master HQ validada.'
+          error: 'Este produto difícil só pode ser aprovado depois de uma reconstrução IA Master HQ validada a partir da foto original.'
         });
       }
       return res.status(500).json({ ok: false, error: error.message || 'Falha ao aprovar o recorte.' });
