@@ -379,7 +379,10 @@ export async function reprocessCreativeCutoutAsset({
   const collection = collectionFor(mongoose);
   const safeMode = mode === 'ai_repair' ? 'ai_repair' : 'standard';
   const startedAt = now();
-  const expiresAt = new Date(startedAt.getTime() + 4 * 60 * 1000);
+  const processingLeaseMs = safeMode === 'ai_repair'
+    ? 8 * 60 * 1000
+    : 4 * 60 * 1000;
+  const expiresAt = new Date(startedAt.getTime() + processingLeaseMs);
 
   const activeUntil = doc.processing?.expiresAt
     ? new Date(doc.processing.expiresAt).getTime()
