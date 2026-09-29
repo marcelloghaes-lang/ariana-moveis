@@ -326,6 +326,68 @@ export async function payChargesSplitBoletoHomologation(chargeIdInput, options =
   return { ...response, payload, chargeId };
 }
 
+
+export async function payChargesSplitCardHomologation(chargeIdInput, options = {}) {
+  const chargeId = String(chargeIdInput || '').replace(/\D/g, '');
+  if (!chargeId) {
+    const error = new Error('charge_id Efí inválido.');
+    error.code = 'EFI_CHARGE_ID_INVALID';
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const paymentToken = String(options.paymentToken || options.payment_token || '').trim();
+  if (!/^[A-Za-z0-9_-]{20,200}$/.test(paymentToken)) {
+    const error = new Error('payment_token Efí inválido.');
+    error.code = 'EFI_PAYMENT_TOKEN_INVALID';
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const installments = Math.max(1, Math.min(24, Math.floor(Number(options.installments || 1))));
+  const customer = options.customer && typeof options.customer === 'object'
+    ? options.customer
+    : {
+        name: 'Gorbadoc Oldbuck',
+        cpf: '94271564656',
+        email: 'homologacao@arianamoveis.com.br',
+        birth: '1990-08-29',
+        phone_number: '31985147119'
+      };
+
+  const billingAddress = options.billingAddress && typeof options.billingAddress === 'object'
+    ? options.billingAddress
+    : {
+        street: 'Avenida Juscelino Kubitschek',
+        number: '909',
+        neighborhood: 'Centro',
+        zipcode: '39740000',
+        city: 'Guanhaes',
+        complement: '',
+        state: 'MG'
+      };
+
+  const payload = {
+    payment: {
+      credit_card: {
+        customer,
+        installments,
+        payment_token: paymentToken,
+        billing_address: billingAddress
+      }
+    }
+  };
+
+  const response = await efiChargesRequest({
+    environment: 'homologation',
+    method: 'post',
+    path: '/v1/charge/' + chargeId + '/pay',
+    data: payload
+  });
+
+  return { ...response, chargeId, installments };
+}
+
 export async function getChargesSplitHomologationTransaction(chargeIdInput) {
   const chargeId = String(chargeIdInput || '').replace(/\D/g, '');
   if (!chargeId) {
