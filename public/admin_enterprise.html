@@ -141,7 +141,7 @@ p,li,.muted,.endpoint-line,.code{overflow-wrap:anywhere}.btn{max-width:100%;whit
       <a href="enterprise_swagger.html">Swagger / OpenAPI</a>
       <a href="enterprise_certification.html">🏅 Certificação Enterprise</a>
       <a href="enterprise_analytics.html">Analytics Enterprise</a>
-      <a href="ariana_enterprise_docs.html">Documentação Interativa</a>
+      <a href="kit_fabricante_piloto.html">Kit do Fabricante Piloto</a>\n      <a href="ariana_enterprise_docs.html">Documentação Interativa</a>
       <a href="developer_portal.html">Developer Premium</a>
       <a href="enterprise_console.html">Console Enterprise</a>
     </nav>
@@ -200,7 +200,8 @@ async function openPartner(id){
   const p=d.partner||{};
   const hml=await api('/admin/enterprise/pro/partners/'+encodeURIComponent(id)+'/homologation').catch(()=>({homologation:{score:0,steps:[]}}));
   const h=hml.homologation||{score:0,steps:[]};
-  modalTitle.textContent=p.tradeName||p.companyName||p.requestId;
+  const pilotStage=p.production?.active?'7 • Go-live / Produção':(Number(h.score||0)>=100?'6 • Pronto para liberar Produção':(p.sandbox?.active?'5 • Homologação técnica em andamento':'3 • Aguardando aprovação do Sandbox'));
+    modalTitle.textContent=p.tradeName||p.companyName||p.requestId;
   modalSub.textContent=(p.companyName||'')+' • '+(p.cnpj||p.email||'');
   partnerModal.classList.add('show');
   modalContent.innerHTML=`
@@ -216,8 +217,10 @@ async function openPartner(id){
       <p class="muted">Aprove a solicitação para gerar, uma única vez, a API Key Sandbox, Client ID/Secret OAuth e segredos de webhook. Depois disso, os segredos ficam armazenados somente por hash.</p>
       <p><b>Status atual:</b> ${badgeStatus(p.status)}</p>
       <p><b>Sandbox:</b> ${p.sandbox.active?'<span class="ok">Credencial ativa</span>':'<span class="warn">Ainda não liberado</span>'}</p>
+      <p><b>Etapa atual do piloto:</b> <span class="badge yellow">${esc(pilotStage)}</span></p>
       <div class="btnrow">
         <button class="btn" ${p.sandbox.active?'disabled':''} onclick="approveEnterpriseRequest('${esc(p.id)}')">Aprovar e gerar credenciais Sandbox</button>
+        <a class="btn light" href="/kit_fabricante_piloto.html" target="_blank">Abrir Kit do Fabricante</a>
       </div>
       <div id="partnerOnboardingOut" class="secretBox" style="display:none"></div>
     </div>
