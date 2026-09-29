@@ -1129,27 +1129,34 @@ function highQualityRenderFormat(format, opts = {}) {
 }
 
 async function finalizeBannerBuffer(layers, renderFormat, finalFormat, highQuality = false) {
-  let pipeline = sharp({
+  // Primeiro compõe o canvas inteiro na resolução de trabalho. O Sharp executa
+  // resize antes de composite dentro do mesmo pipeline, então o downscale precisa
+  // obrigatoriamente acontecer em uma segunda etapa para não reduzir o canvas
+  // antes de receber as camadas 2x.
+  const composed = await sharp({
     create: {
       width: renderFormat.width,
       height: renderFormat.height,
       channels: 4,
       background: { r: 0, g: 71, b: 171, alpha: 1 }
     }
-  }).composite(layers);
+  })
+    .composite(layers)
+    .png({ compressionLevel: 9, adaptiveFiltering: true })
+    .toBuffer();
 
   if (highQuality && (renderFormat.width !== finalFormat.width || renderFormat.height !== finalFormat.height)) {
-    pipeline = pipeline
+    return sharp(composed)
       .resize(finalFormat.width, finalFormat.height, {
         fit: 'fill',
         kernel: sharp.kernel.lanczos3
       })
-      .sharpen({ sigma: 0.55 });
+      .sharpen({ sigma: 0.55 })
+      .png({ compressionLevel: 9, adaptiveFiltering: true })
+      .toBuffer();
   }
 
-  return pipeline
-    .png({ compressionLevel: 9, adaptiveFiltering: true })
-    .toBuffer();
+  return composed;
 }
 
 function composition(format, asset, opts) {
