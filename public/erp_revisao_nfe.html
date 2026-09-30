@@ -366,7 +366,9 @@ function showSendError(message='',code=''){
 }
 function fillResult(d){lastFiscalDocumentId=d.fiscalDocumentId||d.fiscal?.fiscalDocumentId||'';$('r-number').textContent=(d.number||'—')+' / '+(d.series||'—');$('r-protocol').textContent=d.protocol||'—';$('r-key').textContent=d.key||'—';$('result').style.display='block';$('viewDanfe').style.display=(lastFiscalDocumentId&&d.xmlAvailable!==false)?'block':'none'}
 async function persistCommercial(orderId){
-  const cm=data?.commercial||{},id=String(orderId||'').trim(),payload={sellerName:String(cm.sellerName||'').trim(),priceTable:String(cm.priceTable||'Preço Padrão').trim()||'Preço Padrão',saleDate:String(cm.saleDate||'').trim()};
+  const cm=data?.commercial||{},id=String(orderId||'').trim(),payload={sellerName:String(cm.sellerName||'').trim(),priceTable:String(cm.priceTable||'Preço Padrão').trim()||'Preço Padrão'};
+  const saleDate=String(cm.saleDate||'').trim();
+  if(saleDate)payload.saleDate=saleDate;
   if(!id)return{ok:false,error:'a venda foi faturada, mas o identificador interno não retornou para registrar vendedor/data/tabela de preço.'};
   try{const r=await fetch(API+'/erp/orders/'+encodeURIComponent(id)+'/sige-fields',{method:'PATCH',headers:headers(),body:JSON.stringify(payload),cache:'no-store'});const d=await r.json().catch(()=>({}));if(!r.ok)return{ok:false,error:d.error||'não foi possível registrar os dados comerciais.'};return{ok:true}}catch(e){return{ok:false,error:e.message||'não foi possível registrar os dados comerciais.'}}
 }
