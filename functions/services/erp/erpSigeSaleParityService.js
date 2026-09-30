@@ -112,7 +112,26 @@ export function createErpSigeSaleParityService(context={}){
   await audit('erp.receivable.updated',order,{message:`Parcela ${n} atualizada`,number:n,dueAt:next.dueAt,status:next.status,method:next.method});
   return{order:serial(order),receivable:next}
  }
- async function updateSigeFields(orderId,payload={},actor={}){const order=await findOrder(orderId);const erp=order.televendas?.erp||{},next={...erp};if(payload.sellerName!==undefined)next.sellerName=clean(payload.sellerName,180);if(payload.priceTable!==undefined)next.priceTable=clean(payload.priceTable,160)||'Preço Padrão';if(payload.saleDate!==undefined)next.saleDate=validDate(payload.saleDate,'Data da venda');if(payload.details!==undefined)next.details=clean(payload.details,3000);next.timeline=[...array(erp.timeline),{status:'detalhes',label:'Dados comerciais da venda atualizados',at:new Date(),by:actorName(actor)}];order.televendas={...(order.televendas||{}),erp:next};await order.save();await audit('erp.order.sige_fields.updated',order,{message:'Dados comerciais da venda atualizados'});return{order:serial(order)}}
+ async function updateSigeFields(orderId,payload={},actor={}){
+  const order=await findOrder(orderId),erp=order.televendas?.erp||{},next={...erp};
+  if(payload.sellerName!==undefined)next.sellerName=clean(payload.sellerName,180);
+  if(payload.priceTable!==undefined)next.priceTable=clean(payload.priceTable,160)||'Preço Padrão';
+  const requestedSaleDate=clean(payload.saleDate,80);
+  if(requestedSaleDate){
+    next.saleDate=validDate(requestedSaleDate,'Data da venda');
+  }else if(!next.saleDate&&(
+    String(order.status||'').toLowerCase()==='faturado' ||
+    ['authorized','authorized_homologation'].includes(String(order?.nfe?.status||'').toLowerCase())
+  )){
+    next.saleDate=validDate(order?.nfe?.authorizedAt||order.createdAt||new Date(),'Data da venda');
+  }
+  if(payload.details!==undefined)next.details=clean(payload.details,3000);
+  next.timeline=[...array(erp.timeline),{status:'detalhes',label:'Dados comerciais da venda atualizados',at:new Date(),by:actorName(actor)}];
+  order.televendas={...(order.televendas||{}),erp:next};
+  await order.save();
+  await audit('erp.order.sige_fields.updated',order,{message:'Dados comerciais da venda atualizados'});
+  return{order:serial(order)}
+ }
  return{updateReceivable,updateSigeFields};
 }
 export default createErpSigeSaleParityService;
