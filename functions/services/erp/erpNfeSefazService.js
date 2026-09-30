@@ -72,6 +72,10 @@ export function createSimpleXmlBuilder(DefaultXmlBuilder){
 }
 function ufCode(uf=''){return UF_CODES[String(uf).toUpperCase()]||''}
 function destinationType(issuerUf,customerUf){return String(issuerUf).toUpperCase()===String(customerUf).toUpperCase()?1:2}
+export function directSaleIntermediatorIndicator(presence){
+  const value=Number(presence);
+  return [1,2,3,4,9].includes(value)?0:undefined;
+}
 function customerFiscalProfile(customer={}){
   const doc=digits(customer.document),ie=clean(customer.ie,20);
   if(doc.length!==14)return{status:'nao_contribuinte',indicatorIE:9,ie:''};
@@ -382,6 +386,9 @@ export function createErpNfeSefazService(context={},settings){
         finalidade:1,
         consumidorFinal:Number(draft?.fiscal?.consumerFinal??1)===0?0:1,
         presencaComprador:[0,1,2,3,4,5,9].includes(Number(draft?.fiscal?.buyerPresence))?Number(draft.fiscal.buyerPresence):1,
+        indicadorIntermediador:directSaleIntermediatorIndicator(
+          [0,1,2,3,4,5,9].includes(Number(draft?.fiscal?.buyerPresence))?Number(draft.fiscal.buyerPresence):1
+        ),
         ambiente:pre.environment==='producao'?1:2,
         uf:issuerUf,
         municipio:digits(issuer.codigoMunicipio),
@@ -791,7 +798,8 @@ export function createErpNfeSefazService(context={},settings){
     }
 
     const environmentMismatch=previousCStat==='252'||/Ambiente informado diverge do Ambiente de recebimento/i.test(previousError);
-    if(environmentMismatch){
+    const missingIntermediator=previousCStat==='434'||/NF-e sem indicativo do intermediador/i.test(previousError);
+    if(environmentMismatch||missingIntermediator){
       order.nfe={
         ...(order.nfe||{}),
         status:'reserved',
