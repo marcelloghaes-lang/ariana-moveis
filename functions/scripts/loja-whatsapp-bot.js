@@ -9962,6 +9962,31 @@ Se quiser, também posso conferir a entrega com você.`
     return true;
   }
 
+  if (conv.pendingAction === 'finance_purchase_choice') {
+    if (Number(conv.financePurchaseChoiceUntil || 0) <= Date.now()) {
+      conv.pendingAction = '';
+      conv.financePurchaseChoices = [];
+      conv.financePurchaseChoiceUntil = 0;
+      saveStateSoon();
+      return false;
+    }
+
+    const choices = Array.isArray(conv.financePurchaseChoices) ? conv.financePurchaseChoices : [];
+    const index = financePurchaseSelectionIndex(text, choices);
+    if (index < 0 || !choices[index]) {
+      await sendText(phone, 'Me diga qual compra você quer consultar — pode responder pelo número, como *“1”* ou *“2”*.');
+      return true;
+    }
+
+    const selected = choices[index];
+    conv.pendingAction = '';
+    conv.financePurchaseChoices = [];
+    conv.financePurchaseChoiceUntil = 0;
+    saveStateSoon();
+    await sendText(phone, financePurchaseDetailReply(selected));
+    return true;
+  }
+
   if (conv.pendingAction === 'finance_cpf') {
     const cpf = digits(text);
     if (cpf.length === 11) {
