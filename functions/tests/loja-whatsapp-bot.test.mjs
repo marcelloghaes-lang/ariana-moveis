@@ -2727,6 +2727,88 @@ test('"pode me enviar fotos" continua oferta de outros tamanhos de TV', async ()
   assert.doesNotMatch(sentTexts.at(-1)?.text || '', /Me conta o que você está procurando/i);
 });
 
+test('print 19:16: "simula ele de 7 vezes no boleto" mantém o produto recém-referenciado', async () => {
+  const phone = '5533977777991';
+  const redmi = bot.compactProduct(product('redmi-note-15', 'Smartphone Redmi Note 15 8/256GB Preto', {
+    category: 'Celulares',
+    pixPrice: 1789,
+    price: 2155.42,
+    stock: 4
+  }));
+  const galaxy = bot.compactProduct(product('galaxy-a17', 'Smartphone Samsung Galaxy A17 128GB Preto', {
+    category: 'Celulares',
+    pixPrice: 1191.01,
+    price: 1434,
+    stock: 4
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: null,
+    lastProducts: [redmi, galaxy],
+    allProductResults: [redmi, galaxy],
+    lastIntent: 'produto',
+    lastBotReplyText: 'Entendi 😊 O smartphone Redmi Note 15 8/256GB preto: R$ 1.789,00 à vista no PIX ou até 12x.',
+    lastBotReplyAt: Date.now()
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'eu quero que voce simula ele de 7 vezes no boleto pra mim',
+    pushName: 'Marcelo'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Redmi Note 15 8\/256GB Preto/i);
+  assert.match(sentTexts[0].text, /7x de R\$/i);
+  assert.doesNotMatch(sentTexts[0].text, /Me diga qual produto|opções disponíveis no catálogo/i);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'redmi-note-15');
+  assert.equal(bot.conversation(phone).lastCreditPlan.count, 7);
+});
+
+test('print 19:20: opção 1 em 10 e 15 vezes responde os dois cálculos de uma vez', async () => {
+  const phone = '5533977777992';
+  const products = [
+    bot.compactProduct(product('redmi-note-15', 'Smartphone Redmi Note 15 8/256GB Preto', {
+      category: 'Celulares',
+      pixPrice: 1789,
+      price: 2155.42,
+      stock: 4
+    })),
+    bot.compactProduct(product('galaxy-a17', 'Smartphone Samsung Galaxy A17 128GB Preto', {
+      category: 'Celulares',
+      pixPrice: 1191.01,
+      price: 1434,
+      stock: 4
+    }))
+  ];
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: null,
+    lastProducts: products,
+    allProductResults: products,
+    lastIntent: 'produto'
+  });
+
+  assert.deepEqual(
+    bot.parseInstallmentCounts('o numero 1 de 10 e de 15 vezes no boleto fica quantos?'),
+    [10, 15]
+  );
+  assert.equal(bot.ordinalIndex('o numero 1 de 10 e de 15 vezes no boleto fica quantos?'), 0);
+
+  await bot.handleMessage({
+    phone,
+    text: 'o numero 1 de 10 e de 15 vezes no boleto fica quantos ?',
+    pushName: 'Marcelo'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Redmi Note 15 8\/256GB Preto/i);
+  assert.match(sentTexts[0].text, /10x de R\$/i);
+  assert.match(sentTexts[0].text, /15x de R\$/i);
+  assert.doesNotMatch(sentTexts[0].text, /Em quantas vezes você gostaria|Me diga qual produto/i);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'redmi-note-15');
+});
+
 test('"quanto fica esse em 10x no boleto" usa o último produto mostrado', async () => {
   const phone = '5533977777738';
 
