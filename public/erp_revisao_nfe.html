@@ -182,6 +182,7 @@ input:focus,select:focus,textarea:focus{border-color:#78a4df;box-shadow:0 0 0 3p
         <button id="send-nfe" class="btn green">Confirmar e enviar à SEFAZ</button>
       </div>
     </div>
+    <div id="send-error" class="notice bad" style="display:none;margin:12px 0 0"></div>
     <div id="draft-paper" class="paper"></div>
   </div>
 </div>
@@ -349,9 +350,20 @@ function buildDraftPreview(){
     '<div class="draft-section"><h4>Informações complementares</h4><div class="draft-text">'+esc(complement||'Nenhuma informação complementar informada.')+'</div></div>'+
     '<div class="draft-section"><h4>Reservado ao Fisco / Informações de interesse do Fisco</h4><div class="draft-text">'+esc(f.taxAuthorityInfo||'Nenhuma informação específica para o Fisco informada.')+'</div></div>'+
     '<div class="draft-footer">ESTE DOCUMENTO É APENAS PARA CONFERÊNCIA. NÃO POSSUI CHAVE, PROTOCOLO OU VALIDADE FISCAL.</div>';
-  const isProd=r.environment==='producao';$('send-nfe').textContent=isProd?'Confirmar e enviar à SEFAZ (PRODUÇÃO)':'Confirmar e enviar teste à SEFAZ';$('draft-modal').classList.add('show');document.body.style.overflow='hidden';
+  const isProd=r.environment==='producao';clearSendError();$('send-nfe').textContent=isProd?'Confirmar e enviar à SEFAZ (PRODUÇÃO)':'Confirmar e enviar teste à SEFAZ';$('draft-modal').classList.add('show');document.body.style.overflow='hidden';
 }
 function closePreview(){$('draft-modal').classList.remove('show');document.body.style.overflow=''}
+function clearSendError(){const box=$('send-error');if(!box)return;box.style.display='none';box.innerHTML=''}
+function showSendError(message='',code=''){
+  const box=$('send-error');if(!box)return;
+  const safe=esc(message||'Falha ao emitir a NF-e.');
+  const action=code==='CASH_CLOSED'
+    ? '<div style="margin-top:8px"><a class="btn secondary" href="erp_caixa.html" target="_blank" rel="noopener">Abrir caixa do ERP</a></div>'
+    : '';
+  box.innerHTML='<b>Não foi possível concluir a emissão.</b><div style="margin-top:6px">'+safe+'</div>'+(code?'<div class="muted" style="margin-top:6px">Código: '+esc(code)+'</div>':'')+action;
+  box.style.display='block';
+  box.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
 function fillResult(d){lastFiscalDocumentId=d.fiscalDocumentId||d.fiscal?.fiscalDocumentId||'';$('r-number').textContent=(d.number||'—')+' / '+(d.series||'—');$('r-protocol').textContent=d.protocol||'—';$('r-key').textContent=d.key||'—';$('result').style.display='block';$('viewDanfe').style.display=(lastFiscalDocumentId&&d.xmlAvailable!==false)?'block':'none'}
 async function persistCommercial(orderId){
   const cm=data?.commercial||{},id=String(orderId||'').trim(),payload={sellerName:String(cm.sellerName||'').trim(),priceTable:String(cm.priceTable||'Preço Padrão').trim()||'Preço Padrão',saleDate:String(cm.saleDate||'').trim()};
@@ -360,21 +372,65 @@ async function persistCommercial(orderId){
 }
 function showCommercialWarning(message=''){const box=$('commercial-warning');if(!message){box.style.display='none';box.textContent='';return}box.style.display='block';box.textContent='A NF-e e o faturamento foram concluídos. Atenção: '+message+' Não emita a NF-e novamente.'}
 async function emitNfe(){
-  if(!preflightReady||!data||sending)return;readInputs();sending=true;const b=$('send-nfe');b.disabled=true;b.textContent='Enviando e aguardando SEFAZ…';
+  if(!preflightReady||!data||sending)return;
+  readInputs();sending=true;clearSendError();
+  const b=$('send-nfe'),originalLabel=b.textContent;
+  b.disabled=true;b.textContent='Enviando e aguardando SEFAZ…';
   try{
     const r=await fetch(API+'/erp/fiscal/nfe/emitir-e-faturar',{method:'POST',headers:headers(),body:JSON.stringify({draft:data,orderId:data.pendingOrderId||''}),cache:'no-store'});
-    const d=await r.json().catch(()=>({}));if(r.status===401)return goLogin();if(d.orderId){data.pendingOrderId=d.orderId;saveDraft()}
-    if(d.recoveryPending){closePreview();status(d.error||'A NF-e foi autorizada, mas a recuperação do XML está pendente. Não emita outra nota.','bad');return}
+    const d=await r.json().catch(()=>({}));
+    if(r.status===401)return goLogin();
+    if(d.orderId){data.pendingOrderId=d.orderId;saveDraft()}
+    if(d.recoveryPending){
+      showSendError(d.error||'A NF-e foi autorizada, mas a recuperação do XML está pendente. Não emita outra nota.',d.code||'NFE_AUTHORIZED_XML_RECOVERY_PENDING');
+      status(d.error||'A NF-e foi autorizada, mas a recuperação do XML está pendente. Não emita outra nota.','bad');
+      return;
+    }
     if(!r.ok){
-      if(d.authorized===true){closePreview();status('A NF-e foi autorizada pela SEFAZ, mas o faturamento interno ficou pendente. Use esta mesma venda para concluir; não emita outra NF-e. '+(d.error||''),'bad');return}
-      const details=d.details||{};if(details.orderId){data.pendingOrderId=details.orderId;saveDraft()}throw new Error(d.error||d.message||'A SEFAZ não autorizou a NF-e.')
+      if(d.authorized===true){
+        showSendError('A NF-e foi autorizada pela SEFAZ, mas o faturamento interno ficou pendente. Não emita outra NF-e. '+(d.error||''),d.code||'NFE_AUTHORIZED_BILLING_PENDING');
+        status('A NF-e foi autorizada pela SEFAZ, mas o faturamento interno ficou pendente. Use esta mesma venda para concluir; não emita outra NF-e. '+(d.error||''),'bad');
+        return;
+      }
+      const details=d.details||{};
+      if(details.orderId){data.pendingOrderId=details.orderId;saveDraft()}
+      const err=new Error(d.error||d.message||'A SEFAZ não autorizou a NF-e.');
+      err.code=d.code||'NFE_EMISSION_ERROR';
+      err.details=details;
+      throw err;
     }
     closePreview();fillResult(d);
-    if(d.authorized&&d.homologation){$('result-title').textContent='NF-e de homologação autorizada — sem faturar a venda';status('NF-e autorizada em HOMOLOGAÇÃO. Venda, estoque, caixa e financeiro não foram alterados.','ok');sessionStorage.removeItem(storageKey);$('preview').disabled=true;return}
+    if(d.authorized&&d.homologation){
+      $('result-title').textContent='NF-e de homologação autorizada — sem faturar a venda';
+      status('NF-e autorizada em HOMOLOGAÇÃO. Venda, estoque, caixa e financeiro não foram alterados.','ok');
+      sessionStorage.removeItem(storageKey);$('preview').disabled=true;return;
+    }
     if(!d.authorized||!d.billingCompleted)throw new Error('A operação não foi concluída.');
-    $('result-title').textContent='NF-e autorizada e venda faturada';const commercial=await persistCommercial(d.orderId||data.pendingOrderId||'');showCommercialWarning(commercial.ok?'':commercial.error);status('NF-e autorizada pela SEFAZ e venda faturada no Ariana ERP.','ok');sessionStorage.removeItem(storageKey);$('preview').disabled=true;
-  }catch(e){status(e.message||'Falha na emissão.','bad');closePreview();preflightReady=false;await preflight()}finally{sending=false;b.disabled=false}
+    $('result-title').textContent='NF-e autorizada e venda faturada';
+    const commercial=await persistCommercial(d.orderId||data.pendingOrderId||'');
+    showCommercialWarning(commercial.ok?'':commercial.error);
+    status('NF-e autorizada pela SEFAZ e venda faturada no Ariana ERP.','ok');
+    sessionStorage.removeItem(storageKey);$('preview').disabled=true;
+  }catch(e){
+    const message=e.message||'Falha na emissão.';
+    showSendError(message,e.code||'');
+    status('Falha ao emitir NF-e: '+message,'bad');
+    // Só refaz o preflight quando a própria revisão fiscal mudou.
+    // Nos demais erros (SEFAZ, caixa, certificado, XML etc.), mantém o rascunho aberto
+    // para que o operador veja a causa real em vez de voltar silenciosamente à conferência.
+    if(e.code==='NFE_PREFLIGHT_BLOCKED'){
+      closePreview();
+      preflightReady=false;
+      await preflight();
+      status('Falha ao emitir NF-e: '+message,'bad');
+    }
+  }finally{
+    sending=false;
+    b.disabled=false;
+    b.textContent=originalLabel;
+  }
 }
+
 $('preview').onclick=buildDraftPreview;$('close-draft').onclick=closePreview;$('print-draft').onclick=()=>window.print();$('send-nfe').onclick=emitNfe;
 $('viewDanfe').onclick=async()=>{if(!lastFiscalDocumentId)return;try{const r=await fetch(API+'/erp/fiscal/historico/nfe/'+encodeURIComponent(lastFiscalDocumentId)+'/danfe.pdf',{headers:{Authorization:'Bearer '+token()},cache:'no-store'});if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.error||'Erro ao abrir DANFE.')}const blob=await r.blob(),url=URL.createObjectURL(blob);window.open(url,'_blank','noopener');setTimeout(()=>URL.revokeObjectURL(url),120000)}catch(e){alert(e.message)}};
 
