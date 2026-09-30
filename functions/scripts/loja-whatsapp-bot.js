@@ -2547,7 +2547,7 @@ async function handleDetectedLearningSignal({
   return false;
 }
 
-function intentProduct(conv, classification = {}) {
+function intentProduct(conv, classification = {}, { phone = '', text = '' } = {}) {
   const ordinal = Number(classification.product_ordinal || 0);
   if (ordinal > 0 && Array.isArray(conv?.lastProducts) && conv.lastProducts[ordinal - 1]) {
     return conv.lastProducts[ordinal - 1];
@@ -2559,7 +2559,7 @@ function intentProduct(conv, classification = {}) {
     if (found) return found;
   }
 
-  return conv?.selectedProduct || (
+  return recentReferencedProduct(phone, text, conv) || conv?.selectedProduct || (
     Array.isArray(conv?.lastProducts) && conv.lastProducts.length === 1
       ? conv.lastProducts[0]
       : null
@@ -2595,7 +2595,7 @@ async function handleGeneralIntent({
   if (Number(classification.confidence || 0) < intentConfidenceRequired(intent, source)) return false;
 
   const seed = `${phone}|${text}|${intent}`;
-  const product = intentProduct(conv, classification);
+  const product = intentProduct(conv, classification, { phone, text });
 
   if (intent === 'IDENTIDADE_ATENDENTE') {
     await sendText(phone, 'Aqui é o Gustavo 😊 Atendimento da Ariana Móveis. Como posso te ajudar?');
@@ -2796,29 +2796,41 @@ async function handleGeneralIntent({
     }
     conv.selectedProduct = product;
     saveStateSoon();
-    const count = Math.max(0, Number(classification.installments || 0));
-    const plan = creditPlan(product, count);
+    const requestedCounts = parseInstallmentCounts(text);
+    const semanticCount = Math.max(0, Number(classification.installments || 0));
+    if (semanticCount && !requestedCounts.includes(semanticCount)) requestedCounts.push(semanticCount);
 
-    if (!count) {
+    if (!requestedCounts.length) {
+      const emptyPlan = creditPlan(product, 0);
       setPendingCreditInstallments(conv, product);
       await sendText(
         phone,
-        `Para *${product.name}*, consigo fazer no crediário próprio em até *${plan.max}x*. Em quantas vezes você gostaria que eu calculasse?`
+        `Para *${product.name}*, consigo fazer no crediário próprio em até *${emptyPlan.max}x*. Em quantas vezes você gostaria que eu calculasse?`
       );
       return true;
     }
-    if (plan.invalid) {
-      await sendText(phone, `Para esse produto, o máximo no crediário é *${plan.max}x*. Posso calcular em qualquer quantidade até esse limite.`);
+
+    const valid = requestedCounts
+      .map((count) => ({ count, plan: creditPlan(product, count) }))
+      .filter(({ plan }) => !plan.invalid);
+
+    if (!valid.length) {
+      const maxPlan = creditPlan(product, 0);
+      await sendText(phone, `Para esse produto, o máximo no crediário é *${maxPlan.max}x*. Posso calcular em qualquer quantidade até esse limite.`);
       return true;
     }
 
-    rememberCreditPlan(conv, product, count, plan);
+    const last = valid.at(-1);
+    rememberCreditPlan(conv, product, last.count, last.plan);
     clearPendingCreditInstallments(conv);
 
-    await sendText(
-      phone,
-      `No crediário próprio, para *${product.name}*, em *${count}x* fica aproximadamente *${count}x de ${money(plan.installment)}*, total de *${money(plan.total)}*. A compra no carnê é sujeita à análise de crédito.`
-    );
+    const lines = [
+      `No crediário próprio, para *${product.name}*:`,
+      ...valid.map(({ count, plan }) => `• *${count}x de ${money(plan.installment)}* — total de *${money(plan.total)}*`),
+      '',
+      'A compra no carnê é sujeita à análise de crédito.'
+    ];
+    await sendText(phone, lines.join('\n'));
     return true;
   }
 
@@ -5026,17 +5038,35 @@ function asksCreditQuote(text) {
   );
 }
 
-function parseInstallments(text) {
+function parseInstallmentCounts(text = '') {
   const n = normalize(text);
+  const counts = [];
   const patterns = [
-    /(?:em\s*)?(\d{1,2})\s*x\b/,
-    /(?:em\s*)?(\d{1,2})\s*(?:vezes|parcelas)\b/
+    /(?:em\s*)?(\d{1,2})\s*x\b/g,
+    /(?:em\s*)?(\d{1,2})\s*(?:vezes|parcelas)\b/g
   ];
+
   for (const pattern of patterns) {
-    const match = n.match(pattern);
-    if (match) return Number(match[1]);
+    for (const match of n.matchAll(pattern)) {
+      const count = Number(match[1] || 0);
+      if (count > 0 && !counts.includes(count)) counts.push(count);
+    }
   }
-  return 0;
+
+  // Também entende pedidos naturais como "de 10 e de 15 vezes".
+  const paired = n.match(/\b(?:de|em)\s*(\d{1,2})\s*(?:e|,|ou)\s*(?:de|em)?\s*(\d{1,2})\s*(?:x|vezes|parcelas)\b/);
+  if (paired) {
+    for (const raw of [paired[1], paired[2]]) {
+      const count = Number(raw || 0);
+      if (count > 0 && !counts.includes(count)) counts.push(count);
+    }
+  }
+
+  return counts;
+}
+
+function parseInstallments(text) {
+  return parseInstallmentCounts(text)[0] || 0;
 }
 
 function parsePendingInstallments(text) {
@@ -5190,6 +5220,40 @@ function findConversationProductByText(conv, text = '') {
   }
 
   return matches[0].product;
+}
+
+function recentReferencedProduct(phone = '', text = '', conv = {}) {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const referencesCurrent =
+    rememberedProductReferenceIntent(text) ||
+    /\b(ele|ela|esse|essa|desse|dessa|dele|dela|o produto|esse produto|essa mercadoria|o celular|o smartphone)\b/.test(n);
+
+  if (!referencesCurrent) return null;
+
+  const lastBotAt = Number(conv?.lastBotReplyAt || 0);
+  if (lastBotAt && Date.now() - lastBotAt <= 30 * 60 * 1000) {
+    const fromLastReply = findConversationProductByText(conv, conv?.lastBotReplyText || '');
+    if (fromLastReply) return fromLastReply;
+  }
+
+  const remembered = resolveRememberedProductReference(phone, text, conv);
+  if (remembered) return remembered;
+
+  const profile = findCommercialProfile(phone);
+  const profileAt = Number(profile?.lastProductAt || 0);
+  if (
+    profile?.lastProduct &&
+    profileAt &&
+    Date.now() - profileAt <= COMMERCIAL_MEMORY_TTL_MS
+  ) {
+    return profile.lastProduct;
+  }
+
+  return conv?.selectedProduct || null;
 }
 
 function setPendingCreditInstallments(conv, product) {
@@ -9956,7 +10020,8 @@ Se quiser, também posso conferir a entrega com você.`
       return false;
     }
 
-    const count = parsePendingInstallments(text);
+    const counts = parseInstallmentCounts(text);
+    const count = parsePendingInstallments(text) || counts[0] || 0;
     if (!count) return false;
 
     const product = findConversationProduct(conv, conv.pendingCreditProductId);
@@ -9966,22 +10031,33 @@ Se quiser, também posso conferir a entrega com você.`
       return true;
     }
 
-    const plan = creditPlan(product, count);
-    if (plan.invalid) {
+    const requestedCounts = counts.length ? counts : [count];
+    const valid = requestedCounts
+      .map((itemCount) => ({ count: itemCount, plan: creditPlan(product, itemCount) }))
+      .filter(({ plan }) => !plan.invalid);
+
+    if (!valid.length) {
+      const maxPlan = creditPlan(product, 0);
       await sendText(
         phone,
-        `Para *${product.name}*, o máximo no crediário é *${plan.max}x*. Me diga uma quantidade de 1 a ${plan.max} parcelas.`
+        `Para *${product.name}*, o máximo no crediário é *${maxPlan.max}x*. Me diga uma quantidade de 1 a ${maxPlan.max} parcelas.`
       );
       return true;
     }
 
     conv.selectedProduct = product;
-    rememberCreditPlan(conv, product, count, plan);
+    const last = valid.at(-1);
+    rememberCreditPlan(conv, product, last.count, last.plan);
     clearPendingCreditInstallments(conv);
 
     await sendText(
       phone,
-      `No crediário próprio, para *${product.name}*, em *${count}x* fica aproximadamente *${count}x de ${money(plan.installment)}*, total de *${money(plan.total)}*. A compra no carnê é sujeita à análise de crédito.\n\nSe quiser seguir com o carnê, eu já posso iniciar a solicitação para você.`
+      [
+        `No crediário próprio, para *${product.name}*:`,
+        ...valid.map(({ count: itemCount, plan }) => `• *${itemCount}x de ${money(plan.installment)}* — total de *${money(plan.total)}*`),
+        '',
+        'A compra no carnê é sujeita à análise de crédito.'
+      ].join('\n')
     );
     await markConversationStatus(
       phone,
@@ -10114,7 +10190,9 @@ async function handleMessage({
 }) {
   const conv = conversation(phone);
   const n = normalize(text);
-  const mentionedProduct = findConversationProductByText(conv, text);
+  const mentionedProduct =
+    findConversationProductByText(conv, text) ||
+    recentReferencedProduct(phone, text, conv);
 
   if (conv.humanUntil && Date.now() < Number(conv.humanUntil)) {
     return;
@@ -11611,40 +11689,50 @@ ${productCaption(product)}`
       return;
     }
 
-    const parsedCount = parseInstallments(text);
+    const requestedCounts = parseInstallmentCounts(text);
     const previousCount = (
       /\b(parcela|prestacao)\b/.test(n) &&
       String(conv.lastCreditPlan?.productId || '') === productId(product)
     )
       ? Number(conv.lastCreditPlan?.count || 0)
       : 0;
-    const count = parsedCount || previousCount;
-    const plan = creditPlan(product, count);
+    if (!requestedCounts.length && previousCount) requestedCounts.push(previousCount);
 
-    if (!count) {
+    if (!requestedCounts.length) {
+      const emptyPlan = creditPlan(product, 0);
       setPendingCreditInstallments(conv, product);
-      await sendText(phone, `Para *${product.name}*, consigo fazer no crediário próprio em até *${plan.max}x*. Em quantas vezes você gostaria que eu calculasse?`);
+      await sendText(phone, `Para *${product.name}*, consigo fazer no crediário próprio em até *${emptyPlan.max}x*. Em quantas vezes você gostaria que eu calculasse?`);
       return;
     }
 
-    if (plan.invalid) {
-      await sendText(phone, `Para esse produto, o máximo no crediário é *${plan.max}x*. Se quiser, posso calcular em qualquer quantidade até ${plan.max} parcelas.`);
+    const valid = requestedCounts
+      .map((count) => ({ count, plan: creditPlan(product, count) }))
+      .filter(({ plan }) => !plan.invalid);
+
+    if (!valid.length) {
+      const maxPlan = creditPlan(product, 0);
+      await sendText(phone, `Para esse produto, o máximo no crediário é *${maxPlan.max}x*. Se quiser, posso calcular em qualquer quantidade até ${maxPlan.max} parcelas.`);
       return;
     }
 
-    rememberCreditPlan(conv, product, count, plan);
+    const last = valid.at(-1);
+    rememberCreditPlan(conv, product, last.count, last.plan);
     clearPendingCreditInstallments(conv);
-    await sendText(
-      phone,
-      `No crediário próprio, para *${product.name}*, em *${count}x* fica aproximadamente *${count}x de ${money(plan.installment)}*, total de *${money(plan.total)}*. A compra no carnê é sujeita à análise de crédito.\n\nSe quiser seguir com o carnê, eu já posso iniciar a solicitação para você.`
-    );
+
+    const lines = [
+      `No crediário próprio, para *${product.name}*:`,
+      ...valid.map(({ count, plan }) => `• *${count}x de ${money(plan.installment)}* — total de *${money(plan.total)}*`),
+      '',
+      'A compra no carnê é sujeita à análise de crédito.'
+    ];
+    await sendText(phone, lines.join('\n'));
     await markConversationStatus(
       phone,
       conv,
       'Venda em andamento',
-      `Cliente calculou ${product.name} em ${count}x no crediário.`,
+      `Cliente simulou ${product.name} no crediário em: ${valid.map(({ count }) => `${count}x`).join(', ')}.`,
       pushName,
-      { paymentMode: 'crediario', productId: productId(product), installments: count }
+      { paymentMode: 'crediario', productId: productId(product), installments: valid.map(({ count }) => count) }
     );
     return;
   }
@@ -12718,6 +12806,7 @@ export const __test = {
   asksThisShownProduct,
   setAlternativeOffer,
   clearAlternativeOffer,
+  parseInstallmentCounts,
   parseInstallments,
   creditDivisor,
   creditPlan,
@@ -12729,6 +12818,7 @@ export const __test = {
   whatsappProductImageUrl,
   compactProduct,
   findConversationProductByText,
+  recentReferencedProduct,
   isPlaceholderProductImage,
   matchesRequestedProductType,
   requestedTvInches,
