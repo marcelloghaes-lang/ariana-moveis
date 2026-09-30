@@ -191,10 +191,6 @@ export function buildDailyDueReminderMessage(customerName = 'Cliente', installme
     reminderLine
   ];
 
-  if (deferred) {
-    lines.push('', 'O lembrete que caiu em domingo ou feriado está sendo enviado no próximo dia útil.');
-  }
-
   lines.push(
     '',
     'Se o pagamento já tiver sido realizado, por favor desconsidere esta mensagem.',
