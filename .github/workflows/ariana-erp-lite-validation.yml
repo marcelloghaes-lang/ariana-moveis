@@ -77,12 +77,15 @@ jobs:
           grep -Fq "createSimpleXmlBuilder" functions/services/erp/erpNfeSefazService.js
           grep -Fq "directSaleIntermediatorIndicator" functions/services/erp/erpNfeSefazService.js
           grep -Fq "previousCStat==='434'" functions/services/erp/erpNfeSefazService.js
+          grep -Fq "previousCStat==='806'" functions/services/erp/erpNfeSefazService.js
+          grep -Fq "CEST_REQUIRED_FOR_ST" functions/services/erp/erpNfeSefazService.js
+          grep -Fq "knownCestForNcm" functions/services/erp/erpNfeSefazService.js
           (
             cd functions
             node --input-type=module <<'NODE'
           import assert from 'node:assert/strict';
           import { DefaultXmlBuilder } from '@brasil-fiscal/nfe';
-          import { createSimpleXmlBuilder, directSaleIntermediatorIndicator } from './services/erp/erpNfeSefazService.js';
+          import { createSimpleXmlBuilder, directSaleIntermediatorIndicator, knownCestForNcm } from './services/erp/erpNfeSefazService.js';
 
           const xml=createSimpleXmlBuilder(DefaultXmlBuilder).build({
             identificacao:{
@@ -133,6 +136,7 @@ jobs:
               codigo:'TESTE500',
               descricao:'PRODUTO TESTE CSOSN 500',
               ncm:'84502020',
+              cest:knownCestForNcm('84502020'),
               cfop:'5405',
               unidade:'UN',
               quantidade:1,
@@ -149,7 +153,11 @@ jobs:
           assert.equal(directSaleIntermediatorIndicator(9),0);
           assert.equal(directSaleIntermediatorIndicator(1),0);
           assert.equal(directSaleIntermediatorIndicator(5),undefined);
+          assert.equal(knownCestForNcm('84502020'),'2102200');
+          assert.equal(knownCestForNcm('84501900'),'2102100');
+          assert.equal(knownCestForNcm('94036000'),'');
           assert.match(xml,/<indIntermed>0<\/indIntermed>/);
+          assert.match(xml,/<CEST>2102200<\/CEST>/);
           assert.match(xml,/<ICMSSN500>/);
           assert.match(xml,/<CSOSN>500<\/CSOSN>/);
           assert.doesNotMatch(xml,/<ICMSSN102>[\s\S]*?<CSOSN>500<\/CSOSN>/);
