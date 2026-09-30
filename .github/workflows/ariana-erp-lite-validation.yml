@@ -85,6 +85,17 @@ jobs:
           grep -Fq "order?.nfe?.authorizedAt||order.createdAt||new Date()" functions/services/erp/erpSigeSaleParityService.js
           grep -Fq "erp:{...erpCommercial,saleDate}" functions/services/erp/erpNfeSefazService.js
 
+      - name: Validate Cora pending/document separation
+        shell: bash
+        run: |
+          grep -Fq "pendingConfirmation" functions/services/erp/erpCarneCoraService.js
+          grep -Fq "ERP_CARNE_CORA_DOCUMENT_PENDING" functions/services/erp/erpCarneCoraService.js
+          grep -Fq "Não foi gerado carnê da loja no lugar do boleto Cora" functions/services/erp/erpCarneCoraService.js
+          grep -Fq "d?.ok===false" public/erp_carne.html
+          grep -Fq "Aguardando confirmação da Cora" public/erp_carne.html
+          grep -Fq "Baixar boleto Cora" public/erp_carne.html
+          grep -Fq "Baixar carnê da loja" public/erp_carne.html
+
       - name: Validate NF-e emission error visibility
         shell: bash
         run: |
