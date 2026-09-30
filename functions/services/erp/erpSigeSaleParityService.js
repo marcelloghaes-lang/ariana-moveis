@@ -4,7 +4,28 @@ const array=v=>Array.isArray(v)?v:[];
 const money=v=>Math.round((Number(v||0)+Number.EPSILON)*100)/100;
 function fail(message,statusCode=400,code='ERP_SIGE_SALE_ERROR'){const e=new Error(message);e.statusCode=statusCode;e.code=code;return e}
 function actorName(a={}){return clean(a.name||a.nome||a.email||'Operador',180)}
-function validDate(value,label){const d=new Date(value);if(Number.isNaN(d.getTime()))throw fail(`${label} inválida.`,400,'INVALID_DATE');return d}
+export function validDate(value,label='Data'){
+ const raw=clean(value,80);
+ let d=null;
+ let m=raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+ if(m){
+  const y=Number(m[1]),mo=Number(m[2]),day=Number(m[3]);
+  const probe=new Date(Date.UTC(y,mo-1,day,12,0,0));
+  if(probe.getUTCFullYear()===y&&probe.getUTCMonth()===mo-1&&probe.getUTCDate()===day)d=probe;
+ }else{
+  m=raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if(m){
+   const day=Number(m[1]),mo=Number(m[2]),y=Number(m[3]);
+   const probe=new Date(Date.UTC(y,mo-1,day,12,0,0));
+   if(probe.getUTCFullYear()===y&&probe.getUTCMonth()===mo-1&&probe.getUTCDate()===day)d=probe;
+  }else{
+   const parsed=new Date(raw);
+   if(!Number.isNaN(parsed.getTime()))d=parsed;
+  }
+ }
+ if(!d||Number.isNaN(d.getTime()))throw fail(`${label} inválida.`,400,'INVALID_DATE');
+ return d;
+}
 
 export function createErpSigeSaleParityService(context={}){
  const {Order,IntegrationAuditLog,toJSON,redact}=context;
