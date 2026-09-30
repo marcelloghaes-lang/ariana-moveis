@@ -81,6 +81,29 @@ export async function repairHistoricalInstallmentIntegrity({mongoose,logger=cons
     bySale.get(sid).push(row);
   }
 
+  const scheduleDiagnostics=[];
+  for(const sale of sales){
+    const sid=clean(sale.sourceId,120);
+    const rows=uniqueEntries(bySale.get(sid)||[]).sort((a,b)=>new Date(a.dueAt||0)-new Date(b.dueAt||0));
+    if(rows.length===2 &&
+       rows.every(r=>Math.abs(Number(r.value||0)-299)<0.01) &&
+       ymd(rows[0]?.dueAt)==='2026-08-29' &&
+       ymd(rows[1]?.dueAt)==='2026-09-28'){
+      const live=sale?.metadata?.sigeLive||{};
+      scheduleDiagnostics.push({
+        sourceSaleId:sid,
+        saleTotal:money(sale.total||0),
+        liveTotal:money(live?.totals?.total||0),
+        declaredInstallments:declaredInstallments(sale),
+        paymentCondition:clean(sale.paymentCondition,160),
+        livePaymentCondition:clean(live?.paymentCondition,160),
+        livePayments:array(live?.payments).map(p=>({method:clean(p?.method,100),installments:Number(p?.installments||0),period:Number(p?.period||0),value:money(p?.value||0)})),
+        entries:rows.map(r=>({sourceId:clean(r.sourceId,120),value:money(r.value),dueAt:ymd(r.dueAt),status:clean(r.status,40),installmentNumber:Number(r.installmentNumber||0),installments:Number(r.installments||0)}))
+      });
+    }
+  }
+  logger.log('[erp-historical-integrity-schedule]',JSON.stringify(scheduleDiagnostics));
+
   const anomalies=[];
   for(const sale of sales){
     const sid=clean(sale.sourceId,120),n=declaredInstallments(sale),total=originalTotal(sale);
