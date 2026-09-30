@@ -213,6 +213,12 @@ export default function createErpSigeFiscalHistoryRoutes(context={}){
         fiscalDocumentId:fiscal.fiscalDocumentId||''
       });
     }catch(e){
+      console.error('[erp-nfe/emitir-e-faturar]',{
+        code:String(e?.code||'ERP_FISCAL_ERROR'),
+        statusCode:Number(e?.statusCode||500),
+        orderId:existingOrderId||String(e?.details?.orderId||''),
+        message:String(e?.message||'Erro ao emitir NF-e e faturar a venda.').slice(0,600)
+      });
       return sendError(res,e,'Erro ao emitir NF-e e faturar a venda.');
     }
   });
