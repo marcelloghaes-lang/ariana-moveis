@@ -12217,8 +12217,13 @@ function financeiroErpReference(row = {}) {
       ).trim();
 
       const parcelas = openRows.map(normalizeErpBotReceivable);
+      const compras = buildBotFinancePurchases(openRows);
       const saldo = Number(
-        parcelas.reduce((sum, parcela) => sum + Number(parcela.saldoParcela || 0), 0).toFixed(2)
+        parcelas.reduce((sum, parcela) => sum + Number(
+          parcela?.atualizacaoFinanceira?.valorAtualizado ??
+          parcela.saldoParcela ??
+          0
+        ), 0).toFixed(2)
       );
       const atrasadas = parcelas.filter((parcela) => parcela.vencida).length;
 
@@ -12230,14 +12235,17 @@ function financeiroErpReference(row = {}) {
         origemOperacional: 'Financeiro > Contas a Receber + Central de Cobranças',
         cliente: {
           nome: customerName,
+          nomeCompleto: customerName,
           telefoneConfirmado: Boolean(phone && found.verifiedBy?.startsWith('phone')),
           identidadeConfirmadaPor: found.verifiedBy || ''
         },
         resumo: {
+          comprasAbertas: compras.length,
           parcelasAbertas: parcelas.length,
           atrasadas,
           saldo
         },
+        compras,
         parcelas
       });
     } catch (error) {
