@@ -45,7 +45,7 @@ jobs:
         with:
           node-version: '20'
       - name: Install backend dependencies for fiscal XML contract
-        run: npm ci --prefix functions --ignore-scripts
+        run: npm install --prefix functions --ignore-scripts --no-audit --no-fund
 
       - name: Check backend JavaScript syntax
         shell: bash
