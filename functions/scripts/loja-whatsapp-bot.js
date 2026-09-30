@@ -3286,7 +3286,7 @@ function isSupplierContactSignal({ phone = '', text = '', pushName = '' } = {}) 
   const name = normalize(pushName);
   const n = normalize(text);
   const supplierName =
-    /\b(vendas|consultora|consultor|consultoria|representante|representacao|distribuidora|distribuidor|atacado|fabrica|industria|executiva de vendas|executivo de vendas|promotora|promotor)\b/.test(name);
+    /\b(fornecedor|fornecedora|televendas|suprimentos|vendas|consultora|consultor|consultoria|representante|representacao|distribuidora|distribuidor|atacado|fabrica|industria|executiva de vendas|executivo de vendas|promotora|promotor)\b/.test(name);
 
   const strongB2b =
     /\blojista\b/.test(n) ||
@@ -3311,6 +3311,25 @@ function isSupplierContactSignal({ phone = '', text = '', pushName = '' } = {}) 
     /\b(lojista|revenda|atacado|estoque|pecas|fabrica|pedido minimo|mix da loja)\b/.test(n);
 
   return strongB2b || supplierName;
+}
+
+function isSupplierOperationalSignal({ text = '', pushName = '' } = {}) {
+  const name = normalize(pushName);
+  const n = normalize(text);
+
+  const explicitOperationalName =
+    /\b(fornecedor|fornecedora|televendas|suprimentos)\b/.test(name);
+
+  const operationalText =
+    /\bnota fiscal\b/.test(n) ||
+    /\b(?:chega|chegar|chegando) (?:na|a) loja\b/.test(n) ||
+    /\b\d+\s+dias? uteis?\b.{0,45}\b(?:chegar|entrega|loja)\b/.test(n) ||
+    /\bequipe responsavel\b/.test(n) ||
+    /\bpedido\b.{0,60}\b(?:loja|faturado|separacao|transporte|entrega)\b/.test(n) ||
+    /\bretir(?:a|ar|e) em loja\b/.test(n) ||
+    /\bproduto\b.{0,40}\b(?:chega|chegar)\b.{0,30}\bloja\b/.test(n);
+
+  return explicitOperationalName || operationalText;
 }
 
 function isExternalAutomationMessage(text) {
@@ -3380,8 +3399,20 @@ async function handleSupplierInbound({ phone = '', text = '', pushName = '' } = 
 
   if (conv.contactRole !== 'supplier') return { handled: false };
 
-  if (isExternalAutomationMessage(text)) {
-    return { handled: true, kind: 'supplier_automation' };
+  const operational = isSupplierOperationalSignal({ text, pushName });
+
+  if (isExternalAutomationMessage(text) || operational) {
+    await syncTicket(phone, {
+      status: 'Fornecedor / Compras',
+      message: text || 'Fornecedor enviou atualização operacional.',
+      name: pushName,
+      metadata: {
+        assunto: operational ? 'fornecedor_operacional' : 'fornecedor_automacao',
+        atendimentoAutomaticoVendas: false,
+        respostaAutomatica: false
+      }
+    });
+    return { handled: true, kind: operational ? 'supplier_operational' : 'supplier_automation' };
   }
 
   const alreadyAcknowledged =
@@ -12495,6 +12526,7 @@ export const __test = {
   isConfiguredSupplier,
   isKnownInternalContact,
   isSupplierContactSignal,
+  isSupplierOperationalSignal,
   handleSupplierInbound,
   isExternalAutomationMessage,
   isCasualSmallTalk,
