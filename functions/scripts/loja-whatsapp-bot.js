@@ -9333,6 +9333,108 @@ async function consultFinance(phone, cpf = '') {
   });
 }
 
+function asksMonthlyNoteBreakdown(text = '') {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const month = /\b(esse mes|este mes|mes atual|nesse mes|no mes)\b/.test(n);
+  const debt = /\b(notinha|notinhas|parcela|parcelas|prestacao|prestacoes|conta|contas)\b/.test(n);
+  const amount = /\b(quanto|quantos|valor|ta dando|esta dando|fica|ficou)\b/.test(n);
+  return month && debt && amount;
+}
+
+function financePurchaseChoices(data = {}) {
+  return (Array.isArray(data?.compras) ? data.compras : [])
+    .filter((purchase) => purchase && purchase.id)
+    .slice(0, 12);
+}
+
+function financePurchaseListReply(data = {}) {
+  const choices = financePurchaseChoices(data);
+  const fullName = String(data?.cliente?.nomeCompleto || data?.cliente?.nome || '').trim();
+  if (!choices.length) return financialReply(data);
+
+  const lines = [
+    fullName
+      ? `Consultei o *Contas a Receber* no cadastro de *${fullName}* 😊`
+      : 'Consultei o *Contas a Receber* no seu cadastro 😊',
+    '',
+    'Encontrei estas compras com parcelas em aberto:'
+  ];
+
+  choices.forEach((purchase, index) => {
+    const overdue = Number(purchase.parcelasVencidas || 0);
+    const open = Number(purchase.parcelasAbertas || 0);
+    lines.push(
+      `${index + 1}. *${purchase.descricao || `Compra ${index + 1}`}* — ${open} parcela(s) em aberto${overdue ? `, ${overdue} vencida(s)` : ''}`
+    );
+  });
+
+  lines.push('', 'Qual dessas compras você quer consultar? Pode responder *“1”*, *“2”*, *“a primeira”*, *“a segunda”* etc.');
+  return lines.join('\n');
+}
+
+function financePurchaseSelectionIndex(text = '', choices = []) {
+  const n = normalize(text).replace(/[!?.,;:]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const numeric = n.match(/^(?:compra|opcao|opção)?\s*(\d{1,2})$/);
+  if (numeric) {
+    const idx = Number(numeric[1]) - 1;
+    if (idx >= 0 && idx < choices.length) return idx;
+  }
+
+  const ordinal = ordinalIndex(text);
+  if (ordinal >= 0 && ordinal < choices.length) return ordinal;
+
+  const byDescription = choices.findIndex((purchase) => {
+    const label = normalize(purchase?.descricao || '');
+    return label && n.length >= 3 && (label.includes(n) || n.includes(label));
+  });
+  return byDescription;
+}
+
+function financePurchaseDetailReply(purchase = {}) {
+  const description = String(purchase.descricao || 'Compra').trim();
+  const first = purchase.primeiraVencida || null;
+  const overdueCount = Number(purchase.parcelasVencidas || 0);
+
+  if (!first || overdueCount <= 0) {
+    return `Na compra *${description}* não encontrei parcela vencida no momento. Se quiser, posso conferir outra compra da lista.`;
+  }
+
+  const firstUpdated = Number(first.valorAtualizado || 0);
+  const totalUpdated = Number(purchase.totalVencidoAtualizado || firstUpdated || 0);
+  const firstLabel = String(first.parcelaLabel || 'Parcela').trim();
+
+  return [
+    `Na compra *${description}*:`,
+    '',
+    `*Primeira parcela vencida:* ${firstLabel} — vencimento em ${dateBR(first.dataVencimento)} — *${money(firstUpdated)}* com multa e juros atualizados até hoje.`,
+    '',
+    `*Total das ${overdueCount} parcela(s) vencida(s) dessa compra:* *${money(totalUpdated)}* com multa e juros atualizados até hoje.`
+  ].join('\n');
+}
+
+async function startFinancePurchaseChoice(phone, conv, data = {}) {
+  const choices = financePurchaseChoices(data);
+  if (!choices.length) {
+    conv.pendingAction = '';
+    conv.financePurchaseChoices = [];
+    conv.financePurchaseChoiceUntil = 0;
+    saveStateSoon();
+    await sendText(phone, financialReply(data));
+    return;
+  }
+
+  conv.pendingAction = 'finance_purchase_choice';
+  conv.financePurchaseChoices = choices;
+  conv.financePurchaseChoiceUntil = Date.now() + 20 * 60 * 1000;
+  conv.financeAfterCpf = '';
+  saveStateSoon();
+  await sendText(phone, financePurchaseListReply(data));
+}
+
 
 function creditPlanFollowupProduct(conv = {}) {
   if (!activeCreditPlanContext(conv)) return null;
