@@ -10211,6 +10211,66 @@ async function handleMessage({
     return;
   }
 
+  {
+    if (isPaymentHandoffNotice(text)) {
+      conv.pendingAction = '';
+      conv.marceloCallbackRequested = true;
+      conv.marceloCallbackRequestedAt = Date.now();
+      saveStateSoon();
+
+      const greeting = greetingFromText(text);
+      await sendText(
+        phone,
+        `${greeting ? `${greeting}! 😊 ` : 'Entendi 😊 '}Vou deixar essa informação de pagamento registrada para o Marcelo conferir. Como envolve um pagamento em dinheiro, a baixa só fica confirmada depois da conferência.`
+      );
+
+      await syncTicket(phone, {
+        status: 'Financeiro - conferir pagamento em dinheiro',
+        message: `Cliente informou entrega/tentativa de pagamento e precisa de conferência humana: ${String(text || '').trim()}`,
+        name: pushName,
+        metadata: {
+          assunto: 'pagamento_entregue_ou_pix_nao_concluido',
+          exigeConfirmacaoMarcelo: true,
+          naoConfirmarBaixaAutomaticamente: true
+        }
+      });
+      return;
+    }
+
+    const paymentPromiseUpdate = asksPaymentPromiseUpdate(text);
+    const paymentException = asksPaymentExceptionForMarcelo(text);
+
+    if (paymentPromiseUpdate || paymentException) {
+      conv.pendingAction = '';
+      conv.marceloCallbackRequested = true;
+      conv.marceloCallbackRequestedAt = Date.now();
+      saveStateSoon();
+
+      await sendText(
+        phone,
+        paymentPromiseUpdate
+          ? 'Entendi 😊 Vou deixar essa atualização de pagamento registrada para o Marcelo acompanhar. Como envolve uma combinação de valor/data, ele confirma com você por aqui.'
+          : 'Ok 😊 Assim que o Marcelo chegar, eu peço para ele retornar para você por aqui.'
+      );
+
+      await syncTicket(phone, {
+        status: paymentPromiseUpdate
+          ? 'Aguardando Marcelo - confirmar pagamento/data'
+          : 'Aguardando retorno do Marcelo',
+        message: paymentPromiseUpdate
+          ? `Cliente informou nova previsão/combinação de pagamento e aguarda confirmação humana: ${String(text || '').trim()}`
+          : `Cliente informou que pretende pagar valor parcial neste mês e explicou dificuldade/imprevisto: ${String(text || '').trim()}`,
+        name: pushName,
+        metadata: {
+          assunto: paymentPromiseUpdate ? 'promessa_pagamento' : 'negociacao_pagamento_parcial',
+          exigeConfirmacaoMarcelo: true,
+          naoConfirmarAcordoAutomaticamente: true
+        }
+      });
+      return;
+    }
+  }
+
   const futureCategory = deferredFutureProductCategory(text);
   if (futureCategory || isPayBeforeShoppingDeferral(text)) {
     conv.pendingAction = '';
@@ -10587,66 +10647,6 @@ async function handleMessage({
           ? `Cliente pediu para anotar no carnê: ${product.name}`
           : 'Cliente pediu para anotar a compra no carnê.',
         name: pushName
-      });
-      return;
-    }
-  }
-
-  {
-    if (isPaymentHandoffNotice(text)) {
-      conv.pendingAction = '';
-      conv.marceloCallbackRequested = true;
-      conv.marceloCallbackRequestedAt = Date.now();
-      saveStateSoon();
-
-      const greeting = greetingFromText(text);
-      await sendText(
-        phone,
-        `${greeting ? `${greeting}! 😊 ` : 'Entendi 😊 '}Vou deixar essa informação de pagamento registrada para o Marcelo conferir. Como envolve um pagamento em dinheiro, a baixa só fica confirmada depois da conferência.`
-      );
-
-      await syncTicket(phone, {
-        status: 'Financeiro - conferir pagamento em dinheiro',
-        message: `Cliente informou entrega/tentativa de pagamento e precisa de conferência humana: ${String(text || '').trim()}`,
-        name: pushName,
-        metadata: {
-          assunto: 'pagamento_entregue_ou_pix_nao_concluido',
-          exigeConfirmacaoMarcelo: true,
-          naoConfirmarBaixaAutomaticamente: true
-        }
-      });
-      return;
-    }
-
-    const paymentPromiseUpdate = asksPaymentPromiseUpdate(text);
-    const paymentException = asksPaymentExceptionForMarcelo(text);
-
-    if (paymentPromiseUpdate || paymentException) {
-      conv.pendingAction = '';
-      conv.marceloCallbackRequested = true;
-      conv.marceloCallbackRequestedAt = Date.now();
-      saveStateSoon();
-
-      await sendText(
-        phone,
-        paymentPromiseUpdate
-          ? 'Entendi 😊 Vou deixar essa atualização de pagamento registrada para o Marcelo acompanhar. Como envolve uma combinação de valor/data, ele confirma com você por aqui.'
-          : 'Ok 😊 Assim que o Marcelo chegar, eu peço para ele retornar para você por aqui.'
-      );
-
-      await syncTicket(phone, {
-        status: paymentPromiseUpdate
-          ? 'Aguardando Marcelo - confirmar pagamento/data'
-          : 'Aguardando retorno do Marcelo',
-        message: paymentPromiseUpdate
-          ? `Cliente informou nova previsão/combinação de pagamento e aguarda confirmação humana: ${String(text || '').trim()}`
-          : `Cliente informou que pretende pagar valor parcial neste mês e explicou dificuldade/imprevisto: ${String(text || '').trim()}`,
-        name: pushName,
-        metadata: {
-          assunto: paymentPromiseUpdate ? 'promessa_pagamento' : 'negociacao_pagamento_parcial',
-          exigeConfirmacaoMarcelo: true,
-          naoConfirmarAcordoAutomaticamente: true
-        }
       });
       return;
     }
