@@ -8310,6 +8310,13 @@ function rememberCreditPlan(conv, product, count, plan) {
 function ordinalIndex(text) {
   if (isPayBeforeShoppingDeferral(text)) return -1;
   const n = normalize(text);
+
+  const numeric = n.match(/\b(?:numero|opcao|item)\s*(\d{1,2})\b/);
+  if (numeric) {
+    const index = Number(numeric[1] || 0) - 1;
+    if (index >= 0 && index <= 9) return index;
+  }
+
   const entries = [
     [0, ['primeiro', 'primeira', '1º', '1o']],
     [1, ['segundo', 'segunda', '2º', '2o']],
