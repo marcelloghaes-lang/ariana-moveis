@@ -5041,6 +5041,16 @@ function asksCreditQuote(text) {
 function parseInstallmentCounts(text = '') {
   const n = normalize(text);
   const counts = [];
+
+  // Primeiro preserva a ordem em pedidos naturais como "de 10 e de 15 vezes".
+  const paired = n.match(/\b(?:de|em)\s*(\d{1,2})\s*(?:e|,|ou)\s*(?:de|em)?\s*(\d{1,2})\s*(?:x|vezes|parcelas)\b/);
+  if (paired) {
+    for (const raw of [paired[1], paired[2]]) {
+      const count = Number(raw || 0);
+      if (count > 0 && !counts.includes(count)) counts.push(count);
+    }
+  }
+
   const patterns = [
     /(?:em\s*)?(\d{1,2})\s*x\b/g,
     /(?:em\s*)?(\d{1,2})\s*(?:vezes|parcelas)\b/g
@@ -5049,15 +5059,6 @@ function parseInstallmentCounts(text = '') {
   for (const pattern of patterns) {
     for (const match of n.matchAll(pattern)) {
       const count = Number(match[1] || 0);
-      if (count > 0 && !counts.includes(count)) counts.push(count);
-    }
-  }
-
-  // Também entende pedidos naturais como "de 10 e de 15 vezes".
-  const paired = n.match(/\b(?:de|em)\s*(\d{1,2})\s*(?:e|,|ou)\s*(?:de|em)?\s*(\d{1,2})\s*(?:x|vezes|parcelas)\b/);
-  if (paired) {
-    for (const raw of [paired[1], paired[2]]) {
-      const count = Number(raw || 0);
       if (count > 0 && !counts.includes(count)) counts.push(count);
     }
   }
