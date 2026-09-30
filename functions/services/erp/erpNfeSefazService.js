@@ -555,6 +555,12 @@ export function createErpNfeSefazService(context={},settings){
     const authorizedAt=result.dataAutorizacao instanceof Date?result.dataAutorizacao:new Date();
     const nfeStatus=homologation?'authorized_homologation':'authorized';
     order.fiscalStatus=nfeStatus;
+    const erpCommercial=order.televendas?.erp||{};
+    const currentSaleDate=erpCommercial.saleDate instanceof Date&&!Number.isNaN(erpCommercial.saleDate.getTime())
+      ? erpCommercial.saleDate
+      : new Date(erpCommercial.saleDate||'');
+    const saleDate=Number.isNaN(currentSaleDate.getTime())?authorizedAt:currentSaleDate;
+    order.televendas={...(order.televendas||{}),erp:{...erpCommercial,saleDate}};
     order.nfe={
       ...(order.nfe||{}),
       status:nfeStatus,
