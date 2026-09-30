@@ -295,11 +295,14 @@ export function createErpCarneCoraService(context = {}) {
     const invoices = arr(charge.invoices).map(normalizeInvoice);
     const status = clean(charge.status || 'OPEN', 40).toUpperCase();
     const pendingConfirmation = ['PENDING_CONFIRMATION', 'PROCESSING'].includes(status);
-    const documentUrl = clean(charge.documentUrl || '', 1200);
-    const hasProviderDocument = Boolean(
-      documentUrl ||
-      invoices.some(item => item.documentUrl || item.bankSlip?.url)
+    const documentUrl = clean(
+      charge.documentUrl ||
+      invoices.find(item => item.documentUrl)?.documentUrl ||
+      invoices.find(item => item.bankSlip?.url)?.bankSlip?.url ||
+      '',
+      1200
     );
+    const hasProviderDocument = Boolean(documentUrl);
     return {
       provider: 'cora',
       linked: true,
