@@ -44,7 +44,7 @@ function productFiscal(specs={},tax={}){
     origin:parseOrigin(origin!==''?origin:tax.productOrigin)
   };
 }
-function simplesXmlBuilder(DefaultXmlBuilder){
+export function createSimpleXmlBuilder(DefaultXmlBuilder){
   const base=new DefaultXmlBuilder();
   return{
     build(nfe){
@@ -822,7 +822,7 @@ export function createErpNfeSefazService(context={},settings){
     let unsignedXml=String(order?.nfe?.unsignedXml||'');
     let preparedKey=digits(order?.nfe?.preparedKey);
     if(!unsignedXml){
-      unsignedXml=simplesXmlBuilder(lib.DefaultXmlBuilder).build(data);
+      unsignedXml=createSimpleXmlBuilder(lib.DefaultXmlBuilder).build(data);
       preparedKey=accessKeyFrom(unsignedXml.match(/Id="NFe(\d{44})"/)?.[1]||'');
       if(preparedKey.length!==44)throw fail('Não foi possível obter a chave da NF-e preparada.',500,'NFE_PREPARED_KEY_MISSING',{orderId:String(order._id),number});
       order.nfe={
