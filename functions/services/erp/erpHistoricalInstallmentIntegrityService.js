@@ -136,6 +136,88 @@ export async function repairHistoricalInstallmentIntegrity({mongoose,logger=cons
   })).filter(g=>g.rows.length>=2);
   logger.log('[erp-historical-integrity-direct]',JSON.stringify(directSchedule));
 
+  // Correção cirúrgica confirmada no Financeiro: esta venda histórica específica
+  // ficou com somente 2 de 8 parcelas. O sourceSaleId e a sequência existente
+  // tornam a operação idempotente e evitam tocar em qualquer outra compra.
+  const confirmedSourceSaleId='6a6b3cf1ccbc9b03e8aa73c8';
+  const confirmedRows=uniqueEntries(directGroups.get(confirmedSourceSaleId)||[])
+    .sort((a,b)=>new Date(a.dueAt||0)-new Date(b.dueAt||0));
+  let directTargetRepaired=0,directInstallmentsCreated=0;
+  if(
+    confirmedRows.length===2 &&
+    confirmedRows.every(r=>Math.abs(Number(r.value||0)-targetValue)<0.01) &&
+    ymd(confirmedRows[0]?.dueAt)==='2026-08-29' &&
+    ymd(confirmedRows[1]?.dueAt)==='2026-09-28' &&
+    confirmedRows.every(r=>String(r.paymentMethod||'').toLowerCase()==='shopcredit')
+  ){
+    const now=new Date();
+    for(let i=0;i<confirmedRows.length;i++){
+      await Entry.collection.updateOne(
+        {_id:confirmedRows[i]._id},
+        {$set:{installmentNumber:i+1,installments:targetInstallments,updatedAt:now}}
+      );
+    }
+    const template=confirmedRows[1];
+    const ops=[];
+    for(let number=3;number<=targetInstallments;number++){
+      const repairSourceId=`ariana-repair:${confirmedSourceSaleId}:installment:${number}`;
+      const dueAt=addMonthsSafe(new Date(confirmedRows[1].dueAt),number-2);
+      const doc={
+        direction:'receivable',
+        personName:clean(template.personName,220)||'Cadastro histórico',
+        personDocument:clean(template.personDocument,60),
+        description:clean(template.description||'Compra histórica',500),
+        documentNumber:clean(template.documentNumber,180),
+        boletoNumber:clean(template.boletoNumber,180),
+        categoryId:clean(template.categoryId,120),
+        categoryName:clean(template.categoryName,180),
+        centerCostName:clean(template.centerCostName,180),
+        bankAccountId:'',
+        bankAccountName:'',
+        paymentMethod:'ShopCredit',
+        value:targetValue,
+        advance:0,
+        competenceAt:template.competenceAt||dueAt,
+        dueAt,
+        status:'pending',
+        paidAt:null,
+        paidValue:0,
+        principalPaid:0,
+        payments:[],
+        reconciliationStatus:'unreconciled',
+        reconciledAt:null,
+        notes:'Parcela restaurada pelo Ariana ERP após conferência da compra original de R$ 2.392,00 em 8x de R$ 299,00.',
+        origin:'sige_import',
+        orderId:'',
+        sourceSystem:'ariana_erp_repair',
+        sourceId:repairSourceId,
+        migration:{...(template.migration||{}),sourceSaleId:confirmedSourceSaleId,repairType:'missing_historical_installment',repairAt:now},
+        installmentNumber:number,
+        installments:targetInstallments,
+        createdBy:'Correção de integridade Ariana ERP',
+        updatedBy:'Correção de integridade Ariana ERP',
+        createdAt:now,
+        updatedAt:now
+      };
+      ops.push({
+        updateOne:{
+          filter:{sourceSystem:'ariana_erp_repair',sourceId:repairSourceId},
+          update:{$setOnInsert:doc},
+          upsert:true
+        }
+      });
+    }
+    const result=ops.length?await Entry.collection.bulkWrite(ops,{ordered:true}):null;
+    directInstallmentsCreated=Number(result?.upsertedCount||0);
+    directTargetRepaired=1;
+    logger.log('[erp-historical-integrity-repair]',JSON.stringify({
+      sourceSaleId:confirmedSourceSaleId,
+      expectedInstallments:targetInstallments,
+      installmentValue:targetValue,
+      created:directInstallmentsCreated
+    }));
+  }
+
   const anomalies=[];
   for(const sale of sales){
     const sid=clean(sale.sourceId,120),n=declaredInstallments(sale),total=originalTotal(sale);
@@ -251,8 +333,8 @@ export async function repairHistoricalInstallmentIntegrity({mongoose,logger=cons
     anomalies:anomalies.length,
     anomalySample:anomalies.slice(0,25),
     targetMatched:matched,
-    targetRepaired:repaired,
-    installmentsCreated:created,
+    targetRepaired:repaired+directTargetRepaired,
+    installmentsCreated:created+directInstallmentsCreated,
     elapsedMs:Date.now()-started
   };
   logger.log('[erp-historical-integrity]',JSON.stringify(report));
