@@ -75,12 +75,14 @@ jobs:
           grep -Fq "NFE_CSOSN_500_XML_MISMATCH" functions/services/erp/erpNfeSefazService.js
           grep -Fq "102, 103, 300, 400 ou 500" functions/services/erp/erpNfeSefazService.js
           grep -Fq "createSimpleXmlBuilder" functions/services/erp/erpNfeSefazService.js
+          grep -Fq "directSaleIntermediatorIndicator" functions/services/erp/erpNfeSefazService.js
+          grep -Fq "previousCStat==='434'" functions/services/erp/erpNfeSefazService.js
           (
             cd functions
             node --input-type=module <<'NODE'
           import assert from 'node:assert/strict';
           import { DefaultXmlBuilder } from '@brasil-fiscal/nfe';
-          import { createSimpleXmlBuilder } from './services/erp/erpNfeSefazService.js';
+          import { createSimpleXmlBuilder, directSaleIntermediatorIndicator } from './services/erp/erpNfeSefazService.js';
 
           const xml=createSimpleXmlBuilder(DefaultXmlBuilder).build({
             identificacao:{
@@ -90,6 +92,7 @@ jobs:
               finalidade:1,
               consumidorFinal:1,
               presencaComprador:1,
+              indicadorIntermediador:directSaleIntermediatorIndicator(1),
               ambiente:2,
               uf:'MG',
               municipio:'3106200',
@@ -143,6 +146,10 @@ jobs:
             pagamento:{pagamentos:[{formaPagamento:'17',valor:100}]}
           });
 
+          assert.equal(directSaleIntermediatorIndicator(9),0);
+          assert.equal(directSaleIntermediatorIndicator(1),0);
+          assert.equal(directSaleIntermediatorIndicator(5),undefined);
+          assert.match(xml,/<indIntermed>0<\/indIntermed>/);
           assert.match(xml,/<ICMSSN500>/);
           assert.match(xml,/<CSOSN>500<\/CSOSN>/);
           assert.doesNotMatch(xml,/<ICMSSN102>[\s\S]*?<CSOSN>500<\/CSOSN>/);
