@@ -51,14 +51,14 @@ function simplesXmlBuilder(DefaultXmlBuilder){
       const xml=base.build(nfe).replace(/<(\/?)ICMSSN(?:103|300|400)>/g,'<$1ICMSSN102>');
       const hasCsosn500=Array.isArray(nfe?.produtos)&&nfe.produtos.some(item=>String(item?.icms?.csosn||'')==='500');
       if(hasCsosn500){
-        if(!/<ICMSSN500>[sS]*?<CSOSN>500<\/CSOSN>[sS]*?<\/ICMSSN500>/.test(xml)){
+        if(!/<ICMSSN500\b[^>]*>[\s\S]*?<CSOSN>500<\/CSOSN>[\s\S]*?<\/ICMSSN500>/.test(xml)){
           throw fail(
             'O gerador XML não preservou o grupo ICMSSN500 do produto. A emissão foi bloqueada para evitar enviar tributação incorreta à SEFAZ.',
             500,
             'NFE_CSOSN_500_XML_INVALID'
           );
         }
-        if(/<ICMSSN102>[sS]*?<CSOSN>500<\/CSOSN>[sS]*?<\/ICMSSN102>/.test(xml)){
+        if(/<ICMSSN102\b[^>]*>[\s\S]*?<CSOSN>500<\/CSOSN>[\s\S]*?<\/ICMSSN102>/.test(xml)){
           throw fail(
             'CSOSN 500 foi convertido indevidamente para ICMSSN102. A emissão foi bloqueada por segurança.',
             500,
