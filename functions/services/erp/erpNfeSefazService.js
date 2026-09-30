@@ -33,6 +33,15 @@ function parseOrigin(value){
   const m=String(value??'').match(/[0-8]/);
   return m?Number(m[0]):null;
 }
+export function knownCestForNcm(value=''){
+  const ncm=digits(value);
+  if(ncm==='84501900')return '2102100';
+  if(ncm.startsWith('845020'))return '2102200';
+  return '';
+}
+function effectiveCest(specs={}){
+  return digits(specs?.cest)||knownCestForNcm(specs?.ncm);
+}
 function productFiscal(specs={},tax={}){
   const origin=first(specs,'productOrigin','origin','origem');
   return{
@@ -275,6 +284,7 @@ export function createErpNfeSefazService(context={},settings){
       if(!fiscal.unit)problems.push(publicProblem('UNIT_MISSING',`Informe a unidade comercial do produto ${name}.`,`items.${row.index}.unit`));
       if(fiscal.origin===null)problems.push(publicProblem('ORIGIN_MISSING',`Informe a origem fiscal do produto ${name}.`,`items.${row.index}.origin`));
       if([1,4].includes(crt)&&!SUPPORTED_SIMPLE_CSOSN.has(fiscal.csosn))problems.push(publicProblem('CSOSN_NOT_SUPPORTED',`O produto ${name} precisa usar um CSOSN suportado nesta etapa (102, 103, 300, 400 ou 500). O valor cadastrado no produto prevalece sobre o padrão.`,`items.${row.index}.csosn`));
+      if(fiscal.csosn==='500'&&!effectiveCest(s))problems.push(publicProblem('CEST_REQUIRED_FOR_ST',`O produto ${name} usa CSOSN 500 (ICMS-ST) e precisa ter CEST antes da transmissão à SEFAZ.`,`items.${row.index}.cest`));
       if([1,4].includes(crt)&&digits(fiscal.pisCst).length!==2)problems.push(publicProblem('PIS_CST_MISSING',`Informe o CST de PIS do produto ${name} ou um CST padrão nas configurações.`,`items.${row.index}.pisCst`));
       if([1,4].includes(crt)&&digits(fiscal.cofinsCst).length!==2)problems.push(publicProblem('COFINS_CST_MISSING',`Informe o CST de COFINS do produto ${name} ou um CST padrão nas configurações.`,`items.${row.index}.cofinsCst`));
     }
@@ -390,7 +400,7 @@ export function createErpNfeSefazService(context={},settings){
         pis:{cst:fiscal.pisCst},
         cofins:{cst:fiscal.cofinsCst}
       };
-      const cest=digits(s.cest);
+      const cest=effectiveCest(s);
       if(cest)item.cest=cest;
       return item;
     });
@@ -819,7 +829,8 @@ export function createErpNfeSefazService(context={},settings){
 
     const environmentMismatch=previousCStat==='252'||/Ambiente informado diverge do Ambiente de recebimento/i.test(previousError);
     const missingIntermediator=previousCStat==='434'||/NF-e sem indicativo do intermediador/i.test(previousError);
-    if(environmentMismatch||missingIntermediator){
+    const missingCest=previousCStat==='806'||/ICMS-ST sem informa(?:ç|c)[aã]o do CEST/i.test(previousError);
+    if(environmentMismatch||missingIntermediator||missingCest){
       order.nfe={
         ...(order.nfe||{}),
         status:'reserved',
