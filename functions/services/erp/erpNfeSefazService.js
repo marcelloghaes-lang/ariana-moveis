@@ -48,7 +48,27 @@ export function createSimpleXmlBuilder(DefaultXmlBuilder){
   const base=new DefaultXmlBuilder();
   return{
     build(nfe){
-      const xml=base.build(nfe).replace(/<(\/?)ICMSSN(?:103|300|400)>/g,'<$1ICMSSN102>');
+      let xml=base.build(nfe).replace(/<(\/?)ICMSSN(?:103|300|400)>/g,'<$1ICMSSN102>');
+      const indicatorRaw=nfe?.identificacao?.indicadorIntermediador;
+      if(indicatorRaw!==undefined&&indicatorRaw!==null){
+        const indicator=Number(indicatorRaw);
+        if(![0,1].includes(indicator)){
+          throw fail('Indicativo do intermediador inválido para a NF-e.',500,'NFE_INTERMEDIATOR_INVALID');
+        }
+        if(!/<indIntermed>/.test(xml)){
+          xml=xml.replace(
+            /(<indPres>[^<]*<\/indPres>)/,
+            `$1<indIntermed>${indicator}</indIntermed>`
+          );
+        }
+        if(!new RegExp(`<indIntermed>${indicator}<\\/indIntermed>`).test(xml)){
+          throw fail(
+            'O gerador XML não incluiu o indicativo do intermediador exigido pela SEFAZ.',
+            500,
+            'NFE_INTERMEDIATOR_XML_INVALID'
+          );
+        }
+      }
       const hasCsosn500=Array.isArray(nfe?.produtos)&&nfe.produtos.some(item=>String(item?.icms?.csosn||'')==='500');
       if(hasCsosn500){
         if(!/<ICMSSN500\b[^>]*>[\s\S]*?<CSOSN>500<\/CSOSN>[\s\S]*?<\/ICMSSN500>/.test(xml)){
