@@ -14,7 +14,7 @@ const MG_STATUS={
   producao:'https://nfe.fazenda.mg.gov.br/nfe2/services/NFeStatusServico4'
 };
 const paymentCode={dinheiro:'01',cartao_credito:'03',cartao_debito:'04',crediario:'05',boleto:'15',pix:'17',outro:'99'};
-const SIMPLE_CSOSN_NO_DETAIL=new Set(['102','103','300','400']);
+const SUPPORTED_SIMPLE_CSOSN=new Set(['102','103','300','400','500']);
 const UF_CODES={AC:'12',AL:'27',AP:'16',AM:'13',BA:'29',CE:'23',DF:'53',ES:'32',GO:'52',MA:'21',MT:'51',MS:'50',MG:'31',PA:'15',PB:'25',PR:'41',PE:'26',PI:'22',RJ:'33',RN:'24',RS:'43',RO:'11',RR:'14',SC:'42',SP:'35',SE:'28',TO:'17'};
 const VALID_UFS=new Set(Object.keys(UF_CODES));
 
@@ -48,7 +48,25 @@ function simplesXmlBuilder(DefaultXmlBuilder){
   const base=new DefaultXmlBuilder();
   return{
     build(nfe){
-      return base.build(nfe).replace(/<(\/?)ICMSSN(?:103|300|400)>/g,'<$1ICMSSN102>');
+      const xml=base.build(nfe).replace(/<(\/?)ICMSSN(?:103|300|400)>/g,'<$1ICMSSN102>');
+      const hasCsosn500=Array.isArray(nfe?.produtos)&&nfe.produtos.some(item=>String(item?.icms?.csosn||'')==='500');
+      if(hasCsosn500){
+        if(!/<ICMSSN500>[sS]*?<CSOSN>500<\/CSOSN>[sS]*?<\/ICMSSN500>/.test(xml)){
+          throw fail(
+            'O gerador XML não preservou o grupo ICMSSN500 do produto. A emissão foi bloqueada para evitar enviar tributação incorreta à SEFAZ.',
+            500,
+            'NFE_CSOSN_500_XML_INVALID'
+          );
+        }
+        if(/<ICMSSN102>[sS]*?<CSOSN>500<\/CSOSN>[sS]*?<\/ICMSSN102>/.test(xml)){
+          throw fail(
+            'CSOSN 500 foi convertido indevidamente para ICMSSN102. A emissão foi bloqueada por segurança.',
+            500,
+            'NFE_CSOSN_500_XML_MISMATCH'
+          );
+        }
+      }
+      return xml;
     }
   };
 }
@@ -232,7 +250,7 @@ export function createErpNfeSefazService(context={},settings){
       if(fiscal.cfop.length!==4)problems.push(publicProblem('CFOP_MISSING',`Informe o CFOP do produto ${name} ou um CFOP padrão nas configurações.`,`items.${row.index}.cfop`));
       if(!fiscal.unit)problems.push(publicProblem('UNIT_MISSING',`Informe a unidade comercial do produto ${name}.`,`items.${row.index}.unit`));
       if(fiscal.origin===null)problems.push(publicProblem('ORIGIN_MISSING',`Informe a origem fiscal do produto ${name}.`,`items.${row.index}.origin`));
-      if([1,4].includes(crt)&&!SIMPLE_CSOSN_NO_DETAIL.has(fiscal.csosn))problems.push(publicProblem('CSOSN_NOT_SUPPORTED',`O produto ${name} precisa usar um CSOSN suportado nesta etapa (102, 103, 300 ou 400). O valor cadastrado no produto prevalece sobre o padrão.`,`items.${row.index}.csosn`));
+      if([1,4].includes(crt)&&!SUPPORTED_SIMPLE_CSOSN.has(fiscal.csosn))problems.push(publicProblem('CSOSN_NOT_SUPPORTED',`O produto ${name} precisa usar um CSOSN suportado nesta etapa (102, 103, 300, 400 ou 500). O valor cadastrado no produto prevalece sobre o padrão.`,`items.${row.index}.csosn`));
       if([1,4].includes(crt)&&digits(fiscal.pisCst).length!==2)problems.push(publicProblem('PIS_CST_MISSING',`Informe o CST de PIS do produto ${name} ou um CST padrão nas configurações.`,`items.${row.index}.pisCst`));
       if([1,4].includes(crt)&&digits(fiscal.cofinsCst).length!==2)problems.push(publicProblem('COFINS_CST_MISSING',`Informe o CST de COFINS do produto ${name} ou um CST padrão nas configurações.`,`items.${row.index}.cofinsCst`));
     }

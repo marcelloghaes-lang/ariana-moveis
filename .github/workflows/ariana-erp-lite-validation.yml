@@ -44,6 +44,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Install backend dependencies for fiscal XML contract
+        run: npm install --prefix functions --ignore-scripts --no-audit --no-fund
+
       - name: Check backend JavaScript syntax
         shell: bash
         run: |
@@ -55,6 +58,86 @@ jobs:
             -type f -name '*.js' -print0 \
             | sort -z \
             | xargs -0 -n1 node --check
+      - name: Validate CSOSN 500 XML contract
+        shell: bash
+        run: |
+          grep -Fq "SUPPORTED_SIMPLE_CSOSN=new Set(['102','103','300','400','500'])" functions/services/erp/erpNfeSefazService.js
+          grep -Fq "NFE_CSOSN_500_XML_INVALID" functions/services/erp/erpNfeSefazService.js
+          grep -Fq "NFE_CSOSN_500_XML_MISMATCH" functions/services/erp/erpNfeSefazService.js
+          grep -Fq "102, 103, 300, 400 ou 500" functions/services/erp/erpNfeSefazService.js
+          (
+            cd functions
+            node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { DefaultXmlBuilder } from '@brasil-fiscal/nfe';
+
+          const xml=new DefaultXmlBuilder().build({
+            identificacao:{
+              naturezaOperacao:'Venda de mercadoria',
+              tipoOperacao:1,
+              destinoOperacao:1,
+              finalidade:1,
+              consumidorFinal:1,
+              presencaComprador:1,
+              ambiente:2,
+              uf:'MG',
+              municipio:'3106200',
+              serie:1,
+              numero:999999
+            },
+            emitente:{
+              cnpj:'12345678000195',
+              razaoSocial:'EMPRESA TESTE LTDA',
+              inscricaoEstadual:'0623079040081',
+              regimeTributario:1,
+              endereco:{
+                logradouro:'RUA TESTE',
+                numero:'1',
+                bairro:'CENTRO',
+                codigoMunicipio:'3106200',
+                municipio:'BELO HORIZONTE',
+                uf:'MG',
+                cep:'30110000'
+              }
+            },
+            destinatario:{
+              cnpj:'18307454000175',
+              nome:'PREFEITURA MUNICIPAL DE TESTE',
+              indicadorIE:9,
+              endereco:{
+                logradouro:'PRACA TESTE',
+                numero:'1',
+                bairro:'CENTRO',
+                codigoMunicipio:'3106200',
+                municipio:'BELO HORIZONTE',
+                uf:'MG',
+                cep:'30110000'
+              }
+            },
+            produtos:[{
+              numero:1,
+              codigo:'TESTE500',
+              descricao:'PRODUTO TESTE CSOSN 500',
+              ncm:'84502020',
+              cfop:'5405',
+              unidade:'UN',
+              quantidade:1,
+              valorUnitario:100,
+              valorTotal:100,
+              icms:{origem:0,csosn:'500'},
+              pis:{cst:'49'},
+              cofins:{cst:'49'}
+            }],
+            transporte:{modalidadeFrete:9},
+            pagamento:{pagamentos:[{formaPagamento:'17',valor:100}]}
+          });
+
+          assert.match(xml,/<ICMSSN500>/);
+          assert.match(xml,/<CSOSN>500<\/CSOSN>/);
+          assert.doesNotMatch(xml,/<ICMSSN102>[\s\S]*?<CSOSN>500<\/CSOSN>/);
+          NODE
+          )
+
       - name: Validate finance-before-NFe rules
         run: |
           node --input-type=module <<'NODE'
