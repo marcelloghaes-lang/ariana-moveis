@@ -104,6 +104,38 @@ export async function repairHistoricalInstallmentIntegrity({mongoose,logger=cons
   }
   logger.log('[erp-historical-integrity-schedule]',JSON.stringify(scheduleDiagnostics));
 
+  // Diagnóstico direto no razão: algumas compras históricas podem estar órfãs
+  // da ficha ErpSigeHistoricalSale, embora mantenham migration.sourceSaleId.
+  const directCandidates=await Entry.collection.find({
+    direction:'receivable',
+    value:{$gte:298.99,$lte:299.01},
+    dueAt:{$gte:new Date('2026-08-27T00:00:00.000Z'),$lte:new Date('2026-10-01T23:59:59.999Z')},
+    status:{$ne:'cancelled'}
+  }).project({
+    _id:1,sourceId:1,migration:1,paymentMethod:1,value:1,dueAt:1,status:1,
+    installmentNumber:1,installments:1
+  }).toArray();
+  const directGroups=new Map();
+  for(const row of directCandidates){
+    const sid=clean(row?.migration?.sourceSaleId,120);
+    if(!sid)continue;
+    if(!directGroups.has(sid))directGroups.set(sid,[]);
+    directGroups.get(sid).push(row);
+  }
+  const directSchedule=[...directGroups.entries()].map(([sid,rows])=>({
+    sourceSaleId:sid,
+    rows:rows.sort((a,b)=>new Date(a.dueAt||0)-new Date(b.dueAt||0)).map(r=>({
+      sourceId:clean(r.sourceId,120),
+      value:money(r.value),
+      dueAt:ymd(r.dueAt),
+      status:clean(r.status,40),
+      paymentMethod:clean(r.paymentMethod,100),
+      installmentNumber:Number(r.installmentNumber||0),
+      installments:Number(r.installments||0)
+    }))
+  })).filter(g=>g.rows.length>=2);
+  logger.log('[erp-historical-integrity-direct]',JSON.stringify(directSchedule));
+
   const anomalies=[];
   for(const sale of sales){
     const sid=clean(sale.sourceId,120),n=declaredInstallments(sale),total=originalTotal(sale);
