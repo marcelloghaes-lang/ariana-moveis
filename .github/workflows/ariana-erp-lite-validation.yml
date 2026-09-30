@@ -74,13 +74,15 @@ jobs:
           grep -Fq "NFE_CSOSN_500_XML_INVALID" functions/services/erp/erpNfeSefazService.js
           grep -Fq "NFE_CSOSN_500_XML_MISMATCH" functions/services/erp/erpNfeSefazService.js
           grep -Fq "102, 103, 300, 400 ou 500" functions/services/erp/erpNfeSefazService.js
+          grep -Fq "createSimpleXmlBuilder" functions/services/erp/erpNfeSefazService.js
           (
             cd functions
             node --input-type=module <<'NODE'
           import assert from 'node:assert/strict';
           import { DefaultXmlBuilder } from '@brasil-fiscal/nfe';
+          import { createSimpleXmlBuilder } from './services/erp/erpNfeSefazService.js';
 
-          const xml=new DefaultXmlBuilder().build({
+          const xml=createSimpleXmlBuilder(DefaultXmlBuilder).build({
             identificacao:{
               naturezaOperacao:'Venda de mercadoria',
               tipoOperacao:1,
