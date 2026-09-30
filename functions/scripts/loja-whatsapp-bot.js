@@ -3501,11 +3501,13 @@ function simpleAcknowledgementKind(text = '') {
 
   if (!n) return '';
 
-  if (/^(?:obg|obgd|obrigado|obrigada|brigado|brigada|valeu|agradeco|agradeço)$/.test(n)) {
+  if (
+    /^(?:(?:muito|mt|mto)\s+)?(?:obg|obgd|obrigado|obrigada|brigado|brigada|valeu|agradeco)(?:\s+(?:viu|deus(?:\s+te)?\s+abencoe|deus\s+abencoe))*$/.test(n)
+  ) {
     return 'thanks';
   }
 
-  if (/^(?:ok|okay|certo|ta bom|esta bom|beleza|blz|combinado|entendi|show|tranquilo)$/.test(n)) {
+  if (/^(?:ok|okay|certo|ta bom|esta bom|beleza|blz|combinado|entendi|show|tranquilo)(?:\s+(?:marcelo|macelo|marcello))?$/.test(n)) {
     return 'ack';
   }
 
@@ -3899,6 +3901,8 @@ function asksMarceloOrCallback(text) {
   const directName =
     /^(?:o\s+)?(?:marcelo|macelo|marcello)$/.test(n);
 
+  if (/^(?:ta bom|esta bom|ok|okay|certo|beleza|blz|combinado|entendi|obrigado|obrigada|valeu)\s+(?:marcelo|macelo|marcello)$/.test(n)) return false;
+
   return (
     directGreeting ||
     asksIfAvailable ||
@@ -3942,7 +3946,9 @@ function asksAttendantIdentity(text) {
     /com quem (eu )?(falo|to falando|estou falando)/.test(n) ||
     /qual (e |eh )?(o )?seu nome/.test(n) ||
     /quem (e|eh) voce/.test(n) ||
-    /quem fala/.test(n)
+    /quem fala/.test(n) ||
+    /^(?:e|eh) (?:o )?marcelo que (?:ta|esta) falando$/.test(n) ||
+    /^(?:e|eh) (?:o )?marcelo(?: falando)?$/.test(n)
   );
 }
 
@@ -4324,7 +4330,15 @@ function asksDelivery(text) {
 
 function asksFinance(text) {
   const n = normalize(text);
+  const existingInstallment =
+    /\b(?:valor|quanto|qto)\b.{0,25}\b(?:parcela|prestacao)\b.{0,80}\b(?:ja devo|devo|geladeira.{0,35}fogao|fogao.{0,35}geladeira)\b/.test(n) ||
+    /\b(?:parcela|prestacao)\b.{0,35}\b(?:que )?(?:ja )?devo\b/.test(n) ||
+    /\b(?:me manda|manda|passa|fala)\b.{0,30}\b(?:valor|quanto)\b.{0,25}\b(?:parcela|prestacao)\b/.test(n);
+  const explicitNewPurchaseQuote =
+    /\b(?:quero|queria|vou|pretendo)\b.{0,25}\b(?:comprar|levar|pegar)\b/.test(n) ||
+    /\b(?:fica|ficaria|sai|sairia)\b.{0,20}\b(?:em|de)\s*\d{1,2}\s*x\b/.test(n);
   return (
+    (existingInstallment && !explicitNewPurchaseQuote) ||
     /minha notinha|minhas notinhas|minha nota ai|minha conta ai|minha prestacao|meu carnezinho|valor da minha nota/.test(n) ||
     /quantos?\s+(?:que\s+)?(?:eu\s+)?tenho que (?:te )?(?:passar|mandar|enviar)/.test(n) ||
     /qual\s+(?:e\s+)?o?\s*valor.{0,30}(?:tenho que|pra|para).{0,20}(?:te )?(?:mandar|passar|pagar)/.test(n) ||
@@ -4871,12 +4885,12 @@ function asksPaymentPromiseUpdate(text) {
     .trim();
 
   const moneyContext =
-    /\b(dinheiro|pagamento|pagar|pago|parcela|prestacao|notinha|carne|boleto|pix|reais?)\b/.test(n) ||
+    /\b(dinheiro|pagamento|pagamentos|pagar|pago|parcela|parcelas|prestacao|prestacoes|notinha|notinhas|carne|boleto|boletos|pix|reais?)\b/.test(n) ||
     /\b\d{2,6}(?:[.,]\d{1,2})?\b/.test(n);
 
   const fixedDateContext =
     /\b(hoje|amanha|segunda|terca|quarta|quinta|sexta|sabado|domingo|semana|quinzena)\b/.test(n) ||
-    /\bdia\s+\d{1,2}\b/.test(n) ||
+    /\bdia\s+(?:\d{1,2}|primeiro|1o|1º|1°)\b/.test(n) ||
     /\bate\s+(?:hoje|amanha|segunda|terca|quarta|quinta|sexta|sabado|domingo)\b/.test(n);
 
   const conditionalDateContext =
@@ -9848,26 +9862,39 @@ Se quiser, também posso conferir a entrega com você.`
 
   if (conv.pendingAction === 'finance_cpf') {
     const cpf = digits(text);
-    if (cpf.length !== 11) {
-      await sendText(phone, 'Para proteger seus dados, me envie o *CPF do titular com 11 números*, por favor.');
+    if (cpf.length === 11) {
+      try {
+        const data = await consultFinance(phone, cpf);
+        conv.pendingAction = '';
+        conv.financeCpfPromptAt = 0;
+        saveStateSoon();
+        await sendText(phone, financialReply(data));
+      } catch (error) {
+        await sendText(phone, 'Não consegui confirmar suas parcelas no financeiro agora. Vou deixar para o Financeiro verificar com você.');
+        conv.pendingAction = '';
+        conv.financeCpfPromptAt = 0;
+        saveStateSoon();
+        await syncTicket(phone, {
+          status: 'Financeiro - conferir contas a receber',
+          message: 'Cliente solicitou valor da notinha/parcelas e a consulta automática no Contas a Receber não confirmou os dados.'
+        });
+      }
       return true;
     }
-    try {
-      const data = await consultFinance(phone, cpf);
+    if (/\b(nao sei|nao lembro|nao tenho|depois te passo|depois eu passo)\b/.test(normalize(text))) {
       conv.pendingAction = '';
+      conv.financeCpfPromptAt = 0;
       saveStateSoon();
-      await sendText(phone, financialReply(data));
-    } catch (error) {
-      await sendText(phone, 'Não consegui confirmar suas parcelas no financeiro agora. Vou deixar para o Financeiro verificar com você.');
-      conv.pendingAction = '';
-      conv.humanUntil = Date.now() + HUMAN_TTL_MS;
-      saveStateSoon();
-      await syncTicket(phone, {
-        status: 'Financeiro - conferir contas a receber',
-        message: 'Cliente solicitou valor da notinha/parcelas e a consulta automática no Contas a Receber não confirmou os dados.'
-      });
+      await sendText(phone, 'Sem problema. Vou deixar essa consulta sinalizada para o Marcelo conferir com você por aqui.');
+      await syncTicket(phone, { status: 'Aguardando Marcelo - consulta financeira', message: text, name: pushName });
+      return true;
     }
-    return true;
+    if (cpf.length >= 6) {
+      await sendText(phone, 'Esse CPF parece estar incompleto. Me envie os *11 números do CPF do titular*, por favor.');
+      return true;
+    }
+    conv.pendingAction = '';
+    saveStateSoon();
   }
 
   if (conv.pendingAction === 'crediario_name') {
@@ -10158,7 +10185,7 @@ async function handleMessage({
   const simpleAck = simpleAcknowledgementKind(text);
   if (simpleAck && (!conv.pendingAction || conv.marceloCallbackRequested || conv.lastIntent === 'comprovante_pagamento')) {
     if (simpleAck === 'thanks') {
-      await sendText(phone, 'Por nada 😊');
+      await sendText(phone, /\bdeus(?:\s+te)?\s+abencoe\b/.test(normalize(text)) ? 'Amém 😊 Deus abençoe você também.' : 'Por nada 😊');
     }
     return;
   }
@@ -10846,6 +10873,7 @@ async function handleMessage({
     } catch (error) {
       if (error?.status === 409 || error?.data?.identityRequired) {
         conv.pendingAction = 'finance_cpf';
+        conv.financeCpfPromptAt = Date.now();
         saveStateSoon();
         await sendText(phone, 'Claro 😊 Para proteger seus dados, me confirme o *CPF do titular com 11 números* para eu consultar o valor certinho.');
       } else {
