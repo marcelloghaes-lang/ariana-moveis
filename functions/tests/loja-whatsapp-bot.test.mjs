@@ -3892,6 +3892,50 @@ test('fornecedor é identificado e respostas automáticas do sistema dele não g
   assert.equal(sentTexts.length, 1, 'nome comercial forte deve impedir resposta ao robô mesmo em conversa antiga');
 });
 
+test('fornecedor televendas com atualização de pedido fica silencioso e nunca cai em entrega de varejo', async () => {
+  const phone = '5533977777851';
+
+  assert.equal(
+    bot.isSupplierContactSignal({
+      phone,
+      pushName: 'Fornecedor Televendas Zema',
+      text: 'Aqui consta que falta 3 dias úteis para chegar na loja'
+    }),
+    true
+  );
+  assert.equal(
+    bot.isSupplierOperationalSignal({
+      pushName: 'Fornecedor Televendas Zema',
+      text: 'Por ser um produto retire em loja a nota fiscal fica disponível somente quando o produto chega na loja'
+    }),
+    true
+  );
+
+  await bot.handleMessage({
+    phone,
+    pushName: 'Fornecedor Televendas Zema',
+    text: 'Aqui consta que falta 3 dias úteis para chegar na loja'
+  });
+
+  assert.equal(bot.conversation(phone).contactRole, 'supplier');
+  assert.equal(sentTexts.length, 0, 'atualização operacional de fornecedor não deve receber resposta automática');
+  assert.equal(backendEvents.at(-1).status, 'Fornecedor / Compras');
+  assert.equal(backendEvents.at(-1).metadata.atendimentoAutomaticoVendas, false);
+  assert.equal(backendEvents.at(-1).metadata.respostaAutomatica, false);
+
+  await bot.handleMessage({
+    phone,
+    pushName: 'Fornecedor Televendas Zema',
+    text: 'Pode conferir mais informações com a equipe responsável'
+  });
+
+  assert.equal(sentTexts.length, 0, 'fornecedor identificado não pode cair na resposta genérica de entrega');
+  assert.doesNotMatch(
+    sentTexts.map((item) => item.text || '').join('\n'),
+    /Entregamos sim|segunda a sábado|sua entrega seria|atendimento humano/i
+  );
+});
+
 test('consultora de fornecedor com imagem é desviada para compras antes da visão de produto', async () => {
   const phone = '5533977777850';
 
