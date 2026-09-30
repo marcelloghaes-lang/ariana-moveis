@@ -11000,13 +11000,19 @@ async function handleMessage({
   }
 
   if (asksFinance(text)) {
+    const wantsPurchaseBreakdown = asksMonthlyNoteBreakdown(text);
     try {
       const data = await consultFinance(phone);
-      await sendText(phone, financialReply(data));
+      if (wantsPurchaseBreakdown) {
+        await startFinancePurchaseChoice(phone, conv, data);
+      } else {
+        await sendText(phone, financialReply(data));
+      }
     } catch (error) {
       if (error?.status === 409 || error?.data?.identityRequired) {
         conv.pendingAction = 'finance_cpf';
         conv.financeCpfPromptAt = Date.now();
+        conv.financeAfterCpf = wantsPurchaseBreakdown ? 'purchase_overdue' : '';
         saveStateSoon();
         await sendText(phone, 'Claro 😊 Para proteger seus dados, me confirme o *CPF do titular com 11 números* para eu consultar o valor certinho.');
       } else {
