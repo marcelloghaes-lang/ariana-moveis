@@ -9992,10 +9992,16 @@ Se quiser, também posso conferir a entrega com você.`
     if (cpf.length === 11) {
       try {
         const data = await consultFinance(phone, cpf);
+        const mode = String(conv.financeAfterCpf || '');
         conv.pendingAction = '';
         conv.financeCpfPromptAt = 0;
+        conv.financeAfterCpf = '';
         saveStateSoon();
-        await sendText(phone, financialReply(data));
+        if (mode === 'purchase_overdue') {
+          await startFinancePurchaseChoice(phone, conv, data);
+        } else {
+          await sendText(phone, financialReply(data));
+        }
       } catch (error) {
         await sendText(phone, 'Não consegui confirmar suas parcelas no financeiro agora. Vou deixar para o Financeiro verificar com você.');
         conv.pendingAction = '';
