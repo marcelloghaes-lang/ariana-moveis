@@ -4805,7 +4805,7 @@ test('áudio com promessa condicional de pagamento é registrado para o Marcelo 
   assert.equal(financeCall, undefined, 'promessa não deve alterar nem consultar o financeiro automaticamente');
 });
 
-test('áudio fora de venda recebe saudação e fica aguardando retorno do Marcelo', async () => {
+test('áudio de fornecedor identificado não é transcrito nem recebe resposta de varejo', async () => {
   const phone = '5533923333410';
 
   audioTranscriptionText = 'Pessoal, bom dia, tudo bem? Carro saindo hoje às 11 horas, rota completa. Pode adiantar os pedidos, eu agradeço.';
@@ -4833,16 +4833,16 @@ test('áudio fora de venda recebe saudação e fica aguardando retorno do Marcel
     }
   });
 
-  assert.equal(result.audio, 'audio_transcribed');
-  assert.match(sentTexts.at(-1).text, /^Bom dia! 😊/i);
-  assert.match(sentTexts.at(-1).text, /Não consigo te ajudar com esse assunto por aqui/i);
-  assert.match(sentTexts.at(-1).text, /Marcelo.*retorno/i);
-  assert.match(sentTexts.at(-1).text, /fotos de produtos/i);
-
-  assert.equal(backendEvents.at(-1).status, 'Aguardando retorno do Marcelo');
-  assert.equal(backendEvents.at(-1).metadata.assunto, 'fora_escopo_vendas');
-  assert.equal(backendEvents.at(-1).metadata.atendimentoAutomaticoContinua, true);
-  assert.equal(bot.conversation(phone).marceloCallbackRequested, true);
+  assert.equal(result.supplier, true);
+  assert.equal(bot.conversation(phone).contactRole, 'supplier');
+  assert.equal(sentTexts.length, 0);
+  assert.equal(
+    requestLog.some((item) => item.href === 'https://api.openai.com/v1/audio/transcriptions'),
+    false,
+    'áudio de fornecedor identificado não deve consumir transcrição nem cair no atendimento de varejo'
+  );
+  assert.equal(backendEvents.at(-1).status, 'Fornecedor / Compras');
+  assert.equal(backendEvents.at(-1).metadata.atendimentoAutomaticoVendas, false);
 });
 
 test('áudio sobre beliche continua no atendimento de venda e não vira assunto fora de escopo', async () => {
