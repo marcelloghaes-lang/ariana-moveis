@@ -58,6 +58,15 @@ jobs:
             -type f -name '*.js' -print0 \
             | sort -z \
             | xargs -0 -n1 node --check
+      - name: Validate NF-e emission error visibility
+        shell: bash
+        run: |
+          grep -Fq 'id="send-error"' public/erp_revisao_nfe.html
+          grep -Fq "showSendError(message,e.code||'')" public/erp_revisao_nfe.html
+          grep -Fq "e.code==='NFE_PREFLIGHT_BLOCKED'" public/erp_revisao_nfe.html
+          grep -Fq "erp_caixa.html" public/erp_revisao_nfe.html
+          grep -Fq "[erp-nfe/emitir-e-faturar]" functions/routes/erp/erpSigeFiscalHistoryRoutes.js
+
       - name: Validate CSOSN 500 XML contract
         shell: bash
         run: |
