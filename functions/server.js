@@ -3678,6 +3678,23 @@ app.listen(PORT, () => {
         );
       });
   }, 5000);
+
+  // Auditoria de integridade das compras históricas importadas.
+  // A correção é idempotente e, por segurança, só restaura automaticamente
+  // a série específica já conferida no Financeiro (8x de R$ 299,00).
+  setTimeout(() => {
+    import('./services/erp/erpHistoricalInstallmentIntegrityService.js')
+      .then(({ repairHistoricalInstallmentIntegrity }) =>
+        repairHistoricalInstallmentIntegrity({ mongoose, logger: console })
+      )
+      .catch((error) => {
+        console.error(
+          '[erp-historical-integrity] falha na auditoria/correção:',
+          error?.message || error
+        );
+      });
+  }, 12000);
+
   if (typeof startSigeAutoCobrancaScheduler === 'function') {
     startSigeAutoCobrancaScheduler();
   }
