@@ -219,7 +219,11 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       ? (installments > 0 ? `${installmentNumber}/${installments}` : `Parcela ${installmentNumber}`)
       : String(row.documentNumber || row.boletoNumber || row.description || 'Parcela').trim();
 
-    return {
+    const parcela = {
+      compraId: String(row.orderId || row?.migration?.sourceSaleId || row.documentNumber || row.boletoNumber || row.description || row.id || ''),
+      compraDescricao: String(row.description || row.documentNumber || row.boletoNumber || row.categoryName || 'Compra'),
+      orderId: String(row.orderId || ''),
+      sourceSaleId: String(row?.migration?.sourceSaleId || ''),
       documento: String(row.documentNumber || row.boletoNumber || row.id || ''),
       descricao: String(row.description || row.categoryName || 'Conta a receber'),
       parcelaNumero: installmentNumber,
@@ -231,14 +235,10 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       emAberto: !paid && outstanding > 0.009,
       valorParcela: Number(row.value || 0),
       valorPago: Number(row.principalPaid || 0),
-      saldoParcela: outstanding,
-      atualizacaoFinanceira: {
-        diasAtraso: paid ? 0 : botFinanceDaysLate(row.dueAt),
-        multa: Number(row.fineDefault || 0),
-        juros: Number(row.interestDefault || 0),
-        valorAtualizado: outstanding
-      }
+      saldoParcela: outstanding
     };
+    parcela.atualizacaoFinanceira = calcularParcelaAtualizadaBackend(parcela, new Date());
+    return parcela;
   }
 
   function exactErpReceivableIdentity(row = {}, { cpf = '', phone = '', sourcePersonId = '' } = {}) {
