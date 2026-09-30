@@ -4348,7 +4348,8 @@ function asksFinance(text) {
     /quanto vence|quanto que eu te devo|quanto eu te devo/.test(n) ||
     /soma(?:r)?\s+(?:pra|para)\s+mim.{0,35}(?:notinha|notinhas|conta|parcelas|o que eu te devo)/.test(n) ||
     /soma(?:r)?\s+tudo.{0,30}(?:devo|notinha|notinhas|conta|parcelas)/.test(n) ||
-    /quantos?\s+(?:que\s+)?ta dando.{0,25}(?:minha|as minhas)\s+(?:notinha|notinhas|conta|parcelas)/.test(n)
+    /quantos?\s+(?:que\s+)?ta dando.{0,25}(?:minha|as minhas)\s+(?:notinha|notinhas|conta|parcelas)/.test(n) ||
+    /\b(?:quanto|quantos)\b.{0,25}\b(?:ta|esta) dando\b.{0,30}\b(?:a|minha|as minhas)?\s*(?:notinha|notinhas|parcela|parcelas|prestacao|prestacoes|conta)\b/.test(n)
   );
 }
 
