@@ -5229,9 +5229,16 @@ function recentReferencedProduct(phone = '', text = '', conv = {}) {
     .replace(/\s+/g, ' ')
     .trim();
 
+  const productLookingReference =
+    /\b(?:o|a|esse|essa|aquele|aquela)?\s*(?:produto|modelo|celular|smartphone|tv|televisao|geladeira|fogao|sofa|cama|guarda roupa|armario)\s+que\s+(?:eu\s+)?(?:tava|estava)\s+olhando\b/.test(n);
+  const pronounCreditReference =
+    asksCreditQuote(text) &&
+    /\b(ele|ela|esse|essa|desse|dessa|dele|dela|o produto|esse produto|essa mercadoria)\b/.test(n);
+
   const referencesCurrent =
     rememberedProductReferenceIntent(text) ||
-    /\b(ele|ela|esse|essa|desse|dessa|dele|dela|o produto|esse produto|essa mercadoria|o celular|o smartphone)\b/.test(n);
+    productLookingReference ||
+    pronounCreditReference;
 
   if (!referencesCurrent) return null;
 
