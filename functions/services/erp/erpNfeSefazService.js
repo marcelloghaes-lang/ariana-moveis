@@ -44,21 +44,21 @@ function productFiscal(specs={},tax={}){
     origin:parseOrigin(origin!==''?origin:tax.productOrigin)
   };
 }
-function simplesXmlBuilder(DefaultXmlBuilder){
+export function createSimpleXmlBuilder(DefaultXmlBuilder){
   const base=new DefaultXmlBuilder();
   return{
     build(nfe){
       const xml=base.build(nfe).replace(/<(\/?)ICMSSN(?:103|300|400)>/g,'<$1ICMSSN102>');
       const hasCsosn500=Array.isArray(nfe?.produtos)&&nfe.produtos.some(item=>String(item?.icms?.csosn||'')==='500');
       if(hasCsosn500){
-        if(!/<ICMSSN500>[sS]*?<CSOSN>500<\/CSOSN>[sS]*?<\/ICMSSN500>/.test(xml)){
+        if(!/<ICMSSN500\b[^>]*>[\s\S]*?<CSOSN>500<\/CSOSN>[\s\S]*?<\/ICMSSN500>/.test(xml)){
           throw fail(
             'O gerador XML não preservou o grupo ICMSSN500 do produto. A emissão foi bloqueada para evitar enviar tributação incorreta à SEFAZ.',
             500,
             'NFE_CSOSN_500_XML_INVALID'
           );
         }
-        if(/<ICMSSN102>[sS]*?<CSOSN>500<\/CSOSN>[sS]*?<\/ICMSSN102>/.test(xml)){
+        if(/<ICMSSN102\b[^>]*>[\s\S]*?<CSOSN>500<\/CSOSN>[\s\S]*?<\/ICMSSN102>/.test(xml)){
           throw fail(
             'CSOSN 500 foi convertido indevidamente para ICMSSN102. A emissão foi bloqueada por segurança.',
             500,
@@ -822,7 +822,7 @@ export function createErpNfeSefazService(context={},settings){
     let unsignedXml=String(order?.nfe?.unsignedXml||'');
     let preparedKey=digits(order?.nfe?.preparedKey);
     if(!unsignedXml){
-      unsignedXml=simplesXmlBuilder(lib.DefaultXmlBuilder).build(data);
+      unsignedXml=createSimpleXmlBuilder(lib.DefaultXmlBuilder).build(data);
       preparedKey=accessKeyFrom(unsignedXml.match(/Id="NFe(\d{44})"/)?.[1]||'');
       if(preparedKey.length!==44)throw fail('Não foi possível obter a chave da NF-e preparada.',500,'NFE_PREPARED_KEY_MISSING',{orderId:String(order._id),number});
       order.nfe={
