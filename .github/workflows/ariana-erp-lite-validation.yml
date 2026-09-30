@@ -79,8 +79,11 @@ jobs:
         shell: bash
         run: |
           grep -Fq "Salvar dados comerciais novamente" public/erp_revisao_nfe.html
+          grep -Fq "if(saleDate)payload.saleDate=saleDate" public/erp_revisao_nfe.html
           grep -Fq "if(commercial.ok)sessionStorage.removeItem(storageKey)" public/erp_revisao_nfe.html
           grep -Fq "else saveDraft()" public/erp_revisao_nfe.html
+          grep -Fq "order?.nfe?.authorizedAt||order.createdAt||new Date()" functions/services/erp/erpSigeSaleParityService.js
+          grep -Fq "erp:{...erpCommercial,saleDate}" functions/services/erp/erpNfeSefazService.js
 
       - name: Validate NF-e emission error visibility
         shell: bash
