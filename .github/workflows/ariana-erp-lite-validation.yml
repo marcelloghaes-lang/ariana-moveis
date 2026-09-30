@@ -58,6 +58,23 @@ jobs:
             -type f -name '*.js' -print0 \
             | sort -z \
             | xargs -0 -n1 node --check
+      - name: Validate commercial sale-date parsing
+        shell: bash
+        run: |
+          (
+            cd functions
+            node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { validDate } from './services/erp/erpSigeSaleParityService.js';
+
+          const iso=validDate('2026-09-30','Data da venda');
+          const br=validDate('30/09/2026','Data da venda');
+          assert.equal(iso.toISOString().slice(0,10),'2026-09-30');
+          assert.equal(br.toISOString().slice(0,10),'2026-09-30');
+          assert.throws(()=>validDate('31/02/2026','Data da venda'),/Data da venda inválida/);
+          NODE
+          )
+
       - name: Validate NF-e emission error visibility
         shell: bash
         run: |
