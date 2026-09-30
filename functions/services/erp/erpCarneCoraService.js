@@ -282,6 +282,8 @@ export function createErpCarneCoraService(context = {}) {
       return {
         provider: 'cora',
         linked: false,
+        confirmed: false,
+        pendingConfirmation: false,
         status: 'NOT_LINKED',
         chargeId: '',
         code: '',
@@ -291,14 +293,23 @@ export function createErpCarneCoraService(context = {}) {
       };
     }
     const invoices = arr(charge.invoices).map(normalizeInvoice);
+    const status = clean(charge.status || 'OPEN', 40).toUpperCase();
+    const pendingConfirmation = ['PENDING_CONFIRMATION', 'PROCESSING'].includes(status);
+    const documentUrl = clean(charge.documentUrl || '', 1200);
+    const hasProviderDocument = Boolean(
+      documentUrl ||
+      invoices.some(item => item.documentUrl || item.bankSlip?.url)
+    );
     return {
       provider: 'cora',
       linked: true,
-      status: clean(charge.status || 'OPEN', 40).toUpperCase(),
+      confirmed: !pendingConfirmation && hasProviderDocument,
+      pendingConfirmation,
+      status,
       chargeId: String(charge._id || ''),
       code: clean(charge.code || '', 180),
       internalReference: clean(charge.internalReference || '', 180),
-      documentUrl: clean(charge.documentUrl || '', 1200),
+      documentUrl,
       environment: clean(charge.environment || '', 40),
       invoices,
       pixAvailable: invoices.some(item => item.pix.available),
@@ -369,9 +380,16 @@ export function createErpCarneCoraService(context = {}) {
   async function pdf(targetId, via = '', actor = {}) {
     const data = await preview(targetId, via || 'atualizada');
     const provider = data.paymentProvider || {};
-    if (provider.linked && provider.documentUrl) {
+    if (provider.linked) {
+      if (provider.pendingConfirmation || !provider.documentUrl) {
+        throw fail(
+          'A cobrança Cora está vinculada, mas o boleto oficial ainda não foi confirmado/disponibilizado. Não foi gerado carnê da loja no lugar do boleto Cora.',
+          409,
+          'ERP_CARNE_CORA_DOCUMENT_PENDING'
+        );
+      }
       const buffer = await fetchCoraPdf(provider.documentUrl);
-      const fileName = `Carne_Cora_Ariana_${safeFile(data.reference)}_${data.via}.pdf`;
+      const fileName = `Boleto_Cora_Ariana_${safeFile(data.reference)}_${data.via}.pdf`;
       await logProviderDocument(data, 'GENERATED', { actor });
       return { buffer, fileName, data, provider: 'cora', chargeId: provider.chargeId };
     }
@@ -381,6 +399,13 @@ export function createErpCarneCoraService(context = {}) {
   async function send(targetId, payload = {}, actor = {}) {
     const data = await preview(targetId, payload.via || 'atualizada');
     const provider = data.paymentProvider || {};
+    if (provider.linked && (provider.pendingConfirmation || !provider.documentUrl)) {
+      throw fail(
+        'A Cora ainda não disponibilizou o boleto oficial desta cobrança. O envio do carnê da loja foi bloqueado para não confundir os documentos.',
+        409,
+        'ERP_CARNE_CORA_DOCUMENT_PENDING'
+      );
+    }
     if (!(provider.linked && provider.documentUrl)) return base.send(targetId, payload, actor);
 
     const phoneInfo = phoneIsValid(data.contact?.phone || '');
@@ -389,8 +414,8 @@ export function createErpCarneCoraService(context = {}) {
     }
 
     const buffer = await fetchCoraPdf(provider.documentUrl);
-    const fileName = `Carne_Cora_Ariana_${safeFile(data.reference)}_${data.via}.pdf`;
-    const caption = `Olá, ${data.contact?.name || 'cliente'}. Segue o carnê ${String(data.viaLabel || '').toLowerCase()} da compra ${data.reference} na Ariana Móveis. A cobrança está vinculada à Cora. Valor total em aberto atualizado no Ariana ERP: ${brl(data.totals?.updatedOpen)}.`;
+    const fileName = `Boleto_Cora_Ariana_${safeFile(data.reference)}_${data.via}.pdf`;
+    const caption = `Olá, ${data.contact?.name || 'cliente'}. Segue o boleto ${String(data.viaLabel || '').toLowerCase()} da compra ${data.reference} na Ariana Móveis. Documento oficial emitido pela Cora. Valor total em aberto atualizado no Ariana ERP: ${brl(data.totals?.updatedOpen)}.`;
     const sent = await sendPdfWhatsApp({
       phone: phoneInfo.normalized,
       buffer,
