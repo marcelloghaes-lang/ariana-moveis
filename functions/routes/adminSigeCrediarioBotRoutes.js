@@ -241,6 +241,69 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     return parcela;
   }
 
+  function buildBotFinancePurchases(rows = []) {
+    const groups = new Map();
+
+    for (const row of Array.isArray(rows) ? rows : []) {
+      const parcela = normalizeErpBotReceivable(row);
+      if (!parcela.emAberto) continue;
+
+      const key = parcela.compraId || String(parcela.documento || parcela.descricao || 'compra');
+      if (!groups.has(key)) {
+        groups.set(key, {
+          id: key,
+          descricao: parcela.compraDescricao || 'Compra',
+          orderId: parcela.orderId || '',
+          sourceSaleId: parcela.sourceSaleId || '',
+          parcelasAbertas: [],
+          parcelasVencidas: []
+        });
+      }
+
+      const group = groups.get(key);
+      group.parcelasAbertas.push(parcela);
+      if (parcela.vencida || Number(parcela?.atualizacaoFinanceira?.diasAtraso || 0) > 0) {
+        group.parcelasVencidas.push(parcela);
+      }
+    }
+
+    return [...groups.values()].map((group) => {
+      group.parcelasAbertas.sort((a, b) => new Date(a.dataVencimento || 0) - new Date(b.dataVencimento || 0));
+      group.parcelasVencidas.sort((a, b) => new Date(a.dataVencimento || 0) - new Date(b.dataVencimento || 0));
+
+      const firstOverdue = group.parcelasVencidas[0] || null;
+      const totalOverdueUpdated = Number(group.parcelasVencidas.reduce((sum, parcela) =>
+        sum + Number(parcela?.atualizacaoFinanceira?.valorAtualizado ?? parcela?.saldoParcela ?? 0), 0
+      ).toFixed(2));
+      const totalOpenUpdated = Number(group.parcelasAbertas.reduce((sum, parcela) =>
+        sum + Number(parcela?.atualizacaoFinanceira?.valorAtualizado ?? parcela?.saldoParcela ?? 0), 0
+      ).toFixed(2));
+
+      return {
+        id: group.id,
+        descricao: group.descricao,
+        orderId: group.orderId,
+        sourceSaleId: group.sourceSaleId,
+        parcelasAbertas: group.parcelasAbertas.length,
+        parcelasVencidas: group.parcelasVencidas.length,
+        primeiraVencida: firstOverdue ? {
+          parcelaLabel: firstOverdue.parcelaLabel || '',
+          dataVencimento: firstOverdue.dataVencimento || null,
+          saldoOriginal: Number(firstOverdue?.atualizacaoFinanceira?.saldoOriginal ?? firstOverdue.saldoParcela ?? 0),
+          multa: Number(firstOverdue?.atualizacaoFinanceira?.multa || 0),
+          juros: Number(firstOverdue?.atualizacaoFinanceira?.juros || 0),
+          diasAtraso: Number(firstOverdue?.atualizacaoFinanceira?.diasAtraso || 0),
+          valorAtualizado: Number(firstOverdue?.atualizacaoFinanceira?.valorAtualizado ?? firstOverdue.saldoParcela ?? 0)
+        } : null,
+        totalVencidoAtualizado: totalOverdueUpdated,
+        totalEmAbertoAtualizado: totalOpenUpdated
+      };
+    }).sort((a, b) => {
+      if (a.parcelasVencidas !== b.parcelasVencidas) return b.parcelasVencidas - a.parcelasVencidas;
+      return String(a.descricao || '').localeCompare(String(b.descricao || ''), 'pt-BR');
+    });
+  }
+
   function exactErpReceivableIdentity(row = {}, { cpf = '', phone = '', sourcePersonId = '' } = {}) {
     const requestedCpf = onlyDigits(cpf);
     if (requestedCpf && onlyDigits(row.personDocument || '') === requestedCpf) return true;
