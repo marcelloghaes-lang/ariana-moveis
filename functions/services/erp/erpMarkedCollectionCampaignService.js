@@ -1,0 +1,582 @@
+import mongoose from 'mongoose';
+import { createErpCollectionWorkflowService } from './erpCollectionWorkflowService.js';
+
+const TZ = 'America/Sao_Paulo';
+const CAMPAIGN_KEY = 'etapa2_x_2026_10_01';
+export const MARKED_COLLECTION_NAMES = Object.freeze([
+  'Raice Gabrielle Campos da Silva',
+  'Carlos Daniel Gomes da Silva',
+  'Geise Nogueira dos Santos',
+  'Luciano Nunes Vieira Silva',
+  'Ariadna Santos Sardinha',
+  'Marcio Alvez da Paixao',
+  'Maria Aparecida da Silva',
+  'Debora Aparecida do Nascimento',
+  'Samara Aparecida da Silva',
+  'Kelly Cristina Ferreira',
+  'Roseli Virgem de Nazare Ferreira',
+  'Leiliane da Silva Santos',
+  'Daniele Karolyne Pereira Silva',
+  'Luana Dias Camargo',
+  'Lucia Dias da Silva'
+]);
+
+const clean = (value = '', max = 2000) => String(value ?? '').trim().replace(/\s+/g, ' ').slice(0, max);
+const digits = (value = '') => String(value ?? '').replace(/\D/g, '');
+const money = (value = 0) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+const moneyText = (value = 0) => Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const stripAccents = (value = '') => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+export const normalizeCollectionName = (value = '') => stripAccents(clean(value, 260)).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const firstName = (value = '') => clean(value, 220).split(/\s+/).filter(Boolean)[0] || 'cliente';
+
+function localDateKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
+  const pick = (type) => parts.find((part) => part.type === type)?.value || '';
+  return `${pick('year')}-${pick('month')}-${pick('day')}`;
+}
+function dateFromKey(key = '') {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(key || '')) ? new Date(`${key}T12:00:00-03:00`) : null;
+}
+function shiftDateKey(key = '', days = 0) {
+  const date = dateFromKey(key);
+  if (!date || Number.isNaN(date.getTime())) return '';
+  date.setDate(date.getDate() + Number(days || 0));
+  return localDateKey(date);
+}
+function formatDatePtBr(key = '') {
+  const match = String(key || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : String(key || '');
+}
+function validDateKey(year, month, day) {
+  const key = `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  const date = dateFromKey(key);
+  if (!date || Number.isNaN(date.getTime())) return '';
+  return localDateKey(date) === key ? key : '';
+}
+function easterSundayDateKey(year) {
+  const y = Number(year);
+  const a = y % 19;
+  const b = Math.floor(y / 100);
+  const c = y % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return validDateKey(y, month, day);
+}
+function holidayName(key = '') {
+  const match = String(key || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return '';
+  const year = Number(match[1]);
+  const mmdd = `${match[2]}-${match[3]}`;
+  const fixed = {
+    '01-01': 'Confraternização Universal',
+    '04-21': 'Tiradentes',
+    '05-01': 'Dia do Trabalho',
+    '09-07': 'Independência do Brasil',
+    '09-29': 'São Miguel Arcanjo — Guanhães',
+    '10-12': 'Nossa Senhora Aparecida',
+    '10-25': 'Aniversário de Guanhães',
+    '11-02': 'Finados',
+    '11-15': 'Proclamação da República',
+    '11-20': 'Consciência Negra',
+    '12-25': 'Natal'
+  };
+  if (fixed[mmdd]) return fixed[mmdd];
+  const easter = easterSundayDateKey(year);
+  if (key === shiftDateKey(easter, -2)) return 'Paixão de Cristo';
+  if (key === shiftDateKey(easter, 60)) return 'Corpus Christi';
+  const extras = String(process.env.ERP_BUSINESS_HOLIDAY_DATES || '').split(',').map((item) => item.trim()).filter(Boolean);
+  return extras.includes(key) ? 'Feriado configurado no ERP' : '';
+}
+function weekday(key = '') {
+  const match = String(key || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return -1;
+  return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12)).getUTCDay();
+}
+function nonWorkingReason(key = '') {
+  if (weekday(key) === 0) return 'domingo';
+  return holidayName(key) ? 'feriado' : '';
+}
+function nextBusinessDateKey(key = '') {
+  let cursor = key;
+  for (let i = 0; i < 20; i += 1) {
+    if (!nonWorkingReason(cursor)) return cursor;
+    cursor = shiftDateKey(cursor, 1);
+  }
+  return cursor;
+}
+
+export function parseCollectionPromiseDate(text = '', now = new Date()) {
+  const raw = clean(text, 800);
+  if (!raw) return '';
+  const normalized = stripAccents(raw).toLowerCase().replace(/[,.!?;:]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const today = localDateKey(now);
+  const todayDate = dateFromKey(today);
+  const currentYear = Number(today.slice(0, 4));
+  const currentMonth = Number(today.slice(5, 7));
+  const currentDay = Number(today.slice(8, 10));
+
+  const iso = raw.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/);
+  if (iso) return validDateKey(Number(iso[1]), Number(iso[2]), Number(iso[3]));
+
+  const br = raw.match(/\b(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?\b/);
+  if (br) {
+    let year = br[3] ? Number(br[3]) : currentYear;
+    if (year < 100) year += 2000;
+    let key = validDateKey(year, Number(br[2]), Number(br[1]));
+    if (key && !br[3] && key < today) key = validDateKey(year + 1, Number(br[2]), Number(br[1]));
+    return key;
+  }
+
+  if (/\bhoje\b/.test(normalized)) return today;
+  if (/\bdepois de amanha\b/.test(normalized)) return shiftDateKey(today, 2);
+  if (/\bamanha\b/.test(normalized)) return shiftDateKey(today, 1);
+
+  const dayOnly = normalized.match(/\bdia\s+(\d{1,2})\b/);
+  if (dayOnly) {
+    const day = Number(dayOnly[1]);
+    let year = currentYear;
+    let month = currentMonth;
+    if (day < currentDay) {
+      month += 1;
+      if (month > 12) { month = 1; year += 1; }
+    }
+    return validDateKey(year, month, day);
+  }
+
+  const weekdays = [
+    ['domingo', 0], ['segunda', 1], ['terca', 2], ['quarta', 3], ['quinta', 4], ['sexta', 5], ['sabado', 6]
+  ];
+  for (const [name, target] of weekdays) {
+    if (!new RegExp(`\\b${name}(?: feira)?\\b`).test(normalized)) continue;
+    const current = todayDate ? todayDate.getDay() : weekday(today);
+    let delta = (target - current + 7) % 7;
+    if (delta === 0 && !/\bhoje\b/.test(normalized)) delta = 7;
+    return shiftDateKey(today, delta);
+  }
+
+  return '';
+}
+
+function extractPromiseAmount(text = '') {
+  const raw = clean(text, 800);
+  let match = raw.match(/R\$\s*([\d.]+(?:,\d{1,2})?)/i);
+  if (!match) match = raw.match(/\b([\d.]+(?:,\d{1,2})?)\s*reais\b/i);
+  if (!match) return 0;
+  const number = Number(String(match[1]).replace(/\./g, '').replace(',', '.'));
+  return Number.isFinite(number) && number > 0 ? money(number) : 0;
+}
+function reportedPaid(text = '') {
+  const n = stripAccents(clean(text, 700)).toLowerCase();
+  return /\b(ja paguei|paguei|ja fiz o pix|fiz o pix|ja foi pago|fiz o pagamento|quitei)\b/.test(n);
+}
+function looksLikePromise(text = '', awaitingDate = false) {
+  const n = stripAccents(clean(text, 700)).toLowerCase();
+  if (awaitingDate && parseCollectionPromiseDate(text)) return true;
+  const payment = /\b(pagar|pago|pagamento|pix|parcela|prestacao|notinha|dinheiro|acertar|quitar|mandar|passar|enviar)\b/.test(n);
+  const intent = /\b(vou|consigo|posso|pretendo|mando|pago|passo|envio|acerto|quito|sem falta)\b/.test(n);
+  return payment && intent;
+}
+function normalizePhone(value = '') {
+  let number = digits(value).replace(/^0+/, '');
+  if (!number) return '';
+  if (number.startsWith('55') && number.length >= 12 && number.length <= 13) return number;
+  if (number.length === 10 || number.length === 11) return `55${number}`;
+  return number.length >= 12 && number.length <= 15 ? number : '';
+}
+function extractEvolutionMessage(body = {}) {
+  const event = clean(body?.event || body?.type || body?.data?.event || body?.data?.type, 80).toUpperCase().replace(/[.\-\s]+/g, '_');
+  const root = body?.data?.data || body?.data || body || {};
+  const key = root?.key || body?.data?.key || body?.key || {};
+  const fromMe = Boolean(key?.fromMe ?? root?.fromMe ?? body?.fromMe);
+  const remoteJid = clean(key?.remoteJid || root?.remoteJid || root?.sender || body?.sender, 180);
+  const phone = normalizePhone(remoteJid.split('@')[0] || root?.number || body?.number || '');
+  const message = root?.message || body?.message || {};
+  const text = clean(
+    message?.conversation ||
+    message?.extendedTextMessage?.text ||
+    message?.imageMessage?.caption ||
+    message?.videoMessage?.caption ||
+    root?.text ||
+    root?.body ||
+    body?.text ||
+    '',
+    1600
+  );
+  const messageId = clean(key?.id || root?.messageId || root?.id || body?.messageId || '', 220);
+  return { event, fromMe, remoteJid, phone, text, messageId };
+}
+function taskModel() {
+  if (mongoose.models.ErpMarkedCollectionTask) return mongoose.models.ErpMarkedCollectionTask;
+  const schema = new mongoose.Schema({
+    campaignKey: { type: String, required: true, index: true },
+    name: { type: String, required: true },
+    nameKey: { type: String, required: true, index: true },
+    priority: { type: Number, default: 0, index: true },
+    status: { type: String, default: 'PENDING', index: true },
+    matchedName: { type: String, default: '' },
+    document: { type: String, default: '' },
+    phone: { type: String, default: '', index: true },
+    targetId: { type: String, default: '', index: true },
+    overduePrincipal: { type: Number, default: 0 },
+    overdueUpdated: { type: Number, default: 0 },
+    overdueInstallments: { type: Number, default: 0 },
+    maxDaysLate: { type: Number, default: 0 },
+    initialMessage: { type: String, default: '' },
+    initialMessageId: { type: String, default: '' },
+    initialSentAt: { type: Date, default: null, index: true },
+    awaitingPromiseDate: { type: Boolean, default: false },
+    promiseDate: { type: Date, default: null, index: true },
+    promiseAmount: { type: Number, default: 0 },
+    promiseAmountExplicit: { type: Boolean, default: false },
+    promiseRaw: { type: String, default: '' },
+    promiseRegisteredAt: { type: Date, default: null },
+    reminderSentAt: { type: Date, default: null },
+    reminderForDate: { type: String, default: '' },
+    reminderMessageId: { type: String, default: '' },
+    lastInboundMessageId: { type: String, default: '' },
+    lastInboundText: { type: String, default: '' },
+    lastInboundAt: { type: Date, default: null },
+    attempts: { type: Number, default: 0 },
+    lockUntil: { type: Date, default: null },
+    lastError: { type: String, default: '' }
+  }, { timestamps: true, collection: 'erp_marked_collection_tasks' });
+  schema.index({ campaignKey: 1, nameKey: 1 }, { unique: true });
+  schema.index({ campaignKey: 1, phone: 1, initialSentAt: -1 });
+  return mongoose.model('ErpMarkedCollectionTask', schema);
+}
+
+async function readEvolutionResponse(response) {
+  const raw = await response.text();
+  let data = {};
+  try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw }; }
+  if (!response.ok) throw new Error(clean(data?.message || data?.error || raw || `HTTP ${response.status}`, 700));
+  return data;
+}
+function extractMessageId(data = {}) {
+  return clean(data?.key?.id || data?.messageId || data?.id || data?.data?.key?.id || data?.data?.messageId || data?.response?.key?.id, 220);
+}
+
+export function createErpMarkedCollectionCampaignService(context = {}) {
+  const Task = taskModel();
+  const collections = createErpCollectionWorkflowService(context);
+
+  async function whatsappConfig() {
+    if (typeof context.getWhatsappSettings === 'function') {
+      try {
+        const settings = await context.getWhatsappSettings();
+        const base = clean(settings?.apiUrl || '', 500).replace(/\/+$/, '');
+        const apiKey = clean(settings?.apiKey || '', 500);
+        const instance = clean(settings?.instanceName || '', 180);
+        if (settings?.enabled !== false && base && apiKey && instance) return { base, apiKey, instance };
+      } catch (error) {
+        console.warn('[erp-marked-collection][whatsapp-settings]', error?.message || error);
+      }
+    }
+    return {
+      base: clean(process.env.ERP_COLLECTION_EVOLUTION_API_URL || process.env.ARIANA_EVOLUTION_API_URL || process.env.EVOLUTION_API_URL || process.env.EVOLUTION_URL, 500).replace(/\/+$/, ''),
+      apiKey: clean(process.env.ERP_COLLECTION_EVOLUTION_API_KEY || process.env.ARIANA_EVOLUTION_API_KEY || process.env.EVOLUTION_API_KEY || process.env.EVOLUTION_GLOBAL_API_KEY, 500),
+      instance: clean(process.env.ERP_COLLECTION_MAIN_STORE_EVOLUTION_INSTANCE || process.env.EVOLUTION_NOTIFY_INSTANCE || process.env.EVOLUTION_INSTANCE_NOTIFICACOES || 'Ariana_Notificacoes', 180)
+    };
+  }
+  async function sendWhatsapp(phone, text) {
+    const cfg = await whatsappConfig();
+    const number = normalizePhone(phone);
+    if (!cfg.base || !cfg.apiKey || !cfg.instance || !number) throw new Error('WhatsApp da cobrança não está configurado corretamente.');
+    const response = await fetch(`${cfg.base}/message/sendText/${encodeURIComponent(cfg.instance)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: cfg.apiKey },
+      body: JSON.stringify({ number, text, delay: 0, linkPreview: false }),
+      signal: AbortSignal.timeout(30000)
+    });
+    const data = await readEvolutionResponse(response);
+    return { messageId: extractMessageId(data), instance: cfg.instance };
+  }
+  async function seed() {
+    await Promise.all(MARKED_COLLECTION_NAMES.map((name, index) => Task.updateOne(
+      { campaignKey: CAMPAIGN_KEY, nameKey: normalizeCollectionName(name) },
+      { $setOnInsert: { campaignKey: CAMPAIGN_KEY, name, nameKey: normalizeCollectionName(name), status: 'PENDING', attempts: 0, createdAt: new Date() }, $set: { priority: index + 1 } },
+      { upsert: true }
+    )));
+  }
+  function initialMessage(client = {}) {
+    return [
+      `Olá, ${firstName(client.name)}! Tudo bem?`,
+      '',
+      `Consta no financeiro da Ariana Móveis um saldo vencido atualizado de *${moneyText(client.totalUpdated)}*.`,
+      'Você consegue me informar uma previsão de pagamento, por favor?',
+      '',
+      'Se já tiver regularizado, desconsidere esta mensagem.',
+      'Marcelo – Ariana Móveis.'
+    ].join('\n');
+  }
+  function promiseReminderMessage(task = {}, carried = false) {
+    const amount = task.promiseAmountExplicit === true ? Number(task.promiseAmount || 0) : 0;
+    const line = carried
+      ? 'Passando para lembrar do pagamento que ficou combinado com a Ariana Móveis.'
+      : 'Passando para lembrar do pagamento que ficou combinado para hoje com a Ariana Móveis.';
+    return [
+      `Bom dia, ${firstName(task.matchedName || task.name)}! Tudo bem?`,
+      '',
+      line,
+      amount > 0 ? `Valor combinado: *${moneyText(amount)}*.` : '',
+      'Se já pagou, desconsidere. Qualquer dúvida, estou à disposição.',
+      'Marcelo – Ariana Móveis.'
+    ].filter(Boolean).join('\n');
+  }
+  async function queueSnapshot() {
+    return collections.fila({ from: '2000-01-01', to: localDateKey(), filter: 'all' });
+  }
+  async function resolveAndSendInitial() {
+    if (mongoose.connection.readyState !== 1) return { skipped: true, reason: 'mongo_not_ready' };
+    await seed();
+    const today = localDateKey();
+    if (nonWorkingReason(today)) return { skipped: true, reason: 'non_working_day', date: today };
+    const queue = await queueSnapshot();
+    const byName = new Map();
+    for (const client of queue.clients || []) {
+      const key = normalizeCollectionName(client.name);
+      if (!byName.has(key)) byName.set(key, []);
+      byName.get(key).push(client);
+    }
+    const tasks = await Task.find({ campaignKey: CAMPAIGN_KEY }).sort({ priority: 1, createdAt: 1 }).lean();
+    const results = [];
+    for (const task of tasks) {
+      const matches = byName.get(task.nameKey) || [];
+      if (!matches.length) {
+        await Task.updateOne({ _id: task._id }, { $set: { status: task.initialSentAt ? task.status : 'NOT_FOUND', lastError: 'Cliente não localizado com saldo vencido no ERP.' } });
+        results.push({ name: task.name, status: 'NOT_FOUND' });
+        continue;
+      }
+      if (matches.length > 1) {
+        await Task.updateOne({ _id: task._id }, { $set: { status: task.initialSentAt ? task.status : 'AMBIGUOUS', lastError: 'Há mais de um cadastro devedor com o mesmo nome; envio bloqueado até identificar o cadastro correto.' } });
+        results.push({ name: task.name, status: 'AMBIGUOUS', matches: matches.length });
+        continue;
+      }
+      const client = matches[0];
+      const phone = normalizePhone(client.phone);
+      const targetId = clean(client.entries?.[0]?.id || '', 260);
+      const details = {
+        matchedName: clean(client.name, 220),
+        document: clean(client.document, 80),
+        phone,
+        targetId,
+        overduePrincipal: money(client.totalOverdue),
+        overdueUpdated: money(client.totalUpdated),
+        overdueInstallments: Number(client.entries?.length || 0),
+        maxDaysLate: Number(client.maxDaysLate || 0),
+        lastError: ''
+      };
+      await Task.updateOne({ _id: task._id }, { $set: details });
+      if (task.initialSentAt) {
+        results.push({ name: task.name, status: task.status || 'SENT', alreadySent: true });
+        continue;
+      }
+      if (!phone) {
+        await Task.updateOne({ _id: task._id }, { $set: { status: 'NO_PHONE', lastError: 'Cliente sem WhatsApp válido no cadastro atual do ERP.' } });
+        results.push({ name: task.name, status: 'NO_PHONE' });
+        continue;
+      }
+      if (!targetId || Number(client.totalUpdated || 0) <= 0) {
+        await Task.updateOne({ _id: task._id }, { $set: { status: 'NO_DEBT', lastError: 'Nenhum saldo vencido disponível para cobrança.' } });
+        results.push({ name: task.name, status: 'NO_DEBT' });
+        continue;
+      }
+      const now = new Date();
+      const claimed = await Task.findOneAndUpdate(
+        { _id: task._id, initialSentAt: null, $or: [{ lockUntil: null }, { lockUntil: { $lt: now } }] },
+        { $set: { status: 'SENDING', lockUntil: new Date(now.getTime() + 120000), ...details }, $inc: { attempts: 1 } },
+        { new: true }
+      ).lean();
+      if (!claimed) {
+        results.push({ name: task.name, status: 'LOCKED' });
+        continue;
+      }
+      const message = initialMessage(client);
+      try {
+        const sent = await sendWhatsapp(phone, message);
+        await Task.updateOne({ _id: task._id }, { $set: { status: 'AWAITING_REPLY', initialMessage: message, initialMessageId: sent.messageId || '', initialSentAt: new Date(), lockUntil: null, lastError: '' } });
+        results.push({ name: task.name, status: 'SENT', balance: money(client.totalUpdated) });
+      } catch (error) {
+        await Task.updateOne({ _id: task._id }, { $set: { status: 'FAILED', lockUntil: null, lastError: clean(error?.message || error, 1000) } });
+        results.push({ name: task.name, status: 'FAILED', error: clean(error?.message || error, 300) });
+      }
+    }
+    return { ok: true, date: today, results };
+  }
+  async function currentClientForTask(task = {}) {
+    const queue = await collections.fila({ q: task.matchedName || task.name, from: '2000-01-01', to: localDateKey(), filter: 'all' });
+    const matches = (queue.clients || []).filter((client) => normalizeCollectionName(client.name) === task.nameKey);
+    if (task.document) {
+      const byDoc = matches.find((client) => digits(client.document) && digits(client.document) === digits(task.document));
+      if (byDoc) return byDoc;
+    }
+    return matches.length === 1 ? matches[0] : null;
+  }
+  async function sendPromiseReminders() {
+    if (mongoose.connection.readyState !== 1) return { skipped: true, reason: 'mongo_not_ready' };
+    const today = localDateKey();
+    if (nonWorkingReason(today)) return { skipped: true, reason: 'non_working_day', date: today };
+    const tasks = await Task.find({ campaignKey: CAMPAIGN_KEY, status: 'PROMISE', promiseDate: { $ne: null }, reminderSentAt: null }).sort({ promiseDate: 1 }).lean();
+    const sent = [];
+    for (const task of tasks) {
+      const promiseKey = localDateKey(new Date(task.promiseDate));
+      const effective = nextBusinessDateKey(promiseKey);
+      if (!effective || effective > today) continue;
+      const client = await currentClientForTask(task).catch(() => null);
+      if (!client || Number(client.totalUpdated || 0) <= 0) {
+        await Task.updateOne({ _id: task._id }, { $set: { status: 'CLOSED_NO_DEBT', lastError: 'Saldo vencido não está mais em aberto; lembrete da promessa não foi enviado.' } });
+        continue;
+      }
+      const now = new Date();
+      const claimed = await Task.findOneAndUpdate(
+        { _id: task._id, reminderSentAt: null, $or: [{ lockUntil: null }, { lockUntil: { $lt: now } }] },
+        { $set: { lockUntil: new Date(now.getTime() + 120000) } },
+        { new: true }
+      ).lean();
+      if (!claimed) continue;
+      try {
+        const carried = effective !== promiseKey;
+        const message = promiseReminderMessage(task, carried);
+        const result = await sendWhatsapp(task.phone, message);
+        await Task.updateOne({ _id: task._id }, { $set: { reminderSentAt: new Date(), reminderForDate: promiseKey, reminderMessageId: result.messageId || '', lockUntil: null, status: 'PROMISE_REMINDER_SENT', lastError: '' } });
+        sent.push({ name: task.name, promiseDate: promiseKey, carried });
+      } catch (error) {
+        await Task.updateOne({ _id: task._id }, { $set: { lockUntil: null, lastError: clean(error?.message || error, 1000) } });
+      }
+    }
+    return { ok: true, date: today, sent };
+  }
+  async function handleIncomingWebhook(body = {}) {
+    const incoming = extractEvolutionMessage(body);
+    if (incoming.event && incoming.event !== 'MESSAGES_UPSERT') return { handled: false, reason: 'event' };
+    if (incoming.fromMe || !incoming.phone || !incoming.text) return { handled: false, reason: 'not_customer_text' };
+    const candidates = await Task.find({ campaignKey: CAMPAIGN_KEY, phone: incoming.phone, initialSentAt: { $ne: null } }).sort({ initialSentAt: -1 }).limit(3).lean();
+    if (!candidates.length) return { handled: false, reason: 'not_campaign_customer' };
+    const active = candidates.filter((item) => !['CLOSED_NO_DEBT'].includes(item.status));
+    if (active.length > 1 && new Set(active.map((item) => item.document || item.nameKey)).size > 1) {
+      return { handled: false, reason: 'ambiguous_phone' };
+    }
+    const task = active[0] || candidates[0];
+    if (incoming.messageId && task.lastInboundMessageId === incoming.messageId) return { handled: true, duplicate: true };
+    await Task.updateOne({ _id: task._id }, { $set: { lastInboundMessageId: incoming.messageId || '', lastInboundText: incoming.text, lastInboundAt: new Date() } });
+
+    if (reportedPaid(incoming.text)) {
+      await Task.updateOne({ _id: task._id }, { $set: { status: 'PAID_REPORTED', awaitingPromiseDate: false, lastError: '' } });
+      await sendWhatsapp(task.phone, `Obrigado, ${firstName(task.matchedName || task.name)}! 😊 Se puder, envie o comprovante por aqui para a gente conferir a baixa no financeiro.`).catch(() => null);
+      return { handled: true, action: 'paid_reported', taskId: String(task._id) };
+    }
+
+    const promiseDateKey = parseCollectionPromiseDate(incoming.text);
+    const promiseLike = looksLikePromise(incoming.text, task.awaitingPromiseDate === true);
+    if (!promiseLike && !promiseDateKey) return { handled: false, reason: 'not_promise' };
+    if (!promiseDateKey) {
+      await Task.updateOne({ _id: task._id }, { $set: { status: 'AWAITING_PROMISE_DATE', awaitingPromiseDate: true, promiseRaw: incoming.text, lastError: '' } });
+      await sendWhatsapp(task.phone, `Certo, ${firstName(task.matchedName || task.name)}. Qual dia você consegue fazer esse pagamento?`).catch(() => null);
+      return { handled: true, action: 'ask_promise_date', taskId: String(task._id) };
+    }
+
+    const explicitAmount = extractPromiseAmount(incoming.text);
+    const promiseAmount = explicitAmount || money(task.overdueUpdated || 0);
+    const note = `Promessa capturada automaticamente da resposta à cobrança Etapa 2. Mensagem do cliente: ${clean(incoming.text, 700)}${explicitAmount ? '' : ' | Valor interno assumido pelo saldo vencido atualizado da tarefa; o cliente não informou valor explícito.'}`;
+    try {
+      await collections.registrarAcao(task.targetId, {
+        action: 'promessa',
+        promiseDate: promiseDateKey,
+        promiseAmount,
+        note
+      }, { name: 'Automação Cobrança Etapa 2' });
+    } catch (error) {
+      await Task.updateOne({ _id: task._id }, { $set: { status: 'PROMISE_REVIEW', promiseRaw: incoming.text, awaitingPromiseDate: false, lastError: clean(error?.message || error, 1000) } });
+      return { handled: true, action: 'promise_review', error: clean(error?.message || error, 300), taskId: String(task._id) };
+    }
+
+    await Task.updateOne({ _id: task._id }, { $set: { status: 'PROMISE', promiseDate: dateFromKey(promiseDateKey), promiseAmount, promiseAmountExplicit: Boolean(explicitAmount), promiseRaw: incoming.text, promiseRegisteredAt: new Date(), awaitingPromiseDate: false, reminderSentAt: null, reminderForDate: '', reminderMessageId: '', lastError: '' } });
+    const ack = explicitAmount
+      ? `Certo, ${firstName(task.matchedName || task.name)}. Anotei a previsão para *${formatDatePtBr(promiseDateKey)}*, no valor de *${moneyText(explicitAmount)}*. Obrigado pelo retorno.`
+      : `Certo, ${firstName(task.matchedName || task.name)}. Anotei a previsão de pagamento para *${formatDatePtBr(promiseDateKey)}*. Obrigado pelo retorno.`;
+    await sendWhatsapp(task.phone, ack).catch(() => null);
+    return { handled: true, action: 'promise_registered', promiseDate: promiseDateKey, promiseAmount, taskId: String(task._id) };
+  }
+  async function list() {
+    await seed();
+    const rows = await Task.find({ campaignKey: CAMPAIGN_KEY }).sort({ priority: 1, createdAt: 1 }).lean();
+    const tasks = rows.map((row) => ({
+      id: String(row._id),
+      name: row.name,
+      matchedName: row.matchedName,
+      document: row.document,
+      phone: row.phone,
+      targetId: row.targetId,
+      status: row.status,
+      overduePrincipal: money(row.overduePrincipal),
+      overdueUpdated: money(row.overdueUpdated),
+      overdueInstallments: Number(row.overdueInstallments || 0),
+      maxDaysLate: Number(row.maxDaysLate || 0),
+      initialSentAt: row.initialSentAt,
+      promiseDate: row.promiseDate,
+      promiseAmount: money(row.promiseAmount),
+      promiseAmountExplicit: row.promiseAmountExplicit === true,
+      promiseRegisteredAt: row.promiseRegisteredAt,
+      reminderSentAt: row.reminderSentAt,
+      lastInboundText: row.lastInboundText,
+      lastInboundAt: row.lastInboundAt,
+      lastError: row.lastError
+    }));
+    return {
+      campaignKey: CAMPAIGN_KEY,
+      date: localDateKey(),
+      summary: {
+        total: tasks.length,
+        sent: tasks.filter((item) => item.initialSentAt).length,
+        promises: tasks.filter((item) => ['PROMISE', 'PROMISE_REMINDER_SENT'].includes(item.status)).length,
+        reminders: tasks.filter((item) => item.reminderSentAt).length,
+        ambiguous: tasks.filter((item) => item.status === 'AMBIGUOUS').length,
+        missing: tasks.filter((item) => ['NOT_FOUND', 'NO_PHONE'].includes(item.status)).length,
+        totalUpdated: money(tasks.reduce((sum, item) => sum + Number(item.overdueUpdated || 0), 0))
+      },
+      tasks
+    };
+  }
+  async function run() {
+    const initial = await resolveAndSendInitial();
+    const reminders = await sendPromiseReminders();
+    return { initial, reminders, ...(await list()) };
+  }
+  function start() {
+    if (globalThis.__erpMarkedCollectionCampaignWorkerStarted) return;
+    globalThis.__erpMarkedCollectionCampaignWorkerStarted = true;
+    const tick = async () => {
+      try {
+        const result = await run();
+        console.log('[erp-marked-collection-worker] ciclo concluído', {
+          total: result?.summary?.total || 0,
+          sent: result?.summary?.sent || 0,
+          promises: result?.summary?.promises || 0,
+          reminders: result?.summary?.reminders || 0,
+          ambiguous: result?.summary?.ambiguous || 0,
+          missing: result?.summary?.missing || 0
+        });
+      } catch (error) {
+        console.error('[erp-marked-collection-worker]', error?.message || error);
+      }
+    };
+    const first = setTimeout(tick, 30000);
+    first.unref?.();
+    const interval = setInterval(tick, Math.max(5 * 60 * 1000, Number(process.env.ERP_MARKED_COLLECTION_INTERVAL_MS || 15 * 60 * 1000)));
+    interval.unref?.();
+    console.log(`[erp-marked-collection-worker] ativo para ${MARKED_COLLECTION_NAMES.length} clientes da Etapa 2.`);
+  }
+
+  return { list, run, start, handleIncomingWebhook, parsePromiseDate: parseCollectionPromiseDate };
+}
+
+export default createErpMarkedCollectionCampaignService;
