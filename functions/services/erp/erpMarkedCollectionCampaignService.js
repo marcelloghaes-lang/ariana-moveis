@@ -577,8 +577,11 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
       }
       // Não repete automaticamente um envio que já falhou: evita mensagem duplicada
       // caso a Evolution tenha aceitado a mensagem e a confirmação tenha se perdido.
-      if (task.status === 'FAILED' && Number(task.attempts || 0) >= 1) {
-        results.push({ name: task.name, status: 'FAILED', error: clean(task.lastError || 'Falha anterior; aguardando revisão.', 300) });
+      // Retransmissão extraordinária autorizada em 01/10/2026:
+      // permite uma segunda tentativa somente para os envios que falharam.
+      // Depois da 2ª tentativa, volta a bloquear automaticamente para evitar duplicidade.
+      if (task.status === 'FAILED' && Number(task.attempts || 0) >= 2) {
+        results.push({ name: task.name, status: 'FAILED', error: clean(task.lastError || 'Falha após segunda tentativa; aguardando revisão.', 300) });
         continue;
       }
       if (!phone) {
