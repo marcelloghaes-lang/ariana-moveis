@@ -20,6 +20,24 @@ export const MARKED_COLLECTION_NAMES = Object.freeze([
   'Luana Dias Camargo',
   'Lucia Dias da Silva'
 ]);
+const MARKED_REFERENCE_BALANCES = Object.freeze({
+  'Raice Gabrielle Campos da Silva': 4862.16,
+  'Carlos Daniel Gomes da Silva': 4445.58,
+  'Geise Nogueira dos Santos': 4441.00,
+  'Luciano Nunes Vieira Silva': 4429.26,
+  'Ariadna Santos Sardinha': 4329.33,
+  'Marcio Alvez da Paixao': 4113.10,
+  'Maria Aparecida da Silva': 3956.00,
+  'Debora Aparecida do Nascimento': 3743.00,
+  'Samara Aparecida da Silva': 3519.10,
+  'Kelly Cristina Ferreira': 3457.00,
+  'Roseli Virgem de Nazare Ferreira': 3442.50,
+  'Leiliane da Silva Santos': 3391.02,
+  'Daniele Karolyne Pereira Silva': 3143.20,
+  'Luana Dias Camargo': 3077.80,
+  'Lucia Dias da Silva': 3057.00
+});
+const STRICT_NAME_KEYS = new Set(['maria aparecida da silva']);
 
 const clean = (value = '', max = 2000) => String(value ?? '').trim().replace(/\s+/g, ' ').slice(0, max);
 const digits = (value = '') => String(value ?? '').replace(/\D/g, '');
@@ -28,6 +46,64 @@ const moneyText = (value = 0) => Number(value || 0).toLocaleString('pt-BR', { st
 const stripAccents = (value = '') => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 export const normalizeCollectionName = (value = '') => stripAccents(clean(value, 260)).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 const firstName = (value = '') => clean(value, 220).split(/\s+/).filter(Boolean)[0] || 'cliente';
+function editDistance(a = '', b = '') {
+  const left = String(a || ''), right = String(b || '');
+  if (!left) return right.length;
+  if (!right) return left.length;
+  const row = Array.from({ length: right.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= left.length; i += 1) {
+    let prev = row[0];
+    row[0] = i;
+    for (let j = 1; j <= right.length; j += 1) {
+      const old = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (left[i - 1] === right[j - 1] ? 0 : 1));
+      prev = old;
+    }
+  }
+  return row[right.length];
+}
+function closeName(target = '', candidate = '') {
+  const a = normalizeCollectionName(target), b = normalizeCollectionName(candidate);
+  if (!a || !b) return false;
+  const at = a.split(' '), bt = b.split(' ');
+  if (at[0] !== bt[0] || at[at.length - 1] !== bt[bt.length - 1]) return false;
+  const distance = editDistance(a, b);
+  return distance <= 2 || distance / Math.max(a.length, b.length, 1) <= 0.06;
+}
+function candidateByReferenceBalance(candidates = [], referenceBalance = 0) {
+  if (!Array.isArray(candidates) || !candidates.length || !(Number(referenceBalance) > 0)) return null;
+  const scored = candidates
+    .map((client) => ({ client, diff: Math.abs(Number(client?.totalOverdue || 0) - Number(referenceBalance || 0)) }))
+    .sort((a, b) => a.diff - b.diff);
+  const best = scored[0];
+  const tolerance = Math.max(75, Number(referenceBalance) * 0.12);
+  if (!best || best.diff > tolerance) return null;
+  if (scored[1] && scored[1].diff - best.diff < Math.max(50, Number(referenceBalance) * 0.03)) return null;
+  return best.client;
+}
+function resolveMarkedClient(task = {}, allClients = [], byName = new Map()) {
+  const exact = byName.get(task.nameKey) || [];
+  if (exact.length === 1) return { client: exact[0], resolution: 'exact' };
+  if (exact.length > 1) {
+    const byBalance = candidateByReferenceBalance(exact, task.referenceBalance);
+    return byBalance
+      ? { client: byBalance, resolution: 'exact_balance' }
+      : { client: null, resolution: 'ambiguous', matches: exact.length };
+  }
+  if (STRICT_NAME_KEYS.has(task.nameKey)) return { client: null, resolution: 'not_found', matches: 0 };
+  const fuzzy = allClients.filter((client) => closeName(task.name, client?.name));
+  if (fuzzy.length === 1) {
+    const ref = Number(task.referenceBalance || 0);
+    const diff = Math.abs(Number(fuzzy[0]?.totalOverdue || 0) - ref);
+    if (!ref || diff <= Math.max(75, ref * 0.12)) return { client: fuzzy[0], resolution: 'fuzzy' };
+  }
+  if (fuzzy.length > 1) {
+    const byBalance = candidateByReferenceBalance(fuzzy, task.referenceBalance);
+    if (byBalance) return { client: byBalance, resolution: 'fuzzy_balance' };
+    return { client: null, resolution: 'ambiguous', matches: fuzzy.length };
+  }
+  return { client: null, resolution: 'not_found', matches: 0 };
+}
 
 function localDateKey(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
@@ -221,6 +297,8 @@ function taskModel() {
     name: { type: String, required: true },
     nameKey: { type: String, required: true, index: true },
     priority: { type: Number, default: 0, index: true },
+    referenceBalance: { type: Number, default: 0 },
+    resolution: { type: String, default: '' },
     status: { type: String, default: 'PENDING', index: true },
     matchedName: { type: String, default: '' },
     document: { type: String, default: '' },
@@ -303,7 +381,7 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
   async function seed() {
     await Promise.all(MARKED_COLLECTION_NAMES.map((name, index) => Task.updateOne(
       { campaignKey: CAMPAIGN_KEY, nameKey: normalizeCollectionName(name) },
-      { $setOnInsert: { campaignKey: CAMPAIGN_KEY, name, nameKey: normalizeCollectionName(name), status: 'PENDING', attempts: 0, createdAt: new Date() }, $set: { priority: index + 1 } },
+      { $setOnInsert: { campaignKey: CAMPAIGN_KEY, name, nameKey: normalizeCollectionName(name), status: 'PENDING', attempts: 0, createdAt: new Date() }, $set: { priority: index + 1, referenceBalance: money(MARKED_REFERENCE_BALANCES[name] || 0) } },
       { upsert: true }
     )));
   }
@@ -347,25 +425,27 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
       if (!byName.has(key)) byName.set(key, []);
       byName.get(key).push(client);
     }
+    const allClients = queue.clients || [];
     const tasks = await Task.find({ campaignKey: CAMPAIGN_KEY }).sort({ priority: 1, createdAt: 1 }).lean();
     const results = [];
     for (const task of tasks) {
-      const matches = byName.get(task.nameKey) || [];
-      if (!matches.length) {
-        await Task.updateOne({ _id: task._id }, { $set: { status: task.initialSentAt ? task.status : 'NOT_FOUND', lastError: 'Cliente não localizado com saldo vencido no ERP.' } });
-        results.push({ name: task.name, status: 'NOT_FOUND' });
+      const resolved = resolveMarkedClient(task, allClients, byName);
+      if (!resolved.client) {
+        const ambiguous = resolved.resolution === 'ambiguous';
+        const status = ambiguous ? 'AMBIGUOUS' : 'NOT_FOUND';
+        const lastError = ambiguous
+          ? 'Há mais de um cadastro compatível no ERP e o saldo de referência não identifica um único registro com segurança; envio bloqueado.'
+          : 'Cliente não localizado com saldo vencido no ERP.';
+        await Task.updateOne({ _id: task._id }, { $set: { status: task.initialSentAt ? task.status : status, resolution: resolved.resolution || '', lastError } });
+        results.push({ name: task.name, status, matches: Number(resolved.matches || 0) });
         continue;
       }
-      if (matches.length > 1) {
-        await Task.updateOne({ _id: task._id }, { $set: { status: task.initialSentAt ? task.status : 'AMBIGUOUS', lastError: 'Há mais de um cadastro devedor com o mesmo nome; envio bloqueado até identificar o cadastro correto.' } });
-        results.push({ name: task.name, status: 'AMBIGUOUS', matches: matches.length });
-        continue;
-      }
-      const client = matches[0];
+      const client = resolved.client;
       const phone = normalizePhone(client.phone);
       const targetId = clean(client.entries?.[0]?.id || '', 260);
       const details = {
         matchedName: clean(client.name, 220),
+        resolution: resolved.resolution || 'exact',
         document: clean(client.document, 80),
         phone,
         targetId,
@@ -516,6 +596,8 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
       document: row.document,
       phone: row.phone,
       targetId: row.targetId,
+      referenceBalance: money(row.referenceBalance),
+      resolution: row.resolution,
       status: row.status,
       overduePrincipal: money(row.overduePrincipal),
       overdueUpdated: money(row.overdueUpdated),
@@ -565,6 +647,13 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
           ambiguous: result?.summary?.ambiguous || 0,
           missing: result?.summary?.missing || 0
         });
+        if (Array.isArray(result?.initial?.results)) {
+          console.log('[erp-marked-collection-worker] itens', result.initial.results.map((item) => ({
+            name: item.name,
+            status: item.status,
+            matches: item.matches || 0
+          })));
+        }
       } catch (error) {
         console.error('[erp-marked-collection-worker]', error?.message || error);
       }
