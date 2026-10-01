@@ -83,8 +83,16 @@ export function createErpPaymentReceiptService(context={}){
   const enabled=Boolean(CrediarioRecibo&&typeof sendCrediarioReceiptWhatsapp==='function');
   const db=context.mongoose||null;
   const phoneOf=value=>{
-    if(typeof normalizePhone==='function')return normalizePhone(value,'55');
-    let n=digits(value);
+    const raw=clean(value,80);
+    if(typeof normalizePhone==='function'){
+      const normalized=normalizePhone(raw,'55');
+      if(!normalized)return'';
+      return raw.startsWith('+')?`+${digits(normalized)}`:digits(normalized);
+    }
+    let n=digits(raw);
+    if(!n)return'';
+    if(raw.startsWith('+'))return `+${n}`;
+    if(n.startsWith('00'))return `+${n.slice(2)}`;
     if((n.length===10||n.length===11)&&!n.startsWith('55'))n='55'+n;
     return n;
   };
@@ -394,7 +402,8 @@ export function createErpPaymentReceiptService(context={}){
       error.statusCode=404;
       throw error;
     }
-    const normalized=phoneOf(phone);
+    const rawPhone=clean(phone,80);
+    const normalized=phoneOf(rawPhone);
     if(!normalized){
       const error=new Error('Informe um telefone/WhatsApp válido com DDD.');
       error.statusCode=400;
@@ -402,14 +411,18 @@ export function createErpPaymentReceiptService(context={}){
     }
 
     if(contact){
-      await contact.savePhone({
-        phone:normalized,
+      const saved=await contact.savePhone({
+        phone:rawPhone||normalized,
         cpf:receipt.clienteCpf||'',
         name:receipt.clienteNome||'',
         referenceRaw:clean(referenceRaw,180),
         receipt,
         actor
       });
+      if(saved?.phone&&receipt.telefone!==saved.phone){
+        receipt.telefone=saved.phone;
+        await receipt.save();
+      }
     }else{
       receipt.telefone=normalized;
       await receipt.save();
