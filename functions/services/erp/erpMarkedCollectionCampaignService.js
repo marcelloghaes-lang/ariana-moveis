@@ -38,6 +38,11 @@ const MARKED_REFERENCE_BALANCES = Object.freeze({
   'Lucia Dias da Silva': 3057.00
 });
 const STRICT_NAME_KEYS = new Set(['maria aparecida da silva']);
+const MANUAL_PHONE_OVERRIDES = Object.freeze({
+  'ariadna santos sardinha': '17746022981'
+});
+const USER_SKIPPED_KEYS = new Set(['roseli virgem de nazare ferreira']);
+const ARIADNA_KEY = 'ariadna santos sardinha';
 
 const clean = (value = '', max = 2000) => String(value ?? '').trim().replace(/\s+/g, ' ').slice(0, max);
 const digits = (value = '') => String(value ?? '').replace(/\D/g, '');
@@ -542,6 +547,11 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
     const tasks = await Task.find({ campaignKey: CAMPAIGN_KEY }).sort({ priority: 1, createdAt: 1 }).lean();
     const results = [];
     for (const task of tasks) {
+      if (USER_SKIPPED_KEYS.has(task.nameKey)) {
+        await Task.updateOne({ _id: task._id }, { $set: { status: 'SKIPPED_USER_REQUEST', lockUntil: null, lastError: 'Cobrança dispensada pelo operador em 01/10/2026.' } });
+        results.push({ name: task.name, status: 'SKIPPED_USER_REQUEST' });
+        continue;
+      }
       const resolved = resolveMarkedClient(task, allClients, byName);
       if (!resolved.client) {
         const ambiguous = resolved.resolution === 'ambiguous';
@@ -554,7 +564,10 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
         continue;
       }
       const client = resolved.client;
-      const contact = await resolveClientPhone(client);
+      const manualPhone = MANUAL_PHONE_OVERRIDES[task.nameKey] || '';
+      const contact = manualPhone
+        ? { phone: manualPhone, source: 'manual_international_confirmed' }
+        : await resolveClientPhone(client);
       const phone = contact.phone;
       const targetId = clean(client.entries?.[0]?.id || '', 260);
       const details = {
@@ -580,8 +593,9 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
       // Retransmissão extraordinária autorizada em 01/10/2026:
       // permite uma segunda tentativa somente para os envios que falharam.
       // Depois da 2ª tentativa, volta a bloquear automaticamente para evitar duplicidade.
-      if (task.status === 'FAILED' && Number(task.attempts || 0) >= 2) {
-        results.push({ name: task.name, status: 'FAILED', error: clean(task.lastError || 'Falha após segunda tentativa; aguardando revisão.', 300) });
+      const retryLimit = task.nameKey === ARIADNA_KEY ? 3 : 2;
+      if (task.status === 'FAILED' && Number(task.attempts || 0) >= retryLimit) {
+        results.push({ name: task.name, status: 'FAILED', error: clean(task.lastError || `Falha após ${retryLimit} tentativa(s); aguardando revisão.`, 300) });
         continue;
       }
       if (!phone) {
