@@ -80,12 +80,13 @@ jobs:
           grep -Fq "previousCStat==='806'" functions/services/erp/erpNfeSefazService.js
           grep -Fq "CEST_REQUIRED_FOR_ST" functions/services/erp/erpNfeSefazService.js
           grep -Fq "knownCestForNcm" functions/services/erp/erpNfeSefazService.js
+          grep -Fq "canRebuildPreparedNfeDraft" functions/services/erp/erpNfeSefazService.js
           (
             cd functions
             node --input-type=module <<'NODE'
           import assert from 'node:assert/strict';
           import { DefaultXmlBuilder } from '@brasil-fiscal/nfe';
-          import { createSimpleXmlBuilder, directSaleIntermediatorIndicator, knownCestForNcm } from './services/erp/erpNfeSefazService.js';
+          import { createSimpleXmlBuilder, directSaleIntermediatorIndicator, knownCestForNcm, canRebuildPreparedNfeDraft } from './services/erp/erpNfeSefazService.js';
 
           const xml=createSimpleXmlBuilder(DefaultXmlBuilder).build({
             identificacao:{
@@ -156,6 +157,12 @@ jobs:
           assert.equal(knownCestForNcm('84502020'),'2102200');
           assert.equal(knownCestForNcm('84501900'),'2102100');
           assert.equal(knownCestForNcm('94036000'),'');
+          assert.equal(canRebuildPreparedNfeDraft({status:'reserved',draftFingerprint:'old'}),true);
+          assert.equal(canRebuildPreparedNfeDraft({status:'error',lastCStat:'806',lastAttemptAt:new Date()}),true);
+          assert.equal(canRebuildPreparedNfeDraft({status:'error',lastCStat:'434',lastAttemptAt:new Date()}),true);
+          assert.equal(canRebuildPreparedNfeDraft({status:'error',lastCStat:'',lastAttemptAt:new Date()}),false);
+          assert.equal(canRebuildPreparedNfeDraft({status:'authorized',key:'31260948126915000174550010000015201023101723',protocol:'131267957193250',lastCStat:'100'}),false);
+          assert.equal(canRebuildPreparedNfeDraft({status:'error',lastCStat:'204',lastAttemptAt:new Date()}),false);
           assert.match(xml,/<indIntermed>0<\/indIntermed>/);
           assert.match(xml,/<CEST>2102200<\/CEST>/);
           assert.match(xml,/<ICMSSN500>/);
