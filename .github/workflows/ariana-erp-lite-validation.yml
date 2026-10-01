@@ -123,6 +123,10 @@ jobs:
           grep -Fq "previousCStat==='806'" functions/services/erp/erpNfeSefazService.js
           grep -Fq "CEST_REQUIRED_FOR_ST" functions/services/erp/erpNfeSefazService.js
           grep -Fq "knownCestForNcm" functions/services/erp/erpNfeSefazService.js
+          grep -Fq "dataEmissao:issueDate" functions/services/erp/erpNfeSefazService.js
+          grep -Fq "dataSaidaEntrada:issueDate" functions/services/erp/erpNfeSefazService.js
+          grep -Fq "dataEmissao:issueDate" functions/services/erp/erpNfeReturnService.js
+          grep -Fq "dataSaidaEntrada:issueDate" functions/services/erp/erpNfeReturnService.js
           (
             cd functions
             node --input-type=module <<'NODE'
@@ -143,7 +147,9 @@ jobs:
               uf:'MG',
               municipio:'3106200',
               serie:1,
-              numero:999999
+              numero:999999,
+              dataEmissao:new Date('2026-09-30T15:42:00-03:00'),
+              dataSaidaEntrada:new Date('2026-09-30T15:42:00-03:00')
             },
             emitente:{
               cnpj:'12345678000195',
@@ -199,6 +205,8 @@ jobs:
           assert.equal(knownCestForNcm('84502020'),'2102200');
           assert.equal(knownCestForNcm('84501900'),'2102100');
           assert.equal(knownCestForNcm('94036000'),'');
+          assert.match(xml,/<dhEmi>2026-09-30T15:42:00-03:00<\/dhEmi>/);
+          assert.match(xml,/<dhSaiEnt>2026-09-30T15:42:00-03:00<\/dhSaiEnt>/);
           assert.match(xml,/<indIntermed>0<\/indIntermed>/);
           assert.match(xml,/<CEST>2102200<\/CEST>/);
           assert.match(xml,/<ICMSSN500>/);
