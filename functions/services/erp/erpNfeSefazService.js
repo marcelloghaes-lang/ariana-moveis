@@ -53,11 +53,48 @@ function productFiscal(specs={},tax={}){
     origin:parseOrigin(origin!==''?origin:tax.productOrigin)
   };
 }
+function formatFiscalDateTime(value){
+  const date=value instanceof Date?value:new Date(value||Date.now());
+  const safe=Number.isNaN(date.getTime())?new Date():date;
+  const local=new Date(safe.getTime()-3*60*60*1000);
+  const yyyy=local.getUTCFullYear();
+  const MM=String(local.getUTCMonth()+1).padStart(2,'0');
+  const dd=String(local.getUTCDate()).padStart(2,'0');
+  const hh=String(local.getUTCHours()).padStart(2,'0');
+  const mm=String(local.getUTCMinutes()).padStart(2,'0');
+  const ss=String(local.getUTCSeconds()).padStart(2,'0');
+  return `${yyyy}-${MM}-${dd}T${hh}:${mm}:${ss}-03:00`;
+}
 export function createSimpleXmlBuilder(DefaultXmlBuilder){
   const base=new DefaultXmlBuilder();
   return{
     build(nfe){
       let xml=base.build(nfe).replace(/<(\/?)ICMSSN(?:103|300|400)>/g,'<$1ICMSSN102>');
+      const exitDateRaw=nfe?.identificacao?.dataSaidaEntrada;
+      if(exitDateRaw){
+        const exitDate=formatFiscalDateTime(exitDateRaw);
+        if(!/<dhSaiEnt>/.test(xml)){
+          const before=xml;
+          xml=xml.replace(
+            /(<dhEmi>[^<]*<\/dhEmi>)/,
+            `$1<dhSaiEnt>${exitDate}</dhSaiEnt>`
+          );
+          if(xml===before){
+            throw fail(
+              'O gerador XML não encontrou a data de emissão para posicionar a data/hora de entrada ou saída.',
+              500,
+              'NFE_EXIT_DATETIME_XML_ANCHOR_MISSING'
+            );
+          }
+        }
+        if(!xml.includes(`<dhSaiEnt>${exitDate}</dhSaiEnt>`)){
+          throw fail(
+            'O gerador XML não incluiu corretamente a data/hora de entrada ou saída da NF-e.',
+            500,
+            'NFE_EXIT_DATETIME_XML_INVALID'
+          );
+        }
+      }
       const indicatorRaw=nfe?.identificacao?.indicadorIntermediador;
       if(indicatorRaw!==undefined&&indicatorRaw!==null){
         const indicator=Number(indicatorRaw);
