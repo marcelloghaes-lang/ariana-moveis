@@ -190,6 +190,10 @@ function buildNfeProc(signedXml='',protNFe=''){
 function fingerprint(value){
   return createHash('sha256').update(JSON.stringify(value??null)).digest('hex');
 }
+function fiscalDateTime(value){
+  const date=value instanceof Date?value:new Date(value||Date.now());
+  return Number.isNaN(date.getTime())?new Date():date;
+}
 
 export function createErpNfeSefazService(context={},settings){
   const Product=context.Product,Order=context.Order;
@@ -381,7 +385,8 @@ export function createErpNfeSefazService(context={},settings){
     }
   }
 
-  async function buildNfeData(draft,pre,number){
+  async function buildNfeData(draft,pre,number,operationDateTime=new Date()){
+    const issueDate=fiscalDateTime(operationDateTime);
     const issuer=pre.issuer,customer=pre.customer,tax=pre.taxation||{};
     const issuerUf=clean(issuer.uf,2).toUpperCase(),custUf=clean(customer.addressData.uf,2).toUpperCase();
     const products=pre.products.map((p,i)=>{
@@ -420,6 +425,8 @@ export function createErpNfeSefazService(context={},settings){
           [0,1,2,3,4,5,9].includes(Number(draft?.fiscal?.buyerPresence))?Number(draft.fiscal.buyerPresence):1
         ),
         ambiente:pre.environment==='producao'?1:2,
+        dataEmissao:issueDate,
+        dataSaidaEntrada:issueDate,
         uf:issuerUf,
         municipio:digits(issuer.codigoMunicipio),
         serie:pre.serie,
@@ -853,7 +860,8 @@ export function createErpNfeSefazService(context={},settings){
       await order.save();
     }
 
-    const data=await buildNfeData(draft,pre,number);
+    const operationDateTime=fiscalDateTime(order?.nfe?.reservedAt||order?.nfe?.preparedAt||new Date());
+    const data=await buildNfeData(draft,pre,number,operationDateTime);
     const currentFingerprint=fingerprint(data);
     if(order?.nfe?.draftFingerprint&&order.nfe.draftFingerprint!==currentFingerprint){
       throw fail(
