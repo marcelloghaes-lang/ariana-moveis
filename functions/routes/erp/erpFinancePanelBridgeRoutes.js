@@ -3,6 +3,7 @@ import { createErpFinancePanelBridgeService } from '../../services/erp/erpFinanc
 import { createErpCollectionWorkflowService } from '../../services/erp/erpCollectionWorkflowService.js';
 import { createErpCarneCoraService } from '../../services/erp/erpCarneCoraService.js';
 import { createErpMarkedCollectionCampaignService } from '../../services/erp/erpMarkedCollectionCampaignService.js';
+import { createErpAriadnaReceiptRecoveryService } from '../../services/erp/erpAriadnaReceiptRecoveryService.js';
 
 const actor=req=>req.adminUser||req.admin||req.auth||req.user||{};
 const webhookAuthorized=req=>{
@@ -20,6 +21,8 @@ export default function createErpFinancePanelBridgeRoutes(context={}){
   const carne=createErpCarneCoraService(context);
   const markedCampaign=createErpMarkedCollectionCampaignService(context);
   markedCampaign.start();
+  const ariadnaReceiptRecovery=createErpAriadnaReceiptRecoveryService(context);
+  ariadnaReceiptRecovery.start();
   const handle=(action,status=200)=>async(req,res)=>{
     try{
       const result=await action(req);
