@@ -127,6 +127,8 @@ jobs:
           grep -Fq "dataSaidaEntrada:issueDate" functions/services/erp/erpNfeSefazService.js
           grep -Fq "dataEmissao:issueDate" functions/services/erp/erpNfeReturnService.js
           grep -Fq "dataSaidaEntrada:issueDate" functions/services/erp/erpNfeReturnService.js
+          grep -Fq "NFE_EXIT_DATETIME_XML_INVALID" functions/services/erp/erpNfeSefazService.js
+          grep -Fq "NFE_RETURN_EXIT_DATETIME_XML_INVALID" functions/services/erp/erpNfeReturnService.js
           (
             cd functions
             node --input-type=module <<'NODE'
