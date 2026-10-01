@@ -56,16 +56,17 @@ function showPreviewData(x,p,via){
   const eligibilityWarning=!linked&&elig.eligible===false&&Array.isArray(elig.reasons)&&elig.reasons.length
     ?`<div class="warning"><b>Cora:</b> ${esc(elig.reasons.join(' '))}<div class="note">O carnê da loja continua disponível normalmente para esta compra.</div></div>`:'';
   const providerNotice=pending
-    ?'<div class="warning"><b>Aguardando confirmação da Cora.</b> A emissão ainda não foi confirmada pelo banco. Não emita novamente e não use o carnê da loja como se fosse o boleto Cora. Atualize esta tela para conferir quando o documento oficial estiver disponível.</div>'
+    ?'<div class="warning"><b>Aguardando confirmação da Cora.</b> A emissão ainda não foi confirmada pelo banco. Não emita novamente e não use o carnê da loja como se fosse o boleto Cora. Use <b>Consultar status na Cora</b> para repetir a mesma solicitação com a chave original, sem gerar cobrança duplicada.</div>'
     :confirmed
       ?(pixCora?'<div class="success"><b>Boleto Cora confirmado.</b> A cobrança bancária está vinculada e as parcelas retornaram dados PIX.</div>':'<div class="success"><b>Boleto Cora confirmado.</b> O documento oficial da Cora está disponível para esta venda.</div>')
       :(eligibilityWarning||(needsEmail?`<div class="warning"><b>Falta o e-mail do cliente para emitir na Cora.</b><div style="margin-top:8px"><label for="cora-email" style="display:block;font-weight:800;margin-bottom:5px">E-mail do cliente</label><input id="cora-email" type="email" autocomplete="email" placeholder="cliente@exemplo.com" value="${esc(contactEmail)}" style="width:100%;border:1px solid #cfd8e5;border-radius:8px;padding:10px;background:#fff"></div><div class="note">O e-mail informado será salvo no cadastro desta compra e, quando houver cadastro Ariana ERP correspondente ao CPF/CNPJ, também será atualizado nele.</div></div>`:'<div class="warning"><b>Esta compra ainda não possui boleto bancário Cora.</b> Você pode emitir agora usando as parcelas em aberto e seus vencimentos.</div>'));
   p.email=contactEmail||p.email||'';
   p.provider=provider;
   $('previewTitle').textContent=`Cobrança — ${x.reference||p.ref}`;
-  $('previewContent').innerHTML=`<div class="summary"><div><small>Parcelas</small><b>${(x.items||[]).length}</b></div><div><small>Vencidas</small><b class="bad">${t.overdueCount||0}</b></div><div><small>Quitadas</small><b class="ok">${t.paidCount||0}</b></div><div><small>Saldo original</small><b>${money(t.openOriginal)}</b></div><div><small>Multa</small><b>${money(t.fine)}</b></div><div><small>Juros</small><b>${money(t.interest)}</b></div><div><small>Total atualizado</small><b>${money(t.updatedOpen)}</b></div><div><small>Emissões anteriores</small><b>${x.previousIssues||0}</b></div><div><small>Cora</small><b>${pending?'Aguardando confirmação':confirmed?'Confirmada':linked?'Vinculada':'Não emitida'}</b></div></div>${providerNotice}<div class="modalfoot" style="justify-content:flex-start;flex-wrap:wrap">${canEmit?`<button class="btn green" id="emit-cora">${needsEmail?'Salvar e emitir boleto Cora':'Emitir boleto Cora'}</button>`:''}${docUrl?`<a class="btn green" href="${esc(docUrl)}" target="_blank" rel="noopener">Abrir boleto oficial Cora</a><button class="btn primary" id="modal-download">Baixar boleto Cora</button>`:(!linked?'<button class="btn primary" id="modal-download">Baixar carnê da loja</button>':'')}${p.phone&&(!linked||confirmed)?'<button class="btn" id="modal-send">Enviar no WhatsApp</button>':''}</div>`;
+  $('previewContent').innerHTML=`<div class="summary"><div><small>Parcelas</small><b>${(x.items||[]).length}</b></div><div><small>Vencidas</small><b class="bad">${t.overdueCount||0}</b></div><div><small>Quitadas</small><b class="ok">${t.paidCount||0}</b></div><div><small>Saldo original</small><b>${money(t.openOriginal)}</b></div><div><small>Multa</small><b>${money(t.fine)}</b></div><div><small>Juros</small><b>${money(t.interest)}</b></div><div><small>Total atualizado</small><b>${money(t.updatedOpen)}</b></div><div><small>Emissões anteriores</small><b>${x.previousIssues||0}</b></div><div><small>Cora</small><b>${pending?'Aguardando confirmação':confirmed?'Confirmada':linked?'Vinculada':'Não emitida'}</b></div></div>${providerNotice}<div class="modalfoot" style="justify-content:flex-start;flex-wrap:wrap">${canEmit?`<button class="btn green" id="emit-cora">${needsEmail?'Salvar e emitir boleto Cora':'Emitir boleto Cora'}</button>`:''}${pending?'<button class="btn green" id="reconcile-cora">Consultar status na Cora</button>':''}${docUrl?`<a class="btn green" href="${esc(docUrl)}" target="_blank" rel="noopener">Abrir boleto oficial Cora</a><button class="btn primary" id="modal-download">Baixar boleto Cora</button>`:(!linked?'<button class="btn primary" id="modal-download">Baixar carnê da loja</button>':'')}${p.phone&&(!linked||confirmed)?'<button class="btn" id="modal-send">Enviar no WhatsApp</button>':''}</div>`;
   $('previewModal').classList.add('show');
   const emit=$('emit-cora');if(emit)emit.onclick=()=>emitCora(p,via,emit);
+  const reconcile=$('reconcile-cora');if(reconcile)reconcile.onclick=()=>reconcileCora(p,via,reconcile);
   const dl=$('modal-download');if(dl)dl.onclick=()=>download(p,via,dl);
   const se=$('modal-send');if(se)se.onclick=()=>send(p,via,se);
 }
@@ -89,6 +90,21 @@ async function emitCora(p,via,button){
   }catch(e){
     if(e.code==='ERP_CARNE_CORA_PENDING_CONFIRMATION'){
       toast('A Cora ainda não confirmou a emissão. Não emita novamente.');
+      try{await preview(p,via)}catch{}
+    }else toast(e.message);
+  }finally{button.disabled=false;button.textContent=old}
+}
+async function reconcileCora(p,via,button){
+  const old=button.textContent;button.disabled=true;button.textContent='Consultando a Cora...';
+  try{
+    const x=await api('/erp/finance-panel/carne/cora/reconciliar',{method:'POST',body:JSON.stringify({targetId:p.targetId,via})});
+    const refreshed=purchaseFromPreview(x);Object.assign(p,refreshed);render();showPreviewData(x,p,via);
+    const provider=x.paymentProvider||x.cora||{};
+    if(provider.confirmed&&provider.documentUrl)toast('Boleto Cora confirmado e disponível.');
+    else toast('A Cora respondeu, mas o documento ainda está em processamento.');
+  }catch(e){
+    if(e.code==='ERP_CARNE_CORA_PENDING_CONFIRMATION'){
+      toast('A Cora ainda está processando. A mesma chave foi mantida e nenhum boleto duplicado foi criado.');
       try{await preview(p,via)}catch{}
     }else toast(e.message);
   }finally{button.disabled=false;button.textContent=old}
