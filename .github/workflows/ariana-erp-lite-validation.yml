@@ -95,6 +95,11 @@ jobs:
           grep -Fq "Aguardando confirmação da Cora" public/erp_carne.html
           grep -Fq "Baixar boleto Cora" public/erp_carne.html
           grep -Fq "Baixar carnê da loja" public/erp_carne.html
+          grep -Fq "retryCoraInstallmentBookPayload" functions/integrations/cora/coraInstallmentService.js
+          grep -Fq "ERP_CARNE_RECONCILE" functions/services/erp/erpCarneCoraService.js
+          grep -Fq "carne/cora/reconciliar" functions/routes/erp/erpFinancePanelBridgeRoutes.js
+          grep -Fq "Consultar status na Cora" public/erp_carne.html
+          grep -Fq "reconcileCora" public/erp_carne.html
 
       - name: Validate NF-e emission error visibility
         shell: bash
@@ -328,7 +333,7 @@ jobs:
           grep -Fq "ERP_CARNE_HISTORICO" functions/services/erp/erpCarneCoraService.js
           grep -Fq "coraEligibility" functions/services/erp/erpCarneCoraService.js
           grep -Fq "return base.purchases(query)" functions/services/erp/erpCarneCoraService.js
-          grep -Fq "return { purchases, preview, pdf, send, emit, saveContact }" functions/services/erp/erpCarneCoraService.js
+          grep -Fq "return { purchases, preview, pdf, send, emit, reconcile, saveContact }" functions/services/erp/erpCarneCoraService.js
           grep -Fq "personEmail: email" functions/services/erp/erpCarneCoraService.js
           grep -Fq "O carnê da loja continua disponível normalmente" public/erp_carne.html
           grep -Fq "agreementId" functions/services/erp/erpCarneService.js
@@ -389,6 +394,7 @@ jobs:
           assert.deepEqual(rule('GET', '/erp/finance-panel/carne/compras').any, ['finance:read','payments:read']);
           assert.deepEqual(rule('GET', '/erp/finance-panel/carne/preview').any, ['finance:read','payments:read']);
           assert.deepEqual(rule('POST', '/erp/finance-panel/carne/cora/emitir').any, ['payments:receive']);
+          assert.deepEqual(rule('POST', '/erp/finance-panel/carne/cora/reconciliar').any, ['payments:receive']);
           assert.deepEqual(rule('POST', '/erp/finance-panel/lancamentos/order123/2/pagamentos').any, ['payments:receive']);
           assert.deepEqual(rule('GET', '/erp/relatorios/inadimplentes').any, ['finance:read','payments:read','finance:reports','reports:read']);
           assert.deepEqual(rule('GET', '/erp/relatorios/inadimplentes/pdf').any, ['finance:read','payments:read','finance:reports','reports:read']);

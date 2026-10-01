@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import { createErpCarneService } from './erpCarneService.js';
 import { getCoraChargeModel, getCoraAuditModel } from '../../integrations/cora/coraChargeModel.js';
-import { buildCoraInstallmentPayload, issueCoraInstallmentBook } from '../../integrations/cora/coraInstallmentService.js';
+import { buildCoraInstallmentPayload, issueCoraInstallmentBook, retryCoraInstallmentBookPayload } from '../../integrations/cora/coraInstallmentService.js';
 import { getCoraConfig } from '../../integrations/cora/coraConfig.js';
 
 const clean = (value = '', max = 2000) => String(value ?? '').trim().replace(/\s+/g, ' ').slice(0, max);
@@ -196,6 +196,23 @@ function isChargeUsable(charge = {}) {
   return !['FAILED', 'CANCELLED', 'CANCELED'].includes(status);
 }
 
+function isPendingCharge(charge = {}) {
+  return ['PENDING_CONFIRMATION', 'PROCESSING'].includes(clean(charge?.status || '', 40).toUpperCase());
+}
+
+function providerDocumentUrl(response = {}, invoices = []) {
+  return clean(
+    response?.document_url ||
+    response?.documentUrl ||
+    arr(invoices).find(item => item?.document_url)?.document_url ||
+    arr(invoices).find(item => item?.documentUrl)?.documentUrl ||
+    arr(invoices).find(item => item?.bank_slip?.url)?.bank_slip?.url ||
+    arr(invoices).find(item => item?.bankSlip?.url)?.bankSlip?.url ||
+    '',
+    1200
+  );
+}
+
 async function fetchCoraPdf(url) {
   const target = clean(url, 1600);
   if (!/^https:\/\//i.test(target)) throw fail('A cobrança Cora não possui um PDF seguro disponível.', 409, 'ERP_CARNE_CORA_DOCUMENT_UNAVAILABLE');
@@ -316,6 +333,9 @@ export function createErpCarneCoraService(context = {}) {
       environment: clean(charge.environment || '', 40),
       invoices,
       pixAvailable: invoices.some(item => item.pix.available),
+      attempts: Number(charge.attempts || 0),
+      lastAttemptAt: charge.lastAttemptAt || null,
+      nextCheckAt: charge.nextCheckAt || null,
       updatedAt: charge.updatedAt || null
     };
   }
@@ -349,6 +369,92 @@ export function createErpCarneCoraService(context = {}) {
     const charge = await findLinkedCharge(baseData);
     const merged = mergeProvider(baseData, providerView(charge));
     return { ...merged, coraEligibility: coraEligibility(baseData) };
+  }
+
+  async function reconcilePendingCharge(chargeInput, actor = {}) {
+    if (!chargeInput?._id) throw fail('Cobrança Cora pendente não localizada.', 404, 'ERP_CARNE_CORA_PENDING_NOT_FOUND');
+    const charge = await CoraCharge.findById(chargeInput._id);
+    if (!charge) throw fail('Cobrança Cora pendente não localizada.', 404, 'ERP_CARNE_CORA_PENDING_NOT_FOUND');
+    if (!isPendingCharge(charge)) return charge;
+
+    const idempotencyKey = clean(charge.idempotencyKey, 160);
+    const requestPayload = charge.requestPayload && typeof charge.requestPayload === 'object'
+      ? charge.requestPayload
+      : null;
+    if (!idempotencyKey || !requestPayload) {
+      throw fail(
+        'A cobrança Cora pendente não possui a chave/payload original. A reconciliação automática foi bloqueada para evitar duplicidade.',
+        409,
+        'ERP_CARNE_CORA_RECONCILE_UNSAFE'
+      );
+    }
+
+    charge.attempts = Number(charge.attempts || 0) + 1;
+    charge.lastAttemptAt = new Date();
+    await charge.save();
+
+    try {
+      const result = await retryCoraInstallmentBookPayload(requestPayload, {
+        idempotencyKey,
+        onTrace: trace => saveCoraTrace(charge._id, 'ERP_CARNE_RECONCILE', trace)
+      });
+      const response = result.response || {};
+      const invoices = Array.isArray(response.result) ? response.result : [];
+      const documentUrl = providerDocumentUrl(response, invoices);
+      charge.documentUrl = documentUrl;
+      charge.invoices = invoices;
+      charge.providerResponse = response;
+      charge.providerRequestId = result?.trace?.requestId || charge.providerRequestId || '';
+      charge.providerTraceId = result?.trace?.traceId || charge.providerTraceId || '';
+      charge.error = null;
+      if (documentUrl) {
+        charge.status = statusFromInvoices(invoices);
+        charge.nextCheckAt = null;
+        charge.resolvedAt = new Date();
+      } else {
+        charge.status = 'PENDING_CONFIRMATION';
+        charge.nextCheckAt = new Date(Date.now() + Number(process.env.CORA_PENDING_RETRY_MS || 5 * 60 * 1000));
+        charge.resolvedAt = null;
+      }
+      await charge.save();
+      return charge;
+    } catch (error) {
+      // A cobrança já pode ter sido criada na Cora na tentativa original.
+      // Nunca trocamos a chave nem liberamos nova emissão após uma resposta incerta.
+      charge.status = 'PENDING_CONFIRMATION';
+      charge.error = safeCoraError(error);
+      charge.providerRequestId = error?.trace?.requestId || charge.providerRequestId || '';
+      charge.providerTraceId = error?.trace?.traceId || charge.providerTraceId || '';
+      charge.nextCheckAt = new Date(Date.now() + Number(process.env.CORA_PENDING_RETRY_MS || 5 * 60 * 1000));
+      await charge.save();
+      throw fail(
+        'A Cora ainda não confirmou o boleto. A consulta foi repetida com a mesma chave segura, sem criar outra cobrança. Tente consultar novamente mais tarde.',
+        202,
+        'ERP_CARNE_CORA_PENDING_CONFIRMATION'
+      );
+    }
+  }
+
+  async function reconcile(targetId, payload = {}, actor = {}) {
+    const via = payload.via || 'primeira';
+    const baseData = await base.preview(targetId, via);
+    const linked = await findLinkedCharge(baseData);
+    if (!linked) throw fail('Esta compra ainda não possui uma cobrança Cora vinculada.', 404, 'ERP_CARNE_CORA_NOT_LINKED');
+
+    let charge = linked;
+    if (isPendingCharge(linked)) {
+      charge = await reconcilePendingCharge(linked, actor);
+    }
+    const provider = providerView(charge.toObject ? charge.toObject() : charge);
+    const data = mergeProvider(baseData, provider);
+    if (provider.pendingConfirmation) {
+      throw fail(
+        'A Cora ainda está processando esta cobrança. A mesma chave foi preservada; nenhum boleto duplicado foi criado.',
+        202,
+        'ERP_CARNE_CORA_PENDING_CONFIRMATION'
+      );
+    }
+    return { reconciled: true, coraEligibility: coraEligibility(baseData), ...data };
   }
 
   async function logProviderDocument(data, action, extra = {}) {
@@ -519,7 +625,19 @@ export function createErpCarneCoraService(context = {}) {
 
     const existing = await findLinkedCharge(baseData);
     if (existing) {
-      const data = mergeProvider(baseData, providerView(existing));
+      let charge = existing;
+      if (isPendingCharge(existing)) {
+        charge = await reconcilePendingCharge(existing, actor);
+      }
+      const provider = providerView(charge.toObject ? charge.toObject() : charge);
+      const data = mergeProvider(baseData, provider);
+      if (provider.pendingConfirmation) {
+        throw fail(
+          'A Cora ainda está processando esta cobrança. A mesma chave foi preservada; não emita novamente.',
+          202,
+          'ERP_CARNE_CORA_PENDING_CONFIRMATION'
+        );
+      }
       return { reused: true, created: false, coraEligibility: coraEligibility(baseData), ...data };
     }
 
@@ -570,7 +688,18 @@ export function createErpCarneCoraService(context = {}) {
       : crypto.randomUUID();
 
     if (charge && isChargeUsable(charge)) {
-      const data = mergeProvider(baseData, providerView(charge.toObject ? charge.toObject() : charge));
+      if (isPendingCharge(charge)) {
+        charge = await reconcilePendingCharge(charge, actor);
+      }
+      const provider = providerView(charge.toObject ? charge.toObject() : charge);
+      const data = mergeProvider(baseData, provider);
+      if (provider.pendingConfirmation) {
+        throw fail(
+          'A Cora ainda está processando esta cobrança. A mesma chave foi preservada; não emita novamente.',
+          202,
+          'ERP_CARNE_CORA_PENDING_CONFIRMATION'
+        );
+      }
       return { reused: true, created: false, coraEligibility: eligibility, ...data };
     }
 
@@ -621,15 +750,17 @@ export function createErpCarneCoraService(context = {}) {
         onTrace: trace => saveCoraTrace(charge._id, 'ERP_CARNE_ISSUE', trace)
       });
       const response = result.response || {};
-      charge.status = statusFromInvoices(response.result || []);
-      charge.documentUrl = clean(response.document_url || response.documentUrl || '', 1200);
-      charge.invoices = Array.isArray(response.result) ? response.result : [];
+      const invoices = Array.isArray(response.result) ? response.result : [];
+      const documentUrl = providerDocumentUrl(response, invoices);
+      charge.status = documentUrl ? statusFromInvoices(invoices) : 'PENDING_CONFIRMATION';
+      charge.documentUrl = documentUrl;
+      charge.invoices = invoices;
       charge.providerResponse = response;
       charge.providerRequestId = result?.trace?.requestId || '';
       charge.providerTraceId = result?.trace?.traceId || '';
       charge.error = null;
-      charge.nextCheckAt = null;
-      charge.resolvedAt = new Date();
+      charge.nextCheckAt = documentUrl ? null : new Date(Date.now() + Number(process.env.CORA_PENDING_RETRY_MS || 5 * 60 * 1000));
+      charge.resolvedAt = documentUrl ? new Date() : null;
       await charge.save();
 
       const refreshed = await preview(targetId, payload.via || 'primeira');
@@ -649,7 +780,7 @@ export function createErpCarneCoraService(context = {}) {
     }
   }
 
-  return { purchases, preview, pdf, send, emit, saveContact };
+  return { purchases, preview, pdf, send, emit, reconcile, saveContact };
 }
 
 export default createErpCarneCoraService;
