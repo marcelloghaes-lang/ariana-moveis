@@ -2,8 +2,15 @@ import express from 'express';
 import { createErpFinancePanelBridgeService } from '../../services/erp/erpFinancePanelBridgeService.js';
 import { createErpCollectionWorkflowService } from '../../services/erp/erpCollectionWorkflowService.js';
 import { createErpCarneCoraService } from '../../services/erp/erpCarneCoraService.js';
+import { createErpMarkedCollectionCampaignService } from '../../services/erp/erpMarkedCollectionCampaignService.js';
 
 const actor=req=>req.adminUser||req.admin||req.auth||req.user||{};
+const webhookAuthorized=req=>{
+  const configured=String(process.env.FINANCEIRO_WHATSAPP_WEBHOOK_TOKEN||'').trim();
+  if(!configured)return true;
+  const informed=String(req.headers?.['x-financeiro-webhook-token']||req.headers?.['x-webhook-token']||req.query?.token||'').trim();
+  return Boolean(informed&&informed===configured);
+};
 
 export default function createErpFinancePanelBridgeRoutes(context={}){
   const router=express.Router();
@@ -11,6 +18,8 @@ export default function createErpFinancePanelBridgeRoutes(context={}){
   const bridge=createErpFinancePanelBridgeService(context);
   const collections=createErpCollectionWorkflowService(context);
   const carne=createErpCarneCoraService(context);
+  const markedCampaign=createErpMarkedCollectionCampaignService(context);
+  markedCampaign.start();
   const handle=(action,status=200)=>async(req,res)=>{
     try{
       const result=await action(req);
@@ -24,6 +33,22 @@ export default function createErpFinancePanelBridgeRoutes(context={}){
       });
     }
   };
+
+  // Intercepta somente respostas da campanha Etapa 2 e deixa o webhook financeiro existente continuar o processamento normal.
+  router.post('/webhooks/financeiro/whatsapp/status',async(req,res,next)=>{
+    const event=String(req.body?.event||req.body?.type||req.body?.data?.event||req.body?.data?.type||'').trim().toUpperCase().replace(/[.\\-\\s]+/g,'_');
+    if(event!=='MESSAGES_UPSERT'||!webhookAuthorized(req))return next();
+    try{
+      const result=await markedCampaign.handleIncomingWebhook(req.body||{});
+      if(result?.handled)console.log('[erp-marked-collection][webhook]',result.action||'handled',result.taskId||'');
+    }catch(error){
+      console.error('[erp-marked-collection][webhook]',error?.message||error);
+    }
+    return next();
+  });
+
+  router.get('/erp/finance-panel/campanha-etapa-2',context.adminRequired,handle(req=>markedCampaign.list(req.query||{})));
+  router.post('/erp/finance-panel/campanha-etapa-2/executar',context.adminRequired,handle(()=>markedCampaign.run()));
 
   router.get('/erp/finance-panel/clientes',context.adminRequired,handle(req=>bridge.clientes(req.query||{})));
   router.get('/erp/finance-panel/lancamentos',context.adminRequired,handle(req=>bridge.lancamentos(req.query||{})));
