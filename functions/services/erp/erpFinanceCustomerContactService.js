@@ -61,7 +61,9 @@ export function createErpFinanceCustomerContactService(context={}){
   async function savePhone({phone='',cpf='',name='',referenceRaw='',receipt=null,actor={}}={}){
     const normalized=phoneOf(phone);
     const localDigits=digits(normalized);
-    if(!normalized||localDigits.length<12||localDigits.length>15){const e=new Error('Informe um telefone/WhatsApp válido com DDD.');e.statusCode=400;throw e;}
+    const international=String(normalized||'').startsWith('+');
+    const minLength=international?8:12;
+    if(!normalized||localDigits.length<minLength||localDigits.length>15){const e=new Error('Informe um telefone/WhatsApp válido com DDD/DDI.');e.statusCode=400;throw e;}
     const resolved=await resolveContact({cpf,name,referenceRaw});
     const customerName=resolved.customerName||clean(name,220)||'Cliente';
     const customerCpf=resolved.customerCpf||digits(cpf);
