@@ -389,6 +389,7 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
   async function resolveClientPhone(client = {}) {
     const direct = normalizePhone(client.phone);
     if (direct) return { phone: direct, source: 'receivable' };
+
     const document = digits(client.document);
     const nameKey = normalizeCollectionName(client.name);
 
@@ -396,12 +397,19 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
     if (Person) {
       try {
         if (document) {
-          const person = await Person.findOne({ document, active: { $ne: false } }).sort({ updatedAt: -1 }).select('name companyName document phone updatedAt').lean();
+          const person = await Person.findOne({ document, active: { $ne: false } })
+            .sort({ updatedAt: -1 })
+            .select('name companyName document phone updatedAt')
+            .lean();
           const phone = normalizePhone(person?.phone);
           if (phone) return { phone, source: 'erp_person_document' };
         }
+
         if (nameKey) {
-          const rows = await Person.find({ active: { $ne: false }, phone: { $exists: true, $ne: '' } }).select('name companyName document phone updatedAt').limit(5000).lean();
+          const rows = await Person.find({ active: { $ne: false }, phone: { $exists: true, $ne: '' } })
+            .select('name companyName document phone updatedAt')
+            .limit(5000)
+            .lean();
           const exact = rows.filter((person) => normalizeCollectionName(person?.name || person?.companyName) === nameKey);
           const phones = [...new Set(exact.map((person) => normalizePhone(person?.phone)).filter(Boolean))];
           if (phones.length === 1) return { phone: phones[0], source: 'erp_person_name' };
@@ -416,21 +424,17 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
       try {
         let users = [];
         if (document) {
-          users = await User.find({ cpf: document, isActive: { $ne: false } }).select('name cpf phone updatedAt').sort({ updatedAt: -1 }).limit(10).lean();
-        }
-        if (!users.length && nameKey) {
-          const first = clean(client.name, 220).split(/\s+/)[0] || '';
-          const rx = first ? new RegExp(`^${first.replace(/[.*+?^{}()|[\\]\\\\]/g, '\\  async function seed() {
-    await Promise.all(MARKED_COLLECTION_NAMES.map((name, index) => Task.updateOne(
-      { campaignKey: CAMPAIGN_KEY, nameKey: normalizeCollectionName(name) },
-      { $setOnInsert: { campaignKey: CAMPAIGN_KEY, name, nameKey: normalizeCollectionName(name), status: 'PENDING', attempts: 0, createdAt: new Date() }, $set: { priority: index + 1, referenceBalance: money(MARKED_REFERENCE_BALANCES[name] || 0) } },
-      { upsert: true }
-    )));
-  }')}`, 'i') : null;
-          if (rx) {
-            const possible = await User.find({ name: rx, isActive: { $ne: false } }).select('name cpf phone updatedAt').limit(100).lean();
-            users = possible.filter((user) => normalizeCollectionName(user?.name) === nameKey);
-          }
+          users = await User.find({ cpf: document, isActive: { $ne: false } })
+            .select('name cpf phone updatedAt')
+            .sort({ updatedAt: -1 })
+            .limit(20)
+            .lean();
+        } else if (nameKey) {
+          const possible = await User.find({ isActive: { $ne: false }, phone: { $exists: true, $ne: '' } })
+            .select('name cpf phone updatedAt')
+            .limit(5000)
+            .lean();
+          users = possible.filter((user) => normalizeCollectionName(user?.name) === nameKey);
         }
         const phones = [...new Set(users.map((user) => normalizePhone(user?.phone)).filter(Boolean))];
         if (phones.length === 1) return { phone: phones[0], source: document ? 'site_user_document' : 'site_user_name' };
@@ -439,26 +443,47 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
       }
     }
 
+    const CrediarioCliente = context.CrediarioCliente;
+    if (CrediarioCliente) {
+      try {
+        let rows = [];
+        if (document) {
+          rows = await CrediarioCliente.find({ cpf: document })
+            .select('nome name cpf telefone phone updatedAt')
+            .sort({ updatedAt: -1 })
+            .limit(20)
+            .lean();
+        } else if (nameKey) {
+          const possible = await CrediarioCliente.find({})
+            .select('nome name cpf telefone phone updatedAt')
+            .limit(5000)
+            .lean();
+          rows = possible.filter((row) => normalizeCollectionName(row?.nome || row?.name) === nameKey);
+        }
+        const phones = [...new Set(rows.map((row) => normalizePhone(row?.telefone || row?.phone)).filter(Boolean))];
+        if (phones.length === 1) return { phone: phones[0], source: document ? 'crediario_document' : 'crediario_name' };
+      } catch (error) {
+        console.warn('[erp-marked-collection][phone][crediario]', error?.message || error);
+      }
+    }
+
     const Order = context.Order;
     if (Order) {
       try {
         let orders = [];
         if (document) {
-          orders = await Order.find({ customerCpf: document, customerPhone: { $exists: true, $ne: '' } }).select('customerName customerCpf customerPhone updatedAt').sort({ updatedAt: -1 }).limit(20).lean();
-        }
-        if (!orders.length && nameKey) {
-          const first = clean(client.name, 220).split(/\s+/)[0] || '';
-          const rx = first ? new RegExp(`^${first.replace(/[.*+?^{}()|[\\]\\\\]/g, '\\  async function seed() {
-    await Promise.all(MARKED_COLLECTION_NAMES.map((name, index) => Task.updateOne(
-      { campaignKey: CAMPAIGN_KEY, nameKey: normalizeCollectionName(name) },
-      { $setOnInsert: { campaignKey: CAMPAIGN_KEY, name, nameKey: normalizeCollectionName(name), status: 'PENDING', attempts: 0, createdAt: new Date() }, $set: { priority: index + 1, referenceBalance: money(MARKED_REFERENCE_BALANCES[name] || 0) } },
-      { upsert: true }
-    )));
-  }')}`, 'i') : null;
-          if (rx) {
-            const possible = await Order.find({ customerName: rx, customerPhone: { $exists: true, $ne: '' } }).select('customerName customerCpf customerPhone updatedAt').sort({ updatedAt: -1 }).limit(100).lean();
-            orders = possible.filter((order) => normalizeCollectionName(order?.customerName) === nameKey);
-          }
+          orders = await Order.find({ customerCpf: document, customerPhone: { $exists: true, $ne: '' } })
+            .select('customerName customerCpf customerPhone updatedAt')
+            .sort({ updatedAt: -1 })
+            .limit(30)
+            .lean();
+        } else if (nameKey) {
+          const possible = await Order.find({ customerPhone: { $exists: true, $ne: '' } })
+            .select('customerName customerCpf customerPhone updatedAt')
+            .sort({ updatedAt: -1 })
+            .limit(5000)
+            .lean();
+          orders = possible.filter((order) => normalizeCollectionName(order?.customerName) === nameKey);
         }
         const phones = [...new Set(orders.map((order) => normalizePhone(order?.customerPhone)).filter(Boolean))];
         if (phones.length === 1) return { phone: phones[0], source: document ? 'order_document' : 'order_name' };
