@@ -191,6 +191,27 @@ function fingerprint(value){
   return createHash('sha256').update(JSON.stringify(value??null)).digest('hex');
 }
 
+export function canRebuildPreparedNfeDraft(nfe={}){
+  const status=clean(nfe?.status,60).toLowerCase();
+  const cStat=clean(nfe?.lastCStat,20);
+  const hasAuthorization=Boolean(
+    clean(nfe?.key,60)
+    || clean(nfe?.protocol,120)
+    || ['authorized','authorized_homologation','authorized_recovery_pending'].includes(status)
+    || cStat==='100'
+  );
+  if(hasAuthorization)return false;
+
+  // XML apenas preparado localmente e ainda não transmitido: pode ser recriado.
+  if(status==='reserved'&&!nfe?.lastAttemptAt&&!cStat)return true;
+
+  // Quando a SEFAZ respondeu com rejeição explícita, aquela chave não foi autorizada.
+  // Duplicidades ficam fora desta regra porque têm fluxo próprio de recuperação.
+  if(status==='error'&&/^\d{3}$/.test(cStat)&&!['100','103','104','204','539'].includes(cStat))return true;
+
+  return false;
+}
+
 export function createErpNfeSefazService(context={},settings){
   const Product=context.Product,Order=context.Order;
   if(!Product||!Order)throw new Error('[erp-nfe] Product/Order não informados');
@@ -850,12 +871,29 @@ export function createErpNfeSefazService(context={},settings){
     const data=await buildNfeData(draft,pre,number);
     const currentFingerprint=fingerprint(data);
     if(order?.nfe?.draftFingerprint&&order.nfe.draftFingerprint!==currentFingerprint){
-      throw fail(
-        'Os dados da venda mudaram depois que a NF-e foi preparada. A emissão foi bloqueada para não reutilizar uma chave antiga com dados diferentes.',
-        409,
-        'NFE_RESERVED_DRAFT_CHANGED',
-        {orderId:String(order._id),number}
-      );
+      if(canRebuildPreparedNfeDraft(order.nfe)){
+        order.nfe={
+          ...(order.nfe||{}),
+          status:'reserved',
+          environment:pre.environment,
+          lastError:'',
+          lastCStat:'',
+          unsignedXml:'',
+          signedXml:'',
+          preparedKey:'',
+          draftFingerprint:'',
+          preparedAt:null,
+          signedAt:null
+        };
+        await order.save();
+      }else{
+        throw fail(
+          'Os dados da venda mudaram depois que a NF-e foi preparada e não há confirmação segura de que a tentativa anterior ficou sem autorização. A emissão permanece bloqueada para evitar duplicidade fiscal.',
+          409,
+          'NFE_RESERVED_DRAFT_CHANGED',
+          {orderId:String(order._id),number}
+        );
+      }
     }
 
     let unsignedXml=String(order?.nfe?.unsignedXml||'');
