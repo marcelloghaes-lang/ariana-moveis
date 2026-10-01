@@ -39,7 +39,7 @@ const MARKED_REFERENCE_BALANCES = Object.freeze({
 });
 const STRICT_NAME_KEYS = new Set(['maria aparecida da silva']);
 const MANUAL_PHONE_OVERRIDES = Object.freeze({
-  'ariadna santos sardinha': '17746022981'
+  'ariadna santos sardinha': '+17746022981'
 });
 const USER_SKIPPED_KEYS = new Set(['roseli virgem de nazare ferreira']);
 const ARIADNA_KEY = 'ariadna santos sardinha';
@@ -269,6 +269,9 @@ function looksLikePromise(text = '', awaitingDate = false) {
 function normalizePhone(value = '') {
   let number = digits(value).replace(/^0+/, '');
   if (!number) return '';
+  // Exceção internacional confirmada pelo operador: +1 (774) 602-2981.
+  // Sem isso, o normalizador brasileiro prefixaria 55 novamente.
+  if (number === '17746022981') return number;
   if (number.startsWith('55') && number.length >= 12 && number.length <= 13) return number;
   if (number.length === 10 || number.length === 11) return `55${number}`;
   return number.length >= 12 && number.length <= 15 ? number : '';
@@ -593,7 +596,7 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
       // Retransmissão extraordinária autorizada em 01/10/2026:
       // permite uma segunda tentativa somente para os envios que falharam.
       // Depois da 2ª tentativa, volta a bloquear automaticamente para evitar duplicidade.
-      const retryLimit = task.nameKey === ARIADNA_KEY ? 3 : 2;
+      const retryLimit = task.nameKey === ARIADNA_KEY ? 4 : 2;
       if (task.status === 'FAILED' && Number(task.attempts || 0) >= retryLimit) {
         results.push({ name: task.name, status: 'FAILED', error: clean(task.lastError || `Falha após ${retryLimit} tentativa(s); aguardando revisão.`, 300) });
         continue;
