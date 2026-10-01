@@ -292,9 +292,13 @@ function now() { return new Date(); }
 function uid(prefix = 'id') { return `${prefix}_${crypto.randomBytes(8).toString('hex')}`; }
 function cleanPhone(value = '') { return String(value).replace(/\D/g, ''); }
 function normalizePhone(value = '', defaultCountryCode = '55') {
-  let digits = cleanPhone(value);
+  const raw = String(value ?? '').trim();
+  let digits = cleanPhone(raw);
   if (!digits) return '';
-  if (digits.startsWith('00')) digits = digits.slice(2);
+  // Número informado explicitamente em formato internacional (+DDI ou 00DDI)
+  // deve manter o DDI original. Isso evita transformar +1 (...) em 55+1 (...).
+  if (raw.startsWith('+')) return digits;
+  if (digits.startsWith('00')) return digits.slice(2);
   if ((digits.length === 10 || digits.length === 11) && defaultCountryCode) digits = `${defaultCountryCode}${digits}`;
   return digits;
 }
