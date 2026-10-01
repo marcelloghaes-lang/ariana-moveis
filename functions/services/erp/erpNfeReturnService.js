@@ -16,7 +16,7 @@ const returnOperationSchema=new mongoose.Schema({
   status:{type:String,default:'draft',index:true},
   direction:{type:String,enum:['entrada','saida'],required:true},
   referenceKey:{type:String,required:true,index:true},
-  environment:String,serie:Number,number:Number,
+  environment:String,serie:Number,number:Number,reservedAt:Date,
   preparedKey:String,unsignedXml:{type:String,default:''},signedXml:{type:String,default:''},
   key:String,protocol:String,xml:{type:String,default:''},fiscalDocumentId:String,
   lastCStat:String,lastError:String,
@@ -54,6 +54,8 @@ function accessKeyFrom(value=''){const matches=String(value||'').match(/\d{44}/g
 function extractXmlElement(xml='',tag=''){const source=String(xml||'');const re=new RegExp(`<(?:[A-Za-z_][\\w.-]*:)?${tag}\\b[^>]*>[\\s\\S]*?<\\/(?:[A-Za-z_][\\w.-]*:)?${tag}>`,'i');return source.match(re)?.[0]||''}
 function buildNfeProc(signedXml='',protNFe=''){if(!signedXml||!protNFe)return'';const nfeContent=String(signedXml).replace(/<\?xml[^?]*\?>\s*/g,'');return`<?xml version="1.0" encoding="UTF-8"?><nfeProc versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe">${nfeContent}${protNFe}</nfeProc>`}
 function fingerprint(value){return createHash('sha256').update(JSON.stringify(value??null)).digest('hex')}
+function fiscalDateTime(value){const date=value instanceof Date?value:new Date(value||Date.now());return Number.isNaN(date.getTime())?new Date():date}
+function formatFiscalDateTime(value){const date=fiscalDateTime(value),local=new Date(date.getTime()-3*60*60*1000);return `${local.getUTCFullYear()}-${String(local.getUTCMonth()+1).padStart(2,'0')}-${String(local.getUTCDate()).padStart(2,'0')}T${String(local.getUTCHours()).padStart(2,'0')}:${String(local.getUTCMinutes()).padStart(2,'0')}:${String(local.getUTCSeconds()).padStart(2,'0')}-03:00`}
 function xmlEscape(v=''){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]))}
 function injectItemReferences(xml='',products=[],referenceKey=''){
   const byItem=new Map(products.map((p,i)=>[i+1,`<DFeReferenciado><chaveAcesso>${xmlEscape(referenceKey)}</chaveAcesso><nItem>${Number(p.originalItemNumber)}</nItem></DFeReferenciado>`]));
@@ -64,7 +66,17 @@ function injectItemReferences(xml='',products=[],referenceKey=''){
 }
 function simplesXmlBuilder(DefaultXmlBuilder){
   const base=new DefaultXmlBuilder();
-  return{build(nfe){return base.build(nfe).replace(/<(\/?)ICMSSN(?:103|300|400)>/g,'<$1ICMSSN102>')}};
+  return{build(nfe){
+    let xml=base.build(nfe).replace(/<(\/?)ICMSSN(?:103|300|400)>/g,'<$1ICMSSN102>');
+    const exitDateRaw=nfe?.identificacao?.dataSaidaEntrada;
+    if(exitDateRaw&&!/<dhSaiEnt>/.test(xml)){
+      const exitDate=formatFiscalDateTime(exitDateRaw),before=xml;
+      xml=xml.replace(/(<dhEmi>[^<]*<\/dhEmi>)/,`$1<dhSaiEnt>${exitDate}</dhSaiEnt>`);
+      if(xml===before)throw fail('O XML da devolução não possui ponto seguro para a data/hora de entrada ou saída.',500,'NFE_RETURN_EXIT_DATETIME_XML_ANCHOR_MISSING');
+    }
+    if(exitDateRaw&&!xml.includes(`<dhSaiEnt>${formatFiscalDateTime(exitDateRaw)}</dhSaiEnt>`))throw fail('A data/hora de entrada ou saída não foi incluída corretamente no XML da devolução.',500,'NFE_RETURN_EXIT_DATETIME_XML_INVALID');
+    return xml;
+  }};
 }
 function keyMatchesReservation(key,pre,number){
   const k=digits(key);
@@ -173,7 +185,8 @@ export function createErpNfeReturnService(context={},settings){
     };
   }
 
-  async function buildData(draft,pre,number){
+  async function buildData(draft,pre,number,operationDateTime=new Date()){
+    const issueDate=fiscalDateTime(operationDateTime);
     const issuer=pre.issuer,customer=pre.customer,recipientFiscal=customerFiscalProfile(customer);
     const issuerUf=clean(issuer.uf,2).toUpperCase(),custUf=clean(customer.addressData.uf,2).toUpperCase(),doc=digits(customer.document);
     const produtos=pre.products.map((p,i)=>{
@@ -186,7 +199,8 @@ export function createErpNfeReturnService(context={},settings){
       identificacao:{
         naturezaOperacao:pre.operation.natureOperation,tipoOperacao:direction==='entrada'?0:1,
         destinoOperacao:issuerUf===custUf?1:2,finalidade:4,consumidorFinal:0,presencaComprador:0,
-        ambiente:pre.environment==='producao'?1:2,uf:issuerUf,municipio:digits(issuer.codigoMunicipio),serie:pre.serie,numero:number
+        ambiente:pre.environment==='producao'?1:2,dataEmissao:issueDate,dataSaidaEntrada:issueDate,
+        uf:issuerUf,municipio:digits(issuer.codigoMunicipio),serie:pre.serie,numero:number
       },
       emitente:{
         cnpj:digits(issuer.cnpj),razaoSocial:clean(issuer.razaoSocial,60),nomeFantasia:clean(issuer.nomeFantasia,60)||undefined,
@@ -287,10 +301,11 @@ export function createErpNfeReturnService(context={},settings){
     }
     if(op.status==='authorized_recovery_pending'&&op.key)return{authorized:true,recoveryPending:true,operationId:String(op._id),key:op.key,protocol:op.protocol,number:op.number,series:op.serie,environment:op.environment,xmlAvailable:false,stockCompleted:false};
 
-    if(!op.number){op.number=await settings.reserveNfeNumber(actor);op.serie=pre.serie;op.environment=pre.environment;op.status='reserved';await op.save()}
+    if(!op.number){op.number=await settings.reserveNfeNumber(actor);op.serie=pre.serie;op.environment=pre.environment;op.status='reserved';op.reservedAt=new Date();await op.save()}
     if(op.environment!==pre.environment)throw fail('A tentativa de devolução foi iniciada em outro ambiente fiscal.',409,'NFE_RETURN_ENVIRONMENT_CHANGED',{operationId:String(op._id)});
 
-    const cert=await settings.certificateCredentials(),lib=await import('@brasil-fiscal/nfe'),data=await buildData(draft,pre,op.number);
+    const operationDateTime=fiscalDateTime(op.reservedAt||op.createdAt||new Date());
+    const cert=await settings.certificateCredentials(),lib=await import('@brasil-fiscal/nfe'),data=await buildData(draft,pre,op.number,operationDateTime);
     let unsignedXml=String(op.unsignedXml||''),preparedKey=digits(op.preparedKey);
     if(!unsignedXml){
       unsignedXml=simplesXmlBuilder(lib.DefaultXmlBuilder).build(data);
