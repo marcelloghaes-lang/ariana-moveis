@@ -2431,7 +2431,9 @@ async function sendCrediarioCobrancaWhatsapp({
   contrato = '',
   tipo = 'normal'
 } = {}) {
-  const number = normalizePhone(telefone || '', '55');
+  const rawPhone = String(telefone || '').trim();
+  const normalized = normalizePhone(rawPhone, '55');
+  const number = rawPhone.startsWith('+') && normalized ? `+${normalized}` : normalized;
   if (!number) throw new Error('Telefone do cliente inválido para envio da cobrança.');
   const text = buildCrediarioCobrancaMessage({
     clienteNome,
@@ -2454,7 +2456,11 @@ async function sendCrediarioCobrancaWhatsapp({
 
 async function sendCrediarioReceiptWhatsapp(reciboDoc = {}) {
   const recibo = normalizeCrediarioRecibo(reciboDoc);
-  const number = normalizePhone(recibo.telefone || '', '55');
+  const rawPhone = String(recibo.telefone || '').trim();
+  const normalized = normalizePhone(rawPhone, '55');
+  // Preserve o "+" até waSendTextMessage fazer a normalização final.
+  // Sem isso, +1 vira 11 dígitos e recebe 55 numa segunda normalização.
+  const number = rawPhone.startsWith('+') && normalized ? `+${normalized}` : normalized;
   if (!number) throw new Error('Telefone do cliente inválido para envio do recibo.');
   const text = buildCrediarioReceiptMessage(reciboDoc);
   return waSendTextMessage({ number, text });
