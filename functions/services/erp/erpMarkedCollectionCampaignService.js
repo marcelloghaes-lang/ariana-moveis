@@ -801,8 +801,9 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
         console.error('[erp-marked-collection-worker]', error?.message || error);
       }
     };
-    const first = setTimeout(tick, 30000);
-    first.unref?.();
+    // Executa imediatamente no boot para campanhas autorizadas não dependerem
+    // da primeira janela de 30 segundos após um deploy/restart.
+    void tick();
     const interval = setInterval(tick, Math.max(5 * 60 * 1000, Number(process.env.ERP_MARKED_COLLECTION_INTERVAL_MS || 15 * 60 * 1000)));
     interval.unref?.();
     console.log(`[erp-marked-collection-worker] ativo para ${MARKED_COLLECTION_NAMES.length} clientes da Etapa 2.`);
