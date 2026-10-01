@@ -575,6 +575,12 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
         results.push({ name: task.name, status: task.status || 'SENT', alreadySent: true });
         continue;
       }
+      // Não repete automaticamente um envio que já falhou: evita mensagem duplicada
+      // caso a Evolution tenha aceitado a mensagem e a confirmação tenha se perdido.
+      if (task.status === 'FAILED' && Number(task.attempts || 0) >= 1) {
+        results.push({ name: task.name, status: 'FAILED', error: clean(task.lastError || 'Falha anterior; aguardando revisão.', 300) });
+        continue;
+      }
       if (!phone) {
         await Task.updateOne({ _id: task._id }, { $set: { status: 'NO_PHONE', lastError: 'Cliente sem WhatsApp válido no cadastro atual do ERP.' } });
         results.push({ name: task.name, status: 'NO_PHONE' });
@@ -767,7 +773,8 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
           console.log('[erp-marked-collection-worker] itens', result.initial.results.map((item) => ({
             name: item.name,
             status: item.status,
-            matches: item.matches || 0
+            matches: item.matches || 0,
+            ...(item.error ? { error: clean(item.error, 220) } : {})
           })));
         }
       } catch (error) {
