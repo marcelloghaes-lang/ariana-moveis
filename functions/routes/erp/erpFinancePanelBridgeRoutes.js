@@ -36,7 +36,7 @@ export default function createErpFinancePanelBridgeRoutes(context={}){
 
   // Intercepta somente respostas da campanha Etapa 2 e deixa o webhook financeiro existente continuar o processamento normal.
   router.post('/webhooks/financeiro/whatsapp/status',async(req,res,next)=>{
-    const event=String(req.body?.event||req.body?.type||req.body?.data?.event||req.body?.data?.type||'').trim().toUpperCase().replace(/[.\\-\\s]+/g,'_');
+    const event=String(req.body?.event||req.body?.type||req.body?.data?.event||req.body?.data?.type||'').trim().toUpperCase().replace(/[.\-\s]+/g,'_');
     if(event!=='MESSAGES_UPSERT'||!webhookAuthorized(req))return next();
     try{
       const result=await markedCampaign.handleIncomingWebhook(req.body||{});
