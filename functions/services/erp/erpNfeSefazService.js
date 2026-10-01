@@ -227,6 +227,24 @@ function buildNfeProc(signedXml='',protNFe=''){
 function fingerprint(value){
   return createHash('sha256').update(JSON.stringify(value??null)).digest('hex');
 }
+
+export function canRebuildPreparedNfeDraft(nfe={}){
+  const status=clean(nfe?.status,60).toLowerCase();
+  const cStat=clean(nfe?.lastCStat,20);
+  const hasAuthorization=Boolean(
+    clean(nfe?.key,60)
+    || clean(nfe?.protocol,120)
+    || ['authorized','authorized_homologation','authorized_recovery_pending'].includes(status)
+    || cStat==='100'
+  );
+  if(hasAuthorization)return false;
+
+  if(status==='reserved'&&!nfe?.lastAttemptAt&&!cStat)return true;
+
+  if(status==='error'&&/^\d{3}$/.test(cStat)&&!['100','103','104','204','539'].includes(cStat))return true;
+
+  return false;
+}
 function fiscalDateTime(value){
   const date=value instanceof Date?value:new Date(value||Date.now());
   return Number.isNaN(date.getTime())?new Date():date;
@@ -901,12 +919,29 @@ export function createErpNfeSefazService(context={},settings){
     const data=await buildNfeData(draft,pre,number,operationDateTime);
     const currentFingerprint=fingerprint(data);
     if(order?.nfe?.draftFingerprint&&order.nfe.draftFingerprint!==currentFingerprint){
-      throw fail(
-        'Os dados da venda mudaram depois que a NF-e foi preparada. A emissão foi bloqueada para não reutilizar uma chave antiga com dados diferentes.',
-        409,
-        'NFE_RESERVED_DRAFT_CHANGED',
-        {orderId:String(order._id),number}
-      );
+      if(canRebuildPreparedNfeDraft(order.nfe)){
+        order.nfe={
+          ...(order.nfe||{}),
+          status:'reserved',
+          environment:pre.environment,
+          lastError:'',
+          lastCStat:'',
+          unsignedXml:'',
+          signedXml:'',
+          preparedKey:'',
+          draftFingerprint:'',
+          preparedAt:null,
+          signedAt:null
+        };
+        await order.save();
+      }else{
+        throw fail(
+          'Os dados da venda mudaram depois que a NF-e foi preparada e não há confirmação segura de que a tentativa anterior ficou sem autorização. A emissão permanece bloqueada para evitar duplicidade fiscal.',
+          409,
+          'NFE_RESERVED_DRAFT_CHANGED',
+          {orderId:String(order._id),number}
+        );
+      }
     }
 
     let unsignedXml=String(order?.nfe?.unsignedXml||'');
