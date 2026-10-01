@@ -223,3 +223,28 @@ export async function issueCoraInstallmentBook(input = {}, { idempotencyKey, onT
   });
   return { idempotencyKey: key, payload, response: response.data };
 }
+
+export async function retryCoraInstallmentBookPayload(payload = {}, { idempotencyKey, onTrace } = {}) {
+  const key = String(idempotencyKey || '').trim();
+  if (!key) {
+    const error = new Error('A cobrança pendente não possui a chave de idempotência original.');
+    error.code = 'CORA_IDEMPOTENCY_KEY_REQUIRED';
+    error.statusCode = 409;
+    throw error;
+  }
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !payload.code || !payload.installment) {
+    const error = new Error('A cobrança pendente não possui o payload original necessário para reconciliação.');
+    error.code = 'CORA_ORIGINAL_PAYLOAD_REQUIRED';
+    error.statusCode = 409;
+    throw error;
+  }
+  const response = await coraRequest({
+    method: 'POST',
+    path: '/v2/invoices/installments',
+    data: payload,
+    idempotencyKey: key,
+    timeoutMs: Math.max(60000, Number(process.env.CORA_INSTALLMENTS_TIMEOUT_MS || 90000)),
+    onTrace
+  });
+  return { idempotencyKey: key, payload, response: response.data };
+}
