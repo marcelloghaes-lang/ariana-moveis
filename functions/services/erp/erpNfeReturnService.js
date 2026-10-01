@@ -55,6 +55,7 @@ function extractXmlElement(xml='',tag=''){const source=String(xml||'');const re=
 function buildNfeProc(signedXml='',protNFe=''){if(!signedXml||!protNFe)return'';const nfeContent=String(signedXml).replace(/<\?xml[^?]*\?>\s*/g,'');return`<?xml version="1.0" encoding="UTF-8"?><nfeProc versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe">${nfeContent}${protNFe}</nfeProc>`}
 function fingerprint(value){return createHash('sha256').update(JSON.stringify(value??null)).digest('hex')}
 function fiscalDateTime(value){const date=value instanceof Date?value:new Date(value||Date.now());return Number.isNaN(date.getTime())?new Date():date}
+function formatFiscalDateTime(value){const date=fiscalDateTime(value),local=new Date(date.getTime()-3*60*60*1000);return `${local.getUTCFullYear()}-${String(local.getUTCMonth()+1).padStart(2,'0')}-${String(local.getUTCDate()).padStart(2,'0')}T${String(local.getUTCHours()).padStart(2,'0')}:${String(local.getUTCMinutes()).padStart(2,'0')}:${String(local.getUTCSeconds()).padStart(2,'0')}-03:00`}
 function xmlEscape(v=''){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]))}
 function injectItemReferences(xml='',products=[],referenceKey=''){
   const byItem=new Map(products.map((p,i)=>[i+1,`<DFeReferenciado><chaveAcesso>${xmlEscape(referenceKey)}</chaveAcesso><nItem>${Number(p.originalItemNumber)}</nItem></DFeReferenciado>`]));
@@ -65,7 +66,17 @@ function injectItemReferences(xml='',products=[],referenceKey=''){
 }
 function simplesXmlBuilder(DefaultXmlBuilder){
   const base=new DefaultXmlBuilder();
-  return{build(nfe){return base.build(nfe).replace(/<(\/?)ICMSSN(?:103|300|400)>/g,'<$1ICMSSN102>')}};
+  return{build(nfe){
+    let xml=base.build(nfe).replace(/<(\/?)ICMSSN(?:103|300|400)>/g,'<$1ICMSSN102>');
+    const exitDateRaw=nfe?.identificacao?.dataSaidaEntrada;
+    if(exitDateRaw&&!/<dhSaiEnt>/.test(xml)){
+      const exitDate=formatFiscalDateTime(exitDateRaw),before=xml;
+      xml=xml.replace(/(<dhEmi>[^<]*<\/dhEmi>)/,`$1<dhSaiEnt>${exitDate}</dhSaiEnt>`);
+      if(xml===before)throw fail('O XML da devolução não possui ponto seguro para a data/hora de entrada ou saída.',500,'NFE_RETURN_EXIT_DATETIME_XML_ANCHOR_MISSING');
+    }
+    if(exitDateRaw&&!xml.includes(`<dhSaiEnt>${formatFiscalDateTime(exitDateRaw)}</dhSaiEnt>`))throw fail('A data/hora de entrada ou saída não foi incluída corretamente no XML da devolução.',500,'NFE_RETURN_EXIT_DATETIME_XML_INVALID');
+    return xml;
+  }};
 }
 function keyMatchesReservation(key,pre,number){
   const k=digits(key);
