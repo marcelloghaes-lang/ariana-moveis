@@ -79,6 +79,7 @@
     <hr style="border:0;border-top:1px solid #e2e8f0;margin:22px 0">
     <h3 style="margin:0 0 8px">Teste de cartão Split</h3>
     <p class="muted">A tokenização acontece diretamente no navegador usando a biblioteca oficial da Efí. Os dados do cartão de teste não passam pelo backend da Ariana; somente o payment_token é enviado.</p>
+    <div class="note" style="margin-top:12px"><b>Regra do cartão:</b> o valor informado abaixo é tratado como preço à vista/base. No cartão, o cliente paga <b>base ÷ 0,8270</b>. O fabricante recebe um <b>repasse fixo de 88% do preço-base</b>, e todo o acréscimo do cartão permanece com a Ariana. As tarifas Efí ficam com a Ariana (mode 1).</div>
     <div class="note warn" style="margin-top:12px"><b>Limitação Efí:</b> estorno de cartão não está disponível para vendas de marketplace/Split. O painel bloqueia esse teste para evitar cobranças desnecessárias em Homologação.</div>
     <div class="note"><b>Use somente cartão de Homologação.</b> O exemplo abaixo é o cartão de teste documentado pela Efí e está configurado para aprovação no Sandbox.</div>
     <div class="grid" style="margin-top:14px">
@@ -399,7 +400,8 @@ async function runCardSplitTest(){
    installments:d.installments,
    installmentValue:d.installmentValue,
    cardMask:tokenResult.card_mask||null,
-   split:d.split
+   split:d.split,
+   pricing:d.pricing
   },null,2);
  }catch(e){
   cardOut.textContent='Falha: '+(e?.error_description||e?.message||String(e));
