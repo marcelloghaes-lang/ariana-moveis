@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { createErpCollectionWorkflowService } from './erpCollectionWorkflowService.js';
+import { claimMonthlyFinancialContact, confirmMonthlyFinancialContact, releaseMonthlyFinancialContact } from './erpMonthlyCollectionGuardService.js';
 
 const TZ = 'America/Sao_Paulo';
 const CAMPAIGN_KEY = 'etapa2_x_2026_10_01';
@@ -86,7 +87,7 @@ function candidateByReferenceBalance(candidates = [], referenceBalance = 0) {
   if (scored[1] && scored[1].diff - best.diff < Math.max(50, Number(referenceBalance) * 0.03)) return null;
   return best.client;
 }
-function resolveMarkedClient(task = {}, allClients = [], byName = new Map()) {
+function resolveMarkedClient(task = {}, allClients = [], byName = new Map(), strictNameKeys = STRICT_NAME_KEYS) {
   const exact = byName.get(task.nameKey) || [];
   if (exact.length === 1) return { client: exact[0], resolution: 'exact' };
   if (exact.length > 1) {
@@ -95,7 +96,7 @@ function resolveMarkedClient(task = {}, allClients = [], byName = new Map()) {
       ? { client: byBalance, resolution: 'exact_balance' }
       : { client: null, resolution: 'ambiguous', matches: exact.length };
   }
-  if (STRICT_NAME_KEYS.has(task.nameKey)) return { client: null, resolution: 'not_found', matches: 0 };
+  if (strictNameKeys.has(task.nameKey)) return { client: null, resolution: 'not_found', matches: 0 };
   const fuzzy = allClients.filter((client) => closeName(task.name, client?.name));
   if (fuzzy.length === 1) {
     const ref = Number(task.referenceBalance || 0);
@@ -352,9 +353,18 @@ function extractMessageId(data = {}) {
   return clean(data?.key?.id || data?.messageId || data?.id || data?.data?.key?.id || data?.data?.messageId || data?.response?.key?.id, 220);
 }
 
-export function createErpMarkedCollectionCampaignService(context = {}) {
+export function createErpMarkedCollectionCampaignService(context = {}, options = {}) {
   const Task = taskModel();
   const collections = createErpCollectionWorkflowService(context);
+  const campaignKey = clean(options.campaignKey || CAMPAIGN_KEY, 120);
+  const campaignLabel = clean(options.label || 'Etapa 2', 80);
+  const markedCollectionNames = Object.freeze(Array.isArray(options.names) && options.names.length ? options.names : MARKED_COLLECTION_NAMES);
+  const markedReferenceBalances = Object.freeze(options.referenceBalances || MARKED_REFERENCE_BALANCES);
+  const strictNameKeys = new Set(Array.isArray(options.strictNameKeys) ? options.strictNameKeys.map(normalizeCollectionName) : [...STRICT_NAME_KEYS]);
+  const manualPhoneOverrides = Object.freeze(options.manualPhoneOverrides || MANUAL_PHONE_OVERRIDES);
+  const userSkippedKeys = new Set(Array.isArray(options.userSkippedKeys) ? options.userSkippedKeys.map(normalizeCollectionName) : [...USER_SKIPPED_KEYS]);
+  const ariadnaKey = normalizeCollectionName(options.specialRetryName || 'Ariadna Santos Sardinha');
+  const enableLucianoRecovery = options.enableLucianoRecovery !== false;
 
   async function whatsappConfig() {
     let base = clean(process.env.ERP_COLLECTION_EVOLUTION_API_URL || process.env.ARIANA_EVOLUTION_API_URL || process.env.EVOLUTION_API_URL || process.env.EVOLUTION_URL, 500).replace(/\/+$/, '');
@@ -393,9 +403,9 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
     return { messageId: extractMessageId(data), instance: cfg.instance };
   }
   async function seed() {
-    await Promise.all(MARKED_COLLECTION_NAMES.map((name, index) => Task.updateOne(
-      { campaignKey: CAMPAIGN_KEY, nameKey: normalizeCollectionName(name) },
-      { $setOnInsert: { campaignKey: CAMPAIGN_KEY, name, nameKey: normalizeCollectionName(name), status: 'PENDING', attempts: 0, createdAt: new Date() }, $set: { priority: index + 1, referenceBalance: money(MARKED_REFERENCE_BALANCES[name] || 0) } },
+    await Promise.all(markedCollectionNames.map((name, index) => Task.updateOne(
+      { campaignKey: campaignKey, nameKey: normalizeCollectionName(name) },
+      { $setOnInsert: { campaignKey: campaignKey, name, nameKey: normalizeCollectionName(name), status: 'PENDING', attempts: 0, createdAt: new Date() }, $set: { priority: index + 1, referenceBalance: money(markedReferenceBalances[name] || 0) } },
       { upsert: true }
     )));
   }
@@ -552,15 +562,15 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
       byName.get(key).push(client);
     }
     const allClients = queue.clients || [];
-    const tasks = await Task.find({ campaignKey: CAMPAIGN_KEY }).sort({ priority: 1, createdAt: 1 }).lean();
+    const tasks = await Task.find({ campaignKey: campaignKey }).sort({ priority: 1, createdAt: 1 }).lean();
     const results = [];
     for (const task of tasks) {
-      if (USER_SKIPPED_KEYS.has(task.nameKey)) {
+      if (userSkippedKeys.has(task.nameKey)) {
         await Task.updateOne({ _id: task._id }, { $set: { status: 'SKIPPED_USER_REQUEST', lockUntil: null, lastError: 'Cobrança dispensada pelo operador em 01/10/2026.' } });
         results.push({ name: task.name, status: 'SKIPPED_USER_REQUEST' });
         continue;
       }
-      const resolved = resolveMarkedClient(task, allClients, byName);
+      const resolved = resolveMarkedClient(task, allClients, byName, strictNameKeys);
       if (!resolved.client) {
         const ambiguous = resolved.resolution === 'ambiguous';
         const status = ambiguous ? 'AMBIGUOUS' : 'NOT_FOUND';
@@ -572,7 +582,7 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
         continue;
       }
       const client = resolved.client;
-      const manualPhone = MANUAL_PHONE_OVERRIDES[task.nameKey] || '';
+      const manualPhone = manualPhoneOverrides[task.nameKey] || '';
       const contact = manualPhone
         ? { phone: manualPhone, source: 'manual_international_confirmed' }
         : await resolveClientPhone(client);
@@ -601,7 +611,7 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
       // Retransmissão extraordinária autorizada em 01/10/2026:
       // permite uma segunda tentativa somente para os envios que falharam.
       // Depois da 2ª tentativa, volta a bloquear automaticamente para evitar duplicidade.
-      const retryLimit = task.nameKey === ARIADNA_KEY ? 4 : 2;
+      const retryLimit = task.nameKey === ariadnaKey ? 4 : 2;
       if (task.status === 'FAILED' && Number(task.attempts || 0) >= retryLimit) {
         results.push({ name: task.name, status: 'FAILED', error: clean(task.lastError || `Falha após ${retryLimit} tentativa(s); aguardando revisão.`, 300) });
         continue;
@@ -616,6 +626,22 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
         results.push({ name: task.name, status: 'NO_DEBT' });
         continue;
       }
+      const monthlyClaim = await claimMonthlyFinancialContact(context, {
+        dateKey: today,
+        source: 'campanha_' + campaignKey,
+        customerName: client.name,
+        customerDocument: client.document,
+        phone,
+        customerKey: client.key || task.nameKey,
+        rows: client.entries || [],
+        updatedBy: 'erp-marked-collection'
+      });
+      if (!monthlyClaim.claimed) {
+        const priorSource = clean(monthlyClaim?.prior?.source || 'contato financeiro anterior', 120);
+        await Task.updateOne({ _id: task._id }, { $set: { status: 'SKIPPED_MONTHLY_CONTACT', lockUntil: null, lastError: 'Cliente já recebeu lembrete/cobrança neste mês: ' + priorSource } });
+        results.push({ name: task.name, status: 'SKIPPED_MONTHLY_CONTACT', priorSource });
+        continue;
+      }
       const now = new Date();
       const claimed = await Task.findOneAndUpdate(
         { _id: task._id, initialSentAt: null, $or: [{ lockUntil: null }, { lockUntil: { $lt: now } }] },
@@ -623,15 +649,19 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
         { new: true }
       ).lean();
       if (!claimed) {
+        await releaseMonthlyFinancialContact(context, monthlyClaim);
         results.push({ name: task.name, status: 'LOCKED' });
         continue;
       }
       const message = initialMessage(client);
       try {
         const sent = await sendWhatsapp(phone, message);
-        await Task.updateOne({ _id: task._id }, { $set: { status: 'AWAITING_REPLY', initialMessage: message, initialMessageId: sent.messageId || '', initialSentAt: new Date(), lockUntil: null, lastError: '' } });
-        results.push({ name: task.name, status: 'SENT', balance: money(client.totalUpdated) });
+        const sentAt = new Date();
+        await Task.updateOne({ _id: task._id }, { $set: { status: 'AWAITING_REPLY', initialMessage: message, initialMessageId: sent.messageId || '', initialSentAt: sentAt, lockUntil: null, lastError: '' } });
+        await confirmMonthlyFinancialContact(context, monthlyClaim, { sentAt, source: 'campanha_' + campaignKey, messageId: sent.messageId || '', updatedBy: 'erp-marked-collection' });
+        results.push({ name: task.name, status: 'SENT', balance: money(client.totalUpdated), phoneSource: contact.source || '' });
       } catch (error) {
+        await releaseMonthlyFinancialContact(context, monthlyClaim);
         await Task.updateOne({ _id: task._id }, { $set: { status: 'FAILED', lockUntil: null, lastError: clean(error?.message || error, 1000) } });
         results.push({ name: task.name, status: 'FAILED', error: clean(error?.message || error, 300) });
       }
@@ -639,8 +669,9 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
     return { ok: true, date: today, results };
   }
   async function recoverOperatorConfirmedLucianoPromise() {
+    if (!enableLucianoRecovery) return { skipped: true, reason: 'disabled_for_campaign' };
     const lucianoKey = normalizeCollectionName('Luciano Nunes Vieira Silva');
-    const task = await Task.findOne({ campaignKey: CAMPAIGN_KEY, nameKey: lucianoKey }).lean();
+    const task = await Task.findOne({ campaignKey: campaignKey, nameKey: lucianoKey }).lean();
     if (!task || !task.targetId || task.promiseRegisteredAt) return { skipped: true };
     const promiseDateKey = '2026-10-10';
     const raw = 'Sim no próximo final de semana dia dez consigo te pagar mais 2 prestação';
@@ -650,7 +681,7 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
         promiseDate: promiseDateKey,
         promiseAmount: 0,
         note: 'Promessa confirmada pelo operador a partir da conversa do WhatsApp da loja. Cliente informou pagamento de mais 2 prestações no dia 10/10/2026. Mensagem: ' + raw
-      }, { name: 'Automação Cobrança Etapa 2' });
+      }, { name: `Automação Cobrança ${campaignLabel}` });
       await Task.updateOne({ _id: task._id }, { $set: {
         status: 'PROMISE',
         promiseDate: dateFromKey(promiseDateKey),
@@ -688,7 +719,7 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
     if (mongoose.connection.readyState !== 1) return { skipped: true, reason: 'mongo_not_ready' };
     const today = localDateKey();
     if (nonWorkingReason(today)) return { skipped: true, reason: 'non_working_day', date: today };
-    const tasks = await Task.find({ campaignKey: CAMPAIGN_KEY, status: 'PROMISE', promiseDate: { $ne: null }, reminderSentAt: null }).sort({ promiseDate: 1 }).lean();
+    const tasks = await Task.find({ campaignKey: campaignKey, status: 'PROMISE', promiseDate: { $ne: null }, reminderSentAt: null }).sort({ promiseDate: 1 }).lean();
     const sent = [];
     for (const task of tasks) {
       const promiseKey = localDateKey(new Date(task.promiseDate));
@@ -723,7 +754,7 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
     const incoming = extractEvolutionMessage(body);
     if (incoming.event && incoming.event !== 'MESSAGES_UPSERT') return { handled: false, reason: 'event' };
     if (incoming.fromMe || !incoming.phone || !incoming.text) return { handled: false, reason: 'not_customer_text' };
-    const candidates = await Task.find({ campaignKey: CAMPAIGN_KEY, phone: incoming.phone, initialSentAt: { $ne: null } }).sort({ initialSentAt: -1 }).limit(3).lean();
+    const candidates = await Task.find({ campaignKey: campaignKey, phone: incoming.phone, initialSentAt: { $ne: null } }).sort({ initialSentAt: -1 }).limit(3).lean();
     if (!candidates.length) return { handled: false, reason: 'not_campaign_customer' };
     const active = candidates.filter((item) => !['CLOSED_NO_DEBT'].includes(item.status));
     if (active.length > 1 && new Set(active.map((item) => item.document || item.nameKey)).size > 1) {
@@ -750,14 +781,14 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
 
     const explicitAmount = extractPromiseAmount(incoming.text);
     const promiseAmount = explicitAmount || money(task.overdueUpdated || 0);
-    const note = `Promessa capturada automaticamente da resposta à cobrança Etapa 2. Mensagem do cliente: ${clean(incoming.text, 700)}${explicitAmount ? '' : ' | Valor interno assumido pelo saldo vencido atualizado da tarefa; o cliente não informou valor explícito.'}`;
+    const note = `Promessa capturada automaticamente da resposta à cobrança ${campaignLabel}. Mensagem do cliente: ${clean(incoming.text, 700)}${explicitAmount ? '' : ' | Valor interno assumido pelo saldo vencido atualizado da tarefa; o cliente não informou valor explícito.'}`;
     try {
       await collections.registrarAcao(task.targetId, {
         action: 'promessa',
         promiseDate: promiseDateKey,
         promiseAmount,
         note
-      }, { name: 'Automação Cobrança Etapa 2' });
+      }, { name: `Automação Cobrança ${campaignLabel}` });
     } catch (error) {
       await Task.updateOne({ _id: task._id }, { $set: { status: 'PROMISE_REVIEW', promiseRaw: incoming.text, awaitingPromiseDate: false, lastError: clean(error?.message || error, 1000) } });
       return { handled: true, action: 'promise_review', error: clean(error?.message || error, 300), taskId: String(task._id) };
@@ -795,7 +826,7 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
     const cfg = await whatsappConfig();
     if (!cfg.enabled || !cfg.base || !cfg.apiKey || !cfg.instance) return { skipped: true, reason: 'whatsapp_not_configured' };
     const tasks = await Task.find({
-      campaignKey: CAMPAIGN_KEY,
+      campaignKey: campaignKey,
       initialSentAt: { $ne: null },
       phone: { $ne: '' },
       status: { $nin: ['CLOSED_NO_DEBT', 'SKIPPED_USER_REQUEST'] }
@@ -885,7 +916,7 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
 
   async function list() {
     await seed();
-    const rows = await Task.find({ campaignKey: CAMPAIGN_KEY }).sort({ priority: 1, createdAt: 1 }).lean();
+    const rows = await Task.find({ campaignKey: campaignKey }).sort({ priority: 1, createdAt: 1 }).lean();
     const tasks = rows.map((row) => ({
       id: String(row._id),
       name: row.name,
@@ -912,7 +943,8 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
       lastError: row.lastError
     }));
     return {
-      campaignKey: CAMPAIGN_KEY,
+      campaignKey,
+      label: campaignLabel,
       date: localDateKey(),
       summary: {
         total: tasks.length,
@@ -921,6 +953,7 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
         reminders: tasks.filter((item) => item.reminderSentAt).length,
         ambiguous: tasks.filter((item) => item.status === 'AMBIGUOUS').length,
         missing: tasks.filter((item) => ['NOT_FOUND', 'NO_PHONE'].includes(item.status)).length,
+        monthlySkipped: tasks.filter((item) => item.status === 'SKIPPED_MONTHLY_CONTACT').length,
         totalUpdated: money(tasks.reduce((sum, item) => sum + Number(item.overdueUpdated || 0), 0))
       },
       tasks
@@ -934,8 +967,9 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
     return { initial, recovery, replies, reminders, ...(await list()) };
   }
   function start() {
-    if (globalThis.__erpMarkedCollectionCampaignWorkerStarted) return;
-    globalThis.__erpMarkedCollectionCampaignWorkerStarted = true;
+    if (!globalThis.__erpMarkedCollectionCampaignWorkers) globalThis.__erpMarkedCollectionCampaignWorkers = new Set();
+    if (globalThis.__erpMarkedCollectionCampaignWorkers.has(campaignKey)) return;
+    globalThis.__erpMarkedCollectionCampaignWorkers.add(campaignKey);
     const tick = async () => {
       try {
         const result = await run();
@@ -966,7 +1000,7 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
     startupRetry.unref?.();
     const interval = setInterval(tick, Math.max(5 * 60 * 1000, Number(process.env.ERP_MARKED_COLLECTION_INTERVAL_MS || 15 * 60 * 1000)));
     interval.unref?.();
-    console.log(`[erp-marked-collection-worker] ativo para ${MARKED_COLLECTION_NAMES.length} clientes da Etapa 2.`);
+    console.log(`[erp-marked-collection-worker] ${campaignLabel} ativo para ${markedCollectionNames.length} clientes.`);
   }
 
   return { list, run, start, handleIncomingWebhook, pollStoreReplies, parsePromiseDate: parseCollectionPromiseDate };
