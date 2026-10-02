@@ -1938,6 +1938,13 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
   const brandAsset = await prepareOfficialLogoAsset();
   const campaignBrandAsset = opts.brandLogoUrl ? await prepareCampaignBrandLogo(opts.brandLogoUrl) : null;
   opts.hasBrandLogo = Boolean(campaignBrandAsset?.backgroundRemoved);
+  const qualityResult = quality(asset, opts, format, brandAsset, campaignBrandAsset);
+  if (qualityResult.blockSave) {
+    const error = new Error('creative_quality_blocked');
+    error.code = 'creative_quality_blocked';
+    error.quality = qualityResult;
+    throw error;
+  }
   const comp = composition(renderFormat, asset, opts);
   const productLayer = await productComposite(
     asset,
@@ -2026,7 +2033,7 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
         removalMode: campaignBrandAsset.removalMode,
         removedRatio: Number(campaignBrandAsset.removedRatio || 0)
       } : null,
-      quality: quality(asset, opts, format, brandAsset, campaignBrandAsset)
+      quality: qualityResult
     }
   };
 }
@@ -2756,6 +2763,12 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
     rows.map(product => prepareProProductAsset(product, opts))
   );
   const qualityResult=multiQuality(assets,brandAsset,format,opts,campaignBrandAsset);
+  if (qualityResult.blockSave) {
+    const error = new Error('creative_quality_blocked');
+    error.code = 'creative_quality_blocked';
+    error.quality = qualityResult;
+    throw error;
+  }
   const slots=multiProductSlots(renderFormat,rows.length,opts);
 
   const layers=[
