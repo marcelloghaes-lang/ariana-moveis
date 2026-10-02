@@ -37,14 +37,25 @@ export function createErpDelinquencyChargeService(context={}){
   const Log=chargeLogModel();
 
   async function collectionEvolutionConfig(){
+    let cfg=evolutionConfig();
     if(typeof getWhatsappSettings==='function'){
       try{
         const settings=await getWhatsappSettings();
-        const base=clean(settings?.apiUrl||'',500).replace(/\/+$/,''),apiKey=clean(settings?.apiKey||'',500),instance=clean(settings?.instanceName||'',180);
-        if(settings?.enabled!==false&&base&&apiKey&&instance)return{base,apiKey,instance,senderPhone:'5531985147119'};
+        const base=clean(settings?.apiUrl||'',500).replace(/\/+$/,''),apiKey=clean(settings?.apiKey||'',500);
+        cfg={...cfg,base:cfg.base||base,apiKey:cfg.apiKey||apiKey};
       }catch(error){console.warn('[erp-delinquency][whatsapp-settings]',error?.message||error)}
     }
-    return evolutionConfig();
+    return{
+      ...cfg,
+      instance:clean(
+        process.env.ERP_COLLECTION_MAIN_STORE_EVOLUTION_INSTANCE||
+        process.env.ERP_DAILY_DUE_WHATSAPP_INSTANCE||
+        process.env.LOJA_EVOLUTION_INSTANCE||
+        'ariana loja',
+        180
+      ),
+      senderPhone:'5531985147119'
+    };
   }
 
   async function findCurrentPerson(base={}){
