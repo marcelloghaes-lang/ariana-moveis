@@ -1352,7 +1352,7 @@ app.post('/api/admin/creative-studio/pro/preview', adminRequired, async (req, re
   try {
     const input = professionalCreativeInput(req.body || {});
     const product = await resolveCreativeBankProduct(input.product);
-    const options = input.options;
+    const options = { ...input.options, previewMode:true };
     const products = Array.isArray(req.body?.products)
       ? await resolveCreativeBankProducts(req.body.products.filter(Boolean).slice(0, 5))
       : [];
@@ -1385,7 +1385,7 @@ app.post('/api/admin/creative-studio/pro/render', adminRequired, async (req, res
   try {
     const input = professionalCreativeInput(req.body || {});
     const product = await resolveCreativeBankProduct(input.product);
-    const options = input.options;
+    const options = { ...input.options, previewMode:false };
     const products = Array.isArray(req.body?.products)
       ? await resolveCreativeBankProducts(req.body.products.filter(Boolean).slice(0, 5))
       : [];
