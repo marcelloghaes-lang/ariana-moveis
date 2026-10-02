@@ -254,6 +254,67 @@ export function buildChargesSplitPercentagePayload(options = {}) {
   };
 }
 
+export function buildChargesSplitFixedPayload(options = {}) {
+  const recipients = Array.isArray(options.recipients) ? options.recipients : [];
+  const feeMode = Number(options.feeMode ?? 1);
+  const itemName = String(options.itemName || 'Produto teste Ariana Marketplace').trim().slice(0, 255);
+  const amount = Math.max(1, Math.floor(Number(options.amount || 1)));
+  const unitValueCents = Math.floor(Number(options.unitValueCents || options.valueCents || 0));
+
+  if (!recipients.length) throw new Error('Informe ao menos um favorecido para o split.');
+  if (feeMode !== 1) throw new Error('Split por valor fixo exige mode 1 para a Ariana assumir integralmente a tarifa Efí.');
+  if (!Number.isFinite(unitValueCents) || unitValueCents < 1) throw new Error('Valor do item é inválido.');
+
+  const repasses = recipients.map((recipient) => {
+    const fixed = Math.floor(Number(recipient.fixedCents ?? recipient.fixed ?? 0));
+    if (!Number.isFinite(fixed) || fixed < 1) throw new Error('Valor fixo do favorecido é inválido.');
+    return {
+      payee_code: normalizePayeeCode(recipient.payeeCode || recipient.payee_code),
+      fixed
+    };
+  });
+
+  const sellerTotalCents = repasses.reduce((sum, item) => sum + Number(item.fixed || 0), 0);
+  const totalItemCents = unitValueCents * amount;
+  if (sellerTotalCents >= totalItemCents) {
+    throw new Error('O repasse fixo do fabricante deve ser menor que o total cobrado, preservando saldo para a Ariana e as tarifas.');
+  }
+
+  return {
+    items: [{
+      name: itemName,
+      value: unitValueCents,
+      amount,
+      marketplace: {
+        mode: 1,
+        repasses
+      }
+    }],
+    metadata: {
+      custom_id: String(options.customId || ('ARIANA-EFI-HOMOLOG-FIXED-' + Date.now())).slice(0, 255)
+    }
+  };
+}
+
+export async function createChargesSplitFixedHomologationTransaction(options = {}) {
+  const environment = normalizeEnvironment(options.environment || 'homologation');
+  if (environment !== 'homologation') {
+    const error = new Error('Transação Split fixa de teste permitida somente em Homologação.');
+    error.code = 'EFI_HOMOLOGATION_ONLY';
+    error.statusCode = 400;
+    throw error;
+  }
+  const payload = buildChargesSplitFixedPayload(options);
+  const response = await efiChargesRequest({
+    environment,
+    method: 'post',
+    path: '/v1/charge',
+    data: payload
+  });
+  return { ...response, payload };
+}
+
+
 export async function createChargesSplitHomologationTransaction(options = {}) {
   const environment = normalizeEnvironment(options.environment || 'homologation');
   if (environment !== 'homologation') {
