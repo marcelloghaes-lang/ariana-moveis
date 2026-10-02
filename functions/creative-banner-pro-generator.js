@@ -1155,14 +1155,14 @@ function normalizedOptions(product = {}, options = {}) {
 function highQualityRenderFormat(format, opts = {}) {
   if (opts.generationStyle !== 'marketplace') return format;
 
-  // A prévia já usa a dimensão final oficial e precisa ser leve/confiável no celular.
-  // O supersampling 2x fica reservado ao arquivo final em alta.
-  const scale = opts.previewMode === true ? 1 : 2;
+  // A dimensão oficial já é a dimensão final do arquivo entregue.
+  // Manter 1x evita pico de memória no Render (512 MB) sem reduzir pixels do PNG final.
+  const scale = 1;
 
   return {
     ...format,
-    width: format.width * scale,
-    height: format.height * scale,
+    width: format.width,
+    height: format.height,
     renderScale: scale
   };
 }
@@ -1246,7 +1246,7 @@ function backgroundSvg(format, template) {
   if (template === 'category_selection') {
     return Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-      '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#060B45"/><stop offset=".55" stop-color="#101271"/><stop offset="1" stop-color="#171B9A"/></linearGradient><radialGradient id="g" cx="59%" cy="74%" r="45%"><stop offset="0" stop-color="#413CFF" stop-opacity=".48"/><stop offset="1" stop-color="#080A45" stop-opacity="0"/></radialGradient></defs>'+
+      '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0D2780"/><stop offset=".55" stop-color="#1741B5"/><stop offset="1" stop-color="#1F55CE"/></linearGradient><radialGradient id="g" cx="59%" cy="74%" r="45%"><stop offset="0" stop-color="#6A79FF" stop-opacity=".44"/><stop offset="1" stop-color="#173EAE" stop-opacity="0"/></radialGradient></defs>'+
       '<rect width="100%" height="100%" fill="url(#bg)"/><rect width="100%" height="100%" fill="url(#g)"/>'+
       '<ellipse cx="'+Math.round(w*.62)+'" cy="'+Math.round(h*.92)+'" rx="'+Math.round(w*.22)+'" ry="'+Math.round(h*.10)+'" fill="#342DFF" opacity=".62"/>'+
       '</svg>'
@@ -1256,7 +1256,7 @@ function backgroundSvg(format, template) {
   if (template === 'stock_movement') {
     return Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-      '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#07104B"/><stop offset=".65" stop-color="#141A87"/><stop offset="1" stop-color="#11145F"/></linearGradient><radialGradient id="g" cx="73%" cy="60%" r="43%"><stop offset="0" stop-color="#584DFF" stop-opacity=".36"/><stop offset="1" stop-color="#080C40" stop-opacity="0"/></radialGradient></defs>'+
+      '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#0A2A78"/><stop offset=".65" stop-color="#1A43B0"/><stop offset="1" stop-color="#203DA2"/></linearGradient><radialGradient id="g" cx="73%" cy="60%" r="43%"><stop offset="0" stop-color="#756BFF" stop-opacity=".34"/><stop offset="1" stop-color="#153C9F" stop-opacity="0"/></radialGradient></defs>'+
       '<rect width="100%" height="100%" fill="url(#bg)"/><rect width="100%" height="100%" fill="url(#g)"/>'+
       '<path d="M0 '+Math.round(h*.76)+' L'+w+' '+Math.round(h*.76)+' L'+w+' '+h+' L0 '+h+' Z" fill="#080E36" opacity=".48"/>'+
       '</svg>'
@@ -1266,7 +1266,7 @@ function backgroundSvg(format, template) {
   if (template === 'tech_store') {
     return Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-      '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#071B3B"/><stop offset=".60" stop-color="#0A3264"/><stop offset="1" stop-color="#063A46"/></linearGradient><radialGradient id="g" cx="80%" cy="66%" r="52%"><stop offset="0" stop-color="#5BFF7A" stop-opacity=".24"/><stop offset=".46" stop-color="#2B9F75" stop-opacity=".12"/><stop offset="1" stop-color="#0A3264" stop-opacity="0"/></radialGradient></defs>'+
+      '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0B3470"/><stop offset=".60" stop-color="#10589A"/><stop offset="1" stop-color="#0A6678"/></linearGradient><radialGradient id="g" cx="80%" cy="66%" r="52%"><stop offset="0" stop-color="#79FF96" stop-opacity=".28"/><stop offset=".46" stop-color="#42B99B" stop-opacity=".15"/><stop offset="1" stop-color="#10589A" stop-opacity="0"/></radialGradient></defs>'+
       '<rect width="100%" height="100%" fill="url(#bg)"/><rect width="100%" height="100%" fill="url(#g)"/>'+
       '</svg>'
     );
@@ -1275,7 +1275,7 @@ function backgroundSvg(format, template) {
   if (template === 'premium_line') {
     return Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-      '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#06172F"/><stop offset=".55" stop-color="#0A3264"/><stop offset="1" stop-color="#03101D"/></linearGradient><radialGradient id="g" cx="78%" cy="48%" r="48%"><stop offset="0" stop-color="#F0CA6A" stop-opacity=".18"/><stop offset="1" stop-color="#F0CA6A" stop-opacity="0"/></radialGradient></defs>'+
+      '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0A2B59"/><stop offset=".55" stop-color="#0F4B88"/><stop offset="1" stop-color="#082946"/></linearGradient><radialGradient id="g" cx="78%" cy="48%" r="48%"><stop offset="0" stop-color="#F8D982" stop-opacity=".22"/><stop offset="1" stop-color="#F0CA6A" stop-opacity="0"/></radialGradient></defs>'+
       '<rect width="100%" height="100%" fill="url(#bg)"/><rect width="100%" height="100%" fill="url(#g)"/>'+
       '<line x1="'+Math.round(w*.055)+'" y1="'+Math.round(h*.87)+'" x2="'+Math.round(w*.42)+'" y2="'+Math.round(h*.87)+'" stroke="#F0CA6A" stroke-opacity=".7" stroke-width="'+Math.max(2,Math.round(h*.006))+'"/>'+
       '</svg>'
@@ -1286,7 +1286,7 @@ function backgroundSvg(format, template) {
     return Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '">' +
       '<defs>' +
-      '<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#071B3B"/><stop offset=".56" stop-color="#0B2D61"/><stop offset="1" stop-color="#020B19"/></linearGradient>' +
+      '<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0B315F"/><stop offset=".56" stop-color="#124D88"/><stop offset="1" stop-color="#082546"/></linearGradient>' +
       '<radialGradient id="g" cx="79%" cy="45%" r="52%"><stop offset="0" stop-color="#FFE19A" stop-opacity=".20"/><stop offset=".48" stop-color="#D5A634" stop-opacity=".07"/><stop offset="1" stop-color="#D5A634" stop-opacity="0"/></radialGradient>' +
       '</defs>' +
       '<rect width="100%" height="100%" fill="url(#bg)"/><rect width="100%" height="100%" fill="url(#g)"/>' +
@@ -1325,8 +1325,8 @@ function backgroundSvg(format, template) {
   return Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '">' +
     '<defs>' +
-    '<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#005EEB"/><stop offset=".48" stop-color="#0047AB"/><stop offset="1" stop-color="#08285A"/></linearGradient>' +
-    '<radialGradient id="glow" cx="80%" cy="48%" r="58%"><stop offset="0" stop-color="#ffffff" stop-opacity=".22"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient>' +
+    '<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0A6BF2"/><stop offset=".48" stop-color="#0758C9"/><stop offset="1" stop-color="#0B3F82"/></linearGradient>' +
+    '<radialGradient id="glow" cx="80%" cy="48%" r="58%"><stop offset="0" stop-color="#ffffff" stop-opacity=".34"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient>' +
     '</defs>' +
     '<rect width="100%" height="100%" fill="url(#bg)"/><rect width="100%" height="100%" fill="url(#glow)"/>' +
     '<path d="M' + Math.round(w*.66) + ' -' + Math.round(h*.12) + ' L' + Math.round(w*.76) + ' -' + Math.round(h*.12) + ' L' + Math.round(w*.62) + ' ' + Math.round(h*1.10) + ' L' + Math.round(w*.50) + ' ' + Math.round(h*1.10) + ' Z" fill="#FFD51B" opacity=".95"/>' +
@@ -1583,9 +1583,10 @@ async function enhanceProductVisibility(buffer) {
   // Produto preto deve continuar preto; levantamos apenas os médios para
   // recuperar grade, marca, pás e acabamento quando o fundo do banner é escuro.
   const brightness =
-    y < 62 ? 1.18 :
-    y < 82 ? 1.14 :
-    y < 105 ? 1.09 :
+    y < 58 ? 1.34 :
+    y < 78 ? 1.28 :
+    y < 100 ? 1.20 :
+    y < 125 ? 1.10 :
     1.0;
 
   if (brightness <= 1.001) {
@@ -1595,9 +1596,10 @@ async function enhanceProductVisibility(buffer) {
   const enhanced = await sharp(buffer, { failOn:'none' })
     .modulate({
       brightness,
-      saturation: y < 82 ? 1.035 : 1.02
+      saturation: y < 100 ? 1.06 : 1.03
     })
-    .sharpen({ sigma:0.42 })
+    .gamma(y < 78 ? 1.16 : 1.08)
+    .sharpen({ sigma:0.52 })
     .png({ compressionLevel:9, adaptiveFiltering:true })
     .toBuffer();
 
@@ -2006,9 +2008,9 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
       template: opts.template,
       showPrice: opts.showPrice,
       renderQuality: opts.generationStyle === 'marketplace'
-        ? 'supersampled_2x_lanczos3_selective_sharpen'
+        ? 'official_resolution_lossless_png'
         : 'standard',
-      renderScale: opts.generationStyle === 'marketplace' ? (renderFormat.renderScale || 2) : 1,
+      renderScale: opts.generationStyle === 'marketplace' ? (renderFormat.renderScale || 1) : 1,
       product: {
         sourceWidth: asset.sourceWidth,
         sourceHeight: asset.sourceHeight,
@@ -2180,7 +2182,7 @@ function productContrastGlowSvg(format, opts = {}) {
   const grammar = resolveMarketplaceGrammar(opts.layoutGrammar, opts.marketplacePreset);
   const cx = mobile ? 50 : (grammar === 'B' ? 50 : grammar === 'C' ? 66 : 76);
   const cy = mobile ? 64 : 61;
-  const strength = template === 'tech_store' ? .28 : template === 'premium' || template === 'premium_line' ? .20 : .16;
+  const strength = template === 'tech_store' ? .40 : template === 'premium' || template === 'premium_line' ? .30 : .26;
 
   return Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
@@ -2255,14 +2257,14 @@ function marketplaceArianaPolishSvg(format, opts = {}) {
     '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
     '<defs>'+
       '<radialGradient id="mpHeroGlow" cx="'+Math.round(heroCx*100)+'%" cy="'+Math.round(heroCy*100)+'%" r="48%">'+
-        '<stop offset="0" stop-color="#5DB8FF" stop-opacity=".24"/>'+
-        '<stop offset=".52" stop-color="#1B73D8" stop-opacity=".10"/>'+
+        '<stop offset="0" stop-color="#7CC8FF" stop-opacity=".34"/>'+
+        '<stop offset=".52" stop-color="#2E8DE8" stop-opacity=".16"/>'+
         '<stop offset="1" stop-color="#003A8E" stop-opacity="0"/>'+
       '</radialGradient>'+
       '<linearGradient id="mpBlueVeil" x1="0" y1="0" x2="1" y2="0">'+
         '<stop offset="0" stop-color="#0047AB" stop-opacity="0"/>'+
-        '<stop offset=".45" stop-color="#0047AB" stop-opacity=".06"/>'+
-        '<stop offset="1" stop-color="#00357F" stop-opacity=".22"/>'+
+        '<stop offset=".45" stop-color="#0047AB" stop-opacity=".03"/>'+
+        '<stop offset="1" stop-color="#00357F" stop-opacity=".10"/>'+
       '</linearGradient>'+
       '<filter id="mpSoft"><feGaussianBlur stdDeviation="'+Math.max(5,Math.round(h*.012))+'"/></filter>'+
     '</defs>'+
@@ -2847,9 +2849,9 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
       layoutGrammar:opts.layoutGrammar,
       campaignObjective:opts.campaignObjective,
       renderQuality:opts.generationStyle === 'marketplace'
-        ? 'supersampled_2x_lanczos3_selective_sharpen'
+        ? 'official_resolution_lossless_png'
         : 'standard',
-      renderScale:opts.generationStyle === 'marketplace' ? (renderFormat.renderScale || 2) : 1,
+      renderScale:opts.generationStyle === 'marketplace' ? (renderFormat.renderScale || 1) : 1,
       productCount:rows.length,
       products:assets.map((asset,index)=>({
         index,
