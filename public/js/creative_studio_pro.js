@@ -1798,31 +1798,25 @@
       return;
     }
 
-    // A prévia é leve para evitar falhas de rede no celular.
-    // O botão Salvar sempre pede ao backend a renderização final supersampled 2x.
-    let payload;
-    try {
-      payload = buildPayload();
-    } catch (error) {
-      status(error.message,'error');
+    // A prévia aprovada já é um PNG lossless exatamente na dimensão oficial
+    // escolhida (1920×480, 1080×1080, 1600×400 ou 1080×720).
+    // Baixar o próprio blob evita uma segunda renderização que estourava a
+    // memória do Render e derrubava a conexão com "Failed to fetch".
+    if (previewBlob instanceof Blob && previewBlob.size > 0) {
+      try {
+        els.saveButton.disabled = true;
+        downloadPreviewBlob(previewBlob);
+        status('PNG em resolução oficial salvo no dispositivo.', 'ok');
+      } catch (error) {
+        status('Falha ao salvar o PNG: ' + error.message,'error');
+      } finally {
+        els.saveButton.disabled = !previewBlob || !qualityAllowsSave;
+      }
       return;
     }
 
+    status('Gere a prévia aprovada antes de salvar o PNG.', 'error');
     els.saveButton.disabled = true;
-    status('Gerando arquivo final Pro...', '');
-    try {
-      const blob = await api('/admin/creative-studio/pro/render',{
-        method:'POST',
-        body:JSON.stringify(payload)
-      },'blob');
-      previewBlob = blob;
-      downloadPreviewBlob(blob);
-      status('PNG Pro em alta salvo no dispositivo.', 'ok');
-    } catch (error) {
-      status('Falha ao salvar: ' + error.message,'error');
-    } finally {
-      els.saveButton.disabled = !previewBlob || !qualityAllowsSave;
-    }
   }
 
   function validateTemplateManifest(manifest) {
