@@ -816,6 +816,45 @@ export async function getCreativeCutoutAsset({ mongoose, id }) {
   return doc ? publicAsset(doc) : null;
 }
 
+export async function findApprovedCreativeCutoutAsset({
+  mongoose,
+  sku = '',
+  name = '',
+  category = ''
+} = {}) {
+  await ensureIndexes(mongoose);
+  const collection = collectionFor(mongoose);
+  const safeSku = String(sku || '').trim();
+  const safeName = String(name || '').trim();
+  const safeCategory = String(category || '').trim();
+
+  const approvedBase = {
+    status: 'approved',
+    approvedFileId: { $ne: null },
+    'quality.safe': true
+  };
+
+  let doc = null;
+  if (safeSku) {
+    doc = await collection.findOne(
+      { ...approvedBase, sku: safeSku },
+      { sort: { approvedAt: -1, updatedAt: -1 } }
+    );
+  }
+
+  if (!doc && safeName) {
+    const filter = { ...approvedBase, name: safeName };
+    if (safeCategory) filter.category = safeCategory;
+    doc = await collection.findOne(
+      filter,
+      { sort: { approvedAt: -1, updatedAt: -1 } }
+    );
+  }
+
+  if (!doc?.approvedFileId) return null;
+  return publicAsset(doc);
+}
+
 async function getRawAssetDocument({ mongoose, id }) {
   const _id = objectId(mongoose, id);
   if (!_id) return null;
