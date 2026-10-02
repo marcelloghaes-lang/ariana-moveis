@@ -959,9 +959,11 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
         console.error('[erp-marked-collection-worker]', error?.message || error);
       }
     };
-    // Executa imediatamente no boot para campanhas autorizadas não dependerem
-    // da primeira janela de 30 segundos após um deploy/restart.
+    // Executa no boot e repete após o Mongo estar pronto; o primeiro tick
+    // pode ocorrer alguns segundos antes da conexão do banco no Render.
     void tick();
+    const startupRetry = setTimeout(tick, 7000);
+    startupRetry.unref?.();
     const interval = setInterval(tick, Math.max(5 * 60 * 1000, Number(process.env.ERP_MARKED_COLLECTION_INTERVAL_MS || 15 * 60 * 1000)));
     interval.unref?.();
     console.log(`[erp-marked-collection-worker] ativo para ${MARKED_COLLECTION_NAMES.length} clientes da Etapa 2.`);
