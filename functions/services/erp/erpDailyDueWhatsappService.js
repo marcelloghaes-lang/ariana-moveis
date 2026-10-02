@@ -671,7 +671,7 @@ export async function runErpDailyDueWhatsappSweep(context = {}) {
         number: group.phone,
         text: message,
         delay: Math.max(0, Number(process.env.ERP_DAILY_DUE_WHATSAPP_DELAY_MS || 900) || 900),
-        instanceName: String(process.env.ERP_DAILY_DUE_WHATSAPP_INSTANCE || 'ariana loja').trim()
+        instanceName: String(process.env.ERP_COLLECTION_MAIN_STORE_EVOLUTION_INSTANCE || process.env.ERP_DAILY_DUE_WHATSAPP_INSTANCE || process.env.LOJA_EVOLUTION_INSTANCE || 'ariana loja').trim()
       });
 
       const messageId = evolutionMessageId(result);
@@ -802,7 +802,7 @@ export function startErpDailyDueWhatsappWorker(context = {}) {
   const timeZone = String(process.env.ERP_DAILY_DUE_WHATSAPP_TIMEZONE || process.env.FINANCEIRO_AUTOMACAO_TIMEZONE || 'America/Sao_Paulo').trim();
   const schedule = String(process.env.ERP_DAILY_DUE_WHATSAPP_HORA || '09:00').trim();
   const sweepMinutes = Math.max(5, Number(process.env.ERP_DAILY_DUE_WHATSAPP_SWEEP_MINUTES || 10) || 10);
-  const instanceName = String(process.env.ERP_DAILY_DUE_WHATSAPP_INSTANCE || 'ariana loja').trim();
+  const instanceName = String(process.env.ERP_COLLECTION_MAIN_STORE_EVOLUTION_INSTANCE || process.env.ERP_DAILY_DUE_WHATSAPP_INSTANCE || process.env.LOJA_EVOLUTION_INSTANCE || 'ariana loja').trim();
 
   if (!enabled) {
     console.log('📵 Lembrete ERP de vencimentos do dia: desativado.');
@@ -946,7 +946,7 @@ export async function runErpFifteenDayOverdueWhatsappSweep(context={}){
       await Setting.create({key:claimKey,value:{status:'sending',date:today,dueDates:[...new Set(g.rows.map(r=>dueDateKey(r.dueAt,timeZone)).filter(Boolean))].sort(),milestoneDates,carriedDates:businessWindow.carriedDates,customerKey:g.key,customerName:g.customerName,phone:g.phone,entryIds:[...new Set(g.rows.map(r=>String(r.id||'')).filter(Boolean))],attemptedAt:new Date()},updatedBy:'erp-15-day-collection-worker'});
     }catch(error){if(Number(error?.code)===11000){await releaseMonthlyFinancialContact({Setting},monthlyClaim);skippedAlreadySent++;continue}throw error}
     try{
-      const result=await waSendTextMessage({number:g.phone,text:buildFifteenDayOverdueMessage(g.customerName),delay:Math.max(0,Number(process.env.ERP_15_DAY_COLLECTION_WHATSAPP_DELAY_MS||900)||900),instanceName:String(process.env.ERP_15_DAY_COLLECTION_WHATSAPP_INSTANCE||'ariana loja').trim()});
+      const result=await waSendTextMessage({number:g.phone,text:buildFifteenDayOverdueMessage(g.customerName),delay:Math.max(0,Number(process.env.ERP_15_DAY_COLLECTION_WHATSAPP_DELAY_MS||900)||900),instanceName:String(process.env.ERP_COLLECTION_MAIN_STORE_EVOLUTION_INSTANCE||process.env.ERP_15_DAY_COLLECTION_WHATSAPP_INSTANCE||process.env.LOJA_EVOLUTION_INSTANCE||'ariana loja').trim()});
       const messageId=evolutionMessageId(result);if(!messageId)throw Object.assign(new Error('Envio sem confirmação do provedor.'),{code:'WHATSAPP_SEND_UNCONFIRMED'});
       await Setting.updateOne({key:claimKey},{$set:{value:{status:'sent',date:today,dueDates:[...new Set(g.rows.map(r=>dueDateKey(r.dueAt,timeZone)).filter(Boolean))].sort(),milestoneDates,carriedDates:businessWindow.carriedDates,customerKey:g.key,customerName:g.customerName,phone:g.phone,entryIds:[...new Set(g.rows.map(r=>String(r.id||'')).filter(Boolean))],sentAt:new Date(),instanceName:result?.instanceName||'',messageId},updatedBy:'erp-15-day-collection-worker'}});
       await audit(IntegrationAuditLog,{eventType:'erp_15_day_collection_whatsapp_sent',orderId:String(g.rows[0]?.orderId||''),status:'success',message:'Cobrança automática da régua de 15 dias enviada em dia útil.',metadata:{date:today,dueDates:[...new Set(g.rows.map(r=>dueDateKey(r.dueAt,timeZone)).filter(Boolean))].sort(),milestoneDates,carriedDates:businessWindow.carriedDates,customerKey:g.key,customerName:g.customerName,phone:maskedPhone(g.phone),entryCount:g.rows.length,instanceName:result?.instanceName||'',messageId}});
