@@ -1155,10 +1155,9 @@ function normalizedOptions(product = {}, options = {}) {
 function highQualityRenderFormat(format, opts = {}) {
   if (opts.generationStyle !== 'marketplace') return format;
 
-  // 2x é o ponto estável no Render Starter (512 MB).
-  // O Hero em 3x podia ultrapassar a memória durante a composição multi-produto
-  // e o processo era reiniciado no meio da requisição, causando "Failed to fetch".
-  const scale = 2;
+  // A prévia já usa a dimensão final oficial e precisa ser leve/confiável no celular.
+  // O supersampling 2x fica reservado ao arquivo final em alta.
+  const scale = opts.previewMode === true ? 1 : 2;
 
   return {
     ...format,
@@ -1267,7 +1266,7 @@ function backgroundSvg(format, template) {
   if (template === 'tech_store') {
     return Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-      '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#050505"/><stop offset=".62" stop-color="#0A0A0A"/><stop offset="1" stop-color="#07160B"/></linearGradient><radialGradient id="g" cx="83%" cy="78%" r="48%"><stop offset="0" stop-color="#45FF00" stop-opacity=".34"/><stop offset=".48" stop-color="#139A14" stop-opacity=".12"/><stop offset="1" stop-color="#000000" stop-opacity="0"/></radialGradient></defs>'+
+      '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#071B3B"/><stop offset=".60" stop-color="#0A3264"/><stop offset="1" stop-color="#063A46"/></linearGradient><radialGradient id="g" cx="80%" cy="66%" r="52%"><stop offset="0" stop-color="#5BFF7A" stop-opacity=".24"/><stop offset=".46" stop-color="#2B9F75" stop-opacity=".12"/><stop offset="1" stop-color="#0A3264" stop-opacity="0"/></radialGradient></defs>'+
       '<rect width="100%" height="100%" fill="url(#bg)"/><rect width="100%" height="100%" fill="url(#g)"/>'+
       '</svg>'
     );
@@ -1543,6 +1542,72 @@ function overlayMobile(format, opts) {
   return marketplaceMobileOverlay(format, opts);
 }
 
+async function productVisibilityMetrics(buffer) {
+  try {
+    const { data, info } = await sharp(buffer, { failOn:'none' })
+      .rotate()
+      .resize({ width:220, height:220, fit:'inside', withoutEnlargement:true })
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject:true });
+
+    let weight = 0;
+    let luminance = 0;
+    let highlights = 0;
+    const total = Math.max(1, info.width * info.height);
+
+    for (let i = 0; i < total; i += 1) {
+      const p = i * info.channels;
+      const alpha = data[p + 3] / 255;
+      if (alpha < .18) continue;
+      const y = data[p] * .2126 + data[p + 1] * .7152 + data[p + 2] * .0722;
+      const w = Math.max(.20, alpha);
+      luminance += y * w;
+      weight += w;
+      if (y >= 180) highlights += 1;
+    }
+
+    return {
+      luminance: weight > 0 ? luminance / weight : 128,
+      highlightRatio: highlights / total
+    };
+  } catch {
+    return { luminance:128, highlightRatio:0 };
+  }
+}
+
+async function enhanceProductVisibility(buffer) {
+  const metrics = await productVisibilityMetrics(buffer);
+  const y = Number(metrics.luminance || 128);
+
+  // Produto preto deve continuar preto; levantamos apenas os médios para
+  // recuperar grade, marca, pás e acabamento quando o fundo do banner é escuro.
+  const brightness =
+    y < 62 ? 1.18 :
+    y < 82 ? 1.14 :
+    y < 105 ? 1.09 :
+    1.0;
+
+  if (brightness <= 1.001) {
+    return { buffer, brightness:1, sourceLuminance:y };
+  }
+
+  const enhanced = await sharp(buffer, { failOn:'none' })
+    .modulate({
+      brightness,
+      saturation: y < 82 ? 1.035 : 1.02
+    })
+    .sharpen({ sigma:0.42 })
+    .png({ compressionLevel:9, adaptiveFiltering:true })
+    .toBuffer();
+
+  return {
+    buffer: enhanced,
+    brightness,
+    sourceLuminance:y
+  };
+}
+
 async function productComposite(asset, format, comp, renderOptions = {}) {
   const box = {
     x: Math.round(format.width * comp.product.x),
@@ -1564,9 +1629,11 @@ async function productComposite(asset, format, comp, renderOptions = {}) {
     productPipeline = productPipeline.sharpen({ sigma: 0.72 });
   }
 
-  const product = await productPipeline
+  const resizedProduct = await productPipeline
     .png({ compressionLevel: 9, adaptiveFiltering: true })
     .toBuffer();
+  const visibility = await enhanceProductVisibility(resizedProduct);
+  const product = visibility.buffer;
 
   const meta = await sharp(product).metadata();
   const pw = meta.width || box.w;
@@ -1591,7 +1658,9 @@ async function productComposite(asset, format, comp, renderOptions = {}) {
     productLeft: left,
     productTop: top,
     shadowLeft: left + Math.round(format.width*(softMarketplaceShadow ? .004 : .008)),
-    shadowTop: top + Math.round(format.height*(softMarketplaceShadow ? .010 : .018))
+    shadowTop: top + Math.round(format.height*(softMarketplaceShadow ? .010 : .018)),
+    brightnessLift: visibility.brightness,
+    sourceLuminance: visibility.sourceLuminance
   };
 }
 
@@ -1869,6 +1938,13 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
   const brandAsset = await prepareOfficialLogoAsset();
   const campaignBrandAsset = opts.brandLogoUrl ? await prepareCampaignBrandLogo(opts.brandLogoUrl) : null;
   opts.hasBrandLogo = Boolean(campaignBrandAsset?.backgroundRemoved);
+  const qualityResult = quality(asset, opts, format, brandAsset, campaignBrandAsset);
+  if (qualityResult.blockSave) {
+    const error = new Error('creative_quality_blocked');
+    error.code = 'creative_quality_blocked';
+    error.quality = qualityResult;
+    throw error;
+  }
   const comp = composition(renderFormat, asset, opts);
   const productLayer = await productComposite(
     asset,
@@ -1880,6 +1956,10 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
   const layers = [
     { input: backgroundSvg(renderFormat, opts.template), left: 0, top: 0 }
   ];
+  const contrastGlow = productContrastGlowSvg(renderFormat, opts);
+  if (contrastGlow) {
+    layers.push({ input: contrastGlow, left: 0, top: 0 });
+  }
 
   const logo = await logoLayer(renderFormat, brandAsset);
   if (logo) layers.push(logo);
@@ -1953,7 +2033,7 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
         removalMode: campaignBrandAsset.removalMode,
         removedRatio: Number(campaignBrandAsset.removedRatio || 0)
       } : null,
-      quality: quality(asset, opts, format, brandAsset, campaignBrandAsset)
+      quality: qualityResult
     }
   };
 }
@@ -2088,6 +2168,31 @@ function multiProductSlots(format, count = 2, opts = {}) {
   ];
 }
 
+
+function productContrastGlowSvg(format, opts = {}) {
+  const w = format.width;
+  const h = format.height;
+  const mobile = format.device === 'mobile';
+  const template = resolveProTemplate(opts.template);
+  const marketplaceMode = opts.generationStyle === 'marketplace';
+  if (!marketplaceMode) return null;
+
+  const grammar = resolveMarketplaceGrammar(opts.layoutGrammar, opts.marketplacePreset);
+  const cx = mobile ? 50 : (grammar === 'B' ? 50 : grammar === 'C' ? 66 : 76);
+  const cy = mobile ? 64 : 61;
+  const strength = template === 'tech_store' ? .28 : template === 'premium' || template === 'premium_line' ? .20 : .16;
+
+  return Buffer.from(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
+    '<defs><radialGradient id="pcg" cx="'+cx+'%" cy="'+cy+'%" r="48%">'+
+      '<stop offset="0" stop-color="#BFE5FF" stop-opacity="'+strength+'"/>'+
+      '<stop offset=".42" stop-color="#5BB9FF" stop-opacity="'+(strength*.48).toFixed(3)+'"/>'+
+      '<stop offset="1" stop-color="#0047AB" stop-opacity="0"/>'+
+    '</radialGradient></defs>'+
+    '<rect width="100%" height="100%" fill="url(#pcg)"/>'+
+    '</svg>'
+  );
+}
 
 function multiShowcaseStageSvg(format, count = 3, opts = {}) {
   const w=format.width,h=format.height;
@@ -2658,6 +2763,12 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
     rows.map(product => prepareProProductAsset(product, opts))
   );
   const qualityResult=multiQuality(assets,brandAsset,format,opts,campaignBrandAsset);
+  if (qualityResult.blockSave) {
+    const error = new Error('creative_quality_blocked');
+    error.code = 'creative_quality_blocked';
+    error.quality = qualityResult;
+    throw error;
+  }
   const slots=multiProductSlots(renderFormat,rows.length,opts);
 
   const layers=[
@@ -2666,6 +2777,10 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
   const marketplacePolish = marketplaceArianaPolishSvg(renderFormat, opts);
   if (marketplacePolish) {
     layers.push({input:marketplacePolish,left:0,top:0});
+  }
+  const contrastGlow = productContrastGlowSvg(renderFormat, opts);
+  if (contrastGlow) {
+    layers.push({input:contrastGlow,left:0,top:0});
   }
   layers.push({input:multiShowcaseStageSvg(renderFormat,rows.length,opts),left:0,top:0});
   layers.push(await logoLayer(renderFormat,brandAsset));

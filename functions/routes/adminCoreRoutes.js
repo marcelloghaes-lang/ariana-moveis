@@ -9,7 +9,10 @@ import {
   getProTemplateManifest
 } from '../creative-banner-pro-generator.js';
 import { researchCreativeCampaignWithAi } from '../services/creativeCampaignAiDirectorService.js';
-import { getCreativeCutoutFile } from '../services/creativeCutoutBankService.js';
+import {
+  findApprovedCreativeCutoutAsset,
+  getCreativeCutoutFile
+} from '../services/creativeCutoutBankService.js';
 
 // ============================================================
 // ROTAS ADMIN CORE / UPLOAD / POSTERS / CRUD GENÉRICO
@@ -233,12 +236,26 @@ function resolveCreativeDirectSources(products = []) {
 
 async function resolveCreativeBankProduct(product = {}) {
   const direct = resolveCreativeDirectSource(product);
-  const assetId = String(
+  let assetId = String(
     direct.cutoutAssetId ||
     direct.masterAssetId ||
     direct.creativeCutoutAssetId ||
     ''
   ).trim();
+
+  if (
+    !assetId &&
+    direct.sourceType !== 'direct_original_upload' &&
+    direct.sourceType !== 'persistent_original_upload'
+  ) {
+    const approved = await findApprovedCreativeCutoutAsset({
+      mongoose,
+      sku: direct.sku || direct.codigo || '',
+      name: direct.name || direct.title || '',
+      category: direct.category || direct.categoryName || ''
+    });
+    assetId = String(approved?.id || '').trim();
+  }
 
   if (!assetId) return direct;
 
@@ -263,7 +280,8 @@ async function resolveCreativeBankProduct(product = {}) {
     originalSourceBytes: Number(file.buffer.length || 0),
     sourceToken: '',
     persistentSourceUrl: '',
-    sourceType: 'approved_cutout_bank'
+    sourceType: 'approved_cutout_bank',
+    masterBankResolved: true
   };
 }
 
@@ -1352,7 +1370,7 @@ app.post('/api/admin/creative-studio/pro/preview', adminRequired, async (req, re
   try {
     const input = professionalCreativeInput(req.body || {});
     const product = await resolveCreativeBankProduct(input.product);
-    const options = input.options;
+    const options = { ...input.options, previewMode:true };
     const products = Array.isArray(req.body?.products)
       ? await resolveCreativeBankProducts(req.body.products.filter(Boolean).slice(0, 5))
       : [];
@@ -1377,6 +1395,14 @@ app.post('/api/admin/creative-studio/pro/preview', adminRequired, async (req, re
     return res.send(result.buffer);
   } catch (error) {
     console.error('[creative-studio-pro] erro ao gerar prévia:', error);
+    if (error?.code === 'creative_quality_blocked') {
+      return res.status(422).json({
+        ok:false,
+        error:'creative_quality_blocked',
+        message:'A prévia foi bloqueada porque existe produto reprovado.',
+        quality:error.quality || null
+      });
+    }
     return res.status(500).json({ ok: false, error: error.message || 'creative_studio_pro_preview_failed' });
   }
 });
@@ -1385,7 +1411,7 @@ app.post('/api/admin/creative-studio/pro/render', adminRequired, async (req, res
   try {
     const input = professionalCreativeInput(req.body || {});
     const product = await resolveCreativeBankProduct(input.product);
-    const options = input.options;
+    const options = { ...input.options, previewMode:false };
     const products = Array.isArray(req.body?.products)
       ? await resolveCreativeBankProducts(req.body.products.filter(Boolean).slice(0, 5))
       : [];
@@ -1424,6 +1450,14 @@ app.post('/api/admin/creative-studio/pro/render', adminRequired, async (req, res
     return res.send(result.buffer);
   } catch (error) {
     console.error('[creative-studio-pro] erro ao gerar arquivo final:', error);
+    if (error?.code === 'creative_quality_blocked') {
+      return res.status(422).json({
+        ok:false,
+        error:'creative_quality_blocked',
+        message:'O PNG final foi bloqueado porque existe produto reprovado.',
+        quality:error.quality || null
+      });
+    }
     return res.status(500).json({ ok: false, error: error.message || 'creative_studio_pro_render_failed' });
   }
 });

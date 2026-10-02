@@ -233,6 +233,22 @@
     return responseType === 'blob' ? response.blob() : response.json();
   }
 
+  async function apiWithRetry(path, options = {}, responseType = 'json', retries = 1) {
+    let lastError = null;
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+      try {
+        return await api(path, options, responseType);
+      } catch (error) {
+        lastError = error;
+        const message = String(error?.message || error || '');
+        const transient = /failed to fetch|networkerror|load failed|network request failed/i.test(message);
+        if (!transient || attempt >= retries) throw error;
+        await new Promise(resolve => setTimeout(resolve, 850 + attempt * 650));
+      }
+    }
+    throw lastError || new Error('Falha de rede ao gerar a prévia.');
+  }
+
   function status(message = '', type = '') {
     els.globalStatus.textContent = message;
     els.globalStatus.className = 'global-status ' + type;
@@ -1656,6 +1672,18 @@
     }
   }
 
+  function clearPreview() {
+    if (previewUrl) {
+      try { URL.revokeObjectURL(previewUrl); } catch {}
+    }
+    previewBlob = null;
+    previewUrl = '';
+    els.previewImage.removeAttribute('src');
+    els.previewImage.classList.add('hidden');
+    els.previewEmpty.classList.remove('hidden');
+    els.saveButton.disabled = true;
+  }
+
   function showPreview(blob) {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     previewBlob = blob;
@@ -1690,10 +1718,10 @@
     try {
       let analysis = null;
       for (let attempt = 0; attempt < 3; attempt += 1) {
-        analysis = await api('/admin/creative-studio/pro/analyze',{
+        analysis = await apiWithRetry('/admin/creative-studio/pro/analyze',{
           method:'POST',
           body:JSON.stringify(payload)
-        });
+        },'json',1);
         if (!analysis?.quality?.blockSave) break;
         const failures = Array.isArray(analysis?.quality?.criticalFailures) ? analysis.quality.criticalFailures : [];
         const productFailure = failures.some(item => item === 'multi_cutout' || item === 'multi_resolution');
@@ -1704,7 +1732,9 @@
       renderQuality(analysis);
 
       if (analysis?.quality?.blockSave) {
-        status('Prévia gerada, mas a arte final está bloqueada: corrija logo, recorte ou resolução antes de salvar.', 'error');
+        clearPreview();
+        status('A prévia foi bloqueada porque existe produto reprovado. Troque ou aprove o PNG Mestre antes de gerar o banner.', 'error');
+        return;
       } else if (contentMode === 'multi_product') {
         status('Todos os produtos passaram no recorte. Gerando a vitrine multi-produto...', 'ok');
       } else if (contentMode === 'with_price' && !payload.options.showPrice) {
@@ -1715,10 +1745,10 @@
         status('A foto tem fundo complexo. O Pro preservará a imagem em um painel e marcará o aviso de qualidade.', '');
       }
 
-      const blob = await api('/admin/creative-studio/pro/preview',{
+      const blob = await apiWithRetry('/admin/creative-studio/pro/preview',{
         method:'POST',
         body:JSON.stringify(payload)
-      },'blob');
+      },'blob',1);
       showPreview(blob);
       if (!analysis?.quality?.blockSave) {
         status('Prévia Pro aprovada na qualidade mínima. Confira a arte antes de salvar.', 'ok');
@@ -1737,6 +1767,7 @@
           return;
         }
       }
+      clearPreview();
       status('Falha ao gerar a prévia Pro: ' + error.message,'error');
     } finally {
       setBusy(false);
@@ -1767,22 +1798,8 @@
       return;
     }
 
-    // A prévia Pro já é renderizada na dimensão final oficial (ex.: 1920x480)
-    // com o mesmo pipeline de qualidade. Salvar o próprio preview evita uma
-    // segunda renderização pesada no backend e torna o botão confiável.
-    if (previewBlob instanceof Blob && previewBlob.size > 0) {
-      try {
-        els.saveButton.disabled = true;
-        downloadPreviewBlob(previewBlob);
-        status('PNG Pro em alta salvo no dispositivo.', 'ok');
-      } catch (error) {
-        status('Falha ao salvar: ' + error.message, 'error');
-      } finally {
-        els.saveButton.disabled = !previewBlob || !qualityAllowsSave;
-      }
-      return;
-    }
-
+    // A prévia é leve para evitar falhas de rede no celular.
+    // O botão Salvar sempre pede ao backend a renderização final supersampled 2x.
     let payload;
     try {
       payload = buildPayload();
