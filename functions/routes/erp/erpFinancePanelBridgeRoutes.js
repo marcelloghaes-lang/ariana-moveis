@@ -21,6 +21,35 @@ export default function createErpFinancePanelBridgeRoutes(context={}){
   const carne=createErpCarneCoraService(context);
   const markedCampaign=createErpMarkedCollectionCampaignService(context);
   markedCampaign.start();
+  const stage3Campaign=createErpMarkedCollectionCampaignService(context,{
+    campaignKey:'etapa3_x_2026_10_02',
+    label:'Etapa 3',
+    names:[
+      'Rayane Aparecida do Nascimento',
+      'Carlos Augusto de Oliveira',
+      'Marco Antonio Ferreira dos Santos',
+      'Angelica Vanderleia Marçal',
+      'Raissa Paula da Silva',
+      'Gleiciane Cristina da Silva Ferreira',
+      'Luciana Vieira Nunes',
+      'Silvana Freitas da Costa'
+    ],
+    referenceBalances:{
+      'Rayane Aparecida do Nascimento':2989.53,
+      'Carlos Augusto de Oliveira':2739.00,
+      'Marco Antonio Ferreira dos Santos':2679.00,
+      'Angelica Vanderleia Marçal':2626.00,
+      'Raissa Paula da Silva':2573.00,
+      'Gleiciane Cristina da Silva Ferreira':2544.00,
+      'Luciana Vieira Nunes':2392.00,
+      'Silvana Freitas da Costa':2363.30
+    },
+    strictNameKeys:[],
+    manualPhoneOverrides:{},
+    userSkippedKeys:[],
+    enableLucianoRecovery:false
+  });
+  stage3Campaign.start();
   const ariadnaReceiptRecovery=createErpAriadnaReceiptRecoveryService(context);
   ariadnaReceiptRecovery.start();
   const handle=(action,status=200)=>async(req,res)=>{
@@ -44,6 +73,8 @@ export default function createErpFinancePanelBridgeRoutes(context={}){
     try{
       const result=await markedCampaign.handleIncomingWebhook(req.body||{});
       if(result?.handled)console.log('[erp-marked-collection][webhook]',result.action||'handled',result.taskId||'');
+      const stage3Result=await stage3Campaign.handleIncomingWebhook(req.body||{});
+      if(stage3Result?.handled)console.log('[erp-marked-collection][webhook][etapa3]',stage3Result.action||'handled',stage3Result.taskId||'');
     }catch(error){
       console.error('[erp-marked-collection][webhook]',error?.message||error);
     }
@@ -52,6 +83,8 @@ export default function createErpFinancePanelBridgeRoutes(context={}){
 
   router.get('/erp/finance-panel/campanha-etapa-2',context.adminRequired,handle(req=>markedCampaign.list(req.query||{})));
   router.post('/erp/finance-panel/campanha-etapa-2/executar',context.adminRequired,handle(()=>markedCampaign.run()));
+  router.get('/erp/finance-panel/campanha-etapa-3',context.adminRequired,handle(req=>stage3Campaign.list(req.query||{})));
+  router.post('/erp/finance-panel/campanha-etapa-3/executar',context.adminRequired,handle(()=>stage3Campaign.run()));
 
   router.get('/erp/finance-panel/clientes',context.adminRequired,handle(req=>bridge.clientes(req.query||{})));
   router.get('/erp/finance-panel/lancamentos',context.adminRequired,handle(req=>bridge.lancamentos(req.query||{})));
