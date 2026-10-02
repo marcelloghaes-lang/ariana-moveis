@@ -12,7 +12,8 @@ export default function createMarketplacePricingService(context = {}) {
     toJSON
   } = context;
 
-  const MARKETPLACE_CARD_DISCOUNT_PERCENT = Number(process.env.MARKETPLACE_CARD_DISCOUNT_PERCENT || 17);
+  const MARKETPLACE_CARD_FACTOR = Number(process.env.MARKETPLACE_CARD_FACTOR || 0.827);
+  const MARKETPLACE_CARD_DISCOUNT_PERCENT = Math.round((1 - MARKETPLACE_CARD_FACTOR) * 10000) / 100;
   const MARKETPLACE_COMMISSION_PERCENT = Number(process.env.MARKETPLACE_COMMISSION_PERCENT || 12);
 
   function roundMoney(value = 0) {
@@ -20,8 +21,9 @@ export default function createMarketplacePricingService(context = {}) {
   }
 
   function getMarketplaceFactor() {
-    const p = Math.min(90, Math.max(0, Number(MARKETPLACE_CARD_DISCOUNT_PERCENT || 17)));
-    return roundMoney((100 - p) / 100) || 0.83;
+    const factor = Number(MARKETPLACE_CARD_FACTOR || 0.827);
+    if (!Number.isFinite(factor) || factor <= 0 || factor >= 1) return 0.827;
+    return Math.round(factor * 10000) / 10000;
   }
 
   function sellerBaseToMarketplacePrice(basePrice = 0) {
@@ -160,6 +162,7 @@ export default function createMarketplacePricingService(context = {}) {
   }
 
   return {
+    MARKETPLACE_CARD_FACTOR,
     MARKETPLACE_CARD_DISCOUNT_PERCENT,
     MARKETPLACE_COMMISSION_PERCENT,
     roundMoney,
