@@ -96,6 +96,22 @@ function cleanCopy(value = '', max = 120, fallback = '') {
   return cleaned;
 }
 
+function repairAwkwardRetailCopy(copy = {}) {
+  const fixed = { ...copy };
+  const subtitle = normalize(fixed.subtitle || '');
+  const awkwardSupplierPhrase =
+    subtitle.includes('produtos e fabricantes') ||
+    subtitle.includes('fabricantes que combinam') ||
+    subtitle.includes('fabricantes para sua casa') ||
+    subtitle.includes('fornecedores para sua casa');
+
+  if (awkwardSupplierPhrase) {
+    fixed.subtitle = 'Produtos selecionados para deixar sua rotina ainda melhor.';
+  }
+
+  return fixed;
+}
+
 function safeIndex(value, count) {
   const number = Number(value);
   if (!Number.isInteger(number) || number < 0 || number >= count) return 0;
@@ -309,7 +325,7 @@ export function sanitizeAiCreativeDirection(raw = {}, products = [], fallbackCop
   };
 
   const categoryAdjusted = fixCopyByVisualCategory(
-    initialCopy,
+    repairAwkwardRetailCopy(initialCopy),
     raw?.category || '',
     recognizedProducts,
     rows
@@ -481,6 +497,7 @@ export function buildAiDirectorRequest(products = [], now = new Date(), creative
     'O template escolhido deve influenciar o tom: Marketplace Impacto = varejo direto; Premium Ariana = linguagem elegante e sóbria; Campanha Forte = energia promocional sem inventar condições comerciais.',
     'Preset Varejo Impacto Ariana: headline forte e categoria clara. Seleção Ariana: foco em categoria e visual limpo. Fabricante em Destaque: textos curtos, elegantes e marca/linha em evidência. Campanha de Oportunidade: mais energia, mas sem inventar preço, percentual ou condição. Grade Comercial / Mini Cards: copy curta e modular.',
     'Evite frases genéricas quebradas como "Campanha escolhidos para sua casa". Escreva português natural, comercial e curto.',
+    'Nunca escreva que o cliente levará fabricante ou fornecedor para casa. Frases como "produtos e fabricantes que combinam com a sua casa", "fabricantes para sua casa" e equivalentes são proibidas. Fale em produtos, modelos, linhas ou marcas.',
     'A categoria visual reconhecida nas fotos é a referência principal para a copy. Se as imagens mostram claramente uma categoria, não use copy institucional genérica.',
     'Quando a categoria for áudio/som/caixas de som, use vocabulário específico como som, potência, música, conectividade, entretenimento, energia e momentos.',
     'Para áudio/som, o badge deve identificar a família, por exemplo "ÁUDIO & SOM" ou equivalente específico; não use "SELEÇÃO ARIANA" como rótulo principal.',
