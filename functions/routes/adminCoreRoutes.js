@@ -1395,6 +1395,14 @@ app.post('/api/admin/creative-studio/pro/preview', adminRequired, async (req, re
     return res.send(result.buffer);
   } catch (error) {
     console.error('[creative-studio-pro] erro ao gerar prévia:', error);
+    if (error?.code === 'creative_quality_blocked') {
+      return res.status(422).json({
+        ok:false,
+        error:'creative_quality_blocked',
+        message:'A prévia foi bloqueada porque existe produto reprovado.',
+        quality:error.quality || null
+      });
+    }
     return res.status(500).json({ ok: false, error: error.message || 'creative_studio_pro_preview_failed' });
   }
 });
@@ -1442,6 +1450,14 @@ app.post('/api/admin/creative-studio/pro/render', adminRequired, async (req, res
     return res.send(result.buffer);
   } catch (error) {
     console.error('[creative-studio-pro] erro ao gerar arquivo final:', error);
+    if (error?.code === 'creative_quality_blocked') {
+      return res.status(422).json({
+        ok:false,
+        error:'creative_quality_blocked',
+        message:'O PNG final foi bloqueado porque existe produto reprovado.',
+        quality:error.quality || null
+      });
+    }
     return res.status(500).json({ ok: false, error: error.message || 'creative_studio_pro_render_failed' });
   }
 });
