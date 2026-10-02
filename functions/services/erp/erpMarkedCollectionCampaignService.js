@@ -638,6 +638,43 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
     }
     return { ok: true, date: today, results };
   }
+  async function recoverOperatorConfirmedLucianoPromise() {
+    const lucianoKey = normalizeCollectionName('Luciano Nunes Vieira Silva');
+    const task = await Task.findOne({ campaignKey: CAMPAIGN_KEY, nameKey: lucianoKey }).lean();
+    if (!task || !task.targetId || task.promiseRegisteredAt) return { skipped: true };
+    const promiseDateKey = '2026-10-10';
+    const raw = 'Sim no próximo final de semana dia dez consigo te pagar mais 2 prestação';
+    try {
+      await collections.registrarAcao(task.targetId, {
+        action: 'promessa',
+        promiseDate: promiseDateKey,
+        promiseAmount: 0,
+        note: 'Promessa confirmada pelo operador a partir da conversa do WhatsApp da loja. Cliente informou pagamento de mais 2 prestações no dia 10/10/2026. Mensagem: ' + raw
+      }, { name: 'Automação Cobrança Etapa 2' });
+      await Task.updateOne({ _id: task._id }, { $set: {
+        status: 'PROMISE',
+        promiseDate: dateFromKey(promiseDateKey),
+        promiseAmount: 0,
+        promiseAmountExplicit: false,
+        promiseRaw: raw,
+        promiseRegisteredAt: new Date(),
+        awaitingPromiseDate: false,
+        reminderSentAt: null,
+        reminderForDate: '',
+        reminderMessageId: '',
+        lastInboundMessageId: task.lastInboundMessageId || 'operator-evidence-luciano-2026-10-01-1312',
+        lastInboundText: raw,
+        lastInboundAt: new Date('2026-10-01T13:12:00-03:00'),
+        lastError: ''
+      } });
+      console.log('[erp-marked-collection-recovery] promessa do Luciano registrada para 2026-10-10.');
+      return { recovered: true, name: task.name, promiseDate: promiseDateKey };
+    } catch (error) {
+      console.error('[erp-marked-collection-recovery] falha ao registrar promessa do Luciano:', error?.message || error);
+      return { recovered: false, error: clean(error?.message || error, 300) };
+    }
+  }
+
   async function currentClientForTask(task = {}) {
     const queue = await collections.fila({ q: task.matchedName || task.name, from: '2000-01-01', to: localDateKey(), filter: 'all' });
     const matches = (queue.clients || []).filter((client) => normalizeCollectionName(client.name) === task.nameKey);
@@ -764,6 +801,48 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
       status: { $nin: ['CLOSED_NO_DEBT', 'SKIPPED_USER_REQUEST'] }
     }).sort({ initialSentAt: 1 }).lean();
     const results = [];
+    const taskByPhone = new Map(tasks.map(task => [normalizePhone(task.phone), task]).filter(([phone]) => phone));
+    try {
+      const bulkResponse = await fetch(`${cfg.base}/chat/findMessages/${encodeURIComponent(cfg.instance)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: cfg.apiKey },
+        body: JSON.stringify({}),
+        signal: AbortSignal.timeout(30000)
+      });
+      const bulkData = await readEvolutionResponse(bulkResponse);
+      const bulkRecords = evolutionMessageRecords(bulkData)
+        .filter(record => record?.key?.fromMe === false)
+        .sort((a,b) => evolutionRecordTimestamp(a) - evolutionRecordTimestamp(b));
+      for (const record of bulkRecords) {
+        const jidCandidates = [
+          record?.key?.remoteJid,
+          record?.key?.remoteJidAlt,
+          record?.remoteJid,
+          record?.remoteJidAlt,
+          record?.sender,
+          record?.participant
+        ].filter(Boolean);
+        let task = null;
+        for (const jid of jidCandidates) {
+          const phone = normalizePhone(String(jid).split('@')[0]);
+          if (phone && taskByPhone.has(phone)) { task = taskByPhone.get(phone); break; }
+        }
+        if (!task) continue;
+        const ts = evolutionRecordTimestamp(record);
+        if (ts && ts < new Date(task.initialSentAt).getTime() - 60000) continue;
+        const id = clean(record?.key?.id || record?.id || record?.messageId || '', 220);
+        if (id && id === task.lastInboundMessageId) continue;
+        const ageMs = ts ? Date.now() - ts : 0;
+        const handled = await handleIncomingWebhook({
+          event: 'MESSAGES_UPSERT',
+          data: record,
+          internal: { suppressAck: ageMs > 15 * 60 * 1000 }
+        });
+        if (handled?.handled) results.push({ name: task.name, action: handled.action || 'handled', messageId: id || '' });
+      }
+    } catch (error) {
+      results.push({ name: 'store_bulk', action: 'poll_error', error: clean(error?.message || error, 220) });
+    }
     for (const task of tasks) {
       try {
         const number = normalizePhone(task.phone);
@@ -849,9 +928,10 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
   }
   async function run() {
     const initial = await resolveAndSendInitial();
+    const recovery = await recoverOperatorConfirmedLucianoPromise();
     const replies = await pollStoreReplies();
     const reminders = await sendPromiseReminders();
-    return { initial, replies, reminders, ...(await list()) };
+    return { initial, recovery, replies, reminders, ...(await list()) };
   }
   function start() {
     if (globalThis.__erpMarkedCollectionCampaignWorkerStarted) return;
