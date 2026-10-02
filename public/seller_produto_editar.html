@@ -301,8 +301,16 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
             <input id="p-stock" type="number" min="0" placeholder="Estoque" required class="w-full p-4 border rounded-xl">
           </div>
           <div>
-            <label class="block text-sm font-bold text-slate-800 mb-2">Preço</label>
+            <label class="block text-sm font-bold text-slate-800 mb-2">Preço à vista (Pix/boleto)</label>
             <input id="p-price" type="number" min="0" step="0.01" placeholder="Preço" required class="w-full p-4 border rounded-xl">
+            <p class="text-xs text-gray-500 mt-2">Não há acréscimo de tarifa de Pix ou boleto sobre esse valor.</p>
+            <div id="seller-price-preview" class="mt-3 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-700">
+              <div class="font-black text-slate-900 mb-2">Resumo da venda</div>
+              <div>Preço à vista: <b id="seller-preview-cash">R$ 0,00</b></div>
+              <div>Comissão Ariana (12%): <b id="seller-preview-commission">R$ 0,00</b></div>
+              <div class="mt-1 text-green-700">Você receberá: <b id="seller-preview-net">R$ 0,00</b></div>
+              <div class="mt-1 text-slate-500">Preço estimado no cartão: <b id="seller-preview-card">R$ 0,00</b> (à vista ÷ 0,8270)</div>
+            </div>
           </div>
         </div>
 
@@ -418,6 +426,20 @@ function moneyToNumber(value) {
   if (typeof value === 'number') return value;
   return Number(String(value || '').replace(/\./g, '').replace(',', '.').replace(/[^0-9.\-]/g, '')) || 0;
 }
+function formatMoneyBR(value = 0) {
+  return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+function updateSellerPricePreview() {
+  const cash = moneyToNumber($('p-price')?.value);
+  const commission = Math.round((cash * 0.12 + Number.EPSILON) * 100) / 100;
+  const net = Math.round((Math.max(0, cash - commission) + Number.EPSILON) * 100) / 100;
+  const card = cash > 0 ? Math.round(((cash / 0.8270) + Number.EPSILON) * 100) / 100 : 0;
+  if ($('seller-preview-cash')) $('seller-preview-cash').textContent = formatMoneyBR(cash);
+  if ($('seller-preview-commission')) $('seller-preview-commission').textContent = formatMoneyBR(commission);
+  if ($('seller-preview-net')) $('seller-preview-net').textContent = formatMoneyBR(net);
+  if ($('seller-preview-card')) $('seller-preview-card').textContent = formatMoneyBR(card);
+}
+
 function resolveImageUrl(product) {
   const candidates = [product?.imageUrl, product?.mainImageUrl, product?.image, product?.imagem];
   if (Array.isArray(product?.images)) {
@@ -789,6 +811,7 @@ async function loadProduct() {
     $('p-name').value = p.name || p.nome || '';
     $('p-sku').value = p.sku || '';
     $('p-price').value = p.price ?? p.preco ?? 0;
+    updateSellerPricePreview();
     $('p-stock').value = p.stock ?? p.estoque ?? 0;
     $('p-desc').value = p.description || p.descricao || '';
     $('p-specs').value = parseSpecsToText(p.specs || p.especificacoes || p.technicalSpecs || p.specifications || '');
@@ -871,6 +894,8 @@ async function saveProduct(event) {
       sku: $('p-sku').value.trim() || currentProduct?.sku || `SKU-${Date.now()}`,
       price: moneyToNumber($('p-price').value),
       preco: moneyToNumber($('p-price').value),
+      sellerBasePrice: moneyToNumber($('p-price').value),
+      pixPrice: moneyToNumber($('p-price').value),
       stock: Number($('p-stock').value || 0),
       estoque: Number($('p-stock').value || 0),
       category: $('p-category').value,
@@ -929,6 +954,7 @@ async function saveProduct(event) {
 
 $('btn-generate-sku')?.addEventListener('click', generateSku);
 $('p-name')?.addEventListener('blur', () => { if (!$('p-sku').value.trim()) generateSku(); });
+$('p-price')?.addEventListener('input', updateSellerPricePreview);
 $('p-category')?.addEventListener('change', () => { loadSubcategoriesForSelected(); syncCategoryFields(); });
 $('p-subcategory')?.addEventListener('change', syncCategoryFields);
 
