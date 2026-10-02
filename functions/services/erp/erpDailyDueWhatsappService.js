@@ -1,6 +1,6 @@
 import { createErpFinanceService } from './erpFinanceService.js';
 import { createErpParityAnalyticsService } from './erpParityAnalyticsService.js';
-import { claimMonthlyFinancialContact, confirmMonthlyFinancialContact, releaseMonthlyFinancialContact } from './erpMonthlyCollectionGuardService.js';
+import { findMonthlyFinancialContact, claimMonthlyFinancialContact, confirmMonthlyFinancialContact, releaseMonthlyFinancialContact } from './erpMonthlyCollectionGuardService.js';
 
 const text = (value = '', max = 500) => String(value ?? '').trim().slice(0, max);
 
@@ -1028,12 +1028,20 @@ export async function listErpFifteenDayOverdueAudit(context={}){
   for(const g of groups.values()){
     const claim=claimMap.get(g.key)||null;
     const failure=failureMap.get(g.key)||null;
+    const monthlyPrior=await findMonthlyFinancialContact({Setting},{
+      dateKey:today,
+      customerKey:g.key,
+      customerName:g.customerName,
+      phone:g.phone,
+      rows:g.rows
+    });
     let status='nao_enviado',reason='Ainda não houve envio confirmado.';
     if(!businessWindow.businessDay){
       status='adiado_dia_nao_util';
       reason=`${businessWindow.reason}. Envio adiado para ${formatDatePtBr(businessWindow.nextBusinessDate)}.`;
-    }else if(!g.phone){status='telefone_invalido_ou_ausente';reason='Telefone ausente ou inválido no cadastro do cliente.'}
-    else if(String(claim?.status||'')==='sent'){status='enviado';reason='Mensagem enviada e confirmada pelo provedor.'}
+    }else if(String(claim?.status||'')==='sent'){status='enviado';reason='Mensagem enviada e confirmada pelo provedor.'}
+    else if(monthlyPrior){status='bloqueado_regra_mensal';reason='Cliente já recebeu lembrete ou cobrança financeira neste mês; novo envio bloqueado.'}
+    else if(!g.phone){status='telefone_invalido_ou_ausente';reason='Telefone ausente ou inválido no cadastro do cliente.'}
     else if(failure){status='falha_no_envio';reason=String(failure?.message||'Falha ao enviar a mensagem.')}
     else if(String(claim?.status||'')==='sending'){status='processando';reason='Envio em processamento.'}
 
@@ -1054,7 +1062,7 @@ export async function listErpFifteenDayOverdueAudit(context={}){
     });
   }
 
-  const order={telefone_invalido_ou_ausente:0,falha_no_envio:1,nao_enviado:2,adiado_dia_nao_util:3,processando:4,enviado:5};
+  const order={telefone_invalido_ou_ausente:0,falha_no_envio:1,nao_enviado:2,bloqueado_regra_mensal:3,adiado_dia_nao_util:4,processando:5,enviado:6};
   customers.sort((a,b)=>(order[a.status]??9)-(order[b.status]??9)||String(a.customerName).localeCompare(String(b.customerName),'pt-BR'));
 
   return{ok:true,date:today,businessDay:businessWindow.businessDay,nonWorkingReason:businessWindow.reason,nextBusinessDate:businessWindow.nextBusinessDate,dueDates,milestoneDates,carriedDates:businessWindow.carriedDates,eligibleCustomers:customers.length,customers};
