@@ -46,7 +46,7 @@ export default function createErpFinancePanelBridgeRoutes(context={}){
     },
     strictNameKeys:[],
     manualPhoneOverrides:{},
-    userSkippedKeys:[],
+    userSkippedKeys:['Marco Antonio Ferreira dos Santos'],
     enableLucianoRecovery:false
   });
   stage3Campaign.start();
