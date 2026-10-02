@@ -2008,9 +2008,9 @@ export async function generateCreativeBannerPro(product = {}, options = {}) {
       template: opts.template,
       showPrice: opts.showPrice,
       renderQuality: opts.generationStyle === 'marketplace'
-        ? 'supersampled_2x_lanczos3_selective_sharpen'
+        ? 'official_resolution_lossless_png'
         : 'standard',
-      renderScale: opts.generationStyle === 'marketplace' ? (renderFormat.renderScale || 2) : 1,
+      renderScale: opts.generationStyle === 'marketplace' ? (renderFormat.renderScale || 1) : 1,
       product: {
         sourceWidth: asset.sourceWidth,
         sourceHeight: asset.sourceHeight,
@@ -2849,9 +2849,9 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
       layoutGrammar:opts.layoutGrammar,
       campaignObjective:opts.campaignObjective,
       renderQuality:opts.generationStyle === 'marketplace'
-        ? 'supersampled_2x_lanczos3_selective_sharpen'
+        ? 'official_resolution_lossless_png'
         : 'standard',
-      renderScale:opts.generationStyle === 'marketplace' ? (renderFormat.renderScale || 2) : 1,
+      renderScale:opts.generationStyle === 'marketplace' ? (renderFormat.renderScale || 1) : 1,
       productCount:rows.length,
       products:assets.map((asset,index)=>({
         index,
