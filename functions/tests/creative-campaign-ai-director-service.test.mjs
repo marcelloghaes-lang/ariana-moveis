@@ -99,6 +99,20 @@ test('direção IA sanitiza comércio inventado e preserva briefing criativo', (
   assert.doesNotMatch(Object.values(result.copy).join(' '), /pix|12x|10%/i);
 });
 
+test('copy não trata fabricante ou fornecedor como item que o cliente leva para casa', () => {
+  const result = sanitizeAiCreativeDirection({
+    copy: {
+      badge: 'SELEÇÃO ARIANA',
+      headline: 'GRANDES MARCAS, BOAS ESCOLHAS',
+      subtitle: 'Produtos e fabricantes que combinam com a sua casa.',
+      cta: 'CONHEÇA A SELEÇÃO'
+    }
+  }, [], {});
+
+  assert.equal(result.copy.subtitle, 'Produtos selecionados para deixar sua rotina ainda melhor.');
+  assert.doesNotMatch(result.copy.subtitle, /fabricante|fornecedor/i);
+});
+
 test('índice inválido de produto herói cai para o primeiro produto', () => {
   const result = sanitizeAiCreativeDirection({
     copy: {
