@@ -263,9 +263,17 @@ function reportedPaid(text = '') {
 function looksLikePromise(text = '', awaitingDate = false) {
   const n = stripAccents(clean(text, 700)).toLowerCase();
   if (awaitingDate && parseCollectionPromiseDate(text)) return true;
-  const payment = /\b(pagar|pago|pagamento|pix|parcela|prestacao|notinha|dinheiro|acertar|quitar|mandar|passar|enviar)\b/.test(n);
-  const intent = /\b(vou|consigo|posso|pretendo|mando|pago|passo|envio|acerto|quito|sem falta)\b/.test(n);
-  return payment && intent;
+  const payment = /\b(pagar|pagando|pagarei|pago|pagamento|pix|parcela|parcelas|prestacao|prestacoes|notinha|notinhas|dinheiro|acertar|quitar|mandar|passar|enviar)\b/.test(n);
+  const intent = /\b(vou|consigo|posso|pretendo|mando|pago|passo|envio|acerto|quito|sem falta|estou|to)\b/.test(n);
+  const partialMonth = /\b(esse|este) mes\b/.test(n) && /\b(consigo|vou|posso|pagando|pagar|pago)\b/.test(n);
+  return (payment && intent) || partialMonth;
+}
+function vaguePromisePeriod(text = '') {
+  const n = stripAccents(clean(text, 700)).toLowerCase().replace(/[,.!?;:]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (/\b(esse|este) mes\b/.test(n)) return 'este mês';
+  if (/\b(proximo|outro) mes\b|\bmes que vem\b/.test(n)) return 'próximo mês';
+  if (/\bessa|esta|proxima semana\b|\bsemana que vem\b/.test(n)) return 'próxima semana';
+  return '';
 }
 function normalizePhone(value = '') {
   let number = digits(value).replace(/^0+/, '');
@@ -365,6 +373,7 @@ export function createErpMarkedCollectionCampaignService(context = {}, options =
   const userSkippedKeys = new Set(Array.isArray(options.userSkippedKeys) ? options.userSkippedKeys.map(normalizeCollectionName) : [...USER_SKIPPED_KEYS]);
   const ariadnaKey = normalizeCollectionName(options.specialRetryName || 'Ariadna Santos Sardinha');
   const enableLucianoRecovery = options.enableLucianoRecovery !== false;
+  const operatorRecoveries = Array.isArray(options.operatorRecoveries) ? options.operatorRecoveries : [];
 
   async function whatsappConfig() {
     let base = clean(process.env.ERP_COLLECTION_EVOLUTION_API_URL || process.env.ARIANA_EVOLUTION_API_URL || process.env.EVOLUTION_API_URL || process.env.EVOLUTION_URL, 500).replace(/\/+$/, '');
@@ -706,6 +715,78 @@ export function createErpMarkedCollectionCampaignService(context = {}, options =
     }
   }
 
+  async function recoverOperatorConfirmedPromises() {
+    if (!operatorRecoveries.length) return { skipped: true, reason: 'none' };
+    const results = [];
+    for (const item of operatorRecoveries) {
+      const key = normalizeCollectionName(item?.name || '');
+      if (!key) continue;
+      const task = await Task.findOne({ campaignKey, nameKey: key }).lean();
+      if (!task || !task.targetId) {
+        results.push({ name: item?.name || '', status: 'not_found' });
+        continue;
+      }
+      const raw = clean(item?.text || '', 700);
+      const promiseDateKey = clean(item?.promiseDate || '', 10);
+      if (promiseDateKey) {
+        if (task.promiseRegisteredAt && localDateKey(new Date(task.promiseDate || 0)) === promiseDateKey && task.promiseAmount === 0) {
+          results.push({ name: task.name, status: 'already_registered', promiseDate: promiseDateKey });
+          continue;
+        }
+        try {
+          await collections.registrarAcao(task.targetId, {
+            action: 'promessa',
+            promiseDate: promiseDateKey,
+            promiseAmount: 0,
+            note: `Promessa confirmada pelo operador a partir da conversa do WhatsApp da loja. Mensagem do cliente: ${raw}. Cliente não informou valor exato; nenhum valor foi presumido.`
+          }, { name: `Automação Cobrança ${campaignLabel}` });
+          await Task.updateOne({ _id: task._id }, { $set: {
+            status: 'PROMISE',
+            promiseDate: dateFromKey(promiseDateKey),
+            promiseAmount: 0,
+            promiseAmountExplicit: false,
+            promiseRaw: raw,
+            promiseRegisteredAt: new Date(),
+            awaitingPromiseDate: false,
+            reminderSentAt: null,
+            reminderForDate: '',
+            reminderMessageId: '',
+            lastInboundText: raw,
+            lastInboundAt: new Date(),
+            lastError: ''
+          } });
+          results.push({ name: task.name, status: 'registered', promiseDate: promiseDateKey });
+        } catch (error) {
+          results.push({ name: task.name, status: 'error', error: clean(error?.message || error, 300) });
+        }
+        continue;
+      }
+      if (item?.awaitDate === true) {
+        if (task.awaitingPromiseDate === true && clean(task.promiseRaw,700) === raw) {
+          results.push({ name: task.name, status: 'already_waiting_date' });
+          continue;
+        }
+        await Task.updateOne({ _id: task._id }, { $set: {
+          status: 'AWAITING_PROMISE_DATE',
+          awaitingPromiseDate: true,
+          promiseRaw: raw,
+          promiseAmount: 0,
+          promiseAmountExplicit: false,
+          lastInboundText: raw,
+          lastInboundAt: new Date(),
+          lastError: ''
+        } });
+        if (item?.sendQuestion !== false && task.phone) {
+          const period = vaguePromisePeriod(raw) || 'desse período';
+          await sendWhatsapp(task.phone, `Entendi, ${firstName(task.matchedName || task.name)}. Qual dia ${period} você consegue fazer esse pagamento? Se souber, pode me informar também o valor ou quantas parcelas pretende pagar.`).catch(() => null);
+        }
+        results.push({ name: task.name, status: 'waiting_date' });
+      }
+    }
+    if (results.length) console.log('[erp-marked-collection-operator-recovery]', campaignLabel, results);
+    return { ok: true, results };
+  }
+
   async function currentClientForTask(task = {}) {
     const queue = await collections.fila({ q: task.matchedName || task.name, from: '2000-01-01', to: localDateKey(), filter: 'all' });
     const matches = (queue.clients || []).filter((client) => normalizeCollectionName(client.name) === task.nameKey);
@@ -774,14 +855,20 @@ export function createErpMarkedCollectionCampaignService(context = {}, options =
     const promiseLike = looksLikePromise(incoming.text, task.awaitingPromiseDate === true);
     if (!promiseLike && !promiseDateKey) return { handled: false, reason: 'not_promise' };
     if (!promiseDateKey) {
-      await Task.updateOne({ _id: task._id }, { $set: { status: 'AWAITING_PROMISE_DATE', awaitingPromiseDate: true, promiseRaw: incoming.text, lastError: '' } });
-      if (!suppressAck) await sendWhatsapp(task.phone, `Certo, ${firstName(task.matchedName || task.name)}. Qual dia você consegue fazer esse pagamento?`).catch(() => null);
+      const period = vaguePromisePeriod(incoming.text);
+      await Task.updateOne({ _id: task._id }, { $set: { status: 'AWAITING_PROMISE_DATE', awaitingPromiseDate: true, promiseRaw: incoming.text, promiseAmount: 0, promiseAmountExplicit: false, lastError: '' } });
+      if (!suppressAck) {
+        const question = period
+          ? `Entendi, ${firstName(task.matchedName || task.name)}. Qual dia ${period} você consegue fazer esse pagamento? Se souber, pode me informar também o valor ou quantas parcelas pretende pagar.`
+          : `Certo, ${firstName(task.matchedName || task.name)}. Qual dia você consegue fazer esse pagamento? Se souber, pode me informar também o valor ou quantas parcelas pretende pagar.`;
+        await sendWhatsapp(task.phone, question).catch(() => null);
+      }
       return { handled: true, action: 'ask_promise_date', taskId: String(task._id) };
     }
 
     const explicitAmount = extractPromiseAmount(incoming.text);
-    const promiseAmount = explicitAmount || money(task.overdueUpdated || 0);
-    const note = `Promessa capturada automaticamente da resposta à cobrança ${campaignLabel}. Mensagem do cliente: ${clean(incoming.text, 700)}${explicitAmount ? '' : ' | Valor interno assumido pelo saldo vencido atualizado da tarefa; o cliente não informou valor explícito.'}`;
+    const promiseAmount = explicitAmount || 0;
+    const note = `Promessa capturada automaticamente da resposta à cobrança ${campaignLabel}. Mensagem do cliente: ${clean(incoming.text, 700)}${explicitAmount ? '' : ' | Cliente não informou valor exato; nenhum valor foi presumido.'}`;
     try {
       await collections.registrarAcao(task.targetId, {
         action: 'promessa',
@@ -962,9 +1049,10 @@ export function createErpMarkedCollectionCampaignService(context = {}, options =
   async function run() {
     const initial = await resolveAndSendInitial();
     const recovery = await recoverOperatorConfirmedLucianoPromise();
+    const operatorRecovery = await recoverOperatorConfirmedPromises();
     const replies = await pollStoreReplies();
     const reminders = await sendPromiseReminders();
-    return { initial, recovery, replies, reminders, ...(await list()) };
+    return { initial, recovery, operatorRecovery, replies, reminders, ...(await list()) };
   }
   function start() {
     if (!globalThis.__erpMarkedCollectionCampaignWorkers) globalThis.__erpMarkedCollectionCampaignWorkers = new Set();
