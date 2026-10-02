@@ -1246,7 +1246,7 @@ function backgroundSvg(format, template) {
   if (template === 'category_selection') {
     return Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
-      '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0D2780"/><stop offset=".55" stop-color="#1741B5"/><stop offset="1" stop-color="#1F55CE"/></linearGradient><radialGradient id="g" cx="59%" cy="74%" r="45%"><stop offset="0" stop-color="#6A79FF" stop-opacity=".44"/><stop offset="1" stop-color="#173EAE" stop-opacity="0"/></radialGradient></defs>'+
+      '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0D45A6"/><stop offset=".55" stop-color="#176BD2"/><stop offset="1" stop-color="#2780E5"/></linearGradient><radialGradient id="g" cx="59%" cy="72%" r="48%"><stop offset="0" stop-color="#B2DFFF" stop-opacity=".34"/><stop offset="1" stop-color="#176BD2" stop-opacity="0"/></radialGradient></defs>'+
       '<rect width="100%" height="100%" fill="url(#bg)"/><rect width="100%" height="100%" fill="url(#g)"/>'+
       '<ellipse cx="'+Math.round(w*.62)+'" cy="'+Math.round(h*.92)+'" rx="'+Math.round(w*.22)+'" ry="'+Math.round(h*.10)+'" fill="#342DFF" opacity=".62"/>'+
       '</svg>'
@@ -1583,10 +1583,11 @@ async function enhanceProductVisibility(buffer) {
   // Produto preto deve continuar preto; levantamos apenas os médios para
   // recuperar grade, marca, pás e acabamento quando o fundo do banner é escuro.
   const brightness =
-    y < 58 ? 1.34 :
-    y < 78 ? 1.28 :
-    y < 100 ? 1.20 :
-    y < 125 ? 1.10 :
+    y < 58 ? 1.46 :
+    y < 78 ? 1.38 :
+    y < 100 ? 1.29 :
+    y < 125 ? 1.18 :
+    y < 145 ? 1.08 :
     1.0;
 
   if (brightness <= 1.001) {
@@ -1596,10 +1597,10 @@ async function enhanceProductVisibility(buffer) {
   const enhanced = await sharp(buffer, { failOn:'none' })
     .modulate({
       brightness,
-      saturation: y < 100 ? 1.06 : 1.03
+      saturation: y < 100 ? 1.10 : 1.05
     })
-    .gamma(y < 78 ? 1.16 : 1.08)
-    .sharpen({ sigma:0.52 })
+    .gamma(y < 78 ? 1.22 : 1.12)
+    .sharpen({ sigma:0.58 })
     .png({ compressionLevel:9, adaptiveFiltering:true })
     .toBuffer();
 
@@ -2102,9 +2103,9 @@ function multiProductSlots(format, count = 2, opts = {}) {
         { x:.52, y:.43, w:.32, h:.34 }
       ];
       if (n === 3) return [
-        { x:.35, y:.39, w:.31, h:.39 },
-        { x:.11, y:.49, w:.25, h:.28 },
-        { x:.66, y:.50, w:.23, h:.27 }
+        { x:.31, y:.405, w:.38, h:.355 },
+        { x:.055, y:.505, w:.285, h:.255 },
+        { x:.660, y:.505, w:.285, h:.255 }
       ];
       if (n === 4) return [
         { x:.07, y:.50, w:.22, h:.26 },
@@ -2126,9 +2127,9 @@ function multiProductSlots(format, count = 2, opts = {}) {
       { x:.50, y:.38, w:.34, h:.36 }
     ];
     if (n === 3) return [
-      { x:.34, y:.35, w:.34, h:.40 },
-      { x:.09, y:.45, w:.29, h:.30 },
-      { x:.64, y:.46, w:.27, h:.29 }
+      { x:.31, y:.405, w:.38, h:.355 },
+      { x:.055, y:.505, w:.285, h:.255 },
+      { x:.660, y:.505, w:.285, h:.255 }
     ];
     if (n === 4) return [
       { x:.06, y:.43, w:.26, h:.30 },
@@ -2182,7 +2183,7 @@ function productContrastGlowSvg(format, opts = {}) {
   const grammar = resolveMarketplaceGrammar(opts.layoutGrammar, opts.marketplacePreset);
   const cx = mobile ? 50 : (grammar === 'B' ? 50 : grammar === 'C' ? 66 : 76);
   const cy = mobile ? 64 : 61;
-  const strength = template === 'tech_store' ? .40 : template === 'premium' || template === 'premium_line' ? .30 : .26;
+  const strength = template === 'tech_store' ? .50 : template === 'premium' || template === 'premium_line' ? .40 : .38;
 
   return Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
@@ -2223,8 +2224,8 @@ function multiShowcaseStageSvg(format, count = 3, opts = {}) {
     return Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'">'+
       '<defs><filter id="sg" x="-30%" y="-200%" width="160%" height="500%"><feGaussianBlur stdDeviation="'+Math.max(8,Math.round(h*.020))+'"/></filter></defs>'+
-      '<ellipse cx="'+Math.round(w*.50)+'" cy="'+Math.round(h*.690)+'" rx="'+Math.round(w*.34)+'" ry="'+Math.round(h*.025)+'" fill="#001B4D" opacity=".34" filter="url(#sg)"/>'+
-      '<ellipse cx="'+Math.round(w*.50)+'" cy="'+Math.round(h*.682)+'" rx="'+Math.round(w*.28)+'" ry="'+Math.round(h*.012)+'" fill="#ffffff" opacity=".08"/>'+
+      '<ellipse cx="'+Math.round(w*.50)+'" cy="'+Math.round(h*.742)+'" rx="'+Math.round(w*.36)+'" ry="'+Math.round(h*.022)+'" fill="#073C82" opacity=".22" filter="url(#sg)"/>'+
+      '<ellipse cx="'+Math.round(w*.50)+'" cy="'+Math.round(h*.730)+'" rx="'+Math.round(w*.30)+'" ry="'+Math.round(h*.012)+'" fill="#D8EEFF" opacity=".16"/>'+
       '</svg>'
     );
   }
@@ -2791,7 +2792,11 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
     if(manufacturerLogo) layers.push(manufacturerLogo);
   }
 
-  for(let index=0;index<assets.length;index+=1){
+  const productLayerOrder = assets.length === 3 && opts.generationStyle === 'marketplace'
+    ? [1,2,0]
+    : assets.map((_, index) => index);
+
+  for(const index of productLayerOrder){
     const asset=assets[index];
     const slot=slots[index];
     const layer=await productComposite(
@@ -2804,12 +2809,16 @@ export async function generateCreativeBannerProMulti(products = [], options = {}
       }
     );
     if(asset.backgroundRemoved){
-      layers.push({
-        input:layer.shadow,
-        left:layer.shadowLeft,
-        top:layer.shadowTop,
-        blend:'over'
-      });
+      // Produtos muito escuros já têm sombra visual própria. Evitar a sombra
+      // azul-preta nesses casos deixa grade, tela, base e acabamento mais legíveis.
+      if (!(opts.generationStyle === 'marketplace' && layer.sourceLuminance < 115)) {
+        layers.push({
+          input:layer.shadow,
+          left:layer.shadowLeft,
+          top:layer.shadowTop,
+          blend:'over'
+        });
+      }
     }else{
       layers.push({
         input:fallbackPanelSvg(renderFormat,{product:slot},opts.template),

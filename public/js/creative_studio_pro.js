@@ -622,8 +622,8 @@
     if (multi) {
       setCopyValues({
         badge:'SELEÇÃO ARIANA',
-        headline:'GRANDES MARCAS PARA SUA CASA',
-        subtitle:'Produtos e fabricantes que combinam com a sua casa.',
+        headline:'GRANDES MARCAS, BOAS ESCOLHAS',
+        subtitle:'Produtos selecionados para deixar sua rotina ainda melhor.',
         cta:'CONHEÇA A SELEÇÃO'
       });
       els.promoText.value = '';
@@ -638,7 +638,7 @@
       });
       els.promoText.value = '';
       renderSelectedProducts();
-      status('Modo sem preço ativado. O banner prioriza apresentação de produto e fabricante.', 'ok');
+      status('Modo sem preço ativado. O banner prioriza apresentação de produto e marca.', 'ok');
     } else if (contentMode === 'institutional') {
       setCopyValues({
         badge:'ARIANA MÓVEIS',
@@ -930,7 +930,7 @@
       setCopyValues({
         badge: brands[0].toUpperCase(),
         headline: 'ESPECIAL ' + brands[0].toUpperCase(),
-        subtitle: 'Tecnologia, design e praticidade para sua casa.',
+        subtitle: 'Tecnologia, design e praticidade em produtos para o seu dia a dia.',
         cta: 'CONHEÇA A SELEÇÃO'
       });
       return;
@@ -951,10 +951,10 @@
       badge: 'SELEÇÃO ARIANA',
       headline: sameGroup
         ? (groupTitles[groups[0]] || 'SELEÇÃO ESPECIAL PARA SUA CASA')
-        : 'GRANDES MARCAS PARA SUA CASA',
+        : 'GRANDES MARCAS, BOAS ESCOLHAS',
       subtitle: sameGroup
         ? 'Uma seleção pensada para o seu dia a dia.'
-        : 'Produtos e fabricantes que combinam com a sua casa.',
+        : 'Produtos selecionados para deixar sua rotina ainda melhor.',
       cta: 'CONHEÇA A SELEÇÃO'
     });
   }
@@ -1536,10 +1536,26 @@
   }
 
   function editorCopyPayload() {
+    const rawSubtitle = els.subtitle.value.trim();
+    const normalizedSubtitle = normalize(rawSubtitle);
+    const awkwardSupplierCopy =
+      normalizedSubtitle.includes('produtos e fabricantes') ||
+      normalizedSubtitle.includes('fabricantes que combinam') ||
+      normalizedSubtitle.includes('fabricantes para sua casa') ||
+      normalizedSubtitle.includes('fornecedores para sua casa');
+
+    const subtitle = awkwardSupplierCopy
+      ? 'Produtos selecionados para deixar sua rotina ainda melhor.'
+      : rawSubtitle;
+
+    if (subtitle !== rawSubtitle) {
+      els.subtitle.value = subtitle;
+    }
+
     return {
       badge: els.badge.value.trim(),
       headline: els.headline.value.trim(),
-      subtitle: els.subtitle.value.trim(),
+      subtitle,
       cta: els.cta.value.trim()
     };
   }
