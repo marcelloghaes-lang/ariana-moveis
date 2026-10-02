@@ -285,6 +285,17 @@ function normalizePhone(value = '') {
   if (number.length === 10 || number.length === 11) return `55${number}`;
   return number.length >= 12 && number.length <= 15 ? number : '';
 }
+function collectionPhoneAliases(value = '') {
+  const phone = normalizePhone(value);
+  if (!phone) return [];
+  const aliases = new Set([phone]);
+  if (phone.startsWith('55')) {
+    // WhatsApp/Evolution pode devolver o JID brasileiro com ou sem o 9º dígito.
+    if (phone.length === 13 && phone[4] === '9') aliases.add(phone.slice(0, 4) + phone.slice(5));
+    if (phone.length === 12 && /[6-9]/.test(phone[4] || '')) aliases.add(phone.slice(0, 4) + '9' + phone.slice(4));
+  }
+  return [...aliases];
+}
 function extractEvolutionMessage(body = {}) {
   const event = clean(body?.event || body?.type || body?.data?.event || body?.data?.type, 80).toUpperCase().replace(/[.\-\s]+/g, '_');
   const root = body?.data?.data || body?.data || body || {};
@@ -835,7 +846,8 @@ export function createErpMarkedCollectionCampaignService(context = {}, options =
     const incoming = extractEvolutionMessage(body);
     if (incoming.event && incoming.event !== 'MESSAGES_UPSERT') return { handled: false, reason: 'event' };
     if (incoming.fromMe || !incoming.phone || !incoming.text) return { handled: false, reason: 'not_customer_text' };
-    const candidates = await Task.find({ campaignKey: campaignKey, phone: incoming.phone, initialSentAt: { $ne: null } }).sort({ initialSentAt: -1 }).limit(3).lean();
+    const phoneAliases = collectionPhoneAliases(incoming.phone);
+    const candidates = await Task.find({ campaignKey: campaignKey, phone: { $in: phoneAliases }, initialSentAt: { $ne: null } }).sort({ initialSentAt: -1 }).limit(3).lean();
     if (!candidates.length) return { handled: false, reason: 'not_campaign_customer' };
     const active = candidates.filter((item) => !['CLOSED_NO_DEBT'].includes(item.status));
     if (active.length > 1 && new Set(active.map((item) => item.document || item.nameKey)).size > 1) {
@@ -919,7 +931,10 @@ export function createErpMarkedCollectionCampaignService(context = {}, options =
       status: { $nin: ['CLOSED_NO_DEBT', 'SKIPPED_USER_REQUEST'] }
     }).sort({ initialSentAt: 1 }).lean();
     const results = [];
-    const taskByPhone = new Map(tasks.map(task => [normalizePhone(task.phone), task]).filter(([phone]) => phone));
+    const taskByPhone = new Map();
+    for (const task of tasks) {
+      for (const alias of collectionPhoneAliases(task.phone)) taskByPhone.set(alias, task);
+    }
     try {
       const bulkResponse = await fetch(`${cfg.base}/chat/findMessages/${encodeURIComponent(cfg.instance)}`, {
         method: 'POST',
@@ -943,7 +958,10 @@ export function createErpMarkedCollectionCampaignService(context = {}, options =
         let task = null;
         for (const jid of jidCandidates) {
           const phone = normalizePhone(String(jid).split('@')[0]);
-          if (phone && taskByPhone.has(phone)) { task = taskByPhone.get(phone); break; }
+          for (const alias of collectionPhoneAliases(phone)) {
+            if (taskByPhone.has(alias)) { task = taskByPhone.get(alias); break; }
+          }
+          if (task) break;
         }
         if (!task) continue;
         const ts = evolutionRecordTimestamp(record);
