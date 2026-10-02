@@ -155,7 +155,11 @@ export function createErpCollectionWorkflowService(context={}){
       set.status='concluida';set.nextActionDate=null;set.promiseDate=null;
     }
     const history={action,at:now,by,note,promiseDate,promiseAmount,nextActionDate};
-    const doc=await Case.findOneAndUpdate({targetId:id},{$set:set,$setOnInsert:{targetId:id},$push:{history}}, {new:true,upsert:true,setDefaultsOnInsert:true});
+    // targetId já faz parte do filtro de upsert e também do snapshot.
+    // Não use $set e $setOnInsert no mesmo caminho, pois o MongoDB rejeita
+    // a operação com "Updating the path 'targetId' would create a conflict".
+    set.targetId=id;
+    const doc=await Case.findOneAndUpdate({targetId:id},{$set:set,$push:{history}}, {new:true,upsert:true,setDefaultsOnInsert:true});
     const out=doc.toObject(),state=caseState(out);return{case:{...out,id:String(doc._id),promiseAmount:money(out.promiseAmount),originalValue:money(out.originalValue),openBalance:money(out.openBalance),...state},alert:{visual:state.promiseToday,whatsappInternalDue:state.internalWhatsAppAlertDue,message:state.promiseToday?`Promessa de pagamento de ${out.clientName||'cliente'} vence hoje.`:''}};
   }
 
