@@ -47,7 +47,25 @@ export default function createErpFinancePanelBridgeRoutes(context={}){
     strictNameKeys:[],
     manualPhoneOverrides:{},
     userSkippedKeys:['Marco Antonio Ferreira dos Santos'],
-    enableLucianoRecovery:false
+    enableLucianoRecovery:false,
+    operatorRecoveries:[
+      {
+        name:'Carlos Augusto de Oliveira',
+        text:'Bom dia amanhã',
+        promiseDate:'2026-10-03'
+      },
+      {
+        name:'Silvana Freitas da Costa',
+        text:'Lá pro dia 24 eu mando umas parcela aí tá bom',
+        promiseDate:'2026-10-24'
+      },
+      {
+        name:'Raissa Paula da Silva',
+        text:'consigo esta pagando esse mês mas nao esse valor todo',
+        awaitDate:true,
+        sendQuestion:true
+      }
+    ]
   });
   stage3Campaign.start();
   const ariadnaReceiptRecovery=createErpAriadnaReceiptRecoveryService(context);
