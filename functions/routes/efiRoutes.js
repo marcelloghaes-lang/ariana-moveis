@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { getEfiConfig, efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, createPixHomologationTestCharge, createPixWebhookHomologationProbe, linkPixChargeToSplit, getPixSplitCharge, runPixSplitHomologationTest, configurePixWebhook, getPixWebhook, buildChargesSplitPercentagePayload, createChargesSplitHomologationTransaction, payChargesSplitBoletoHomologation, payChargesSplitCardHomologation, getChargesSplitHomologationTransaction, cancelChargesSplitHomologationTransaction, refundChargesSplitCardHomologation, settleChargesSplitHomologationTransaction } from '../services/efiService.js';
+import { getEfiConfig, efiConfigSummary, testEfiAuthentication, buildPixSplitPercentagePayload, createPixSplitConfig, createPixHomologationTestCharge, createPixWebhookHomologationProbe, linkPixChargeToSplit, getPixSplitCharge, runPixSplitHomologationTest, configurePixWebhook, getPixWebhook, buildChargesSplitPercentagePayload, createChargesSplitHomologationTransaction, buildChargesSplitFixedPayload, createChargesSplitFixedHomologationTransaction, payChargesSplitBoletoHomologation, payChargesSplitCardHomologation, getChargesSplitHomologationTransaction, cancelChargesSplitHomologationTransaction, refundChargesSplitCardHomologation, settleChargesSplitHomologationTransaction } from '../services/efiService.js';
 
 function safeProviderError(error = {}) {
   const providerData = error?.providerData || {};
@@ -604,13 +604,29 @@ export default function registerEfiRoutes(app, context = {}) {
   app.post('/api/admin/payments/efi/homologation/split-charges/card-test', adminRequired, async (req, res) => {
     try {
       const paymentToken = String(req.body?.paymentToken || req.body?.payment_token || '').trim();
-      const created = await createChargesSplitHomologationTransaction({
+
+      // Regra Ariana Marketplace:
+      // - preço cadastrado pelo seller = preço à vista/base
+      // - seller recebe exatamente 88% da base
+      // - cartão é cobrado por base / 0,8270
+      // - o acréscimo do cartão permanece com a Ariana
+      // - mode 1: tarifas Efí ficam integralmente com a Ariana
+      const baseUnitValueCents = Math.max(1, Math.floor(Number(req.body?.baseUnitValueCents || req.body?.unitValueCents || 1100)));
+      const cardFactor = 0.8270;
+      const cardUnitValueCents = Math.round(baseUnitValueCents / cardFactor);
+      const sellerFixedCents = Math.round(baseUnitValueCents * 0.88);
+      const suppliedRecipients = chargesTestRecipients(req.body);
+      const fixedRecipients = suppliedRecipients.map((recipient) => ({
+        payeeCode: recipient.payeeCode || recipient.payee_code,
+        fixedCents: sellerFixedCents
+      }));
+
+      const created = await createChargesSplitFixedHomologationTransaction({
         environment: 'homologation',
-        platformPercent: req.body?.platformPercent ?? 12,
-        recipients: chargesTestRecipients(req.body),
-        feeMode: req.body?.feeMode ?? 2,
+        recipients: fixedRecipients,
+        feeMode: 1,
         itemName: req.body?.itemName || 'Produto teste Ariana Marketplace - Cartao',
-        unitValueCents: req.body?.unitValueCents || 1100,
+        unitValueCents: cardUnitValueCents,
         amount: req.body?.amount || 1,
         customId: req.body?.customId || ('ARIANA-EFI-CARTAO-' + Date.now())
       });
@@ -639,7 +655,18 @@ export default function registerEfiRoutes(app, context = {}) {
         installmentValue: paid.data?.data?.installment_value || paid.data?.installment_value || null,
         split: {
           repassesCount: Array.isArray(repasses) ? repasses.length : 0,
-          sellerPercentage: Array.isArray(repasses) ? (repasses.find((x) => Number(x?.percentage) === 8800)?.percentage ?? repasses[0]?.percentage ?? null) : null
+          mode: 1,
+          sellerFixedCents,
+          sellerFixedValue: Number((sellerFixedCents / 100).toFixed(2)),
+          sellerPercentage: null,
+          arianaAbsorbsEfiFees: true
+        },
+        pricing: {
+          baseUnitValueCents,
+          baseUnitValue: Number((baseUnitValueCents / 100).toFixed(2)),
+          cardFactor,
+          cardUnitValueCents,
+          cardUnitValue: Number((cardUnitValueCents / 100).toFixed(2))
         }
       };
 
@@ -656,7 +683,9 @@ export default function registerEfiRoutes(app, context = {}) {
           payment: response.payment,
           installments: response.installments,
           repassesCount: response.split.repassesCount,
-          sellerPercentage: response.split.sellerPercentage
+          sellerPercentage: response.split.sellerPercentage,
+          sellerFixedCents: response.split.sellerFixedCents,
+          cardUnitValueCents: response.pricing.cardUnitValueCents
         }
       });
 
