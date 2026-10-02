@@ -9,7 +9,10 @@ import {
   getProTemplateManifest
 } from '../creative-banner-pro-generator.js';
 import { researchCreativeCampaignWithAi } from '../services/creativeCampaignAiDirectorService.js';
-import { getCreativeCutoutFile } from '../services/creativeCutoutBankService.js';
+import {
+  findApprovedCreativeCutoutAsset,
+  getCreativeCutoutFile
+} from '../services/creativeCutoutBankService.js';
 
 // ============================================================
 // ROTAS ADMIN CORE / UPLOAD / POSTERS / CRUD GENÉRICO
@@ -233,12 +236,26 @@ function resolveCreativeDirectSources(products = []) {
 
 async function resolveCreativeBankProduct(product = {}) {
   const direct = resolveCreativeDirectSource(product);
-  const assetId = String(
+  let assetId = String(
     direct.cutoutAssetId ||
     direct.masterAssetId ||
     direct.creativeCutoutAssetId ||
     ''
   ).trim();
+
+  if (
+    !assetId &&
+    direct.sourceType !== 'direct_original_upload' &&
+    direct.sourceType !== 'persistent_original_upload'
+  ) {
+    const approved = await findApprovedCreativeCutoutAsset({
+      mongoose,
+      sku: direct.sku || direct.codigo || '',
+      name: direct.name || direct.title || '',
+      category: direct.category || direct.categoryName || ''
+    });
+    assetId = String(approved?.id || '').trim();
+  }
 
   if (!assetId) return direct;
 
@@ -263,7 +280,8 @@ async function resolveCreativeBankProduct(product = {}) {
     originalSourceBytes: Number(file.buffer.length || 0),
     sourceToken: '',
     persistentSourceUrl: '',
-    sourceType: 'approved_cutout_bank'
+    sourceType: 'approved_cutout_bank',
+    masterBankResolved: true
   };
 }
 
