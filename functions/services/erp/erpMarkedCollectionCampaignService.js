@@ -357,22 +357,27 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
   const collections = createErpCollectionWorkflowService(context);
 
   async function whatsappConfig() {
+    let base = clean(process.env.ERP_COLLECTION_EVOLUTION_API_URL || process.env.ARIANA_EVOLUTION_API_URL || process.env.EVOLUTION_API_URL || process.env.EVOLUTION_URL, 500).replace(/\/+$/, '');
+    let apiKey = clean(process.env.ERP_COLLECTION_EVOLUTION_API_KEY || process.env.ARIANA_EVOLUTION_API_KEY || process.env.EVOLUTION_API_KEY || process.env.EVOLUTION_GLOBAL_API_KEY, 500);
+    let enabled = true;
     if (typeof context.getWhatsappSettings === 'function') {
       try {
         const settings = await context.getWhatsappSettings();
-        const base = clean(settings?.apiUrl || '', 500).replace(/\/+$/, '');
-        const apiKey = clean(settings?.apiKey || '', 500);
-        const instance = clean(settings?.instanceName || '', 180);
-        if (settings?.enabled !== false && base && apiKey && instance) return { base, apiKey, instance };
+        enabled = settings?.enabled !== false;
+        base = base || clean(settings?.apiUrl || '', 500).replace(/\/+$/, '');
+        apiKey = apiKey || clean(settings?.apiKey || '', 500);
       } catch (error) {
         console.warn('[erp-marked-collection][whatsapp-settings]', error?.message || error);
       }
     }
-    return {
-      base: clean(process.env.ERP_COLLECTION_EVOLUTION_API_URL || process.env.ARIANA_EVOLUTION_API_URL || process.env.EVOLUTION_API_URL || process.env.EVOLUTION_URL, 500).replace(/\/+$/, ''),
-      apiKey: clean(process.env.ERP_COLLECTION_EVOLUTION_API_KEY || process.env.ARIANA_EVOLUTION_API_KEY || process.env.EVOLUTION_API_KEY || process.env.EVOLUTION_GLOBAL_API_KEY, 500),
-      instance: clean(process.env.ERP_COLLECTION_MAIN_STORE_EVOLUTION_INSTANCE || process.env.EVOLUTION_NOTIFY_INSTANCE || process.env.EVOLUTION_INSTANCE_NOTIFICACOES || 'Ariana_Notificacoes', 180)
-    };
+    const instance = clean(
+      process.env.ERP_COLLECTION_MAIN_STORE_EVOLUTION_INSTANCE ||
+      process.env.ERP_DAILY_DUE_WHATSAPP_INSTANCE ||
+      process.env.LOJA_EVOLUTION_INSTANCE ||
+      'ariana loja',
+      180
+    );
+    return { base, apiKey, instance, enabled };
   }
   async function sendWhatsapp(phone, text) {
     const cfg = await whatsappConfig();
@@ -677,6 +682,7 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
     return { ok: true, date: today, sent };
   }
   async function handleIncomingWebhook(body = {}) {
+    const suppressAck = body?.internal?.suppressAck === true;
     const incoming = extractEvolutionMessage(body);
     if (incoming.event && incoming.event !== 'MESSAGES_UPSERT') return { handled: false, reason: 'event' };
     if (incoming.fromMe || !incoming.phone || !incoming.text) return { handled: false, reason: 'not_customer_text' };
@@ -692,7 +698,7 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
 
     if (reportedPaid(incoming.text)) {
       await Task.updateOne({ _id: task._id }, { $set: { status: 'PAID_REPORTED', awaitingPromiseDate: false, lastError: '' } });
-      await sendWhatsapp(task.phone, `Obrigado, ${firstName(task.matchedName || task.name)}! 😊 Se puder, envie o comprovante por aqui para a gente conferir a baixa no financeiro.`).catch(() => null);
+      if (!suppressAck) await sendWhatsapp(task.phone, `Obrigado, ${firstName(task.matchedName || task.name)}! 😊 Se puder, envie o comprovante por aqui para a gente conferir a baixa no financeiro.`).catch(() => null);
       return { handled: true, action: 'paid_reported', taskId: String(task._id) };
     }
 
@@ -701,7 +707,7 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
     if (!promiseLike && !promiseDateKey) return { handled: false, reason: 'not_promise' };
     if (!promiseDateKey) {
       await Task.updateOne({ _id: task._id }, { $set: { status: 'AWAITING_PROMISE_DATE', awaitingPromiseDate: true, promiseRaw: incoming.text, lastError: '' } });
-      await sendWhatsapp(task.phone, `Certo, ${firstName(task.matchedName || task.name)}. Qual dia você consegue fazer esse pagamento?`).catch(() => null);
+      if (!suppressAck) await sendWhatsapp(task.phone, `Certo, ${firstName(task.matchedName || task.name)}. Qual dia você consegue fazer esse pagamento?`).catch(() => null);
       return { handled: true, action: 'ask_promise_date', taskId: String(task._id) };
     }
 
@@ -724,9 +730,80 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
     const ack = explicitAmount
       ? `Certo, ${firstName(task.matchedName || task.name)}. Anotei a previsão para *${formatDatePtBr(promiseDateKey)}*, no valor de *${moneyText(explicitAmount)}*. Obrigado pelo retorno.`
       : `Certo, ${firstName(task.matchedName || task.name)}. Anotei a previsão de pagamento para *${formatDatePtBr(promiseDateKey)}*. Obrigado pelo retorno.`;
-    await sendWhatsapp(task.phone, ack).catch(() => null);
+    if (!suppressAck) await sendWhatsapp(task.phone, ack).catch(() => null);
     return { handled: true, action: 'promise_registered', promiseDate: promiseDateKey, promiseAmount, taskId: String(task._id) };
   }
+  function evolutionRecordTimestamp(record = {}) {
+    const raw = record?.messageTimestamp ?? record?.timestamp ?? record?.createdAt ?? record?.updatedAt ?? 0;
+    if (typeof raw === 'number') return raw > 1e12 ? raw : raw * 1000;
+    const numeric = Number(raw);
+    if (Number.isFinite(numeric) && numeric > 0) return numeric > 1e12 ? numeric : numeric * 1000;
+    const parsed = new Date(raw).getTime();
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  function evolutionMessageRecords(data = {}) {
+    const candidates = [
+      data?.messages?.records,
+      data?.data?.messages?.records,
+      data?.response?.messages?.records,
+      data?.records,
+      data?.messages,
+      data?.data?.records
+    ];
+    for (const value of candidates) if (Array.isArray(value)) return value;
+    return [];
+  }
+  async function pollStoreReplies() {
+    if (mongoose.connection.readyState !== 1) return { skipped: true, reason: 'mongo_not_ready' };
+    const cfg = await whatsappConfig();
+    if (!cfg.enabled || !cfg.base || !cfg.apiKey || !cfg.instance) return { skipped: true, reason: 'whatsapp_not_configured' };
+    const tasks = await Task.find({
+      campaignKey: CAMPAIGN_KEY,
+      initialSentAt: { $ne: null },
+      phone: { $ne: '' },
+      status: { $nin: ['CLOSED_NO_DEBT', 'SKIPPED_USER_REQUEST'] }
+    }).sort({ initialSentAt: 1 }).lean();
+    const results = [];
+    for (const task of tasks) {
+      try {
+        const number = normalizePhone(task.phone);
+        if (!number) continue;
+        const remoteJid = number + '@s.whatsapp.net';
+        const response = await fetch(`${cfg.base}/chat/findMessages/${encodeURIComponent(cfg.instance)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: cfg.apiKey },
+          body: JSON.stringify({ where: { key: { remoteJid } } }),
+          signal: AbortSignal.timeout(30000)
+        });
+        const data = await readEvolutionResponse(response);
+        const records = evolutionMessageRecords(data)
+          .filter((record) => record?.key?.fromMe === false)
+          .map((record) => ({ record, ts: evolutionRecordTimestamp(record) }))
+          .filter((item) => !item.ts || item.ts >= new Date(task.initialSentAt).getTime() - 60000)
+          .sort((a,b) => a.ts - b.ts);
+        for (const item of records) {
+          const record = item.record || {};
+          const id = clean(record?.key?.id || record?.id || record?.messageId || '', 220);
+          if (id && id === task.lastInboundMessageId) continue;
+          const ageMs = item.ts ? Date.now() - item.ts : 0;
+          const payload = {
+            event: 'MESSAGES_UPSERT',
+            data: record,
+            internal: { suppressAck: ageMs > 15 * 60 * 1000 }
+          };
+          const handled = await handleIncomingWebhook(payload);
+          if (handled?.handled) {
+            results.push({ name: task.name, action: handled.action || (handled.duplicate ? 'duplicate' : 'handled'), messageId: id || '' });
+          }
+        }
+      } catch (error) {
+        results.push({ name: task.name, action: 'poll_error', error: clean(error?.message || error, 220) });
+      }
+    }
+    if (results.length) console.log('[erp-marked-collection-store-poll]', results);
+    return { ok: true, results };
+  }
+
   async function list() {
     await seed();
     const rows = await Task.find({ campaignKey: CAMPAIGN_KEY }).sort({ priority: 1, createdAt: 1 }).lean();
@@ -772,8 +849,9 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
   }
   async function run() {
     const initial = await resolveAndSendInitial();
+    const replies = await pollStoreReplies();
     const reminders = await sendPromiseReminders();
-    return { initial, reminders, ...(await list()) };
+    return { initial, replies, reminders, ...(await list()) };
   }
   function start() {
     if (globalThis.__erpMarkedCollectionCampaignWorkerStarted) return;
@@ -809,7 +887,7 @@ export function createErpMarkedCollectionCampaignService(context = {}) {
     console.log(`[erp-marked-collection-worker] ativo para ${MARKED_COLLECTION_NAMES.length} clientes da Etapa 2.`);
   }
 
-  return { list, run, start, handleIncomingWebhook, parsePromiseDate: parseCollectionPromiseDate };
+  return { list, run, start, handleIncomingWebhook, pollStoreReplies, parsePromiseDate: parseCollectionPromiseDate };
 }
 
 export default createErpMarkedCollectionCampaignService;
