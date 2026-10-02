@@ -6,6 +6,50 @@ const digits=(v='')=>String(v??'').replace(/\D/g,'');
 const money=v=>Math.round((Number(v||0)+Number.EPSILON)*100)/100;
 const normalize=v=>clean(v,500).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 
+const MG_ST_SOURCE={
+  jurisdiction:'MG',
+  chapter:'RICMS/MG 2023 - Anexo VII, Parte 2, Capítulo 21',
+  reviewedAt:'2026-10-02',
+  url:'https://www.fazenda.mg.gov.br/empresas/legislacao_tributaria/ricms_2023_seco/anexovii2023_6.html'
+};
+
+// Referências oficiais usadas somente para auditoria/validação.
+// Nunca definimos "sem ST" só porque um NCM não aparece neste recorte.
+const MG_ST_RULES=[
+  {match:['73211100','73218100','73219000'],cests:['2100100'],mva:50,scope:'21.1',label:'Fogões de cozinha de uso doméstico e suas partes'},
+  {match:['84181000'],cests:['2100200'],mva:40,scope:'21.1',label:'Combinações de refrigeradores e congeladores'},
+  {match:['84182100'],cests:['2100300'],mva:40,scope:'21.1',label:'Refrigeradores domésticos de compressão'},
+  {match:['84182900'],cests:['2100400'],mva:40,scope:'21.1',label:'Outros refrigeradores domésticos'},
+  {match:['84183000'],cests:['2100500'],mva:40,scope:'21.1',label:'Freezers horizontais'},
+  {match:['84184000'],cests:['2100600'],mva:45,scope:'21.1',label:'Freezers verticais'},
+  {prefix:['845020'],cests:['2102200'],mva:45,scope:'21.1',label:'Máquinas de lavar roupa domésticas acima de 10 kg'},
+  {match:['84501100'],cests:['2101900'],mva:45,scope:'21.1',label:'Máquinas de lavar roupa domésticas automáticas até 10 kg'},
+  {match:['84501200'],cests:['2102000'],mva:45,scope:'21.1',label:'Máquinas de lavar roupa com secador centrífugo'},
+  {match:['84501900'],cests:['2102100'],mva:45,scope:'21.1',label:'Outras máquinas de lavar roupa domésticas'},
+  {prefix:['85287'],cests:['2106900','2107000','2107100','2107200','2107300'],mva:null,scope:'21.1/21.6',label:'Aparelhos receptores de televisão',ambiguous:true},
+  {match:['85171300'],cests:['2105300','2105301'],mva:18.34,scope:'21.4',label:'Smartphones',ambiguous:true},
+  {prefix:['8517143'],cests:['2105300','2105301'],mva:18.34,scope:'21.4',label:'Telefones para redes celulares / smartphones',ambiguous:true}
+];
+function matchMgStRule(ncm=''){
+  const code=digits(ncm).slice(0,8);
+  if(code.length!==8)return null;
+  for(const rule of MG_ST_RULES){
+    if((rule.match||[]).includes(code))return rule;
+    if((rule.prefix||[]).some(p=>code.startsWith(p)))return rule;
+  }
+  return null;
+}
+function auditMgTax({ncm='',cest='',name='',category=''}={}){
+  const code=digits(ncm).slice(0,8),currentCest=digits(cest).slice(0,7),rule=matchMgStRule(code);
+  if(code.length!==8)return{status:'REVISAR',reason:'NCM ausente ou inválido; não é possível validar ST em MG.',rule:null,source:MG_ST_SOURCE};
+  if(!rule)return{status:'REVISAR',reason:'NCM ainda não coberto pela matriz automática. Não interpretar como “sem ST”.',rule:null,source:MG_ST_SOURCE};
+  const cestOk=currentCest&&rule.cests.includes(currentCest);
+  if(!currentCest)return{status:'REVISAR',reason:'NCM consta no Capítulo 21 do Anexo VII/MG, mas o CEST não está preenchido.',rule,source:MG_ST_SOURCE};
+  if(!cestOk)return{status:'DIVERGÊNCIA',reason:'CEST cadastrado não corresponde às opções oficiais mapeadas para este NCM.',rule,source:MG_ST_SOURCE};
+  if(rule.ambiguous)return{status:'CONFERIR DESCRIÇÃO',reason:'NCM/CEST é compatível, mas há mais de um enquadramento possível; conferir descrição técnica do produto antes de emitir NF-e.',rule,source:MG_ST_SOURCE};
+  return{status:'COMPATÍVEL',reason:'NCM e CEST são compatíveis com a referência oficial mapeada do RICMS/MG.',rule,source:MG_ST_SOURCE};
+}
+
 const ACCENT={
   a:'[aáàâãäå]',e:'[eéèêë]',i:'[iíìîï]',o:'[oóòôõö]',u:'[uúùûü]',c:'[cç]',n:'[nñ]'
 };
@@ -92,21 +136,32 @@ export default function createErpProductLookupRoutes(context={}){
         const csosn=digits(f.csosn).slice(0,3);
         const icmsCst=digits(f.icmsCst).slice(0,3);
         const stByTaxCode=csosn==='500'||icmsCst==='060'||icmsCst==='60'||['5403','5405','6403','6404'].includes(cfop);
-        const stIndicated=Boolean(cest||stByTaxCode);
+        const mgTax=auditMgTax({ncm,cest,name:p.name,category:p.category});
+        const stIndicated=Boolean(cest||stByTaxCode||mgTax.rule);
         const issues=[];
         if(ncm.length!==8)issues.push('NCM ausente/inválido');
         if(!f.unit)issues.push('Unidade ausente');
         if(f.origin===''||f.origin===null||f.origin===undefined)issues.push('Origem fiscal ausente');
         if(stIndicated&&!cest)issues.push('ST indicada sem CEST');
+        if(['REVISAR','DIVERGÊNCIA','CONFERIR DESCRIÇÃO'].includes(mgTax.status))issues.push('MG: '+mgTax.reason);
         if(!cfop)issues.push('CFOP não definido no produto');
         if(!csosn&&!icmsCst)issues.push('ICMS/CSOSN não definido');
         return{
           id:p.id,name:p.name,sku:p.sku,brand:p.brand,category:p.category,active:p.active,stock:p.stock,
           price:p.price,costPrice:p.costPrice,sellerName:p.sellerName||'Ariana Móveis',
           ncm,cest,cfop,unit:f.unit||'',origin:f.origin||'',csosn,icmsCst,pisCst:f.pisCst||'',cofinsCst:f.cofinsCst||'',ean:f.ean||'',
-          stStatus:stIndicated?'ST indicada no cadastro':'ST não indicada no cadastro',
+          stStatus:mgTax.rule?'ENQUADRAMENTO ST ENCONTRADO EM MG':(stIndicated?'ST indicada no cadastro':'NÃO CLASSIFICADO AUTOMATICAMENTE'),
           stIndicated,
-          saleOrderStatus:issues.length?'REVISAR':'PRONTO PARA REVISÃO CONTÁBIL',
+          mgTax:{
+            status:mgTax.status,
+            reason:mgTax.reason,
+            officialCests:mgTax.rule?.cests||[],
+            mva:mgTax.rule?.mva??null,
+            scope:mgTax.rule?.scope||'',
+            officialDescription:mgTax.rule?.label||'',
+            source:mgTax.source
+          },
+          saleOrderStatus:issues.length?'REVISAR':'CADASTRO COMPLETO — VALIDAR OPERAÇÃO/UF ANTES DA NF-e',
           issues
         };
       });
@@ -116,9 +171,11 @@ export default function createErpProductLookupRoutes(context={}){
         withNcm:rows.filter(r=>r.ncm.length===8).length,
         withoutNcm:rows.filter(r=>r.ncm.length!==8).length,
         stIndicated:rows.filter(r=>r.stIndicated).length,
+        mgCompatible:rows.filter(r=>r.mgTax?.status==='COMPATÍVEL').length,
+        mgDivergence:rows.filter(r=>r.mgTax?.status==='DIVERGÊNCIA').length,
         withIssues:rows.filter(r=>r.issues.length).length
       };
-      return res.json({ok:true,source:'Ariana ERP - cadastro real de produtos',generatedAt:new Date().toISOString(),summary,rows});
+      return res.json({ok:true,source:'Ariana ERP - cadastro real de produtos',taxReference:MG_ST_SOURCE,generatedAt:new Date().toISOString(),summary,rows});
     }catch(error){
       console.error('[erp-fiscal-matrix]',error);
       return res.status(Number(error?.statusCode||500)).json({ok:false,error:error?.message||'Erro ao montar matriz fiscal.',code:error?.code||'ERP_FISCAL_MATRIX_ERROR'});
