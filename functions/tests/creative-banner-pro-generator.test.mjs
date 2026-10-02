@@ -679,7 +679,7 @@ test('PNG Mestre aprovado do Cutout Bank entra no gerador sem novo recorte', asy
   assert.equal(asset.repairMetrics.attempted,false);
 });
 
-test('Marketplace Ariana Hero Desktop renderiza em 2x estável e exporta na dimensão oficial', async () => {
+test('Marketplace Ariana Hero Desktop renderiza direto na dimensão oficial sem pico de memória', async () => {
   const result = await generateCreativeBannerProMulti(
     [MULTI_TV, MULTI_FRIDGE, MULTI_WASHER],
     {
@@ -698,12 +698,12 @@ test('Marketplace Ariana Hero Desktop renderiza em 2x estável e exporta na dime
   const meta = await sharp(result.buffer).metadata();
   assert.equal(meta.width, 1920);
   assert.equal(meta.height, 480);
-  assert.equal(result.meta.renderScale, 2);
-  assert.equal(result.meta.renderQuality, 'supersampled_2x_lanczos3_selective_sharpen');
+  assert.equal(result.meta.renderScale, 1);
+  assert.equal(result.meta.renderQuality, 'official_resolution_lossless_png');
   assert.equal(result.meta.quality.blockSave, false);
 });
 
-test('Marketplace Ariana mantém 2x nos demais formatos para controlar custo de render', async () => {
+test('Marketplace Ariana mantém resolução oficial nativa nos demais formatos', async () => {
   const result = await generateCreativeBannerProMulti(
     [MULTI_TV, MULTI_FRIDGE, MULTI_WASHER],
     {
@@ -722,8 +722,8 @@ test('Marketplace Ariana mantém 2x nos demais formatos para controlar custo de 
   const meta = await sharp(result.buffer).metadata();
   assert.equal(meta.width, 1600);
   assert.equal(meta.height, 400);
-  assert.equal(result.meta.renderScale, 2);
-  assert.equal(result.meta.renderQuality, 'supersampled_2x_lanczos3_selective_sharpen');
+  assert.equal(result.meta.renderScale, 1);
+  assert.equal(result.meta.renderQuality, 'official_resolution_lossless_png');
   assert.equal(result.meta.quality.blockSave, false);
 });
 
