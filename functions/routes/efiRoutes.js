@@ -115,17 +115,47 @@ export default function registerEfiRoutes(app, context = {}) {
 
   app.get('/api/admin/payments/efi/status', adminRequired, async (_req, res) => {
     res.setHeader('Cache-Control', 'no-store');
+
+    const homologation = efiConfigSummary('homologation');
+    const production = efiConfigSummary('production');
+    const configuredFeeMode = String(process.env.EFI_MARKETPLACE_FEE_MODE || '').trim();
+    const feeModeSelected = ['1', '2'].includes(configuredFeeMode);
+    const blockers = [];
+
+    if (!feeModeSelected) blockers.push('Definir a política de tarifa do marketplace: mode 1 ou mode 2.');
+    if (!production.clientIdConfigured || !production.clientSecretConfigured) blockers.push('Credenciais Efí de Produção ainda não configuradas.');
+    if (!production.certificateConfigured || !production.certificateReadable) blockers.push('Certificado Efí de Produção ainda não configurado/validado.');
+    if (!production.pixKeyConfigured) blockers.push('Chave Pix Efí de Produção ainda não configurada.');
+    if (!production.payeeCodeConfigured) blockers.push('Identificador/payee_code da conta Ariana em Produção ainda não configurado.');
+    blockers.push('Checkout Efí permanece desacoplado até autorização explícita para Produção.');
+
     return res.json({
       ok: true,
       provider: 'efi',
       activeCheckoutProviderChanged: false,
       checkoutAttached: false,
-      homologation: efiConfigSummary('homologation'),
-      production: efiConfigSummary('production'),
+      homologation,
+      production,
       homologationCapabilities: {
+        oauthCharges: true,
+        oauthPix: true,
+        pixSplit: true,
+        pixWebhookMtls: true,
+        chargesSplit: true,
+        boletoSplit: true,
         approvedCardSplit: true,
         declinedCardSandbox: true,
-        chargeCancellation: true
+        chargeCancellation: true,
+        marketplaceCardRefundSupported: false
+      },
+      productionReadiness: {
+        splitPolicy: { arianaPercent: 12, sellerPercent: 88 },
+        feeModeSelected,
+        feeMode: feeModeSelected ? Number(configuredFeeMode) : null,
+        productionEnabled: false,
+        checkoutAttached: false,
+        ready: false,
+        blockers
       }
     });
   });
