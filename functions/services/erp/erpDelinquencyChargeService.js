@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { getErpSettingsSnapshot } from './erpSettingsService.js';
+import { claimMonthlyFinancialContact, confirmMonthlyFinancialContact, releaseMonthlyFinancialContact } from './erpMonthlyCollectionGuardService.js';
 
 const TZ='America/Sao_Paulo';
 const clean=(v='',m=2000)=>String(v??'').trim().replace(/\s+/g,' ').slice(0,m);
@@ -13,6 +14,7 @@ function fail(message,statusCode=400,code='ERP_DELINQUENCY_CHARGE_ERROR'){const 
 function actorName(a={}){return clean(a.name||a.nome||a.fullName||a.displayName||a.email||'Operador',180)}
 function brl(v){return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
 function startToday(){const parts=new Intl.DateTimeFormat('en-CA',{timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const x=Object.fromEntries(parts.filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));return new Date(`${x.year}-${x.month}-${x.day}T00:00:00-03:00`)}
+function localDateKey(date=new Date()){const parts=new Intl.DateTimeFormat('en-CA',{timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);const x=Object.fromEntries(parts.filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));return `${x.year}-${x.month}-${x.day}`}
 function principalPaid(r={}){const payments=arr(r.payments);if(payments.length)return money(payments.reduce((s,p)=>s+Number(p.principalApplied??p.principal??p.amount??0),0));if(Number(r.principalPaid||0)>0)return money(r.principalPaid);if(['paid','recebido'].includes(String(r.status||'').toLowerCase()))return money(r.value);return Math.min(money(r.value),Math.max(0,money(r.paidValue??r.receivedAmount??0)))}
 function outstanding(r={}){return Math.max(0,money(Number(r.value||0)-principalPaid(r)))}
 function firstDefined(obj={},keys=[]){for(const key of keys){const value=obj?.[key];if(value!==undefined&&value!==null&&value!=='')return{defined:true,value:Number(value||0)}}return{defined:false,value:0}}
@@ -115,7 +117,27 @@ export function createErpDelinquencyChargeService(context={}){
 
   async function send(targetId,payload={},actor={}){
     const template=TEMPLATES.has(clean(payload.template,30))?clean(payload.template,30):'visita';const data=await build(targetId,template),who=actorName(actor),cfg=await collectionEvolutionConfig();const baseLog={targetId:data.targetId,purchaseKey:data.purchaseKey,orderId:data.orderId,reference:data.reference,clientName:data.contact.name,clientDocument:data.contact.document,clientPhone:data.phone,template,installments:data.items.length,principalAmount:data.totals.principal,fineAmount:data.totals.fine,interestAmount:data.totals.interest,correctionAmount:data.totals.correction,totalUpdated:data.totals.updated,message:data.message,senderPhone:cfg.senderPhone,evolutionInstance:cfg.instance,sentBy:who};
-    try{const sent=await sendEvolution(data.phone,data.message,cfg);const now=new Date();const log=await Log.create({...baseLog,status:'SENT',providerMessageId:sent.messageId||'',sentAt:now});return{status:'SENT',sentAt:now,messageId:sent.messageId||'',provider:sent.provider,sender:{phone:sent.senderPhone,instance:sent.instance},charge:{targetId:data.targetId,purchaseKey:data.purchaseKey,orderId:data.orderId,reference:data.reference,contact:data.contact,phone:data.phone,items:data.items,totals:data.totals,message:data.message},logId:String(log._id)}}catch(error){await Log.create({...baseLog,status:'FAILED',error:clean(error?.message||error,1000)}).catch(()=>{});throw error}
+    const monthlyClaim=await claimMonthlyFinancialContact(context,{
+      dateKey:localDateKey(),
+      source:'cobranca_manual_atrasados',
+      customerName:data.contact.name,
+      customerDocument:data.contact.document,
+      phone:data.phone,
+      updatedBy:who
+    });
+    if(!monthlyClaim.claimed){
+      throw fail('Este cliente já recebeu lembrete ou cobrança financeira neste mês. Nova cobrança bloqueada pela regra mensal.',409,'ERP_MONTHLY_COLLECTION_BLOCKED');
+    }
+    try{
+      const sent=await sendEvolution(data.phone,data.message,cfg);const now=new Date();
+      const log=await Log.create({...baseLog,status:'SENT',providerMessageId:sent.messageId||'',sentAt:now});
+      await confirmMonthlyFinancialContact(context,monthlyClaim,{sentAt:now,source:'cobranca_manual_atrasados',messageId:sent.messageId||'',updatedBy:who});
+      return{status:'SENT',sentAt:now,messageId:sent.messageId||'',provider:sent.provider,sender:{phone:sent.senderPhone,instance:sent.instance},charge:{targetId:data.targetId,purchaseKey:data.purchaseKey,orderId:data.orderId,reference:data.reference,contact:data.contact,phone:data.phone,items:data.items,totals:data.totals,message:data.message},logId:String(log._id)}
+    }catch(error){
+      await releaseMonthlyFinancialContact(context,monthlyClaim);
+      await Log.create({...baseLog,status:'FAILED',error:clean(error?.message||error,1000)}).catch(()=>{});
+      throw error
+    }
   }
 
   return{preview,saveContact,send};
