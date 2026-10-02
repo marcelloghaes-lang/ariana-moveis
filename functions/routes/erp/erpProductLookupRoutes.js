@@ -78,5 +78,52 @@ export default function createErpProductLookupRoutes(context={}){
     }
   });
 
+
+  router.get('/erp/fiscal-matrix',context.adminRequired,async(req,res)=>{
+    try{
+      const includeInactive=req.query?.includeInactive==='1';
+      const docs=await context.Product.collection.find(includeInactive?{}:{active:{$ne:false}}).sort({name:1}).limit(5000).toArray();
+      const products=docs.filter(p=>productService.isOwnProduct(p)).map(present);
+      const rows=products.map((p)=>{
+        const f=p.fiscal||{};
+        const ncm=digits(f.ncm).slice(0,8);
+        const cest=digits(f.cest).slice(0,7);
+        const cfop=digits(f.cfop).slice(0,4);
+        const csosn=digits(f.csosn).slice(0,3);
+        const icmsCst=digits(f.icmsCst).slice(0,3);
+        const stByTaxCode=csosn==='500'||icmsCst==='060'||icmsCst==='60'||['5403','5405','6403','6404'].includes(cfop);
+        const stIndicated=Boolean(cest||stByTaxCode);
+        const issues=[];
+        if(ncm.length!==8)issues.push('NCM ausente/inválido');
+        if(!f.unit)issues.push('Unidade ausente');
+        if(f.origin===''||f.origin===null||f.origin===undefined)issues.push('Origem fiscal ausente');
+        if(stIndicated&&!cest)issues.push('ST indicada sem CEST');
+        if(!cfop)issues.push('CFOP não definido no produto');
+        if(!csosn&&!icmsCst)issues.push('ICMS/CSOSN não definido');
+        return{
+          id:p.id,name:p.name,sku:p.sku,brand:p.brand,category:p.category,active:p.active,stock:p.stock,
+          price:p.price,costPrice:p.costPrice,sellerName:p.sellerName||'Ariana Móveis',
+          ncm,cest,cfop,unit:f.unit||'',origin:f.origin||'',csosn,icmsCst,pisCst:f.pisCst||'',cofinsCst:f.cofinsCst||'',ean:f.ean||'',
+          stStatus:stIndicated?'ST indicada no cadastro':'ST não indicada no cadastro',
+          stIndicated,
+          saleOrderStatus:issues.length?'REVISAR':'PRONTO PARA REVISÃO CONTÁBIL',
+          issues
+        };
+      });
+      const summary={
+        total:rows.length,
+        active:rows.filter(r=>r.active).length,
+        withNcm:rows.filter(r=>r.ncm.length===8).length,
+        withoutNcm:rows.filter(r=>r.ncm.length!==8).length,
+        stIndicated:rows.filter(r=>r.stIndicated).length,
+        withIssues:rows.filter(r=>r.issues.length).length
+      };
+      return res.json({ok:true,source:'Ariana ERP - cadastro real de produtos',generatedAt:new Date().toISOString(),summary,rows});
+    }catch(error){
+      console.error('[erp-fiscal-matrix]',error);
+      return res.status(Number(error?.statusCode||500)).json({ok:false,error:error?.message||'Erro ao montar matriz fiscal.',code:error?.code||'ERP_FISCAL_MATRIX_ERROR'});
+    }
+  });
+
   return router;
 }
