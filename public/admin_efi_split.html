@@ -21,6 +21,7 @@
     <h2>Status da integração</h2>
     <div class="note warn"><b>Produção permanece desligada.</b> Vamos validar credenciais, certificado e split no ambiente de Homologação antes de qualquer mudança no checkout.</div>
     <div id="statusGrid" class="grid" style="margin-top:14px"></div>
+    <div id="readinessNote" class="note warn" style="margin-top:14px">Carregando prontidão para Produção...</div>
     <div class="row"><button class="btn" onclick="loadStatus()">Atualizar status</button><button class="btn light" onclick="testAuth()">Testar autenticação Homologação</button></div>
     <pre id="statusOut" class="pre">Aguardando...</pre>
   </div>
@@ -61,7 +62,7 @@
       <div><label class="label">Percentual Ariana</label><input id="chargesPlatformPercent" class="input" type="number" step="0.01" min="0.01" max="99.99" value="12"></div>
       <div><label class="label">Percentual fabricante</label><input id="chargesSellerPercent" class="input" type="number" step="0.01" min="0.01" max="99.99" value="88"></div>
       <div><label class="label">Payee code do fabricante</label><input id="chargesPayeeCode" class="input" placeholder="Opcional nos testes: favorecido já configurado no backend"></div>
-      <div><label class="label">Tarifa Efí</label><select id="chargesFeeMode" class="input"><option value="1">Ariana assume a tarifa (mode 1)</option><option value="2">Tarifa proporcional entre recebedores (mode 2)</option></select></div>
+      <div><label class="label">Tarifa Efí — somente testes</label><select id="chargesFeeMode" class="input"><option value="2" selected>Tarifa proporcional entre recebedores (mode 2)</option><option value="1">Ariana assume a tarifa (mode 1)</option></select><div class="muted" style="margin-top:6px">Esta seleção vale só para Homologação. A política de Produção continua bloqueada até decisão explícita.</div></div>
       <div><label class="label">Valor do item teste</label><input id="chargesValue" class="input" type="number" min="0.01" step="0.01" value="11.00"></div>
       <div><label class="label">Charge ID criado</label><input id="chargesChargeId" class="input" placeholder="Será preenchido após criar a transação"></div>
     </div>
@@ -133,9 +134,39 @@ async function loadStatus(){
  try{
   const d=await api('/admin/payments/efi/status');
   const h=d.homologation||{};
-  statusGrid.innerHTML=badge(h.clientIdConfigured,'Client ID')+badge(h.clientSecretConfigured,'Client Secret')+badge(h.certificateReadable,'Certificado P12')+badge(h.pixKeyConfigured,'Chave Pix')+badge(h.payeeCodeConfigured,'Identificador da conta Ariana');
-  statusOut.textContent=JSON.stringify({homologation:h,checkoutAttached:d.checkoutAttached,activeCheckoutProviderChanged:d.activeCheckoutProviderChanged},null,2);
- }catch(e){statusOut.textContent=e.message}
+  const r=d.productionReadiness||{};
+  const caps=d.homologationCapabilities||{};
+  statusGrid.innerHTML=
+   badge(h.clientIdConfigured,'Client ID')+
+   badge(h.clientSecretConfigured,'Client Secret')+
+   badge(h.certificateReadable,'Certificado P12')+
+   badge(h.pixKeyConfigured,'Chave Pix')+
+   badge(h.payeeCodeConfigured,'Identificador da conta Ariana')+
+   badge(Boolean(caps.pixSplit),'Pix Split 12/88')+
+   badge(Boolean(caps.boletoSplit),'Boleto Split')+
+   badge(Boolean(caps.approvedCardSplit&&caps.declinedCardSandbox),'Cartão aprovado/recusado')+
+   badge(Boolean(caps.chargeCancellation),'Cancelamento');
+
+  const blockers=Array.isArray(r.blockers)?r.blockers:[];
+  readinessNote.innerHTML='<b>Produção bloqueada com segurança.</b><br>'+
+   'Split comercial validado: 12% Ariana / 88% fabricante.<br>'+
+   'Estorno de cartão marketplace: não suportado pelo endpoint padrão da Efí.<br>'+
+   (r.feeModeSelected
+    ? 'Política de tarifa registrada: mode '+r.feeMode+'.'
+    : 'Falta decidir a política de tarifa de Produção (mode 1 ou mode 2).')+
+   (blockers.length?'<br><br><b>Pendências antes de Produção:</b><br>• '+blockers.join('<br>• '):'');
+
+  statusOut.textContent=JSON.stringify({
+   homologation:h,
+   capabilities:caps,
+   productionReadiness:r,
+   checkoutAttached:d.checkoutAttached,
+   activeCheckoutProviderChanged:d.activeCheckoutProviderChanged
+  },null,2);
+ }catch(e){
+  statusOut.textContent=e.message;
+  readinessNote.textContent='Não foi possível carregar a prontidão: '+e.message;
+ }
 }
 async function testAuth(){
  statusOut.textContent='Testando OAuth da API Cobranças e API Pix...';
