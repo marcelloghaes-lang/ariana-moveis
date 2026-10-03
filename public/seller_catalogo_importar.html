@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Importar Catálogo | Ariana Móveis</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<style>
+:root{--blue:#0047AB;--blue2:#052b63;--bg:#f3f6fb;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--green:#15803d;--red:#b91c1c;--amber:#a16207}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
+.shell{display:flex;min-height:100vh}.side{width:260px;background:linear-gradient(180deg,var(--blue),var(--blue2));padding:24px 14px;color:#fff}.brand{font-size:27px;font-weight:1000;font-style:italic;padding:8px 12px 24px;border-bottom:1px solid #ffffff25;margin-bottom:18px}.brand b{color:#ffd43b}.side a{display:flex;gap:10px;align-items:center;color:#eef6ff;text-decoration:none;font-weight:800;padding:12px 14px;border-radius:14px;margin:5px 0}.side a:hover,.side a.active{background:#ffffff18}.main{flex:1;padding:28px;min-width:0}.top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:18px}.top h1{margin:0;font-size:30px}.top p{margin:7px 0 0;color:var(--muted);max-width:850px}.card{background:#fff;border:1px solid var(--line);border-radius:22px;padding:22px;box-shadow:0 12px 30px #0f172a0c;margin-bottom:18px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.field label{display:block;font-size:12px;font-weight:900;text-transform:uppercase;color:var(--muted);margin-bottom:7px}.field input,.field textarea,.field select{width:100%;border:1px solid #cbd5e1;border-radius:14px;padding:12px 14px;font:inherit;min-height:46px}.field textarea{min-height:150px;resize:vertical}.drop{border:2px dashed #bfdbfe;background:#eff6ff;border-radius:20px;padding:28px;text-align:center}.drop strong{display:block;font-size:18px;margin-bottom:7px}.btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:15px}.btn{border:0;border-radius:13px;padding:12px 16px;font-weight:900;cursor:pointer}.primary{background:var(--blue);color:#fff}.secondary{background:#fff;color:var(--blue);border:1px solid #bfdbfe}.success{background:#15803d;color:#fff}.btn:disabled{opacity:.45;cursor:not-allowed}.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:16px 0}.stat{border:1px solid var(--line);border-radius:16px;padding:14px;background:#fff}.stat span{display:block;color:var(--muted);font-size:11px;font-weight:900;text-transform:uppercase}.stat b{font-size:24px}.note{border-radius:15px;padding:13px 15px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-weight:700}.good{background:#f0fdf4;border-color:#bbf7d0;color:#166534}.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:16px}table{border-collapse:collapse;width:100%;min-width:900px}th,td{text-align:left;padding:11px 12px;border-bottom:1px solid #eef2f7;font-size:13px}th{background:#f8fafc;font-size:11px;text-transform:uppercase;color:var(--muted)}.pill{display:inline-flex;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:900}.create{background:#dcfce7;color:#166534}.update{background:#dbeafe;color:#1d4ed8}.invalid{background:#fee2e2;color:#991b1b}.muted{color:var(--muted)}#status{white-space:pre-wrap}
+@media(max-width:900px){.shell{display:block}.side{width:100%}.side nav{display:grid;grid-template-columns:1fr 1fr}.main{padding:14px}.grid{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.top{display:block}}
+</style>
+</head>
+<body>
+<div class="shell">
+<aside class="side">
+  <div class="brand">ARIANA <b>MÓVEIS</b></div>
+  <nav>
+    <a href="seller_dashboard.html"><i class="fas fa-home"></i>Dashboard</a>
+    <a href="seller_produtos.html"><i class="fas fa-box"></i>Meus Produtos</a>
+    <a class="active" href="seller_catalogo_importar.html"><i class="fas fa-file-import"></i>Importar catálogo</a>
+    <a href="seller_pedidos.html"><i class="fas fa-shopping-cart"></i>Pedidos</a>
+    <a href="seller_configuracoes.html"><i class="fas fa-cog"></i>Configurações</a>
+  </nav>
+</aside>
+<main class="main">
+  <div class="top">
+    <div><h1>Importação industrial de catálogo</h1><p>Recebe catálogos de fornecedores em lote, reconhece automaticamente os campos mais comuns, identifica produtos novos/atualizações e importa em modo seguro de revisão.</p></div>
+    <a class="btn secondary" href="seller_produtos.html">Voltar aos produtos</a>
+  </div>
+
+  <div class="card">
+    <div class="grid">
+      <div class="field"><label>Origem / fornecedor do catálogo</label><input id="source" placeholder="Ex.: DSlite - Hayamax, Drop de Casa, Electrolux"></div>
+      <div class="field"><label>Formato</label><select id="format"><option value="auto">Detectar automaticamente</option><option value="csv">CSV</option><option value="json">JSON</option></select></div>
+    </div>
+    <div class="drop" style="margin-top:14px">
+      <strong>Selecione um catálogo CSV ou JSON</strong>
+      <div class="muted">Também aceita TXT delimitado por ; ou ,. Para Excel/XML/API, o conector usará esta mesma camada de importação quando o fornecedor liberar acesso.</div>
+      <input id="file" type="file" accept=".csv,.txt,.json,application/json,text/csv" style="margin-top:15px">
+    </div>
+    <div class="field" style="margin-top:14px"><label>Ou cole os dados aqui</label><textarea id="raw" placeholder="nome;sku;preco;estoque;categoria;marca;ean;ncm;cest;foto&#10;Produto A;ABC123;199,90;10;Eletroportáteis;Marca X;789..."></textarea></div>
+    <div class="btns">
+      <button id="previewBtn" class="btn primary"><i class="fas fa-magnifying-glass"></i> Analisar catálogo</button>
+      <button id="importBtn" class="btn success" disabled><i class="fas fa-cloud-arrow-up"></i> Importar válidos</button>
+    </div>
+    <div id="status" class="note" style="margin-top:14px">Nenhuma importação executada. Produtos novos ficam desativados e em revisão; nada é publicado automaticamente.</div>
+  </div>
+
+  <div id="resultCard" class="card" style="display:none">
+    <div class="stats">
+      <div class="stat"><span>Total</span><b id="sTotal">0</b></div>
+      <div class="stat"><span>Válidos</span><b id="sValid">0</b></div>
+      <div class="stat"><span>Novos</span><b id="sCreate">0</b></div>
+      <div class="stat"><span>Atualizar</span><b id="sUpdate">0</b></div>
+      <div class="stat"><span>Inválidos</span><b id="sInvalid">0</b></div>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>Ação</th><th>Produto</th><th>SKU/EAN</th><th>Preço</th><th>Estoque</th><th>Categoria</th><th>Problema</th></tr></thead><tbody id="tbody"></tbody></table></div>
+    <p class="muted" style="font-size:12px;margin-bottom:0">A prévia mostra no máximo 200 linhas na tela, mas a importação processa o catálogo inteiro em lotes seguros.</p>
+  </div>
+</main>
+</div>
+<script>
+const API_BASE=(location.hostname==='localhost'||location.hostname==='127.0.0.1')?'http://localhost:3000/api':'https://ariana-backend.onrender.com/api';
+const $=id=>document.getElementById(id);
+let parsedRows=[],previewReady=false;
+function token(){return localStorage.getItem('seller_token')||''}
+function headers(){return {'Content-Type':'application/json',Authorization:'Bearer '+token()}}
+if(!token()) location.href='seller_login.html';
+
+function detectDelimiter(line){
+  const counts={';':0,',':0,'\t':0}; let quoted=false;
+  for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"') quoted=!quoted; else if(!quoted&&counts[ch]!==undefined) counts[ch]++}
+  return Object.entries(counts).sort((a,b)=>b[1]-a[1])[0][0];
+}
+function parseDelimited(text){
+  const clean=String(text||'').replace(/^\uFEFF/,'').trim(); if(!clean) return [];
+  const delimiter=detectDelimiter(clean.split(/\r?\n/)[0]||'');
+  const rows=[];let row=[],cell='',quoted=false;
+  for(let i=0;i<clean.length;i++){
+    const ch=clean[i],next=clean[i+1];
+    if(ch==='"'&&quoted&&next==='"'){cell+='"';i++;continue}
+    if(ch==='"'){quoted=!quoted;continue}
+    if(ch===delimiter&&!quoted){row.push(cell.trim());cell='';continue}
+    if((ch==='\n'||ch==='\r')&&!quoted){
+      if(ch==='\r'&&next==='\n') i++;
+      row.push(cell.trim());cell='';
+      if(row.some(x=>x!=='')) rows.push(row);row=[];continue
+    }
+    cell+=ch;
+  }
+  row.push(cell.trim()); if(row.some(x=>x!=='')) rows.push(row);
+  if(rows.length<2) return [];
+  const headers=rows[0].map((h,i)=>h||('campo_'+(i+1)));
+  return rows.slice(1).map(cols=>Object.fromEntries(headers.map((h,i)=>[h,cols[i]??''])));
+}
+function parseInput(text,format='auto'){
+  const raw=String(text||'').trim(); if(!raw) return [];
+  if(format==='json'||(format==='auto'&&(raw.startsWith('[')||raw.startsWith('{')))){
+    const obj=JSON.parse(raw); const rows=Array.isArray(obj)?obj:(Array.isArray(obj.items)?obj.items:Array.isArray(obj.products)?obj.products:[]);
+    if(!rows.length) throw new Error('JSON sem uma lista de produtos.');
+    return rows;
+  }
+  return parseDelimited(raw);
+}
+$('file').addEventListener('change',async e=>{
+  const f=e.target.files?.[0]; if(!f)return;
+  $('raw').value=await f.text();
+  if($('format').value==='auto') $('format').value=f.name.toLowerCase().endsWith('.json')?'json':'csv';
+});
+
+async function api(endpoint,body){
+  const res=await fetch(API_BASE+endpoint,{method:'POST',headers:headers(),body:JSON.stringify(body)});
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.error||data.message||'Falha na comunicação com o servidor.');
+  return data;
+}
+function money(v){return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function renderSummary(sum,items){
+  $('resultCard').style.display='block';$('sTotal').textContent=sum.total;$('sValid').textContent=sum.valid;$('sCreate').textContent=sum.create;$('sUpdate').textContent=sum.update;$('sInvalid').textContent=sum.invalid;
+  $('tbody').innerHTML=items.slice(0,200).map(x=>`<tr><td><span class="pill ${x.action}">${x.action==='create'?'NOVO':x.action==='update'?'ATUALIZAR':'INVÁLIDO'}</span></td><td><b>${esc(x.name||'-')}</b><br><span class="muted">${esc(x.brand||'')}</span></td><td>${esc(x.sku||x.ean||x.supplierProductId||'-')}</td><td>${money(x.price)}</td><td>${Number(x.stock||0)}</td><td>${esc(x.category||'-')}</td><td>${esc((x.errors||[]).join(' • '))}</td></tr>`).join('');
+}
+async function preview(){
+  parsedRows=parseInput($('raw').value,$('format').value);
+  if(!parsedRows.length) throw new Error('Não encontrei linhas de produtos no arquivo.');
+  const source=$('source').value.trim()||'catalogo_fornecedor';
+  const total={total:0,valid:0,create:0,update:0,invalid:0},items=[];
+  $('status').className='note';$('status').textContent='Analisando '+parsedRows.length+' produtos...';
+  for(let i=0;i<parsedRows.length;i+=500){
+    const part=parsedRows.slice(i,i+500);
+    const r=await api('/seller/catalog-import/preview',{source,rows:part});
+    for(const k of Object.keys(total)) total[k]+=Number(r[k]||0);
+    items.push(...(r.items||[]));
+  }
+  renderSummary(total,items);
+  previewReady=total.valid>0;$('importBtn').disabled=!previewReady;
+  $('status').className='note good';$('status').textContent=`Pré-validação concluída: ${total.valid} válidos, ${total.invalid} com pendência. Nenhuma alteração foi feita ainda.`;
+}
+async function commit(){
+  if(!previewReady||!parsedRows.length) return;
+  if(!confirm('Importar os produtos válidos? Produtos novos entrarão em revisão e NÃO serão publicados automaticamente.')) return;
+  const source=$('source').value.trim()||'catalogo_fornecedor';
+  const sum={processed:0,created:0,matched:0,modified:0,skipped:0};
+  $('importBtn').disabled=true;$('previewBtn').disabled=true;$('status').className='note';$('status').textContent='Importando catálogo em lotes seguros...';
+  try{
+    for(let i=0;i<parsedRows.length;i+=500){
+      const r=await api('/seller/catalog-import/commit',{source,rows:parsedRows.slice(i,i+500)});
+      for(const k of Object.keys(sum)) sum[k]+=Number(r[k]||0);
+      $('status').textContent=`Processados ${Math.min(i+500,parsedRows.length)} de ${parsedRows.length}...`;
+    }
+    $('status').className='note good';$('status').textContent=`Importação concluída. Processados: ${sum.processed}. Novos: ${sum.created}. Existentes encontrados: ${sum.matched}. Atualizados: ${sum.modified}. Ignorados: ${sum.skipped}. Produtos novos continuam em revisão antes de aparecer no site.`;
+  }finally{$('previewBtn').disabled=false;$('importBtn').disabled=false}
+}
+$('previewBtn').addEventListener('click',()=>preview().catch(e=>{$('status').className='note';$('status').textContent=e.message;$('importBtn').disabled=true}));
+$('importBtn').addEventListener('click',()=>commit().catch(e=>{$('status').className='note';$('status').textContent=e.message;$('previewBtn').disabled=false;$('importBtn').disabled=false}));
+</script>
+</body></html>
