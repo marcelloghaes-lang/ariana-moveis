@@ -127,6 +127,17 @@ export function buildReleaseSchedule({order={},seller={},sellerId=''}={}){
     };
   }
 
+  if(delivery.confidence!=='high'){
+    return {
+      state:'blocked',
+      reason:'delivery_timestamp_low_confidence',
+      sellerId:sid,
+      transferDeadlineDays:deadlineDays,
+      delivery,
+      availableAt:null
+    };
+  }
+
   const availableAt=addDays(delivery.date,deadlineDays);
   return {
     state:'scheduled',
