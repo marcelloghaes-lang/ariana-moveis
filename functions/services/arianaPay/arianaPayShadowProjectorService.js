@@ -23,7 +23,8 @@ export function projectOrderToShadowLedger({
   order = {},
   productBaseMap = new Map(),
   getSettlement,
-  availableAt = null
+  availableAt = null,
+  releaseForSeller = null
 } = {}) {
   if (typeof getSettlement !== 'function') {
     throw new TypeError('getSettlement é obrigatório.');
@@ -39,11 +40,16 @@ export function projectOrderToShadowLedger({
 
   for (const sellerId of sellerIds) {
     const settlement = getSettlement(order, sellerId, productBaseMap);
+    const release = typeof releaseForSeller === 'function'
+      ? releaseForSeller(order, sellerId)
+      : null;
+    const sellerAvailableAt = release?.availableAt ?? availableAt;
     const ledger = buildShadowLedgerEntries({
       order,
       sellerId,
       settlement,
-      availableAt
+      availableAt: sellerAvailableAt,
+      release
     });
 
     sellers.push({
@@ -51,7 +57,8 @@ export function projectOrderToShadowLedger({
       settlement,
       ledgerSummary: ledger.summary,
       expectedNet: ledger.expectedNet,
-      reconciliation: ledger.reconciliation
+      reconciliation: ledger.reconciliation,
+      release
     });
 
     entries.push(...ledger.entries);
@@ -81,7 +88,8 @@ export function projectOrdersToShadowLedger({
   orders = [],
   productBaseMap = new Map(),
   getSettlement,
-  availableAtForOrder = null
+  availableAtForOrder = null,
+  releaseForSeller = null
 } = {}) {
   const projected = [];
   const divergences = [];
@@ -95,7 +103,8 @@ export function projectOrdersToShadowLedger({
       order,
       productBaseMap,
       getSettlement,
-      availableAt
+      availableAt,
+      releaseForSeller
     });
 
     projected.push(result);
