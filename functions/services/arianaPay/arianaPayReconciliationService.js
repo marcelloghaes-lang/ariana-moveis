@@ -11,6 +11,7 @@ function fold(value=''){
 }
 
 function money(value){
+  if(value===null||value===undefined||String(value).trim()==='') return null;
   const n=Number(value);
   if(!Number.isFinite(n)) return null;
   return Math.round((n+Number.EPSILON)*100)/100;
