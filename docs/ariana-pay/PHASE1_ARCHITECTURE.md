@@ -183,3 +183,12 @@ Não avançar para movimentação real enquanto:
 - cancelamento/reembolso/chargeback não estiverem cobertos;
 - conciliação não detectar divergência;
 - rollback não estiver documentado.
+
+
+## Política de liberação definida
+
+- Prazo padrão de segurança: **15 dias após a entrega confirmada**.
+- O prazo só começa com evidência de entrega de alta confiança.
+- Configuração ausente ou inferior a 15 dias não reduz o piso de segurança.
+- Um seller pode ter prazo maior que 15 dias se configurado administrativamente.
+- Sem entrega confirmada com data confiável, o recebível permanece em **A liberar**.
