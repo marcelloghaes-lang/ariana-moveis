@@ -113,3 +113,57 @@ test('bloqueia comissão acima do bruto', () => {
     settlement: { gross: 100, commission: 120, net: 0 }
   }), /Comissão maior/);
 });
+
+
+test('risco terminal zera o recebível efetivo sem mascarar a reconciliação original', () => {
+  const result = buildShadowLedgerEntries({
+    order: { id: 'order_risk_1' },
+    sellerId: 'seller_risk',
+    settlement: {
+      gross: 1000,
+      commission: 120,
+      net: 880,
+      commissionPercent: 12
+    },
+    release: {
+      state: 'blocked',
+      reason: 'financial_risk_refund',
+      risk: {
+        active: true,
+        kind: 'refund',
+        severity: 'high',
+        terminal: true,
+        reversalType: 'refund_debit'
+      }
+    }
+  });
+
+  assert.equal(result.reconciliation.ok, true);
+  assert.equal(result.summary.net, 880);
+  assert.equal(result.effectiveSummary.net, 0);
+  assert.equal(result.entries.at(-1).type, 'refund_debit');
+  assert.equal(result.entries.at(-1).amount, 880);
+});
+
+test('risco não terminal bloqueia liberação sem criar débito de reversão', () => {
+  const result = buildShadowLedgerEntries({
+    order: { id: 'order_risk_2' },
+    sellerId: 'seller_risk',
+    settlement: { gross: 1000, commission: 120, net: 880 },
+    release: {
+      state: 'blocked',
+      reason: 'financial_risk_return_review',
+      risk: {
+        active: true,
+        kind: 'return_review',
+        severity: 'medium',
+        terminal: false,
+        reversalType: ''
+      }
+    }
+  });
+
+  assert.equal(result.entries.length, 2);
+  assert.equal(result.effectiveSummary.net, 880);
+  assert.equal(result.entries.every((entry) => entry.metadata.releaseState === 'blocked'), true);
+});
