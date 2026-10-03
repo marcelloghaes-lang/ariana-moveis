@@ -16,7 +16,7 @@
     .toolbar{padding:18px;display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin-bottom:18px}.field{min-width:180px;flex:1}.field label{display:block;font-size:11px;font-weight:900;text-transform:uppercase;color:var(--muted);margin-bottom:6px}.field input{width:100%;min-height:44px;border:1px solid #d7dee9;border-radius:13px;padding:10px 12px;font:inherit}
     button,a.btn{min-height:44px;border:0;border-radius:13px;padding:10px 15px;font-weight:900;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:8px}.primary{background:var(--blue);color:#fff}.soft{background:#f8fafc;color:#0f172a;border:1px solid #dbe3ee!important}
     .notice{padding:14px 16px;border-radius:15px;background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;font-weight:700;margin-bottom:18px}.notice.warn{background:#fff7ed;color:#9a3412;border-color:#fed7aa}.notice.err{background:#fef2f2;color:#991b1b;border-color:#fecaca}
-    .stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px;margin-bottom:18px}.stat{background:#fff;border:1px solid var(--line);border-radius:20px;padding:17px;box-shadow:0 10px 24px rgba(15,23,42,.05)}.stat small{display:block;text-transform:uppercase;font-size:10px;font-weight:950;color:var(--muted);letter-spacing:.06em}.stat b{display:block;font-size:25px;margin-top:7px;color:var(--blue)}.stat.red b{color:var(--red)}
+    .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:14px;margin-bottom:18px}.stat{background:#fff;border:1px solid var(--line);border-radius:20px;padding:17px;box-shadow:0 10px 24px rgba(15,23,42,.05)}.stat small{display:block;text-transform:uppercase;font-size:10px;font-weight:950;color:var(--muted);letter-spacing:.06em}.stat b{display:block;font-size:25px;margin-top:7px;color:var(--blue)}.stat.red b{color:var(--red)}
     .panel{padding:18px;margin-bottom:18px}.panel h2{margin:0 0 4px;font-size:19px}.panel p{margin:0 0 14px;color:var(--muted)}
     .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:16px}table{border-collapse:collapse;width:100%;min-width:880px}th,td{padding:12px;border-bottom:1px solid #eef2f7;text-align:left;font-size:13px}th{background:#f8fafc;text-transform:uppercase;font-size:10px;color:var(--muted);letter-spacing:.06em}.right{text-align:right}.ok{color:var(--green);font-weight:900}.bad{color:var(--red);font-weight:900}.empty{padding:24px;text-align:center;color:var(--muted)}
     @media(max-width:900px){main{padding:14px}.stats{grid-template-columns:1fr 1fr}.toolbar{align-items:stretch}.field{min-width:100%}.toolbar button,.toolbar a{width:100%}}
@@ -50,6 +50,7 @@
     <div class="stat"><small>A liberar</small><b id="pending">—</b></div>
     <div class="stat"><small>Disponível*</small><b id="available">—</b></div>
     <div class="stat"><small>Liberação bloqueada</small><b id="blocked">—</b></div>
+    <div class="stat red"><small>Riscos financeiros</small><b id="risks">—</b></div>
     <div class="stat red"><small>Divergências</small><b id="divergences">—</b></div>
   </div>
 
@@ -104,6 +105,7 @@ async function runAudit(){
     $('pending').textContent=money(data.totals?.pending);
     $('available').textContent=money(data.totals?.available);
     $('blocked').textContent=Number(data.releaseStats?.blocked||0);
+    $('risks').textContent=Number(data.riskStats?.active||0);
     $('divergences').textContent=Number(data.divergenceCount||0);
 
     const sellers=Array.isArray(data.sellers)?data.sellers:[];
@@ -128,6 +130,12 @@ async function runAudit(){
 
     const reasons=data.releaseStats?.blockedReasons||{};
     const reasonParts=[];
+    const risks=data.riskStats?.byKind||{};
+    if(risks.chargeback)reasonParts.push(risks.chargeback+' chargeback');
+    if(risks.refund)reasonParts.push(risks.refund+' reembolso/estorno');
+    if(risks.cancellation)reasonParts.push(risks.cancellation+' cancelamento após pagamento');
+    if(risks.dispute)reasonParts.push(risks.dispute+' contestação');
+    if(risks.return_review)reasonParts.push(risks.return_review+' devolução em análise');
     if(reasons.delivery_not_confirmed)reasonParts.push(reasons.delivery_not_confirmed+' sem entrega confirmada');
     if(reasons.delivery_timestamp_missing)reasonParts.push(reasons.delivery_timestamp_missing+' sem data segura de entrega');
     if(reasons.delivery_timestamp_low_confidence)reasonParts.push(reasons.delivery_timestamp_low_confidence+' com data de entrega de baixa confiança');
