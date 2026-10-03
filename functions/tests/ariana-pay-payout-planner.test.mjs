@@ -78,3 +78,16 @@ test('batch soma somente sellers efetivamente prontos',()=>{
   assert.equal(batch.readyAmount,100);
   assert.equal(batch.payoutExecutionEnabled,false);
 });
+
+
+test('dívida do seller bloqueia payout mesmo com saldo disponível',()=>{
+  const seller={
+    sellerId:'s1',
+    status:'approved',
+    metadata:{bankAccount:{pixKey:'abc',holderName:'X',holderDocument:'12345678901'}}
+  };
+  const plan=buildSellerPayoutPlan({seller,balance:{available:500,debt:100}});
+  assert.equal(plan.ready,false);
+  assert.equal(plan.debt,100);
+  assert.equal(plan.blockers.includes('outstanding_seller_debt'),true);
+});
