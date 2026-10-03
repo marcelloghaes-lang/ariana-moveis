@@ -74,3 +74,14 @@ test('entrega mais prazo produz data prevista de liberação',()=>{
   assert.equal(schedule.state,'scheduled');
   assert.equal(schedule.availableAt,'2026-10-08T12:00:00.000Z');
 });
+
+
+test('fallback de baixa confiança não libera recebível automaticamente',()=>{
+  const schedule=buildReleaseSchedule({
+    order:{status:'entregue',updatedAt:'2026-10-01T10:00:00Z'},
+    seller:{sellerId:'s1',metadata:{transferDeadlineDays:0}}
+  });
+  assert.equal(schedule.state,'blocked');
+  assert.equal(schedule.reason,'delivery_timestamp_low_confidence');
+  assert.equal(schedule.availableAt,null);
+});
