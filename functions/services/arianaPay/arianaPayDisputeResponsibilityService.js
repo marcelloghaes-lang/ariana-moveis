@@ -37,7 +37,7 @@ export function classifyDisputeReason(order={}){
   const values=valuesFromOrder(order);
 
   if(has(values,[
-    'fraud','fraude','not recognized','not_recognized','nao reconhec',
+    'fraud','fraude','not recognized','not_recognized','does not recognize','did not recognize','nao reconhec',
     'unrecognized','unauthorized','nao autorizado','cardholder did not'
   ])){
     return {code:'fraud_not_recognized',label:'Compra não reconhecida / fraude',confidence:'high'};
