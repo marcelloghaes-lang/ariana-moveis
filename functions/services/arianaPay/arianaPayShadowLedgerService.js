@@ -58,7 +58,8 @@ export function buildShadowLedgerEntries({
   order = {},
   sellerId = '',
   settlement = {},
-  availableAt = null
+  availableAt = null,
+  release = null
 } = {}) {
   const orderId = cleanId(order._id || order.id || order.orderId);
   const sid = cleanId(sellerId);
@@ -89,7 +90,12 @@ export function buildShadowLedgerEntries({
       metadata: {
         settlementMode: String(settlement.settlementMode || ''),
         marketplaceGross: money(settlement.marketplaceGross || 0),
-        managedGross: money(settlement.managedGross || 0)
+        managedGross: money(settlement.managedGross || 0),
+        releaseState: String(release?.state || ''),
+        releaseReason: String(release?.reason || ''),
+        transferDeadlineDays: release?.transferDeadlineDays ?? null,
+        deliverySource: String(release?.delivery?.source || ''),
+        deliveryConfidence: String(release?.delivery?.confidence || '')
       }
     }));
   }
@@ -103,7 +109,9 @@ export function buildShadowLedgerEntries({
       amount: commission,
       availableAt,
       metadata: {
-        commissionPercent: Number(settlement.commissionPercent || 0)
+        commissionPercent: Number(settlement.commissionPercent || 0),
+        releaseState: String(release?.state || ''),
+        releaseReason: String(release?.reason || '')
       }
     }));
   }
