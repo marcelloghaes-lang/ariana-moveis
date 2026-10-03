@@ -2,6 +2,8 @@
 // Calcula quando um recebível pode deixar "a liberar" e virar "disponível".
 // Não grava nada e não executa payout.
 
+export const ARIANA_PAY_MIN_RELEASE_DAYS = 15;
+
 function cleanText(value=''){
   return String(value||'').trim().toLowerCase();
 }
@@ -83,27 +85,19 @@ export function normalizeTransferDeadlineDays(seller={}){
     seller?.metadata?.payoutDeadlineDays ??
     null;
 
-  if(raw===null||raw===undefined||String(raw).trim()==='') return null;
+  // Regra Ariana Pay: 15 dias após a entrega é o piso de segurança.
+  // Sem configuração específica, usa 15. Configurações maiores continuam válidas;
+  // configurações menores nunca reduzem o prazo abaixo de 15 dias.
+  if(raw===null||raw===undefined||String(raw).trim()==='') return ARIANA_PAY_MIN_RELEASE_DAYS;
   const days=Number(String(raw).replace(',','.'));
-  if(!Number.isFinite(days)||days<0||days>90) return null;
-  return days;
+  if(!Number.isFinite(days)||days<0||days>90) return ARIANA_PAY_MIN_RELEASE_DAYS;
+  return Math.max(ARIANA_PAY_MIN_RELEASE_DAYS, days);
 }
 
 export function buildReleaseSchedule({order={},seller={},sellerId=''}={}){
   const sid=String(sellerId||seller?.sellerId||'').trim();
   const deadlineDays=normalizeTransferDeadlineDays(seller);
   const delivery=findDeliveryConfirmation(order);
-
-  if(deadlineDays===null){
-    return {
-      state:'blocked',
-      reason:'missing_transfer_deadline',
-      sellerId:sid,
-      transferDeadlineDays:null,
-      delivery,
-      availableAt:null
-    };
-  }
 
   if(!delivery.confirmed){
     return {
