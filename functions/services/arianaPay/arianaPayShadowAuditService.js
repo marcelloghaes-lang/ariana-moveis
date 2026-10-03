@@ -10,6 +10,7 @@ import { buildPayoutBatchPreview } from './arianaPayPayoutPlannerService.js';
 import { assessCardSecurity, applyCardSecurityToRelease } from './arianaPayCardSecurityService.js';
 import { classifyDisputeResponsibility, attachDisputeResponsibilityToRisk } from './arianaPayDisputeResponsibilityService.js';
 import { buildChargebackEvidencePacket, evidenceCompleteness } from './arianaPayEvidenceService.js';
+import { reconcileOrders } from './arianaPayReconciliationService.js';
 
 const APPROVED_STATUS_TOKENS = [
   'pago',
@@ -293,6 +294,8 @@ export function createArianaPayShadowAuditService({
         Math.max(severity[a.riskSeverity] || 0, card[a.cardSecurity?.level || ''] || 0);
     });
 
+    const paymentReconciliation = reconcileOrders(orders);
+
     const payoutPreview = buildPayoutBatchPreview({
       sellers: Array.isArray(sellerDocs) ? sellerDocs : [],
       balances: summary.sellers
@@ -318,6 +321,12 @@ export function createArianaPayShadowAuditService({
       disputeResponsibilityStats,
       reviewCaseCount: reviewCases.length,
       reviewCases,
+      paymentReconciliation: {
+        mode: paymentReconciliation.mode,
+        providerQueryPerformed: false,
+        stats: paymentReconciliation.stats,
+        issues: paymentReconciliation.rows.filter((row) => row.status !== 'matched')
+      },
       payoutPreview: {
         mode: payoutPreview.mode,
         payoutExecutionEnabled: false,
