@@ -192,6 +192,29 @@ function buildCobranca(draft={},number,parts=[]){
   };
 }
 function publicProblem(code,message,field=''){return{code,message,field}}
+
+function fiscalOperationModel(draft={}){
+  const raw=clean(draft?.fiscal?.operationModel||draft?.fiscal?.fiscalOperationModel||'own_sale',60).toLowerCase();
+  if(['marketplace_intermediation','marketplace','intermediation','intermediacao'].includes(raw))return'marketplace_intermediation';
+  if(['sale_order','venda_ordem','venda-a-ordem','venda_a_ordem'].includes(raw))return'sale_order';
+  return'own_sale';
+}
+function saleOrderRemitter(draft={}){
+  const src=draft?.fiscal?.supplierRemitter||draft?.fiscal?.saleOrderSupplier||{};
+  return{
+    name:clean(src.name||src.razaoSocial||src.storeName,180),
+    cnpj:digits(src.cnpj||src.document),
+    ie:clean(src.ie||src.inscricaoEstadual,40),
+    address:clean(src.address||src.endereco||src.logradouro,240),
+    city:clean(src.city||src.municipio,120),
+    uf:clean(src.uf||src.state,2).toUpperCase()
+  };
+}
+function saleOrderComplement(draft={}){
+  if(fiscalOperationModel(draft)!=='sale_order')return'';
+  const s=saleOrderRemitter(draft);
+  return clean(`Venda à ordem - remessa física por conta e ordem de terceiros. Vendedor remetente: ${s.name}; CNPJ: ${s.cnpj}; IE: ${s.ie}; Endereço: ${s.address}; ${s.city}/${s.uf}. RICMS/MG, Anexo VIII, art. 209.`,1200);
+}
 function orderMatchesDraft(order,draft={}){
   const expected=(Array.isArray(draft.items)?draft.items:[])
     .map(i=>`${String(i?.productId||'')}|${Number(i?.qty||0)}|${money(i?.unitPrice)}`).sort();
@@ -349,12 +372,32 @@ export function createErpNfeSefazService(context={},settings){
     }
 
     const fiscalInput=draft?.fiscal||{};
+    const operationModel=fiscalOperationModel(draft);
+    const supplierRemitter=saleOrderRemitter(draft);
     const buyerPresence=Number(fiscalInput.buyerPresence??1);
-    const natureOperation=clean(fiscalInput.natureOperation||issuer.naturezaOperacao||'Venda de mercadoria',60);
+    const natureOperation=clean(fiscalInput.natureOperation||(operationModel==='sale_order'?'Venda à ordem':issuer.naturezaOperacao)||'Venda de mercadoria',60);
     if(!natureOperation)problems.push(publicProblem('NATURE_OPERATION_MISSING','Informe a natureza da operação.','fiscal.natureOperation'));
     if(![0,1,2,3,4,5,9].includes(buyerPresence))problems.push(publicProblem('BUYER_PRESENCE_INVALID','Selecione uma presença do comprador válida para a NF-e.','fiscal.buyerPresence'));
     if(String(fiscalInput.additionalInfo||'').length>5000)problems.push(publicProblem('ADDITIONAL_INFO_TOO_LONG','Informações complementares excedem 5.000 caracteres.','fiscal.additionalInfo'));
     if(String(fiscalInput.taxAuthorityInfo||'').length>2000)problems.push(publicProblem('TAX_AUTHORITY_INFO_TOO_LONG','Informações de interesse do Fisco excedem 2.000 caracteres.','fiscal.taxAuthorityInfo'));
+
+    if(operationModel==='marketplace_intermediation'){
+      problems.push(publicProblem(
+        'MARKETPLACE_SELLER_NFE_REQUIRED',
+        'Marketplace/intermediação: a Ariana não deve emitir a NF-e da mercadoria como vendedora. O seller/fabricante deve emitir a NF-e ao cliente e enviá-la pelo painel do seller.',
+        'fiscal.operationModel'
+      ));
+    }
+    if(operationModel==='sale_order'){
+      if(!supplierRemitter.name)problems.push(publicProblem('SALE_ORDER_REMITTER_NAME_MISSING','Venda à ordem: informe a razão social do vendedor remetente/fornecedor.','fiscal.supplierRemitter.name'));
+      if(supplierRemitter.cnpj.length!==14)problems.push(publicProblem('SALE_ORDER_REMITTER_CNPJ_INVALID','Venda à ordem: informe o CNPJ de 14 dígitos do vendedor remetente/fornecedor.','fiscal.supplierRemitter.cnpj'));
+      if(!supplierRemitter.ie)problems.push(publicProblem('SALE_ORDER_REMITTER_IE_MISSING','Venda à ordem: informe a Inscrição Estadual do vendedor remetente/fornecedor.','fiscal.supplierRemitter.ie'));
+      if(!supplierRemitter.address)problems.push(publicProblem('SALE_ORDER_REMITTER_ADDRESS_MISSING','Venda à ordem: informe o endereço do estabelecimento que fará a remessa ao cliente.','fiscal.supplierRemitter.address'));
+      if(!supplierRemitter.city)problems.push(publicProblem('SALE_ORDER_REMITTER_CITY_MISSING','Venda à ordem: informe o município do vendedor remetente.','fiscal.supplierRemitter.city'));
+      if(!VALID_UFS.has(supplierRemitter.uf))problems.push(publicProblem('SALE_ORDER_REMITTER_UF_INVALID','Venda à ordem: informe uma UF válida para o vendedor remetente.','fiscal.supplierRemitter.uf'));
+      const sellerIds=[...new Set((Array.isArray(draft.items)?draft.items:[]).map(i=>clean(i?.sellerId,120)).filter(Boolean))];
+      if(sellerIds.length>1)problems.push(publicProblem('SALE_ORDER_MULTIPLE_REMITTERS','Venda à ordem com mais de um seller/remetente deve ser separada por fornecedor antes da emissão fiscal.','fiscal.operationModel'));
+    }
 
     const transportInput=draft?.transport||{};
     const freightMode=Number(transportInput.freightMode??9);
@@ -388,6 +431,8 @@ export function createErpNfeSefazService(context={},settings){
       })),
       taxation:tax,
       fiscal:{
+        operationModel,
+        supplierRemitter,
         natureOperation,
         consumerFinal:Number(fiscalInput.consumerFinal??1)===0?0:1,
         buyerPresence,
@@ -547,6 +592,7 @@ export function createErpNfeSefazService(context={},settings){
       ...(cobranca?{cobranca}:{}),
       pagamento:{pagamentos:parts.map(v=>({formaPagamento:code,valor:v}))},
       informacoesComplementares:clean([
+        saleOrderComplement(draft),
         draft?.fiscal?.additionalInfo,
         draft?.fiscal?.publicPurchase?.commitmentNumber?`Empenho: ${draft.fiscal.publicPurchase.commitmentNumber}`:'',
         draft?.fiscal?.publicPurchase?.orderNumber?`Pedido de compra: ${draft.fiscal.publicPurchase.orderNumber}`:'',
@@ -623,6 +669,21 @@ export function createErpNfeSefazService(context={},settings){
       : new Date(erpCommercial.saleDate||'');
     const saleDate=Number.isNaN(currentSaleDate.getTime())?authorizedAt:currentSaleDate;
     order.televendas={...(order.televendas||{}),erp:{...erpCommercial,saleDate}};
+    if(fiscalOperationModel(draft)==='sale_order'){
+      order.fiscal={
+        ...(order.fiscal||{}),
+        operationModel:'sale_order',
+        supplierRemitter:saleOrderRemitter(draft),
+        saleOrder:{
+          ...((order.fiscal||{}).saleOrder||{}),
+          status:'awaiting_supplier_documents',
+          arianaInvoiceNumber:String(number),
+          arianaInvoiceKey:key,
+          arianaInvoiceAuthorizedAt:authorizedAt,
+          updatedAt:new Date()
+        }
+      };
+    }
     order.nfe={
       ...(order.nfe||{}),
       status:nfeStatus,
@@ -870,6 +931,20 @@ export function createErpNfeSefazService(context={},settings){
       order=await Order.findById(createdId);
       if(!order)throw fail('Venda pendente criada não foi localizada para a emissão.',500,'ORDER_CREATE_RELOAD_FAILED');
     }
+
+    order.fiscal={
+      ...(order.fiscal||{}),
+      operationModel:fiscalOperationModel(draft),
+      ...(fiscalOperationModel(draft)==='sale_order'?{
+        supplierRemitter:saleOrderRemitter(draft),
+        saleOrder:{
+          ...((order.fiscal||{}).saleOrder||{}),
+          status:'awaiting_ariana_invoice',
+          updatedAt:new Date()
+        }
+      }:{})
+    };
+    await order.save();
 
     let number=Number(order?.nfe?.reservedNumber||0);
     if(!number){
