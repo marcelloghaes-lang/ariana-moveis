@@ -42,9 +42,13 @@ async function load(){
    createdAt:new Date().toISOString(),
    pendingOrderId:String(order._id||order.id||orderId),
    customer:{name:order.customerName||'Consumidor',document:order.customerCpf||'',phone:order.customerPhone||'',email:order.customerEmail||'',address:addressText(order.shippingAddress)},
-   items:items.map(item=>({productId:String(item.productId||item._id||''),name:item.name||'Produto',sku:item.sku||'',stock:Number(item.stock||item.qty||1),qty:Number(item.qty||1),unitPrice:Number(item.unitPrice||0),sellerBaseUnitPrice:Number(item.sellerBaseUnitPrice||item.unitPrice||0),image:item.image||''})),
+   items:items.map(item=>({productId:String(item.productId||item._id||''),sellerId:String(item.sellerId||''),name:item.name||'Produto',sku:item.sku||'',stock:Number(item.stock||item.qty||1),qty:Number(item.qty||1),unitPrice:Number(item.unitPrice||0),sellerBaseUnitPrice:Number(item.sellerBaseUnitPrice||item.unitPrice||0),image:item.image||''})),
    totals:{products:Number(order.subtotal||items.reduce((sum,item)=>sum+Number(item.qty||0)*Number(item.unitPrice||0),0)),shipping:Number(order.shippingCost||0),assembly:Number(order.montagemCost||0),discount:Number(erp.discount||0),total:Number(order.total||0)},
    payment:{method:paymentMethod,installments:Number(order.payment?.installments||1),firstDueDate},
+   fiscal:{
+     operationModel:String(order.fiscal?.operationModel||'').trim()||((items.some(item=>{const sid=String(item.sellerId||'').toLowerCase();return sid&&!sid.includes('ariana')&&!sid.includes('marcelo')}))?'marketplace_intermediation':'own_sale'),
+     supplierRemitter:order.fiscal?.supplierRemitter||{}
+   },
    notes:order.notes||''
   };
   sessionStorage.setItem(REVIEW_KEY,JSON.stringify(draft));
