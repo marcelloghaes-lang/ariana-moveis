@@ -429,3 +429,106 @@ test('reembolso após repasse já pago expõe dívida do seller e bloqueia novo 
   assert.equal(result.payoutPreview.readySellers, 0);
   assert.equal(result.sellers[0].payoutPreview.blockers.includes('outstanding_seller_debt'), true);
 });
+
+
+test('cartão sem evidência de 3DS permanece bloqueado mesmo após 15 dias', async () => {
+  const Order = fakeOrderModel([
+    {
+      id: 'card_review_1',
+      status: 'entregue',
+      paymentStatus: 'approved',
+      total: 2500,
+      customerCpf: '12345678901',
+      customerEmail: 'cliente@example.com',
+      customerPhone: '31999999999',
+      shippingAddress: { cep: '39700000', logradouro: 'Rua A', numero: '10' },
+      shipping: { deliveredAt: '2026-09-01T12:00:00Z' },
+      payment: { provider: 'mercadopago', method: 'card', status: 'approved', installments: 10 },
+      sellerIds: ['seller_a']
+    }
+  ]);
+
+  const service = createArianaPayShadowAuditService({
+    Order,
+    Seller: fakeSellerModel([
+      {
+        sellerId: 'seller_a',
+        status: 'approved',
+        metadata: {
+          bankAccount: {
+            pixKey: 'seller@pix.com',
+            holderName: 'Seller A',
+            holderDocument: '12345678901'
+          }
+        }
+      }
+    ]),
+    buildProductBasePriceMapForOrders: baseMapBuilder,
+    getSellerSettlementForOrder: settlement
+  });
+
+  const result = await service.audit({
+    now: new Date('2026-10-03T18:00:00-03:00')
+  });
+
+  assert.equal(result.cardSecurityStats.applicable, 1);
+  assert.equal(result.cardSecurityStats.highReview + result.cardSecurityStats.blocked >= 1, true);
+  assert.equal(result.totals.available, 0);
+  assert.equal(result.totals.pending, 880);
+  assert.equal(result.payoutPreview.readyAmount, 0);
+});
+
+test('cartão com 3DS autenticado e liability shift pode seguir regra normal de 15 dias', async () => {
+  const Order = fakeOrderModel([
+    {
+      id: 'card_safe_1',
+      status: 'entregue',
+      paymentStatus: 'approved',
+      total: 1000,
+      customerCpf: '12345678901',
+      customerEmail: 'cliente@example.com',
+      customerPhone: '31999999999',
+      shippingAddress: { cep: '39700000', logradouro: 'Rua A', numero: '10' },
+      shipping: { deliveredAt: '2026-09-01T12:00:00Z' },
+      payment: {
+        provider: 'mercadopago',
+        method: 'card',
+        status: 'approved',
+        installments: 3,
+        transactionSecurity: {
+          validation: 'on_fraud_risk',
+          liability_shift: 'required',
+          status: 'AUTHENTICATED'
+        }
+      },
+      sellerIds: ['seller_a']
+    }
+  ]);
+
+  const service = createArianaPayShadowAuditService({
+    Order,
+    Seller: fakeSellerModel([
+      {
+        sellerId: 'seller_a',
+        status: 'approved',
+        metadata: {
+          bankAccount: {
+            pixKey: 'seller@pix.com',
+            holderName: 'Seller A',
+            holderDocument: '12345678901'
+          }
+        }
+      }
+    ]),
+    buildProductBasePriceMapForOrders: baseMapBuilder,
+    getSellerSettlementForOrder: settlement
+  });
+
+  const result = await service.audit({
+    now: new Date('2026-10-03T18:00:00-03:00')
+  });
+
+  assert.equal(result.cardSecurityStats.low, 1);
+  assert.equal(result.totals.available, 880);
+  assert.equal(result.payoutPreview.readyAmount, 880);
+});
