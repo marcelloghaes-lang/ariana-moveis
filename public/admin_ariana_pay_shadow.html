@@ -131,6 +131,7 @@ async function runAudit(){
     if(reasons.missing_transfer_deadline)reasonParts.push(reasons.missing_transfer_deadline+' sem prazo de repasse');
     if(reasons.delivery_not_confirmed)reasonParts.push(reasons.delivery_not_confirmed+' sem entrega confirmada');
     if(reasons.delivery_timestamp_missing)reasonParts.push(reasons.delivery_timestamp_missing+' sem data segura de entrega');
+    if(reasons.delivery_timestamp_low_confidence)reasonParts.push(reasons.delivery_timestamp_low_confidence+' com data de entrega de baixa confiança');
     $('notice').className=(data.divergenceCount||data.releaseStats?.blocked)?'notice warn':'notice';
     $('notice').textContent=data.divergenceCount
       ? 'Auditoria concluída com divergências. Nenhum valor foi alterado.'
