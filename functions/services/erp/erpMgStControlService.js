@@ -9,6 +9,9 @@ function fail(message,statusCode=400,code='ERP_MG_ST_ERROR'){const e=new Error(m
 const schema=new mongoose.Schema({
   key:{type:String,default:'default',unique:true,index:true},
   quantitativeMode:{type:String,enum:['unknown','non_definitive','definitive'],default:'unknown',index:true},
+  companyTaxRegime:{type:String,enum:['unknown','simples_nacional','lucro_presumido','lucro_real','other'],default:'simples_nacional',index:true},
+  hasInPersonConsumerSales:{type:String,enum:['unknown','yes','no'],default:'unknown',index:true},
+  interstateB2CShare6m:{type:Number,default:null},
   specialRegimeStatus:{type:String,enum:['not_requested','preparing','requested','provisional','granted','denied','expired'],default:'not_requested',index:true},
   specialRegimeType:{type:String,default:'ecommerce_st_responsibility'},
   ptaNumber:{type:String,default:''},
@@ -44,6 +47,9 @@ function publicRow(x){
   const raw=x?.toObject?x.toObject():x||{};
   return{
     quantitativeMode:raw.quantitativeMode||'unknown',
+    companyTaxRegime:raw.companyTaxRegime||'simples_nacional',
+    hasInPersonConsumerSales:raw.hasInPersonConsumerSales||'unknown',
+    interstateB2CShare6m:raw.interstateB2CShare6m??null,
     specialRegimeStatus:raw.specialRegimeStatus||'not_requested',
     specialRegimeType:raw.specialRegimeType||'ecommerce_st_responsibility',
     ptaNumber:raw.ptaNumber||'',
@@ -71,7 +77,14 @@ function readiness(row){
     ['criminalDeclarationsReady','Declarações exigidas pelo RPTA prontas']
   ];
   const missing=required.filter(([k])=>c[k]!==true).map(([,label])=>label);
-  return{readyForDraft:missing.length===0,missing};
+  const blockers=[];
+  if(row.companyTaxRegime==='simples_nacional') blockers.push('Optante pelo Simples Nacional — vedação expressa do art. 5º, II, da Resolução SEF nº 5.793/2024.');
+  if(row.hasInPersonConsumerSales==='yes') blockers.push('O estabelecimento realiza venda presencial direta a consumidor final — vedação do art. 5º, I.');
+  if(row.hasInPersonConsumerSales==='unknown') blockers.push('Confirmar se este estabelecimento realiza venda presencial direta a consumidor final.');
+  const share=Number(row.interstateB2CShare6m);
+  if(Number.isFinite(share) && share>=0 && share<30) blockers.push('Vendas interestaduais B2C abaixo de 30% nos 6 meses anteriores; requisito do art. 4º, II, salvo exceção legal aplicável.');
+  if(row.interstateB2CShare6m===null||row.interstateB2CShare6m===undefined) blockers.push('Informar percentual de vendas interestaduais a consumidor final nos últimos 6 meses.');
+  return{eligibleToPrepare:blockers.length===0,readyForDraft:missing.length===0&&blockers.length===0,missing,blockers};
 }
 
 export function createErpMgStControlService(){
@@ -84,9 +97,15 @@ export function createErpMgStControlService(){
   }
   async function update(payload={},actor={}){
     const allowedMode=['unknown','non_definitive','definitive'];
+    const allowedTaxRegime=['unknown','simples_nacional','lucro_presumido','lucro_real','other'];
+    const allowedPresence=['unknown','yes','no'];
     const allowedStatus=['not_requested','preparing','requested','provisional','granted','denied','expired'];
     const current=await row();
     const quantitativeMode=allowedMode.includes(clean(payload.quantitativeMode,40))?clean(payload.quantitativeMode,40):current.quantitativeMode;
+    const companyTaxRegime=allowedTaxRegime.includes(clean(payload.companyTaxRegime,40))?clean(payload.companyTaxRegime,40):(current.companyTaxRegime||'simples_nacional');
+    const hasInPersonConsumerSales=allowedPresence.includes(clean(payload.hasInPersonConsumerSales,20))?clean(payload.hasInPersonConsumerSales,20):(current.hasInPersonConsumerSales||'unknown');
+    const shareRaw=payload.interstateB2CShare6m;
+    const interstateB2CShare6m=(shareRaw===null||shareRaw===undefined||String(shareRaw).trim()==='')?(current.interstateB2CShare6m??null):Math.max(0,Math.min(100,num(shareRaw)||0));
     const specialRegimeStatus=allowedStatus.includes(clean(payload.specialRegimeStatus,40))?clean(payload.specialRegimeStatus,40):current.specialRegimeStatus;
     const ptaNumber=clean(payload.ptaNumber??current.ptaNumber,80);
     if(['requested','provisional','granted'].includes(specialRegimeStatus)&&!ptaNumber)throw fail('Informe o número do PTA/e-PTA para registrar regime solicitado, provisório ou concedido.');
@@ -97,6 +116,9 @@ export function createErpMgStControlService(){
     const who=clean(actor.name||actor.nome||actor.email||'Administrador',180);
     const set={
       quantitativeMode,
+      companyTaxRegime,
+      hasInPersonConsumerSales,
+      interstateB2CShare6m,
       specialRegimeStatus,
       specialRegimeType:'ecommerce_st_responsibility',
       ptaNumber,
