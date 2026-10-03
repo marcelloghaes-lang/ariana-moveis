@@ -92,6 +92,12 @@ function sellerStatusIsApproved(value = '') {
   return normalizePartnerRequestStatus(value) === 'approved';
 }
 
+function normalizeFiscalOperationModel(value = '') {
+  const raw = String(value || '').trim().toLowerCase();
+  if (['sale_order', 'venda_ordem', 'venda-a-ordem', 'venda_a_ordem'].includes(raw)) return 'sale_order';
+  return 'marketplace_intermediation';
+}
+
 async function approvedSellerRequired(req, res, next) {
   return sellerAuthRequired(req, res, async () => {
     try {
@@ -325,6 +331,17 @@ app.patch('/api/seller/partner-requests/:id/status', adminRequired, async (req, 
     // de comissão, logística, frete e uso de etiqueta Ariana.
     const marketplaceSet = {};
     const bodyCommission = req.body?.commissionPercent ?? req.body?.marketplaceCommissionPercent;
+    const fiscalOperationRaw = req.body?.fiscalOperationModel ?? req.body?.operationModel ?? req.body?.fiscalModel;
+    if (fiscalOperationRaw !== undefined && fiscalOperationRaw !== null && String(fiscalOperationRaw).trim() !== '') {
+      const fiscalOperationModel = normalizeFiscalOperationModel(fiscalOperationRaw);
+      marketplaceSet['metadata.fiscalOperationModel'] = fiscalOperationModel;
+      marketplaceSet['metadata.fiscalOperationUpdatedAt'] = now();
+      marketplaceSet['metadata.fiscalOperationUpdatedBy'] = req.admin?.email || req.user?.email || 'admin';
+    } else if (active && !seller.metadata?.fiscalOperationModel) {
+      marketplaceSet['metadata.fiscalOperationModel'] = 'marketplace_intermediation';
+      marketplaceSet['metadata.fiscalOperationUpdatedAt'] = now();
+      marketplaceSet['metadata.fiscalOperationUpdatedBy'] = req.admin?.email || req.user?.email || 'admin';
+    }
     if (bodyCommission !== undefined && bodyCommission !== null && String(bodyCommission).trim() !== '') {
       const commissionPercent = Number(String(bodyCommission).replace(',', '.'));
       if (Number.isFinite(commissionPercent) && commissionPercent >= 0 && commissionPercent <= 50) {
@@ -568,6 +585,13 @@ app.patch('/api/seller/partner-requests/:id/commission', adminRequired, async (r
       'metadata.commissionUpdatedBy': req.admin?.email || req.user?.email || 'admin'
     };
 
+    const fiscalOperationRaw = req.body?.fiscalOperationModel ?? req.body?.operationModel ?? req.body?.fiscalModel;
+    if (fiscalOperationRaw !== undefined && fiscalOperationRaw !== null && String(fiscalOperationRaw).trim() !== '') {
+      updates['metadata.fiscalOperationModel'] = normalizeFiscalOperationModel(fiscalOperationRaw);
+      updates['metadata.fiscalOperationUpdatedAt'] = now();
+      updates['metadata.fiscalOperationUpdatedBy'] = req.admin?.email || req.user?.email || 'admin';
+    }
+
     const logisticsOwner = String(req.body?.logisticsOwner || '').trim().toLowerCase();
     const shippingOwner = String(req.body?.shippingOwner || '').trim().toLowerCase();
     const labelOwner = String(req.body?.labelOwner || '').trim().toLowerCase();
@@ -619,7 +643,8 @@ app.patch('/api/seller/partner-requests/:id/commission', adminRequired, async (r
         commissionPercent,
         logisticsOwner: updates['metadata.marketplaceLogisticsOwner'] || '',
         shippingOwner: updates['metadata.marketplaceShippingOwner'] || '',
-        labelOwner: updates['metadata.marketplaceLabelOwner'] || ''
+        labelOwner: updates['metadata.marketplaceLabelOwner'] || '',
+        fiscalOperationModel: updates['metadata.fiscalOperationModel'] || seller.metadata?.fiscalOperationModel || 'marketplace_intermediation'
       }
     });
 
