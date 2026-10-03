@@ -7,7 +7,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "test:ariana-pay": "node --test tests/ariana-pay-*.test.mjs"
   },
   "engines": {
     "node": ">=20.19.0"
