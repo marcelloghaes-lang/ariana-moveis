@@ -256,6 +256,18 @@ function normalizeCatalogMode(value=''){
   if(['dropshipping','drop'].includes(raw)) return 'dropshipping';
   return 'marketplace_pure';
 }
+
+function sellerCatalogPolicy(req={}){
+  const meta=req.seller?.metadata&&typeof req.seller.metadata==='object'?req.seller.metadata:{};
+  const fiscalRaw=String(meta.fiscalOperationModel||req.seller?.fiscalOperationModel||'marketplace_intermediation').trim().toLowerCase();
+  const operationMode=fiscalRaw==='sale_order'?'sale_order':'marketplace_pure';
+
+  // A política comercial/fiscal da Ariana não é escolhida pelo seller na tela.
+  // Seller marketplace envia seu preço-base normalmente; venda à ordem entra em
+  // revisão fiscal conservadora até o ST aplicável estar confirmado.
+  const taxMode=operationMode==='sale_order'?'possible_extra':'included_confirmed';
+  return {operationMode,taxMode};
+}
 function mgMvaReference(ncm='',cest=''){
   const code=String(ncm||'').replace(/\D/g,'').slice(0,8);
   const c=String(cest||'').replace(/\D/g,'').slice(0,7);
@@ -506,9 +518,8 @@ export default function createSellerProductRoutes(deps = {}) {
       const rows = Array.isArray(req.body?.rows) ? req.body.rows.slice(0, 1000) : [];
       if (!rows.length) return res.status(400).json({ ok:false, error:'Envie pelo menos uma linha do catálogo.' });
       const source=String(req.body?.source||'catalogo_fornecedor').trim().slice(0,80);
-      const operationMode=normalizeCatalogMode(req.body?.operationMode||'dropshipping');
-      const taxMode=String(req.body?.taxMode||'').trim().toLowerCase();
-      const taxesIncluded=req.body?.taxesIncluded===true||String(req.body?.taxesIncluded).toLowerCase()==='true';
+      const {operationMode,taxMode}=sellerCatalogPolicy(req);
+      const taxesIncluded=taxMode==='included_confirmed';
       const preparedRows=prepareCatalogRows(rows,source);
       const normalized=preparedRows.map((row,index)=>normalizeCatalogRow(row,index,source));
       const valid=normalized.filter(x=>!x.errors.length);
@@ -551,9 +562,8 @@ export default function createSellerProductRoutes(deps = {}) {
       const rows = Array.isArray(req.body?.rows) ? req.body.rows.slice(0, 1000) : [];
       if (!rows.length) return res.status(400).json({ok:false,error:'Envie pelo menos uma linha do catálogo.'});
       const source=String(req.body?.source||'catalogo_fornecedor').trim().slice(0,80);
-      const operationMode=normalizeCatalogMode(req.body?.operationMode||'dropshipping');
-      const taxMode=String(req.body?.taxMode||'').trim().toLowerCase();
-      const taxesIncluded=req.body?.taxesIncluded===true||String(req.body?.taxesIncluded).toLowerCase()==='true';
+      const {operationMode,taxMode}=sellerCatalogPolicy(req);
+      const taxesIncluded=taxMode==='included_confirmed';
       const sellerId=String(req.sellerId||'').trim();
       const sellerName=String(req.seller?.storeName||req.seller?.displayName||req.user?.name||'').trim();
       const preparedRows=prepareCatalogRows(rows,source);
