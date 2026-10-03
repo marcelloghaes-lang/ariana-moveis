@@ -76,6 +76,7 @@ export default function createErpManagementRoutes(context={}){
  router.get('/erp/dropshipping/dashboard',context.adminRequired,handle(async req=>{adminOnly(req);return{dashboard:await dropshipping.dashboard()}}));
  router.get('/erp/dropshipping/fornecedores',context.adminRequired,handle(async req=>{adminOnly(req);return{suppliers:await dropshipping.listSuppliers(req.query||{})}}));
  router.post('/erp/dropshipping/atacadum/configurar',context.adminRequired,handle(async req=>{adminOnly(req);return{supplier:await dropshipping.setupAtacadum(identity(req))}},201));
+ router.post('/erp/dropshipping/drop-de-casa/configurar',context.adminRequired,handle(async req=>{adminOnly(req);return{supplier:await dropshipping.setupDropDeCasa(identity(req))}},201));
  router.get('/erp/dropshipping/produtos',context.adminRequired,handle(async req=>{adminOnly(req);return{products:await dropshipping.listProducts(req.query||{})}}));
  router.post('/erp/dropshipping/produtos',context.adminRequired,handle(async req=>{adminOnly(req);return{product:await dropshipping.createDraftProduct(req.body||{},identity(req))}},201));
  router.patch('/erp/dropshipping/produtos/:id',context.adminRequired,handle(async req=>{adminOnly(req);return{product:await dropshipping.updateProduct(req.params.id,req.body||{},identity(req))}}));
