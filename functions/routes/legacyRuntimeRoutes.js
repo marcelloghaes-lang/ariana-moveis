@@ -331,6 +331,7 @@ const {
 registerArianaPayShadowRoutes(app, {
   adminRequired,
   Order,
+  Seller,
   buildProductBasePriceMapForOrders,
   getSellerSettlementForOrder
 });
