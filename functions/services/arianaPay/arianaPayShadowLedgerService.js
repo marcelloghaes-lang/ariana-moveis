@@ -138,6 +138,32 @@ export function buildShadowLedgerEntries({
     }));
   }
 
+  const existingSettlement = order?.sellerSettlements && typeof order.sellerSettlements === 'object'
+    ? (order.sellerSettlements[sid] || {})
+    : {};
+  const existingSettlementStatus = String(existingSettlement.status || '').trim().toLowerCase();
+
+  if (existingSettlementStatus === 'paid') {
+    const paidAmount = money(existingSettlement.amount || expectedNet || 0);
+    if (paidAmount > 0) {
+      entries.push(makeEntry({
+        orderId,
+        sellerId: sid,
+        type: 'payout_debit',
+        direction: 'debit',
+        amount: paidAmount,
+        availableAt: existingSettlement.paidAt || null,
+        metadata: {
+          source: 'existing_seller_settlement',
+          payoutReference: String(existingSettlement.reference || ''),
+          paidAt: existingSettlement.paidAt || null,
+          releaseStateAtAudit: String(release?.state || ''),
+          releaseReasonAtAudit: String(release?.reason || '')
+        }
+      }));
+    }
+  }
+
   const effectiveSummary = summarizeShadowLedger(entries);
 
   return {
@@ -149,6 +175,12 @@ export function buildShadowLedgerEntries({
     summary,
     effectiveSummary,
     risk,
+    existingSettlement: existingSettlementStatus ? {
+      status: existingSettlementStatus,
+      amount: money(existingSettlement.amount || 0),
+      paidAt: existingSettlement.paidAt || null,
+      reference: String(existingSettlement.reference || '')
+    } : null,
     reconciliation: {
       ok: Math.abs(difference) < 0.01,
       difference
