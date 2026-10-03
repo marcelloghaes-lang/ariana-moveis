@@ -89,6 +89,13 @@ function arianaNormalizeExternalInvoice(input = {}, actor = {}) {
   const chave = String(src.chave || src.chaveAcesso || src.accessKey || src.invoiceKey || src.chaveNfe || '').replace(/\D/g, '').trim();
   const cnpjEmitente = String(src.cnpjEmitente || src.cnpjEmpresaEmissora || src.CNPJEmpresaEmissora || src.cnpj || actor.cnpj || '').replace(/\D/g, '').trim();
   const emitente = String(src.emitente || src.sellerName || actor.name || actor.sellerName || '').trim();
+  const fiscalOperationModel = String(actor.fiscalOperationModel || src.fiscalOperationModel || '').trim().toLowerCase() === 'sale_order'
+    ? 'sale_order'
+    : 'marketplace_intermediation';
+  const requestedDocumentType = String(src.documentType || src.tipoDocumento || '').trim().toLowerCase();
+  const documentType = fiscalOperationModel === 'sale_order'
+    ? (['sale_order_remittance','sale_order_symbolic_sale'].includes(requestedDocumentType) ? requestedDocumentType : '')
+    : 'marketplace_customer_sale';
   return {
     invoiceId: String(src.invoiceId || src.id || '').trim() || arianaInvoiceId(actor.prefix || 'seller_nfe'),
     source: String(actor.source || src.source || 'seller').trim(),
@@ -103,6 +110,8 @@ function arianaNormalizeExternalInvoice(input = {}, actor = {}) {
     accessKey: chave,
     cnpjEmitente,
     emitente,
+    fiscalOperationModel,
+    documentType,
     sellerId: String(actor.sellerId || src.sellerId || '').trim(),
     manufacturer: String(actor.manufacturer || src.manufacturer || '').trim(),
     xmlUrl: String(src.xmlUrl || src.xmlURL || '').trim(),
@@ -154,38 +163,65 @@ async function arianaSaveExternalInvoiceOnOrder(order, invoiceInput = {}, req = 
   };
 
   if (invoice.status === 'aprovada') {
-    const publicNfe = {
-      numero: invoice.numero,
-      codigo: invoice.numero,
-      number: invoice.numero,
-      serie: invoice.serie,
-      series: invoice.serie,
-      chave: invoice.chave,
-      chaveAcesso: invoice.chave,
-      accessKey: invoice.chave,
-      protocolo: invoice.protocol,
-      protocol: invoice.protocol,
-      status: invoice.status,
-      xmlUrl: invoice.xmlUrl,
-      xml: invoice.xml,
-      xmlContent: invoice.xmlContent,
-      danfeUrl: invoice.danfeUrl,
-      pdfUrl: invoice.pdfUrl,
-      emitidaEm: invoice.issuedAt,
-      issuedAt: invoice.issuedAt,
-      provider: invoice.source,
-      sellerId: invoice.sellerId,
-      manufacturer: invoice.manufacturer,
-      emitente: invoice.emitente,
-      invoiceId: invoice.invoiceId,
-      raw: invoice.raw
-    };
-    order.nfe = { ...(order.nfe || {}), ...publicNfe };
-    order.notaFiscal = { ...(order.notaFiscal || {}), ...publicNfe };
-    order.fiscal = { ...(order.fiscal || {}), nfe: { ...((order.fiscal || {}).nfe || {}), ...publicNfe } };
+    const isSaleOrderDocument = invoice.fiscalOperationModel === 'sale_order' || ['sale_order_remittance','sale_order_symbolic_sale'].includes(invoice.documentType);
+    if (isSaleOrderDocument) {
+      const approvedDocs = current.filter((item) =>
+        String(item.fiscalOperationModel || '').toLowerCase() === 'sale_order' &&
+        String(item.status || '').toLowerCase() === 'aprovada'
+      );
+      const remittance = approvedDocs.find((item) => item.documentType === 'sale_order_remittance') || null;
+      const symbolic = approvedDocs.find((item) => item.documentType === 'sale_order_symbolic_sale') || null;
+      order.fiscal = {
+        ...(order.fiscal || {}),
+        operationModel: 'sale_order',
+        saleOrder: {
+          ...((order.fiscal || {}).saleOrder || {}),
+          status: remittance && symbolic ? 'supplier_documents_complete' : 'awaiting_supplier_documents',
+          supplierDocuments: {
+            remittanceInvoiceId: remittance?.invoiceId || '',
+            symbolicSaleInvoiceId: symbolic?.invoiceId || '',
+            remittanceApproved: Boolean(remittance),
+            symbolicSaleApproved: Boolean(symbolic)
+          },
+          updatedAt: new Date()
+        }
+      };
+    } else {
+      const publicNfe = {
+        numero: invoice.numero,
+        codigo: invoice.numero,
+        number: invoice.numero,
+        serie: invoice.serie,
+        series: invoice.serie,
+        chave: invoice.chave,
+        chaveAcesso: invoice.chave,
+        accessKey: invoice.chave,
+        protocolo: invoice.protocol,
+        protocol: invoice.protocol,
+        status: invoice.status,
+        xmlUrl: invoice.xmlUrl,
+        xml: invoice.xml,
+        xmlContent: invoice.xmlContent,
+        danfeUrl: invoice.danfeUrl,
+        pdfUrl: invoice.pdfUrl,
+        emitidaEm: invoice.issuedAt,
+        issuedAt: invoice.issuedAt,
+        provider: invoice.source,
+        sellerId: invoice.sellerId,
+        manufacturer: invoice.manufacturer,
+        emitente: invoice.emitente,
+        invoiceId: invoice.invoiceId,
+        raw: invoice.raw
+      };
+      order.nfe = { ...(order.nfe || {}), ...publicNfe };
+      order.notaFiscal = { ...(order.notaFiscal || {}), ...publicNfe };
+      order.fiscal = { ...(order.fiscal || {}), operationModel: 'marketplace_intermediation', nfe: { ...((order.fiscal || {}).nfe || {}), ...publicNfe } };
+    }
   }
 
-  order.status_integracao = invoice.status === 'aprovada' ? 'seller_invoice_approved' : 'seller_invoice_received';
+  order.status_integracao = invoice.fiscalOperationModel === 'sale_order'
+    ? (invoice.status === 'aprovada' ? 'sale_order_supplier_document_approved' : 'sale_order_supplier_document_received')
+    : (invoice.status === 'aprovada' ? 'seller_invoice_approved' : 'seller_invoice_received');
   await order.save();
   return { order, invoice };
 }
@@ -216,6 +252,29 @@ app.post('/api/seller/orders/:id/nfe', sellerAuthRequired, upload.fields([{ name
     const sid = String(req.sellerId || '').trim();
     if (!arianaOrderHasSeller(toJSON(order), sid)) return res.status(403).json({ ok: false, error: 'Sem permissÃ£o para enviar NF-e deste pedido' });
 
+    const fiscalOperationModel = String(req.seller?.metadata?.fiscalOperationModel || 'marketplace_intermediation').trim().toLowerCase() === 'sale_order'
+      ? 'sale_order'
+      : 'marketplace_intermediation';
+    const requestedDocumentType = String(req.body?.documentType || req.body?.tipoDocumento || '').trim().toLowerCase();
+    if (fiscalOperationModel === 'sale_order') {
+      const orderModel = String(order.fiscal?.operationModel || '').trim().toLowerCase();
+      const arianaInvoiceKey = String(order.fiscal?.saleOrder?.arianaInvoiceKey || order.nfe?.key || '').replace(/\D/g, '');
+      if (orderModel !== 'sale_order' || arianaInvoiceKey.length !== 44) {
+        return res.status(409).json({
+          ok: false,
+          code: 'SALE_ORDER_ARIANA_NFE_REQUIRED',
+          error: 'Venda à ordem: aguarde a NF-e da Ariana ser autorizada antes de emitir/enviar os documentos do fornecedor.'
+        });
+      }
+      if (!['sale_order_remittance','sale_order_symbolic_sale'].includes(requestedDocumentType)) {
+        return res.status(400).json({
+          ok: false,
+          code: 'SALE_ORDER_DOCUMENT_TYPE_REQUIRED',
+          error: 'Informe se a NF-e é a remessa por conta e ordem ao cliente ou a remessa simbólica/venda à ordem para a Ariana.'
+        });
+      }
+    }
+
     const prefix = `seller-${sid}-${String(order._id).slice(-8)}`;
     const xmlFile = await arianaSaveInvoiceUpload(req, req.files?.xml?.[0], `${prefix}-xml`, '.xml');
     const danfeFile = await arianaSaveInvoiceUpload(req, req.files?.danfe?.[0] || req.files?.pdf?.[0], `${prefix}-danfe`, '.pdf');
@@ -225,6 +284,7 @@ app.post('/api/seller/orders/:id/nfe', sellerAuthRequired, upload.fields([{ name
       sellerId: sid,
       name: req.seller?.storeName || req.seller?.displayName || sid,
       cnpj: req.seller?.document || req.seller?.metadata?.cnpj || '',
+      fiscalOperationModel,
       status: 'enviada'
     });
 
@@ -267,7 +327,7 @@ app.post('/api/admin/orders/:orderId/seller-invoices/:invoiceId/approve', adminR
     const invoice = list.find((i) => String(i.invoiceId || '') === invoiceId);
     if (!invoice) return res.status(404).json({ ok: false, error: 'NF-e do seller nÃ£o encontrada' });
     order.sellerInvoices = list;
-    const saved = await arianaSaveExternalInvoiceOnOrder(order, invoice, req, { source: 'seller', status: 'aprovada', sellerId: invoice.sellerId, prefix: 'seller_nfe' });
+    const saved = await arianaSaveExternalInvoiceOnOrder(order, invoice, req, { source: 'seller', status: 'aprovada', sellerId: invoice.sellerId, fiscalOperationModel: invoice.fiscalOperationModel, prefix: 'seller_nfe' });
     return res.json({ ok: true, action: 'seller_invoice_approved', orderId: String(saved.order._id), invoice: saved.invoice, order: toJSON(saved.order) });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao aprovar NF-e do seller' });
