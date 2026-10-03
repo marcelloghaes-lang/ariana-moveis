@@ -9,6 +9,7 @@ import { hadApprovedPayment, detectFinancialRisk, applyRiskToRelease } from './a
 import { buildPayoutBatchPreview } from './arianaPayPayoutPlannerService.js';
 import { assessCardSecurity, applyCardSecurityToRelease } from './arianaPayCardSecurityService.js';
 import { classifyDisputeResponsibility, attachDisputeResponsibilityToRisk } from './arianaPayDisputeResponsibilityService.js';
+import { buildChargebackEvidencePacket, evidenceCompleteness } from './arianaPayEvidenceService.js';
 
 const APPROVED_STATUS_TOKENS = [
   'pago',
@@ -232,6 +233,66 @@ export function createArianaPayShadowAuditService({
       }
     }
 
+    const reviewCases = [];
+
+    for (const projection of projectedBatch.projected || []) {
+      const sourceOrder = orders.find((order) =>
+        String(order?._id || order?.id || order?.orderId || '') === String(projection.orderId || '')
+      ) || {};
+      const evidencePacket = buildChargebackEvidencePacket(sourceOrder);
+      const evidence = evidenceCompleteness(evidencePacket);
+
+      for (const sellerRow of projection.sellers || []) {
+        const release = sellerRow.release || {};
+        const risk = release.risk || null;
+        const cardSecurity = release.cardSecurity || null;
+        const responsibility = release.disputeResponsibility || null;
+        const needsReview =
+          risk?.active === true ||
+          cardSecurity?.blocksPayout === true ||
+          responsibility?.requiresManualReview === true;
+
+        if (!needsReview) continue;
+
+        reviewCases.push({
+          orderId: String(projection.orderId || ''),
+          sellerId: String(sellerRow.sellerId || ''),
+          expectedNet: Number(sellerRow.expectedNet || 0),
+          releaseReason: String(release.reason || ''),
+          riskKind: String(risk?.kind || ''),
+          riskSeverity: String(risk?.severity || ''),
+          disputeReason: responsibility?.reason || null,
+          lossOwner: String(responsibility?.owner || risk?.lossOwner || ''),
+          responsibilitySource: String(responsibility?.source || risk?.responsibilitySource || ''),
+          sellerReversalAllowed: responsibility?.sellerReversalAllowed === true || risk?.sellerReversalAllowed === true,
+          cardSecurity: cardSecurity ? {
+            level: String(cardSecurity.level || ''),
+            score: Number(cardSecurity.score || 0),
+            reasons: Array.isArray(cardSecurity.reasons) ? cardSecurity.reasons : []
+          } : null,
+          evidence: {
+            complete: evidence.complete,
+            score: evidence.score,
+            missing: evidence.missing
+          },
+          action: responsibility?.owner === 'provider_network'
+            ? 'acompanhar_provedor_sem_debito_seller'
+            : responsibility?.requiresManualReview
+              ? 'revisao_manual_responsabilidade'
+              : cardSecurity?.blocksPayout
+                ? 'revisao_manual_seguranca_cartao'
+                : 'acompanhar_risco'
+        });
+      }
+    }
+
+    reviewCases.sort((a, b) => {
+      const severity = { critical: 4, high: 3, medium: 2, low: 1, '': 0 };
+      const card = { blocked: 4, high_review: 3, review: 2, low: 1, '': 0 };
+      return Math.max(severity[b.riskSeverity] || 0, card[b.cardSecurity?.level || ''] || 0) -
+        Math.max(severity[a.riskSeverity] || 0, card[a.cardSecurity?.level || ''] || 0);
+    });
+
     const payoutPreview = buildPayoutBatchPreview({
       sellers: Array.isArray(sellerDocs) ? sellerDocs : [],
       balances: summary.sellers
@@ -255,6 +316,8 @@ export function createArianaPayShadowAuditService({
       riskStats,
       cardSecurityStats,
       disputeResponsibilityStats,
+      reviewCaseCount: reviewCases.length,
+      reviewCases,
       payoutPreview: {
         mode: payoutPreview.mode,
         payoutExecutionEnabled: false,
