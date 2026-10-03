@@ -53,6 +53,7 @@
     <div class="stat red"><small>Riscos financeiros</small><b id="risks">—</b></div>
     <div class="stat"><small>Pronto p/ repasse*</small><b id="payoutReady">—</b></div>
     <div class="stat red"><small>Dívida de seller</small><b id="sellerDebt">—</b></div>
+    <div class="stat"><small>Contestação p/ revisão</small><b id="liabilityReview">—</b></div>
     <div class="stat red"><small>Divergências</small><b id="divergences">—</b></div>
   </div>
 
@@ -110,6 +111,15 @@ async function runAudit(){
     $('risks').textContent=Number(data.riskStats?.active||0);
     $('payoutReady').textContent=money(data.payoutPreview?.readyAmount||0);
     $('sellerDebt').textContent=money(data.totals?.debt||0);
+    const liability=data.disputeResponsibilityStats?.byOwner||{};
+    $('liabilityReview').textContent=Number(
+      (liability.pending_review||0)+
+      (liability.seller_review||0)+
+      (liability.ariana_review||0)+
+      (liability.shared_review||0)+
+      (liability.ariana_or_provider_review||0)+
+      (liability.commercial_reversal_review||0)
+    );
     $('divergences').textContent=Number(data.divergenceCount||0);
 
     const sellers=Array.isArray(data.sellers)?data.sellers:[];
