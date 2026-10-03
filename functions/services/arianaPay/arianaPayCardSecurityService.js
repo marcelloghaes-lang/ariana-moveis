@@ -186,7 +186,13 @@ export function assessCardSecurity(order={}, options={}){
 }
 
 export function applyCardSecurityToRelease(release={},assessment={}){
-  if(!assessment?.applies||!assessment?.blocksPayout) return release;
+  if(!assessment?.applies) return release;
+  if(!assessment?.blocksPayout) {
+    return {
+      ...(release||{}),
+      cardSecurity:assessment
+    };
+  }
   return {
     ...(release||{}),
     state:'blocked',
