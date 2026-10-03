@@ -76,7 +76,7 @@ a{color:inherit}.top{background:linear-gradient(90deg,var(--blue2),var(--blue));
       </div>
       <div class="field" style="margin-top:12px"><label>Política de troca / devolução</label><textarea id="supplier-return"></textarea></div>
       <div class="field" style="margin-top:12px"><label>Observações internas</label><textarea id="supplier-notes"></textarea></div>
-      <div class="toolbar"><button class="btn primary" id="supplier-save">Salvar configuração</button><a class="btn" href="erp_compras_fornecedores.html">Abrir cadastro completo do fornecedor</a></div>
+      <div class="toolbar"><button class="btn primary" id="supplier-save">Salvar configuração</button><button class="btn green" id="setup-dropdecasa">Configurar Drop de Casa</button><a class="btn" href="erp_compras_fornecedores.html">Abrir cadastro completo do fornecedor</a></div>
     </div>
     <div class="panel">
       <h3>Checklist antes de automatizar</h3>
@@ -232,6 +232,7 @@ async function saveOrder(id){
 $('new-supplier').onclick=()=>newSupplier();
 $('supplier-select').onchange=e=>{const s=suppliers.find(x=>String(x._id)===e.target.value);if(s)fillSupplier(s)};
 $('supplier-save').onclick=()=>saveSupplier().catch(e=>alert(e.message));
+$('setup-dropdecasa').onclick=async()=>{try{if(!confirm('Cadastrar/atualizar a Drop de Casa com as regras oficiais recebidas (DSlite, PIX pré-pago, origem Mirassol/SP, D+1 e etiqueta da Ariana)?'))return;const d=await api('/erp/dropshipping/drop-de-casa/configurar',{method:'POST',body:'{}'});await Promise.all([loadSuppliers(),loadDashboard()]);const id=String(d.supplier?._id||'');if(id){$('supplier-select').value=id;const s=suppliers.find(x=>String(x._id)===id);if(s)fillSupplier(s)}alert('Drop de Casa preparada no ERP. A API da DSlite continua aguardando liberação/token.');}catch(e){alert(e.message)}};
 $('product-create').onclick=()=>createProduct().catch(e=>alert(e.message));
 $('product-search-btn').onclick=()=>loadProducts().catch(e=>alert(e.message));
 $('order-search-btn').onclick=()=>loadOrders().catch(e=>alert(e.message));
