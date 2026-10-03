@@ -31,6 +31,18 @@ function fakeOrderModel(rows = []) {
   };
 }
 
+function fakeSellerModel(rows = []) {
+  return {
+    find(filter = {}) {
+      const ids = filter?.sellerId?.$in || [];
+      const selected = ids.length ? rows.filter((row) => ids.includes(row.sellerId)) : rows;
+      return {
+        async lean() { return selected; }
+      };
+    }
+  };
+}
+
 function baseMapBuilder() {
   return Promise.resolve(new Map());
 }
@@ -64,6 +76,10 @@ test('somente pedidos financeiramente aprovados entram na auditoria', async () =
 
   const service = createArianaPayShadowAuditService({
     Order,
+    Seller: fakeSellerModel([
+      { sellerId: 'seller_a', metadata: { transferDeadlineDays: 0 } },
+      { sellerId: 'seller_b', metadata: { transferDeadlineDays: 0 } }
+    ]),
     buildProductBasePriceMapForOrders: baseMapBuilder,
     getSellerSettlementForOrder: settlement
   });
@@ -80,6 +96,10 @@ test('filtro por seller não mistura pedidos de outros sellers', async () => {
 
   const service = createArianaPayShadowAuditService({
     Order,
+    Seller: fakeSellerModel([
+      { sellerId: 'seller_a', metadata: { transferDeadlineDays: 0 } },
+      { sellerId: 'seller_b', metadata: { transferDeadlineDays: 0 } }
+    ]),
     buildProductBasePriceMapForOrders: baseMapBuilder,
     getSellerSettlementForOrder: settlement
   });
@@ -99,6 +119,10 @@ test('auditoria calcula saldos em memória sem executar escrita', async () => {
 
   const service = createArianaPayShadowAuditService({
     Order,
+    Seller: fakeSellerModel([
+      { sellerId: 'seller_a', metadata: { transferDeadlineDays: 0 } },
+      { sellerId: 'seller_b', metadata: { transferDeadlineDays: 0 } }
+    ]),
     buildProductBasePriceMapForOrders: baseMapBuilder,
     getSellerSettlementForOrder: settlement
   });
@@ -111,7 +135,10 @@ test('auditoria calcula saldos em memória sem executar escrita', async () => {
   assert.equal(result.mode, 'shadow_read_only');
   assert.equal(result.orderCount, 2);
   assert.equal(result.sellerCount, 2);
-  assert.equal(result.totals.available, 1280);
+  assert.equal(result.totals.available, 0);
+  assert.equal(result.totals.pending, 1280);
+  assert.equal(result.releaseStats.blocked, 2);
+  assert.equal(result.releaseStats.blockedReasons.delivery_not_confirmed, 2);
   assert.equal(result.divergenceCount, 0);
 });
 
@@ -140,4 +167,60 @@ test('sumário agrega seller sem esconder divergências', () => {
   assert.equal(summary.totals.available, 88);
   assert.equal(summary.divergenceCount, 1);
   assert.equal(summary.divergences[0].difference, 1);
+});
+
+
+test('entrega confirmada e prazo vencido libera saldo no shadow', async () => {
+  const Order = fakeOrderModel([
+    {
+      id: '1',
+      status: 'entregue',
+      shipping: { deliveredAt: '2026-09-20T12:00:00Z' },
+      sellerIds: ['seller_a']
+    }
+  ]);
+
+  const service = createArianaPayShadowAuditService({
+    Order,
+    Seller: fakeSellerModel([
+      { sellerId: 'seller_a', metadata: { transferDeadlineDays: 7 } }
+    ]),
+    buildProductBasePriceMapForOrders: baseMapBuilder,
+    getSellerSettlementForOrder: settlement
+  });
+
+  const result = await service.audit({
+    now: new Date('2026-10-03T18:00:00-03:00')
+  });
+
+  assert.equal(result.totals.available, 880);
+  assert.equal(result.totals.pending, 0);
+  assert.equal(result.releaseStats.scheduled, 1);
+  assert.equal(result.releaseStats.availableNow, 1);
+});
+
+test('seller sem prazo configurado continua a liberar mesmo com entrega', async () => {
+  const Order = fakeOrderModel([
+    {
+      id: '1',
+      status: 'entregue',
+      shipping: { deliveredAt: '2026-09-20T12:00:00Z' },
+      sellerIds: ['seller_a']
+    }
+  ]);
+
+  const service = createArianaPayShadowAuditService({
+    Order,
+    Seller: fakeSellerModel([{ sellerId: 'seller_a', metadata: {} }]),
+    buildProductBasePriceMapForOrders: baseMapBuilder,
+    getSellerSettlementForOrder: settlement
+  });
+
+  const result = await service.audit({
+    now: new Date('2026-10-03T18:00:00-03:00')
+  });
+
+  assert.equal(result.totals.available, 0);
+  assert.equal(result.totals.pending, 880);
+  assert.equal(result.releaseStats.blockedReasons.missing_transfer_deadline, 1);
 });
