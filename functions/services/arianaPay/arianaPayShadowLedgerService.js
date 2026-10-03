@@ -119,6 +119,27 @@ export function buildShadowLedgerEntries({
   const summary = summarizeShadowLedger(entries);
   const difference = money(summary.net - expectedNet);
 
+  const risk = release?.risk || null;
+  if (risk?.terminal && risk?.reversalType && expectedNet > 0) {
+    entries.push(makeEntry({
+      orderId,
+      sellerId: sid,
+      type: String(risk.reversalType),
+      direction: 'debit',
+      amount: expectedNet,
+      availableAt,
+      metadata: {
+        releaseState: 'blocked',
+        releaseReason: String(release?.reason || `financial_risk_${risk.kind || 'unknown'}`),
+        riskKind: String(risk.kind || ''),
+        riskSeverity: String(risk.severity || ''),
+        source: 'shadow_financial_risk'
+      }
+    }));
+  }
+
+  const effectiveSummary = summarizeShadowLedger(entries);
+
   return {
     mode: 'shadow',
     orderId,
@@ -126,6 +147,8 @@ export function buildShadowLedgerEntries({
     expectedNet,
     entries,
     summary,
+    effectiveSummary,
+    risk,
     reconciliation: {
       ok: Math.abs(difference) < 0.01,
       difference
