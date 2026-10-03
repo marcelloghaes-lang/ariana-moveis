@@ -532,3 +532,88 @@ test('cartão com 3DS autenticado e liability shift pode seguir regra normal de 
   assert.equal(result.totals.available, 880);
   assert.equal(result.payoutPreview.readyAmount, 880);
 });
+
+
+test('compra não reconhecida com liability shift não gera dívida do seller', async () => {
+  const Order = fakeOrderModel([
+    {
+      id: 'cb_shift_1',
+      status: 'chargeback',
+      paymentStatus: 'approved',
+      total: 1000,
+      customerCpf: '12345678901',
+      customerEmail: 'cliente@example.com',
+      customerPhone: '31999999999',
+      shippingAddress: { cep: '39700000', logradouro: 'Rua A', numero: '10' },
+      payment: {
+        provider: 'mercadopago',
+        method: 'card',
+        status: 'approved',
+        transactionSecurity: {
+          validation: 'on_fraud_risk',
+          liability_shift: 'required',
+          status: 'AUTHENTICATED'
+        }
+      },
+      chargeback: { reason: 'customer does not recognize the charge' },
+      sellerIds: ['seller_a'],
+      sellerSettlements: {
+        seller_a: { status: 'paid', amount: 880, paidAt: '2026-09-20T12:00:00Z' }
+      }
+    }
+  ]);
+
+  const service = createArianaPayShadowAuditService({
+    Order,
+    Seller: fakeSellerModel([
+      {
+        sellerId: 'seller_a',
+        status: 'approved',
+        metadata: { bankAccount: { pixKey: 'seller@pix.com', holderName: 'Seller A', holderDocument: '12345678901' } }
+      }
+    ]),
+    buildProductBasePriceMapForOrders: baseMapBuilder,
+    getSellerSettlementForOrder: settlement
+  });
+
+  const result = await service.audit({ now: new Date('2026-10-03T18:00:00-03:00') });
+
+  assert.equal(result.disputeResponsibilityStats.byOwner.provider_network, 1);
+  assert.equal(result.disputeResponsibilityStats.byReason.fraud_not_recognized, 1);
+  assert.equal(result.totals.debt, 0);
+  assert.equal(result.totals.paid, 880);
+});
+
+test('chargeback sem motivo conclusivo vai para revisão e não cria dívida automática', async () => {
+  const Order = fakeOrderModel([
+    {
+      id: 'cb_unknown_1',
+      status: 'chargeback',
+      paymentStatus: 'approved',
+      payment: { provider: 'mercadopago', method: 'card', status: 'approved' },
+      sellerIds: ['seller_a'],
+      sellerSettlements: {
+        seller_a: { status: 'paid', amount: 880, paidAt: '2026-09-20T12:00:00Z' }
+      }
+    }
+  ]);
+
+  const service = createArianaPayShadowAuditService({
+    Order,
+    Seller: fakeSellerModel([
+      {
+        sellerId: 'seller_a',
+        status: 'approved',
+        metadata: { bankAccount: { pixKey: 'seller@pix.com', holderName: 'Seller A', holderDocument: '12345678901' } }
+      }
+    ]),
+    buildProductBasePriceMapForOrders: baseMapBuilder,
+    getSellerSettlementForOrder: settlement
+  });
+
+  const result = await service.audit({ now: new Date('2026-10-03T18:00:00-03:00') });
+
+  assert.equal(result.disputeResponsibilityStats.byOwner.pending_review, 1);
+  assert.equal(result.totals.debt, 0);
+  assert.equal(result.payoutPreview.readySellers, 0);
+});
