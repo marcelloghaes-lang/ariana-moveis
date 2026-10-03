@@ -617,3 +617,60 @@ test('chargeback sem motivo conclusivo vai para revisão e não cria dívida aut
   assert.equal(result.totals.debt, 0);
   assert.equal(result.payoutPreview.readySellers, 0);
 });
+
+
+test('fila de revisão mostra contestação e qualidade das evidências sem debitar seller automaticamente', async () => {
+  const Order = fakeOrderModel([
+    {
+      id: 'review_case_1',
+      status: 'chargeback',
+      paymentStatus: 'approved',
+      total: 1000,
+      customerName: 'Cliente Teste',
+      customerEmail: 'cliente@example.com',
+      customerPhone: '31999999999',
+      customerCpf: '12345678901',
+      shippingAddress: {
+        cep: '39700000',
+        cidade: 'Guanhães',
+        uf: 'MG',
+        logradouro: 'Rua A',
+        numero: '10'
+      },
+      payment: {
+        provider: 'mercadopago',
+        method: 'card',
+        paymentId: 'pay-review-1',
+        status: 'approved'
+      },
+      chargeback: { reason: 'Produto não recebido' },
+      trackingCode: 'AB123BR',
+      shipping: { deliveredAt: '2026-09-10T12:00:00Z' },
+      nfe: { accessKey: '3526TESTE', number: '100' },
+      sellerIds: ['seller_a'],
+      items: [{ sellerId: 'seller_a', name: 'Produto', qty: 1, totalPrice: 1000 }]
+    }
+  ]);
+
+  const service = createArianaPayShadowAuditService({
+    Order,
+    Seller: fakeSellerModel([
+      {
+        sellerId: 'seller_a',
+        status: 'approved',
+        metadata: { bankAccount: { pixKey: 'seller@pix.com', holderName: 'Seller A', holderDocument: '12345678901' } }
+      }
+    ]),
+    buildProductBasePriceMapForOrders: baseMapBuilder,
+    getSellerSettlementForOrder: settlement
+  });
+
+  const result = await service.audit({ now: new Date('2026-10-03T18:00:00-03:00') });
+
+  assert.equal(result.reviewCaseCount, 1);
+  assert.equal(result.reviewCases[0].disputeReason.code, 'non_delivery');
+  assert.equal(result.reviewCases[0].lossOwner, 'seller_review');
+  assert.equal(result.reviewCases[0].sellerReversalAllowed, false);
+  assert.equal(result.reviewCases[0].evidence.complete, true);
+  assert.equal(result.reviewCases[0].action, 'revisao_manual_responsabilidade');
+});
