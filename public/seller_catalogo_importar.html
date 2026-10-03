@@ -36,7 +36,7 @@
       <div class="field"><label>Origem / fornecedor do catálogo</label><input id="source" placeholder="Ex.: DSlite - Hayamax, Drop de Casa, Electrolux"></div>
       <div class="field"><label>Formato</label><select id="format"><option value="auto">Detectar automaticamente</option><option value="csv">CSV</option><option value="json">JSON</option></select></div>
       <div class="field"><label>Modelo da operação</label><select id="operationMode"><option value="dropshipping">Dropshipping</option><option value="cross_docking">Cross docking</option><option value="sale_order">Venda à ordem</option><option value="marketplace_pure">Marketplace puro — não aplicar regra 0,70</option></select></div>
-      <div class="field"><label>Impostos da NF do fornecedor</label><select id="taxesIncluded"><option value="true">Preço do catálogo já inclui os impostos da nota</option><option value="false">Pode haver ST extra fora do preço do catálogo</option></select></div>
+      <div class="field"><label>Tratamento tributário do catálogo</label><select id="taxMode"><option value="possible_extra">Preço inclui os impostos da NF, mas pode haver ST extra por UF (revisão fiscal)</option><option value="included_confirmed">Fornecedor confirmou que não haverá ST extra além do preço</option><option value="extra_not_included">ST pode vir fora do preço do catálogo</option></select></div>
     </div>
     <div class="note good" style="margin-top:14px"><b>Regra Ariana para operação própria:</b> venda à ordem, dropshipping e cross docking usam <b>(preço do fornecedor + ST extra confirmado) ÷ 0,70</b> como preço à vista final. Marketplace puro fica fora dessa regra. MVA não é tratada como “percentual de ST”; se o catálogo não informar o ST e ele não estiver incluído no preço, o produto fica travado para revisão fiscal.</div>
     <div class="drop" style="margin-top:14px">
@@ -108,6 +108,7 @@ function parseInput(text,format='auto'){
   }
   return parseDelimited(raw);
 }
+$('source').addEventListener('change',()=>{const s=$('source').value.toLowerCase();if(s.includes('drop de casa')||s.includes('dslite')){$('operationMode').value='dropshipping';$('taxMode').value='possible_extra';}});
 $('file').addEventListener('change',async e=>{
   const f=e.target.files?.[0]; if(!f)return;
   $('raw').value=await f.text();
@@ -124,7 +125,7 @@ function money(v){return Number(v||0).toLocaleString('pt-BR',{style:'currency',c
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function renderSummary(sum,items){
   $('resultCard').style.display='block';$('sTotal').textContent=sum.total;$('sValid').textContent=sum.valid;$('sCreate').textContent=sum.create;$('sUpdate').textContent=sum.update;$('sInvalid').textContent=sum.invalid;
-  $('tbody').innerHTML=items.slice(0,200).map(x=>{const p=x.pricing||{};const st=p.stStatus==='included_in_supplier_price'?'incluído':p.stStatus==='supplier_amount'||p.stStatus==='supplier_percent'?((p.stEffectivePercent||0).toLocaleString('pt-BR')+'% / '+money(p.stAmount)):p.stStatus==='review_required'?'REVISAR': '-';return `<tr><td><span class="pill ${x.action}">${x.action==='create'?'NOVO':x.action==='update'?'ATUALIZAR':'INVÁLIDO'}</span></td><td><b>${esc(x.name||'-')}</b><br><span class="muted">${esc(x.brand||'')}</span></td><td>${esc(x.sku||x.ean||x.supplierProductId||'-')}</td><td>${money(p.supplierPrice??x.price)}</td><td>${esc(st)}${p.mvaReferencePercent!=null?'<br><span class="muted">MVA ref. '+esc(p.mvaReferencePercent)+'% (não é ST)</span>':''}</td><td><b>${money(p.finalCashPrice??x.price)}</b>${p.managed?'<br><span class="muted">divisor 0,70</span>':''}</td><td>${Number(x.stock||0)}</td><td>${esc((x.errors||[]).join(' • '))}</td></tr>`}).join('');
+  $('tbody').innerHTML=items.slice(0,200).map(x=>{const p=x.pricing||{};const st=p.stStatus==='included_in_supplier_price'?'incluído':p.stStatus==='supplier_amount'||p.stStatus==='supplier_percent'?((p.stEffectivePercent||0).toLocaleString('pt-BR')+'% / '+money(p.stAmount)):p.stStatus==='possible_extra_st_review'?'REVISAR ST/UF':p.stStatus==='review_required'?'REVISAR': '-';return `<tr><td><span class="pill ${x.action}">${x.action==='create'?'NOVO':x.action==='update'?'ATUALIZAR':'INVÁLIDO'}</span></td><td><b>${esc(x.name||'-')}</b><br><span class="muted">${esc(x.brand||'')}</span></td><td>${esc(x.sku||x.ean||x.supplierProductId||'-')}</td><td>${money(p.supplierPrice??x.price)}</td><td>${esc(st)}${p.mvaReferencePercent!=null?'<br><span class="muted">MVA ref. '+esc(p.mvaReferencePercent)+'% (não é ST)</span>':''}</td><td><b>${money(p.finalCashPrice??x.price)}</b>${p.managed?'<br><span class="muted">divisor 0,70</span>':''}</td><td>${Number(x.stock||0)}</td><td>${esc((x.errors||[]).join(' • '))}</td></tr>`}).join('');
 }
 async function preview(){
   parsedRows=parseInput($('raw').value,$('format').value);
@@ -134,7 +135,7 @@ async function preview(){
   $('status').className='note';$('status').textContent='Analisando '+parsedRows.length+' produtos...';
   for(let i=0;i<parsedRows.length;i+=500){
     const part=parsedRows.slice(i,i+500);
-    const r=await api('/seller/catalog-import/preview',{source,operationMode:$('operationMode').value,taxesIncluded:$('taxesIncluded').value==='true',rows:part});
+    const r=await api('/seller/catalog-import/preview',{source,operationMode:$('operationMode').value,taxMode:$('taxMode').value,rows:part});
     for(const k of Object.keys(total)) total[k]+=Number(r[k]||0);
     items.push(...(r.items||[]));
   }
@@ -150,7 +151,7 @@ async function commit(){
   $('importBtn').disabled=true;$('previewBtn').disabled=true;$('status').className='note';$('status').textContent='Importando catálogo em lotes seguros...';
   try{
     for(let i=0;i<parsedRows.length;i+=500){
-      const r=await api('/seller/catalog-import/commit',{source,operationMode:$('operationMode').value,taxesIncluded:$('taxesIncluded').value==='true',rows:parsedRows.slice(i,i+500)});
+      const r=await api('/seller/catalog-import/commit',{source,operationMode:$('operationMode').value,taxMode:$('taxMode').value,rows:parsedRows.slice(i,i+500)});
       for(const k of Object.keys(sum)) sum[k]+=Number(r[k]||0);
       $('status').textContent=`Processados ${Math.min(i+500,parsedRows.length)} de ${parsedRows.length}...`;
     }
