@@ -41,7 +41,7 @@ export function projectOrderToShadowLedger({
   for (const sellerId of sellerIds) {
     const settlement = getSettlement(order, sellerId, productBaseMap);
     const release = typeof releaseForSeller === 'function'
-      ? releaseForSeller(order, sellerId)
+      ? releaseForSeller(order, sellerId, settlement)
       : null;
     const sellerAvailableAt = release?.availableAt ?? availableAt;
     const ledger = buildShadowLedgerEntries({
