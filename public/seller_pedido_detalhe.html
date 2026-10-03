@@ -267,8 +267,11 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
     
     <div id="seller-nfe-upload-card" class="border-t border-soft pt-4">
       <div class="muted text-xs font-black uppercase mb-2">Nota fiscal do seller</div>
-      <p class="text-xs text-gray-500 mb-3">Depois de emitir a NF-e no seu sistema, envie o XML e o DANFE para a Ariana vincular ao pedido do cliente.</p>
+      <p id="seller-nfe-help" class="text-xs text-gray-500 mb-3">Depois de emitir a NF-e no seu sistema, envie o XML e o DANFE para a Ariana vincular ao pedido.</p>
       <div class="grid grid-cols-1 gap-2">
+        <select id="seller-nfe-type" class="input">
+          <option value="marketplace_customer_sale">NF-e de venda ao cliente</option>
+        </select>
         <input id="seller-nfe-numero" class="input" placeholder="Número da NF-e">
         <input id="seller-nfe-serie" class="input" placeholder="Série" value="1">
         <input id="seller-nfe-chave" class="input" placeholder="Chave de acesso">
@@ -479,6 +482,17 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
     const a = data.shippingAddress || data.address || {};
     $('address').textContent = typeof a === 'string' ? a : [a.logradouro || a.street, a.numero || a.number, a.bairro || a.neighborhood, a.cidade || a.city, a.uf || a.state, a.cep || a.zip].filter(Boolean).join(', ') || 'Endereço não informado';
     $('status-select').value = data.status || 'processing';
+
+    const fiscalModel = String(seller?.metadata?.fiscalOperationModel || 'marketplace_intermediation').toLowerCase();
+    const typeSelect = $('seller-nfe-type');
+    const help = $('seller-nfe-help');
+    if (fiscalModel === 'sale_order') {
+      if (typeSelect) typeSelect.innerHTML = '<option value="sale_order_remittance">Remessa por conta e ordem ao cliente</option><option value="sale_order_symbolic_sale">Remessa simbólica / venda à ordem para Ariana</option>';
+      if (help) help.textContent = 'Venda à ordem: aguarde a NF-e da Ariana ser autorizada. Depois emita e envie separadamente (1) a remessa por conta e ordem ao cliente e (2) a remessa simbólica/venda à ordem para a Ariana.';
+    } else {
+      if (typeSelect) typeSelect.innerHTML = '<option value="marketplace_customer_sale">NF-e de venda ao cliente</option>';
+      if (help) help.textContent = 'Marketplace/intermediação: sua empresa é a vendedora da mercadoria. Emita a NF-e ao cliente no seu sistema e envie XML/DANFE para a Ariana.';
+    }
   }
 
   async function loadOrder() {
@@ -539,6 +553,7 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
     form.append('serie', $('seller-nfe-serie')?.value?.trim() || '');
     form.append('accessKey', $('seller-nfe-chave')?.value?.trim() || '');
     form.append('issuerDocument', $('seller-nfe-cnpj')?.value?.trim() || '');
+    form.append('documentType', $('seller-nfe-type')?.value || 'marketplace_customer_sale');
     if (xml) form.append('xml', xml);
     if (danfe) form.append('danfe', danfe);
 
