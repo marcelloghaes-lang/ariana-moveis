@@ -70,9 +70,10 @@ export function summarizeProjectedAudit(projectedBatch = {}, { now = new Date() 
     acc.available += Number(seller.balance.available || 0);
     acc.reserved += Number(seller.balance.reserved || 0);
     acc.paid += Number(seller.balance.paid || 0);
+    acc.debt += Number(seller.balance.debt || 0);
     acc.totalEquity += Number(seller.balance.totalEquity || 0);
     return acc;
-  }, { pending: 0, available: 0, reserved: 0, paid: 0, totalEquity: 0 });
+  }, { pending: 0, available: 0, reserved: 0, paid: 0, debt: 0, totalEquity: 0 });
 
   for (const key of Object.keys(totals)) {
     totals[key] = Math.round((totals[key] + Number.EPSILON) * 100) / 100;
