@@ -197,6 +197,65 @@ function forceProductImages(payload = {}, body = {}) {
   return payload;
 }
 
+
+// ============================================================
+// IMPORTAÇÃO INDUSTRIAL DE CATÁLOGOS DE FORNECEDORES
+// Camada genérica: CSV/Excel/XML/API podem ser convertidos para rows.
+// Esta rota não busca URLs externas nem publica automaticamente:
+// produtos novos entram em revisão para evitar preço/estoque/fiscal incorretos.
+// ============================================================
+function catalogKey(value=''){
+  return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+}
+function catalogNumber(value, fallback=0){
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  let s=String(value ?? '').trim().replace(/R\$/gi,'').replace(/\s/g,'');
+  if (!s) return fallback;
+  if (s.includes(',')) s=s.replace(/\./g,'').replace(',', '.');
+  const n=Number(s.replace(/[^0-9.-]/g,''));
+  return Number.isFinite(n)?n:fallback;
+}
+function catalogValue(row={}, aliases=[]){
+  const mapped={};
+  for(const [k,v] of Object.entries(row||{})) mapped[catalogKey(k)]=v;
+  for(const alias of aliases){
+    const key=catalogKey(alias);
+    if(mapped[key]!==undefined && mapped[key]!==null && String(mapped[key]).trim()!=='') return mapped[key];
+  }
+  return '';
+}
+function catalogImages(value){
+  if(Array.isArray(value)) return value.map(v=>String(v?.url||v||'').trim()).filter(Boolean).slice(0,12);
+  return String(value||'').split(/[|;\n]/).map(v=>v.trim()).filter(v=>/^https?:\/\//i.test(v)).slice(0,12);
+}
+function normalizeCatalogRow(row={}, index=0, source='catalog'){
+  const name=String(catalogValue(row,['name','nome','produto','titulo','title','descricao curta'])||'').trim();
+  const sku=String(catalogValue(row,['sku','codigo','código','codigo produto','referencia','referência','ref'])||'').trim();
+  const ean=String(catalogValue(row,['ean','gtin','codigo barras','código de barras','barcode'])||'').replace(/\D/g,'').trim();
+  const supplierProductId=String(catalogValue(row,['supplierProductId','id fornecedor','id produto','product id','id'])||'').trim();
+  const stableKey=sku||ean||supplierProductId;
+  const price=catalogNumber(catalogValue(row,['price','preco','preço','preco venda','preço venda','preco lojista','preço lojista','valor']),0);
+  const stock=Math.max(0,Math.trunc(catalogNumber(catalogValue(row,['stock','estoque','saldo','quantidade','qty']),0)));
+  const category=String(catalogValue(row,['category','categoria','departamento'])||'Outros').trim();
+  const brand=String(catalogValue(row,['brand','marca','fabricante'])||'').trim();
+  const description=String(catalogValue(row,['description','descricao','descrição','descricao completa','descrição completa'])||name).trim();
+  const ncm=String(catalogValue(row,['ncm'])||'').replace(/\D/g,'').trim();
+  const cest=String(catalogValue(row,['cest'])||'').replace(/\D/g,'').trim();
+  const weight=Math.max(0,catalogNumber(catalogValue(row,['weight','peso','peso kg','pesokg']),0));
+  const height=Math.max(0,catalogNumber(catalogValue(row,['height','altura','altura cm','alturacm']),0));
+  const width=Math.max(0,catalogNumber(catalogValue(row,['width','largura','largura cm','larguracm']),0));
+  const length=Math.max(0,catalogNumber(catalogValue(row,['length','comprimento','profundidade','comprimento cm']),0));
+  const imageList=catalogImages(catalogValue(row,['images','imagens','image urls','fotos','foto','image','imagem','url imagem']));
+  const errors=[];
+  if(!name) errors.push('Nome ausente');
+  if(!stableKey) errors.push('SKU/EAN/ID do fornecedor ausente');
+  if(!(price>0)) errors.push('Preço inválido');
+  return {
+    index,name,sku,ean,supplierProductId,stableKey,price,stock,category,brand,description,ncm,cest,
+    weight,height,width,length,imageList,source:String(source||'catalog').trim().slice(0,80),errors
+  };
+}
+
 export default function createSellerProductRoutes(deps = {}) {
   const router = express.Router();
   const {
@@ -312,6 +371,109 @@ export default function createSellerProductRoutes(deps = {}) {
       return res.json({ ok: true, deleted: true, id });
     } catch (error) {
       return res.status(500).json({ ok: false, error: error.message || 'Erro ao excluir produto do seller' });
+    }
+  });
+
+
+  router.post('/seller/catalog-import/preview', sellerAuthRequired, async (req, res) => {
+    try {
+      const rows = Array.isArray(req.body?.rows) ? req.body.rows.slice(0, 1000) : [];
+      if (!rows.length) return res.status(400).json({ ok:false, error:'Envie pelo menos uma linha do catálogo.' });
+      const source=String(req.body?.source||'catalogo_fornecedor').trim().slice(0,80);
+      const normalized=rows.map((row,index)=>normalizeCatalogRow(row,index,source));
+      const valid=normalized.filter(x=>!x.errors.length);
+      const skus=[...new Set(valid.map(x=>x.sku).filter(Boolean))];
+      const eans=[...new Set(valid.map(x=>x.ean).filter(Boolean))];
+      const supplierIds=[...new Set(valid.map(x=>x.supplierProductId).filter(Boolean))];
+      const matchOr=[];
+      if(skus.length) matchOr.push({sku:{$in:skus}});
+      if(eans.length) matchOr.push({'specs.ean':{$in:eans}});
+      if(supplierIds.length) matchOr.push({'dropshipping.supplierProductId':{$in:supplierIds}});
+      const existing=matchOr.length ? await Product.find({sellerId:String(req.sellerId||''),$or:matchOr}).select('_id sku specs.ean dropshipping.supplierProductId active').lean() : [];
+      const existingKeys=new Set();
+      existing.forEach(p=>{
+        if(p.sku) existingKeys.add('sku:'+String(p.sku));
+        if(p.specs?.ean) existingKeys.add('ean:'+String(p.specs.ean));
+        if(p.dropshipping?.supplierProductId) existingKeys.add('supplier:'+String(p.dropshipping.supplierProductId));
+      });
+      const items=normalized.map(item=>{
+        const exists=(item.sku&&existingKeys.has('sku:'+item.sku))||(item.ean&&existingKeys.has('ean:'+item.ean))||(item.supplierProductId&&existingKeys.has('supplier:'+item.supplierProductId));
+        return {...item,action:item.errors.length?'invalid':(exists?'update':'create')};
+      });
+      return res.json({
+        ok:true,total:items.length,
+        valid:items.filter(x=>x.action!=='invalid').length,
+        invalid:items.filter(x=>x.action==='invalid').length,
+        create:items.filter(x=>x.action==='create').length,
+        update:items.filter(x=>x.action==='update').length,
+        items
+      });
+    } catch(error){
+      return res.status(500).json({ok:false,error:error.message||'Erro ao pré-validar catálogo.'});
+    }
+  });
+
+  router.post('/seller/catalog-import/commit', sellerAuthRequired, async (req, res) => {
+    try {
+      const rows = Array.isArray(req.body?.rows) ? req.body.rows.slice(0, 1000) : [];
+      if (!rows.length) return res.status(400).json({ok:false,error:'Envie pelo menos uma linha do catálogo.'});
+      const source=String(req.body?.source||'catalogo_fornecedor').trim().slice(0,80);
+      const sellerId=String(req.sellerId||'').trim();
+      const sellerName=String(req.seller?.storeName||req.seller?.displayName||req.user?.name||'').trim();
+      const normalized=rows.map((row,index)=>normalizeCatalogRow(row,index,source)).filter(x=>!x.errors.length);
+      const ops=[];
+      const stamp=now();
+      for(const item of normalized){
+        const filter=item.sku?{sellerId,sku:item.sku}:item.ean?{sellerId,'specs.ean':item.ean}:{sellerId,'dropshipping.supplierProductId':item.supplierProductId};
+        const image=item.imageList[0]||'';
+        const set={
+          sellerId,sellerName,name:item.name,description:item.description,category:item.category,categoryName:item.category,
+          brand:item.brand,price:item.price,pixPrice:item.price,stock:item.stock,updatedAt:stamp,
+          'dropshipping.enabled':true,
+          'dropshipping.catalogSource':item.source,
+          'dropshipping.supplierSku':item.sku,
+          'dropshipping.supplierProductId':item.supplierProductId,
+          'dropshipping.lastCatalogSyncAt':stamp,
+          'specs.ean':item.ean,
+          'specs.ncm':item.ncm,
+          'specs.cest':item.cest,
+          'specs.catalogImport.source':item.source,
+          'specs.catalogImport.lastSyncAt':stamp,
+          'specs.catalogImport.status':'staged'
+        };
+        if(item.sku) set.sku=item.sku;
+        if(item.weight) set.weight=item.weight;
+        if(item.height) set.height=item.height;
+        if(item.width) set.width=item.width;
+        if(item.length) set.length=item.length;
+        if(image){
+          set.image=image;set.imageUrl=image;set.imagem=image;set.mainImageUrl=image;
+          set.imageUrls=item.imageList;set.images=item.imageList.map((url,i)=>({url,path:url,isMain:i===0,name:'catalogo_'+(i+1)}));
+        }
+        ops.push({updateOne:{filter,update:{
+          $set:set,
+          $setOnInsert:{
+            active:false,
+            storefrontStatus:'pending',
+            storefrontSource:'supplier_catalog_import',
+            storefrontSubmittedAt:stamp
+          }
+        },upsert:true}});
+      }
+      if(!ops.length) return res.status(400).json({ok:false,error:'Nenhuma linha válida para importar.'});
+      const result=await Product.bulkWrite(ops,{ordered:false});
+      return res.json({
+        ok:true,
+        processed:ops.length,
+        created:Number(result.upsertedCount||0),
+        matched:Number(result.matchedCount||0),
+        modified:Number(result.modifiedCount||0),
+        skipped:rows.length-ops.length,
+        staged:true,
+        message:'Catálogo importado em modo de revisão. Produtos novos não foram publicados automaticamente.'
+      });
+    } catch(error){
+      return res.status(500).json({ok:false,error:error.message||'Erro ao importar catálogo.'});
     }
   });
 
