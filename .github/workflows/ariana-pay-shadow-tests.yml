@@ -33,11 +33,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: npm
-          cache-dependency-path: functions/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
 
       - name: Ariana Pay isolated tests
-        run: npm run test:ariana-pay
+        run: node --test tests/ariana-pay-*.test.mjs
