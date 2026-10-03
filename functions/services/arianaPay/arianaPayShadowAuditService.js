@@ -4,6 +4,7 @@
 
 import { projectOrdersToShadowLedger } from './arianaPayShadowProjectorService.js';
 import { deriveSellerBalance } from './arianaPayBalanceService.js';
+import { buildReleaseSchedule } from './arianaPayReleaseScheduleService.js';
 
 const APPROVED_STATUS_TOKENS = [
   'pago',
@@ -87,10 +88,12 @@ export function summarizeProjectedAudit(projectedBatch = {}, { now = new Date() 
 
 export function createArianaPayShadowAuditService({
   Order,
+  Seller,
   buildProductBasePriceMapForOrders,
   getSellerSettlementForOrder
 } = {}) {
   if (!Order?.find) throw new TypeError('Order model é obrigatório.');
+  if (!Seller?.find) throw new TypeError('Seller model é obrigatório.');
   if (typeof buildProductBasePriceMapForOrders !== 'function') {
     throw new TypeError('buildProductBasePriceMapForOrders é obrigatório.');
   }
@@ -116,21 +119,60 @@ export function createArianaPayShadowAuditService({
 
   async function audit({ limit = 500, sellerId = '', availableAtForOrder = null, now = new Date() } = {}) {
     const orders = await loadEligibleOrders({ limit, sellerId });
+    const detectedSellerIds = sellerIdsFromOrders(orders);
     const productBaseMap = await buildProductBasePriceMapForOrders(orders);
+
+    const sellerDocs = detectedSellerIds.length
+      ? await Seller.find({ sellerId: { $in: detectedSellerIds } }).lean()
+      : [];
+    const sellerMap = new Map(
+      (Array.isArray(sellerDocs) ? sellerDocs : []).map((row) => [String(row.sellerId || '').trim(), row])
+    );
 
     const projectedBatch = projectOrdersToShadowLedger({
       orders,
       productBaseMap,
       getSettlement: getSellerSettlementForOrder,
-      availableAtForOrder
+      availableAtForOrder,
+      releaseForSeller: (order, sid) => buildReleaseSchedule({
+        order,
+        seller: sellerMap.get(String(sid || '').trim()) || {},
+        sellerId: sid
+      })
     });
 
     const summary = summarizeProjectedAudit(projectedBatch, { now });
+    const releaseStats = {
+      blocked: 0,
+      scheduled: 0,
+      availableNow: 0,
+      blockedReasons: {}
+    };
+
+    for (const projection of projectedBatch.projected || []) {
+      for (const row of projection.sellers || []) {
+        const release = row.release || {};
+        if (release.state === 'blocked') {
+          releaseStats.blocked += 1;
+          const reason = String(release.reason || 'unknown');
+          releaseStats.blockedReasons[reason] = Number(releaseStats.blockedReasons[reason] || 0) + 1;
+          continue;
+        }
+        if (release.state === 'scheduled') {
+          releaseStats.scheduled += 1;
+          const when = release.availableAt ? new Date(release.availableAt) : null;
+          if (when && !Number.isNaN(when.getTime()) && when.getTime() <= now.getTime()) {
+            releaseStats.availableNow += 1;
+          }
+        }
+      }
+    }
 
     return {
       ...summary,
       orderCount: orders.length,
-      detectedSellerIds: sellerIdsFromOrders(orders),
+      detectedSellerIds,
+      releaseStats,
       generatedAt: now.toISOString()
     };
   }
