@@ -230,7 +230,7 @@ function catalogImages(value){
 }
 
 const MANAGED_CATALOG_MODES=new Set(['sale_order','dropshipping','cross_docking']);
-const CATALOG_PRICE_MULTIPLIER=1.70;
+const CATALOG_PRICE_FACTOR=0.70;
 
 // Referência conservadora para exibir a MVA do cadastro fiscal. MVA NÃO é a
 // alíquota efetiva de ST e, sozinha, não autoriza cálculo tributário.
@@ -297,7 +297,7 @@ function managedCatalogPricing(item={}, options={}){
     }
   }
   const supplierPayable=roundCatalogMoney(supplierPrice+stAmount);
-  const finalCashPrice=managed ? roundCatalogMoney(supplierPayable*CATALOG_PRICE_MULTIPLIER) : supplierPrice;
+  const finalCashPrice=managed ? roundCatalogMoney(supplierPayable/CATALOG_PRICE_FACTOR) : supplierPrice;
   const grossMarginValue=managed?roundCatalogMoney(finalCashPrice-supplierPayable):0;
   const grossMarginPercent=managed&&finalCashPrice>0?roundCatalogMoney((grossMarginValue/finalCashPrice)*100):0;
   const mvaRef=mgMvaReference(item.ncm,item.cest);
@@ -306,7 +306,7 @@ function managedCatalogPricing(item={}, options={}){
     mvaReferencePercent:mvaRef?.mva??null,
     mvaCestCompatible:mvaRef?.cestCompatible??null,
     officialCests:mvaRef?.officialCests||[],
-    priceMultiplier:CATALOG_PRICE_MULTIPLIER,priceFactor:CATALOG_PRICE_MULTIPLIER,supplierPayable,finalCashPrice,grossMarginValue,grossMarginPercent,
+    priceFactor:CATALOG_PRICE_FACTOR,supplierPayable,finalCashPrice,grossMarginValue,grossMarginPercent,
     pricingPendingTaxReview:managed&&['review_required','possible_extra_st_review'].includes(stStatus)
   };
 }
@@ -539,7 +539,7 @@ export default function createSellerProductRoutes(deps = {}) {
         invalid:items.filter(x=>x.action==='invalid').length,
         create:items.filter(x=>x.action==='create').length,
         update:items.filter(x=>x.action==='update').length,
-        operationMode,taxMode,taxesIncluded,priceMultiplier:CATALOG_PRICE_MULTIPLIER,priceFactor:CATALOG_PRICE_MULTIPLIER,items
+        operationMode,taxMode,taxesIncluded,priceFactor:CATALOG_PRICE_FACTOR,items
       });
     } catch(error){
       return res.status(500).json({ok:false,error:error.message||'Erro ao pré-validar catálogo.'});
@@ -571,7 +571,6 @@ export default function createSellerProductRoutes(deps = {}) {
           'dropshipping.mode':pricing.operationMode,
           'dropshipping.supplierPrice':pricing.supplierPrice,
           'dropshipping.supplierPayableUnit':pricing.supplierPayable,
-          'dropshipping.pricing.priceMultiplier':pricing.priceMultiplier,
           'dropshipping.pricing.priceFactor':pricing.priceFactor,
           'dropshipping.pricing.finalCashPrice':pricing.finalCashPrice,
           'dropshipping.pricing.grossMarginValue':pricing.grossMarginValue,
@@ -635,7 +634,7 @@ export default function createSellerProductRoutes(deps = {}) {
         modified:Number(result.modifiedCount||0),
         skipped:rows.length-ops.length,
         staged:true,
-        message:'Catálogo importado em modo de revisão. Operações próprias usam custo/valor devido ao fornecedor + ST extra confirmado, com multiplicador 1,70. Produtos novos não foram publicados automaticamente.'
+        message:'Catálogo importado em modo de revisão. Operações próprias usam (custo/valor devido ao fornecedor + ST extra confirmado) dividido por 0,70. Produtos novos não foram publicados automaticamente.'
       });
     } catch(error){
       return res.status(500).json({ok:false,error:error.message||'Erro ao importar catálogo.'});
