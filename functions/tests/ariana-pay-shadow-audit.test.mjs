@@ -138,7 +138,8 @@ test('auditoria calcula saldos em memória sem executar escrita', async () => {
   assert.equal(result.totals.available, 0);
   assert.equal(result.totals.pending, 1280);
   assert.equal(result.releaseStats.blocked, 2);
-  assert.equal(result.releaseStats.blockedReasons.delivery_not_confirmed, 2);
+  assert.equal(result.releaseStats.blockedReasons.delivery_not_confirmed, 1);
+  assert.equal(result.releaseStats.blockedReasons.delivery_timestamp_missing, 1);
   assert.equal(result.divergenceCount, 0);
 });
 
