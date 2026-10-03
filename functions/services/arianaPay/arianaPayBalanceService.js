@@ -24,6 +24,7 @@ export function deriveSellerBalance(entries = [], { now = new Date() } = {}) {
     available: 0,
     reserved: 0,
     paid: 0,
+    debt: 0,
     totalEquity: 0,
     ignored: 0
   };
@@ -55,8 +56,22 @@ export function deriveSellerBalance(entries = [], { now = new Date() } = {}) {
     }
 
     if (type === 'payout_debit') {
-      balance.available = money(balance.available - amount);
+      let remaining = amount;
+
+      const fromAvailable = Math.min(Math.max(balance.available, 0), remaining);
+      balance.available = money(balance.available - fromAvailable);
+      remaining = money(remaining - fromAvailable);
+
+      const fromPending = Math.min(Math.max(balance.pending, 0), remaining);
+      balance.pending = money(balance.pending - fromPending);
+      remaining = money(remaining - fromPending);
+
+      const fromReserved = Math.min(Math.max(balance.reserved, 0), remaining);
+      balance.reserved = money(balance.reserved - fromReserved);
+      remaining = money(remaining - fromReserved);
+
       balance.paid = money(balance.paid + amount);
+      if (remaining > 0) balance.debt = money(balance.debt + remaining);
       continue;
     }
 
@@ -68,17 +83,19 @@ export function deriveSellerBalance(entries = [], { now = new Date() } = {}) {
     balance[target] = money(balance[target] + value);
   }
 
-  balance.totalEquity = money(balance.pending + balance.available + balance.reserved);
+  balance.totalEquity = money(balance.pending + balance.available + balance.reserved - balance.debt);
   return balance;
 }
 
 export function canSchedulePayout(balance = {}, amount = 0) {
   const requested = money(amount);
   const available = money(balance.available || 0);
+  const debt = money(balance.debt || 0);
   return {
-    ok: requested > 0 && available >= requested,
+    ok: requested > 0 && debt <= 0 && available >= requested,
     requested,
     available,
+    debt,
     shortfall: money(Math.max(0, requested - available))
   };
 }
@@ -94,7 +111,11 @@ export function buildPayoutPreview({
   if (!check.ok) {
     return {
       ok: false,
-      reason: check.requested <= 0 ? 'invalid_amount' : 'insufficient_available_balance',
+      reason: check.requested <= 0
+        ? 'invalid_amount'
+        : check.debt > 0
+          ? 'outstanding_seller_debt'
+          : 'insufficient_available_balance',
       ...check
     };
   }
