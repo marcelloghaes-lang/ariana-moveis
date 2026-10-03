@@ -69,6 +69,7 @@ input:focus,select:focus,textarea:focus{border-color:#78a4df;box-shadow:0 0 0 3p
         <h3>2. Identificação fiscal da operação</h3>
         <div class="fields three">
           <div class="field"><label>Natureza da operação *</label><input id="nature-operation" maxlength="60" placeholder="Venda de mercadoria"></div>
+          <div class="field"><label>Modelo fiscal da venda *</label><select id="operation-model"><option value="own_sale">Venda própria / estoque Ariana</option><option value="marketplace_intermediation">Marketplace / intermediação — seller vende ao cliente</option><option value="sale_order">Venda à ordem — Ariana compra e revende</option></select><small>Define quem é o vendedor fiscal da mercadoria. Não use “venda à ordem” apenas para reduzir imposto.</small></div>
           <div class="field"><label>Finalidade</label><input class="readonly" value="NF-e normal" readonly></div>
           <div class="field"><label>Tipo da operação</label><input class="readonly" value="1 - Saída (venda)" readonly><small>Esta tela foi aberta a partir de uma venda. Para devolução/retorno use o fluxo fiscal próprio.</small></div>
           <div class="field"><label>Consumidor final</label><select id="consumer-final"><option value="1">Sim</option><option value="0">Não</option></select></div>
@@ -76,6 +77,24 @@ input:focus,select:focus,textarea:focus{border-color:#78a4df;box-shadow:0 0 0 3p
           <div class="field"><label>Documento</label><input class="readonly" value="NF-e modelo 55" readonly></div>
         </div>
         <div class="notice" style="margin-top:12px"><b>Outras operações fiscais:</b> esta tela é exclusiva para NF-e normal de venda (saída). <a href="erp_devolucao_nfe.html" style="font-weight:900;color:inherit">Abrir NF-e de devolução / retorno</a>. Uma NF-e de entrada normal deve usar fluxo próprio e não deve ser transformada em venda apenas alterando este campo.</div>
+      </div>
+
+      <div id="sale-order-card" class="card" style="display:none">
+        <h3>3. Vendedor remetente — venda à ordem</h3>
+        <div class="notice warn" style="margin-bottom:12px"><b>Obrigatório na venda à ordem:</b> a Ariana emite a NF-e de venda ao cliente; o fornecedor/vendedor remetente entrega a mercadoria por conta e ordem e deverá emitir os documentos fiscais próprios da remessa e da venda para a Ariana. O ERP não libera a NF-e da Ariana sem identificar o remetente.</div>
+        <div class="fields three">
+          <div class="field"><label>Razão social do fornecedor *</label><input id="so-name" maxlength="180"></div>
+          <div class="field"><label>CNPJ *</label><input id="so-cnpj" inputmode="numeric" maxlength="18"></div>
+          <div class="field"><label>Inscrição Estadual *</label><input id="so-ie" maxlength="40"></div>
+          <div class="field"><label>Endereço do estabelecimento remetente *</label><input id="so-address" maxlength="240"></div>
+          <div class="field"><label>Município *</label><input id="so-city" maxlength="120"></div>
+          <div class="field"><label>UF *</label><input id="so-uf" maxlength="2"></div>
+        </div>
+      </div>
+
+      <div id="marketplace-operation-card" class="card" style="display:none">
+        <h3>Marketplace / intermediação</h3>
+        <div class="notice"><b>Neste modelo a Ariana não emite a NF-e da mercadoria como vendedora.</b> O seller/fabricante emite a NF-e ao cliente e envia XML/DANFE pelo painel do seller. Esta revisão fica bloqueada para impedir que a Ariana assuma indevidamente a venda da mercadoria.</div>
       </div>
 
       <div id="government-card" class="card government">
@@ -219,6 +238,8 @@ function ensureData(){
   if(!data)return;
   data.fiscal=data.fiscal||{};
   data.fiscal.publicPurchase=data.fiscal.publicPurchase||{};
+  data.fiscal.supplierRemitter=data.fiscal.supplierRemitter||{};
+  if(!data.fiscal.operationModel)data.fiscal.operationModel='own_sale';
   data.transport=data.transport||{};
   if(data.fiscal.consumerFinal===undefined)data.fiscal.consumerFinal=1;
   if(data.fiscal.buyerPresence===undefined)data.fiscal.buyerPresence=1;
@@ -231,6 +252,8 @@ function syncToInputs(){
   $('c-type').textContent=digits(c.document).length===14?'Pessoa Jurídica':'Pessoa Física';
   $('edit-customer').href='erp_clientes.html?'+new URLSearchParams({edit:String(c.id||''),return:'erp_revisao_nfe.html'}).toString();
   $('consumer-final').value=String(Number(f.consumerFinal??1)===0?0:1);$('buyer-presence').value=String(Number(f.buyerPresence??1));$('nature-operation').value=f.natureOperation||'';
+  $('operation-model').value=f.operationModel||'own_sale';const so=f.supplierRemitter||{};$('so-name').value=so.name||'';$('so-cnpj').value=so.cnpj||'';$('so-ie').value=so.ie||'';$('so-address').value=so.address||'';$('so-city').value=so.city||'';$('so-uf').value=so.uf||'';
+  updateOperationUi();
   $('gov-commitment').value=pub.commitmentNumber||'';$('gov-order').value=pub.orderNumber||'';$('gov-contract').value=pub.contractNumber||'';$('gov-process').value=pub.processNumber||'';
   $('freight-mode').value=String(Number(tr.freightMode??9));$('carrier-cnpj').value=tr.carrierCnpj||'';$('carrier-name').value=tr.carrierName||'';$('carrier-ie').value=tr.carrierIe||'';$('carrier-address').value=tr.carrierAddress||'';$('carrier-city').value=tr.carrierCity||'';$('carrier-uf').value=tr.carrierUf||'';
   $('volume-quantity').value=Number(tr.volumeQuantity||0)||'';$('volume-species').value=tr.volumeSpecies||'';$('volume-brand').value=tr.volumeBrand||'';$('gross-weight').value=Number(tr.grossWeight||0)||'';$('net-weight').value=Number(tr.netWeight||0)||'';
@@ -243,6 +266,8 @@ function syncToInputs(){
 function readInputs(){
   ensureData();
   data.fiscal.natureOperation=$('nature-operation').value.trim();
+  data.fiscal.operationModel=$('operation-model').value;
+  data.fiscal.supplierRemitter={name:$('so-name').value.trim(),cnpj:digits($('so-cnpj').value),ie:$('so-ie').value.trim(),address:$('so-address').value.trim(),city:$('so-city').value.trim(),uf:$('so-uf').value.trim().toUpperCase()};
   data.fiscal.consumerFinal=Number($('consumer-final').value);
   data.fiscal.buyerPresence=Number($('buyer-presence').value);
   data.fiscal.additionalInfo=$('additional-info').value;
@@ -251,7 +276,14 @@ function readInputs(){
   data.transport={freightMode:Number($('freight-mode').value),carrierCnpj:digits($('carrier-cnpj').value),carrierName:$('carrier-name').value.trim(),carrierIe:$('carrier-ie').value.trim(),carrierAddress:$('carrier-address').value.trim(),carrierCity:$('carrier-city').value.trim(),carrierUf:$('carrier-uf').value.trim().toUpperCase(),volumeQuantity:Number($('volume-quantity').value||0),volumeSpecies:$('volume-species').value.trim(),volumeBrand:$('volume-brand').value.trim(),grossWeight:Number($('gross-weight').value||0),netWeight:Number($('net-weight').value||0)};
   saveDraft();
 }
-function changed(){readInputs();preflightReady=false;$('preview').disabled=true;clearTimeout(preflightTimer);preflightTimer=setTimeout(preflight,450)}
+function updateOperationUi(){
+  const model=$('operation-model')?.value||'own_sale';
+  if($('sale-order-card'))$('sale-order-card').style.display=model==='sale_order'?'block':'none';
+  if($('marketplace-operation-card'))$('marketplace-operation-card').style.display=model==='marketplace_intermediation'?'block':'none';
+  if(model==='sale_order'&&!$('nature-operation').value.trim())$('nature-operation').value='Venda à ordem';
+  if(model==='own_sale'&&$('nature-operation').value.trim()==='Venda à ordem')$('nature-operation').value='Venda de mercadoria';
+}
+function changed(){updateOperationUi();readInputs();preflightReady=false;$('preview').disabled=true;clearTimeout(preflightTimer);preflightTimer=setTimeout(preflight,450)}
 async function hydrateCustomerFromErp(){
   if(customerHydrated||!data?.customer)return;
   customerHydrated=true;
@@ -325,9 +357,10 @@ function publicRefsText(f={}){
 function buildDraftPreview(){
   if(!lastReview||!preflightReady)return;
   readInputs();
-  const r=lastReview,iss=r.issuer||{},c=r.customer||{},a=c.addressData||{},t=data.totals||{},p=data.payment||{},f=data.fiscal||{},tr=data.transport||{};
+  const r=lastReview,iss=r.issuer||{},c=r.customer||{},a=c.addressData||{},t=data.totals||{},p=data.payment||{},f=data.fiscal||{},tr=data.transport||{},so=f.supplierRemitter||{};
   const products=r.products||[];
-  const complement=[f.additionalInfo,publicRefsText(f)].filter(Boolean).join(' | ');
+  const saleOrderText=f.operationModel==='sale_order'?('Venda à ordem • Remetente: '+[so.name,so.cnpj?('CNPJ '+so.cnpj):'',so.ie?('IE '+so.ie):'',[so.address,so.city,so.uf].filter(Boolean).join(', ')].filter(Boolean).join(' • ')):'';
+  const complement=[saleOrderText,f.additionalInfo,publicRefsText(f)].filter(Boolean).join(' | ');
   const carrier=[tr.carrierName,tr.carrierCnpj?'CNPJ '+tr.carrierCnpj:'',tr.carrierIe?'IE '+tr.carrierIe:'',[tr.carrierAddress,tr.carrierCity,tr.carrierUf].filter(Boolean).join(', ')].filter(Boolean).join(' • ')||'Não informado';
   const rows=products.map((x,i)=>'<tr><td>'+esc(x.sku||x.id||String(i+1))+'</td><td>'+esc(x.name)+'</td><td>'+esc(x.specs?.ncm||'')+'</td><td>'+esc(x.fiscal?.csosn||'')+'</td><td>'+esc(x.fiscal?.cfop||'')+'</td><td>'+esc(x.fiscal?.unit||'')+'</td><td class="money">'+Number(x.qty||0).toLocaleString('pt-BR')+'</td><td class="money">'+money(x.unitPrice)+'</td><td class="money">'+money(Number(x.qty||0)*Number(x.unitPrice||0))+'</td></tr>').join('');
   $('draft-paper').innerHTML=
@@ -460,8 +493,8 @@ async function emitNfe(){
 $('preview').onclick=buildDraftPreview;$('close-draft').onclick=closePreview;$('print-draft').onclick=()=>window.print();$('send-nfe').onclick=emitNfe;
 $('viewDanfe').onclick=async()=>{if(!lastFiscalDocumentId)return;try{const r=await fetch(API+'/erp/fiscal/historico/nfe/'+encodeURIComponent(lastFiscalDocumentId)+'/danfe.pdf',{headers:{Authorization:'Bearer '+token()},cache:'no-store'});if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.error||'Erro ao abrir DANFE.')}const blob=await r.blob(),url=URL.createObjectURL(blob);window.open(url,'_blank','noopener');setTimeout(()=>URL.revokeObjectURL(url),120000)}catch(e){alert(e.message)}};
 
-const liveIds=['nature-operation','consumer-final','buyer-presence','gov-commitment','gov-order','gov-contract','gov-process','freight-mode','carrier-cnpj','carrier-name','carrier-ie','carrier-address','carrier-city','carrier-uf','volume-quantity','volume-species','volume-brand','gross-weight','net-weight','additional-info','tax-authority-info'];
-liveIds.forEach(id=>$(id).addEventListener(['consumer-final','buyer-presence','freight-mode'].includes(id)?'change':'input',changed));
+const liveIds=['nature-operation','operation-model','consumer-final','buyer-presence','so-name','so-cnpj','so-ie','so-address','so-city','so-uf','gov-commitment','gov-order','gov-contract','gov-process','freight-mode','carrier-cnpj','carrier-name','carrier-ie','carrier-address','carrier-city','carrier-uf','volume-quantity','volume-species','volume-brand','gross-weight','net-weight','additional-info','tax-authority-info'];
+liveIds.forEach(id=>$(id).addEventListener(['operation-model','consumer-final','buyer-presence','freight-mode'].includes(id)?'change':'input',changed));
 
 if(!data){$('missing').style.display='block'}else{
   $('editor').style.display='grid';ensureData();syncToInputs();if(!token())goLogin();else preflight();
