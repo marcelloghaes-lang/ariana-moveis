@@ -62,7 +62,9 @@ export function deriveSellerBalance(entries = [], { now = new Date() } = {}) {
 
     const sign = entry.direction === 'debit' ? -1 : 1;
     const value = money(amount * sign);
-    const target = isFuture(entry.availableAt, now) ? 'pending' : 'available';
+    const releaseState = String(entry?.metadata?.releaseState || '').toLowerCase();
+    const blocked = releaseState === 'blocked';
+    const target = blocked || isFuture(entry.availableAt, now) ? 'pending' : 'available';
     balance[target] = money(balance[target] + value);
   }
 
