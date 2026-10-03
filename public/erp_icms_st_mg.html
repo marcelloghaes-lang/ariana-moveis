@@ -1,0 +1,68 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ICMS-ST MG | Ariana ERP</title>
+<style>
+:root{--b:#0047ab;--bd:#00377f;--bg:#f2f6fb;--line:#d9e3ef;--text:#172033;--muted:#69758a;--green:#087a52;--amber:#a86500;--red:#b93645}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font:14px Inter,Segoe UI,Arial,sans-serif;color:var(--text)}header{background:linear-gradient(90deg,var(--bd),var(--b));color:#fff;padding:15px 20px;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}header h1{margin:0;font-size:21px}header a{color:#fff;text-decoration:none;font-weight:900;margin-left:12px}.wrap{max-width:1300px;margin:auto;padding:18px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:15px;box-shadow:0 7px 20px rgba(0,49,118,.07)}h2{margin:0 0 9px;font-size:17px}.note,.warn,.good,.bad{padding:11px;border-radius:9px;line-height:1.5;margin:10px 0}.note{background:#eef5ff;border:1px solid #bfd4f2}.warn{background:#fff7e8;border:1px solid #ecd3a5;color:#79520a}.good{background:#eaf7f2;border:1px solid #b9dfcf;color:#075f41}.bad{background:#fdebed;border:1px solid #efc1c7;color:#9b2634}.field{margin-bottom:10px}.field label{display:block;font-size:11px;font-weight:900;text-transform:uppercase;color:var(--muted);margin-bottom:5px}.field input,.field select,.field textarea{width:100%;border:1px solid #cdd9e7;border-radius:8px;padding:10px;background:#fff}.field textarea{min-height:85px}.checks{display:grid;grid-template-columns:1fr 1fr;gap:8px}.check{border:1px solid var(--line);border-radius:8px;padding:9px}.btn{border:0;border-radius:7px;padding:10px 13px;background:var(--b);color:#fff;font-weight:900;cursor:pointer}.btn.alt{background:#fff;color:var(--b);border:1px solid #a9c1e1}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.stat{font-size:26px;font-weight:1000}.muted{color:var(--muted)}.sources a{display:block;margin:6px 0;color:var(--b);font-weight:800;text-decoration:none}.full{grid-column:1/-1}@media(max-width:850px){.grid,.checks{grid-template-columns:1fr}.full{grid-column:auto}}
+</style><link rel="stylesheet" href="erp-theme.css?v=20260924-1"></head><body>
+<header><div><h1>Controle ICMS-ST • Minas Gerais</h1><div style="opacity:.86;margin-top:3px">Restituição, complementação e preparação de Regime Especial de e-commerce</div></div><div><a href="erp_matriz_fiscal.html">Matriz Fiscal</a><a href="erp_configuracao_fiscal.html">Configuração Fiscal</a><a href="erp_ariana.html">← Central ERP</a></div></header>
+<main class="wrap">
+<div class="card note"><b>Trava de segurança:</b> o ERP não gera crédito, débito, NF-e de ajuste ou pedido ao SIARE automaticamente. Primeiro registramos a situação real da Ariana: se existe opção pela definitividade do art. 52 e se há Regime Especial concedido/provisório. Enquanto isso estiver desconhecido, a simulação fica bloqueada.</div>
+<div class="grid">
+<section class="card">
+<h2>1. Situação atual perante MG</h2>
+<div class="field"><label>Aspecto quantitativo do ICMS-ST</label><select id="mode"><option value="unknown">Ainda não confirmado no SIARE</option><option value="non_definitive">Não definitivo — aplica arts. 44 a 51</option><option value="definitive">Definitividade optada — art. 52</option></select></div>
+<div class="field"><label>Regime Especial de e-commerce / atribuição de responsabilidade</label><select id="reStatus"><option value="not_requested">Não solicitado</option><option value="preparing">Preparando pedido</option><option value="requested">Pedido protocolado</option><option value="provisional">Autorização provisória</option><option value="granted">Concedido</option><option value="denied">Indeferido</option><option value="expired">Expirado</option></select></div>
+<div class="field"><label>Nº PTA / e-PTA</label><input id="pta" placeholder="Ex.: 45.0000..."></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px"><div class="field"><label>Vigência inicial</label><input id="from" type="date"></div><div class="field"><label>Vigência final</label><input id="to" type="date"></div></div>
+<div class="field"><label>Método/condições do Regime Especial</label><textarea id="method" placeholder="Preencher somente conforme o PTA concedido. Não presumir condições."></textarea></div>
+<div class="field"><label>Observações</label><textarea id="notes"></textarea></div>
+<div class="actions"><button class="btn" id="save">Salvar controle</button><button class="btn alt" id="verify">Marcar conferido</button></div>
+<div id="state" class="warn">Carregando…</div>
+</section>
+<section class="card">
+<h2>2. Checklist para pedido de Regime Especial</h2>
+<p class="muted">Itens previstos no RPTA/SIARE que precisam ser confirmados antes do protocolo.</p>
+<div class="checks">
+<label class="check"><input type="checkbox" data-check="stateRegistrationActive"> Inscrição Estadual ativa</label>
+<label class="check"><input type="checkbox" data-check="efdUpToDate"> EFD em dia</label>
+<label class="check"><input type="checkbox" data-check="destdaOrDapiUpToDate"> DeSTDA/DAPI em dia, conforme regime</label>
+<label class="check"><input type="checkbox" data-check="stateDebtCertificateOk"> Certidão estadual regular</label>
+<label class="check"><input type="checkbox" data-check="cadinCafimpOk"> CADIN/CAFIMP regular</label>
+<label class="check"><input type="checkbox" data-check="criminalDeclarationsReady"> Declarações exigidas pelo RPTA prontas</label>
+</div>
+<div id="ready" class="warn" style="margin-top:12px">Aguardando conferência.</div>
+<div class="note"><b>O que o pedido busca:</b> para mercadorias dos capítulos permitidos, inclusive capítulo 21 (eletroeletrônicos/eletrodomésticos), a legislação de MG prevê que a ST na entrada pode ser inaplicável quando o destinatário possui Regime Especial que lhe atribui a responsabilidade como substituto tributário. A concessão depende da SEF/MG e das condições do PTA.</div>
+</section>
+<section class="card">
+<h2>3. Simulador — venda abaixo/acima da base presumida</h2>
+<div class="warn">Use somente valores da NF-e de entrada e da venda real. Se a Ariana tiver optado pela definitividade ou possuir regime especial com método próprio, o ERP não aplica automaticamente a fórmula comum.</div>
+<div class="field"><label>Base de cálculo presumida do ICMS-ST (NF-e entrada)</label><input id="base" type="number" min="0" step="0.01"></div>
+<div class="field"><label>Valor efetivo da mercadoria na venda ao consumidor</label><input id="sale" type="number" min="0" step="0.01"></div>
+<div class="field"><label>ICMS-ST da entrada</label><input id="paid" type="number" min="0" step="0.01"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px"><div class="field"><label>Alíquota interna (%)</label><input id="rate" type="number" min="0" step="0.01" value="18"></div><div class="field"><label>FEM (%) se aplicável</label><input id="fem" type="number" min="0" step="0.01" value="0"></div></div>
+<button class="btn" id="simulate">Simular</button>
+<div id="result" class="note">Informe os valores e clique em Simular.</div>
+</section>
+<section class="card sources">
+<h2>4. Referências oficiais usadas</h2>
+<p class="muted">A tela foi preparada com base na legislação oficial de Minas Gerais vigente na revisão de 02/10/2026.</p>
+<a href="https://www.fazenda.mg.gov.br/empresas/legislacao_tributaria/ricms_2023_seco/anexovii2023_2.html" target="_blank" rel="noopener">RICMS/MG • Anexo VII • ST</a>
+<a href="https://www.fazenda.mg.gov.br/empresas/restituicao/icms_st.html" target="_blank" rel="noopener">SEF/MG • Restituição ICMS-ST</a>
+<a href="https://www.fazenda.mg.gov.br/empresas/legislacao_tributaria/regime_especial/e_commerce_atribuicao_de_responsabilidade.html" target="_blank" rel="noopener">SEF/MG • E-commerce — atribuição de responsabilidade</a>
+<a href="https://www.fazenda.mg.gov.br/empresas/legislacao_tributaria/regime_especial/manual_regime_especial_contribuinte.pdf" target="_blank" rel="noopener">Manual SIARE • Regime Especial</a>
+<div class="good"><b>Achado relevante:</b> a lista pública de e-commerce da SEF/MG inclui empresas do varejo eletrônico, inclusive Magazine Luiza, com regimes especiais de atribuição de responsabilidade. Isso confirma que o mecanismo existe; não significa que a Ariana tenha direito automático à concessão.</div>
+</section>
+</div></main>
+<script>
+const API=location.hostname==='localhost'?'http://localhost:3000/api':'https://ariana-backend.onrender.com/api',$=id=>document.getElementById(id);let current=null;
+function token(){const t=localStorage.getItem('admin_token')||localStorage.getItem('auth_token')||localStorage.getItem('token')||'';if(t)return t;try{return JSON.parse(localStorage.getItem('banner_admin_session')||'null')?.token||''}catch{return''}}
+async function api(path,opt={}){const r=await fetch(API+path,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token(),...(opt.headers||{})},cache:'no-store'}),d=await r.json().catch(()=>({}));if(r.status===401){location.replace('erp_login.html?return='+encodeURIComponent(location.pathname));throw new Error('Sessão expirada.')}if(!r.ok)throw new Error(d.error||'Erro no Ariana ERP.');return d}
+function brl(v){return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+function dateInput(v){if(!v)return'';const d=new Date(v);return Number.isNaN(d.getTime())?'':d.toISOString().slice(0,10)}
+function fill(x){current=x;$('mode').value=x.quantitativeMode||'unknown';$('reStatus').value=x.specialRegimeStatus||'not_requested';$('pta').value=x.ptaNumber||'';$('from').value=dateInput(x.effectiveFrom);$('to').value=dateInput(x.effectiveTo);$('method').value=x.specialMethodNotes||'';$('notes').value=x.notes||'';for(const el of document.querySelectorAll('[data-check]'))el.checked=x.checklist?.[el.dataset.check]===true;renderState(x)}
+function renderState(x){const v=x.verifiedAt?' • conferido em '+new Date(x.verifiedAt).toLocaleString('pt-BR'):'';let msg='Situação de ST ainda não confirmada no SIARE.';let cls='warn';if(x.quantitativeMode==='non_definitive'){msg='Base não definitiva: o ERP pode simular restituição/complementação dos arts. 44 a 51, usando dados reais das NF-es.';cls='good'}if(x.quantitativeMode==='definitive'){msg='Definitividade optada: não há restituição nem complementação pelo aspecto quantitativo enquanto a opção produzir efeitos.';cls='note'}if(['granted','provisional'].includes(x.specialRegimeStatus)){msg+=' Há regime especial/provisório registrado; prevalecem as condições exatas do PTA.';cls='warn'}$('state').className=cls;$('state').textContent=msg+v;const r=x.readiness||{};$('ready').className=r.readyForDraft?'good':'warn';$('ready').textContent=r.readyForDraft?'Checklist documental completo para preparar o requerimento.':'Pendências: '+((r.missing||[]).join(' • ')||'revise o cadastro.')}
+function payload(markVerified=false){const checklist={};document.querySelectorAll('[data-check]').forEach(x=>checklist[x.dataset.check]=x.checked);return{quantitativeMode:$('mode').value,specialRegimeStatus:$('reStatus').value,ptaNumber:$('pta').value,effectiveFrom:$('from').value||null,effectiveTo:$('to').value||null,specialMethodNotes:$('method').value,notes:$('notes').value,checklist,markVerified}}
+async function save(markVerified=false){const d=await api('/erp/fiscal/st-mg/configuracao',{method:'PUT',body:JSON.stringify(payload(markVerified))});fill(d.settings);alert(markVerified?'Controle salvo e marcado como conferido.':'Controle ICMS-ST salvo.')}
+async function load(){const d=await api('/erp/fiscal/st-mg/configuracao');fill(d.settings)}
+async function simulate(){const d=await api('/erp/fiscal/st-mg/simular',{method:'POST',body:JSON.stringify({presumedBase:$('base').value,saleValue:$('sale').value,icmsStPaid:$('paid').value,internalRate:$('rate').value,femRate:$('fem').value})}),s=d.simulation||{};let text=s.reason||'';if(s.status==='potential_refund')text='Restituição potencial: '+brl(s.refund)+' • Diferença de base: '+brl(s.basisDifference)+(s.fem?' • FEM potencial: '+brl(s.fem):'')+'. Isso ainda precisa ser escriturado conforme arts. 48-51 e arquivos exigidos pela SEF/MG.';if(s.status==='potential_complement')text='Complementação potencial: '+brl(s.complement)+' • Diferença de base: '+brl(Math.abs(s.basisDifference))+(s.fem?' • FEM: '+brl(s.fem):'')+'.';if(s.status==='balanced')text='Venda igual à base presumida: sem diferença quantitativa.';$('result').className=s.status==='blocked'||s.status==='special_regime_review'?'warn':'note';$('result').textContent=text||'Simulação concluída.'}
+$('save').onclick=()=>save(false).catch(e=>alert(e.message));$('verify').onclick=()=>save(true).catch(e=>alert(e.message));$('simulate').onclick=()=>simulate().catch(e=>alert(e.message));if(!token())location.replace('erp_login.html?return='+encodeURIComponent(location.pathname));else load().catch(e=>alert(e.message));
+</script></body></html>
