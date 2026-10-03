@@ -674,3 +674,74 @@ test('fila de revisão mostra contestação e qualidade das evidências sem debi
   assert.equal(result.reviewCases[0].evidence.complete, true);
   assert.equal(result.reviewCases[0].action, 'revisao_manual_responsabilidade');
 });
+
+
+test('auditoria aponta divergência entre pedido e valor armazenado do provedor', async () => {
+  const Order = fakeOrderModel([
+    {
+      id: 'recon_1',
+      status: 'pago',
+      total: 1000,
+      paymentStatus: 'approved',
+      payment: {
+        provider: 'mercadopago',
+        paymentId: 'pay-recon-1',
+        status: 'approved',
+        raw: { transaction_amount: 999.50, currency_id: 'BRL' }
+      },
+      sellerIds: ['seller_a']
+    }
+  ]);
+
+  const service = createArianaPayShadowAuditService({
+    Order,
+    Seller: fakeSellerModel([
+      { sellerId: 'seller_a', status: 'approved', metadata: {} }
+    ]),
+    buildProductBasePriceMapForOrders: baseMapBuilder,
+    getSellerSettlementForOrder: settlement
+  });
+
+  const result = await service.audit({
+    now: new Date('2026-10-03T18:00:00-03:00')
+  });
+
+  assert.equal(result.paymentReconciliation.providerQueryPerformed, false);
+  assert.equal(result.paymentReconciliation.stats.divergent, 1);
+  assert.equal(result.paymentReconciliation.stats.matched, 0);
+  assert.equal(result.paymentReconciliation.issues.length, 1);
+  assert.equal(result.paymentReconciliation.issues[0].difference, -0.5);
+});
+
+test('auditoria não chama pagamento conciliado quando falta valor do provedor', async () => {
+  const Order = fakeOrderModel([
+    {
+      id: 'recon_2',
+      status: 'pago',
+      total: 500,
+      paymentStatus: 'approved',
+      payment: {
+        provider: 'mercadopago',
+        paymentId: 'pay-recon-2',
+        status: 'approved'
+      },
+      sellerIds: ['seller_a']
+    }
+  ]);
+
+  const service = createArianaPayShadowAuditService({
+    Order,
+    Seller: fakeSellerModel([
+      { sellerId: 'seller_a', status: 'approved', metadata: {} }
+    ]),
+    buildProductBasePriceMapForOrders: baseMapBuilder,
+    getSellerSettlementForOrder: settlement
+  });
+
+  const result = await service.audit({
+    now: new Date('2026-10-03T18:00:00-03:00')
+  });
+
+  assert.equal(result.paymentReconciliation.stats.insufficientEvidence, 1);
+  assert.equal(result.paymentReconciliation.issues[0].reason, 'missing_provider_amount');
+});
