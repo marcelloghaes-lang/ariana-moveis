@@ -222,3 +222,52 @@ test('reembolso depois de repasse mantém reconciliação comercial e expõe efe
   assert.equal(result.effectiveSummary.net, -880);
   assert.deepEqual(result.entries.slice(-2).map((entry) => entry.type), ['refund_debit','payout_debit']);
 });
+
+
+test('chargeback sem responsabilidade definida não vira débito do seller', () => {
+  const result = buildShadowLedgerEntries({
+    order: { id: 'order_cb_pending' },
+    sellerId: 'seller_cb',
+    settlement: { gross: 1000, commission: 120, net: 880 },
+    release: {
+      state: 'blocked',
+      reason: 'financial_risk_chargeback',
+      risk: {
+        active: true,
+        kind: 'chargeback',
+        terminal: true,
+        reversalType: 'chargeback_debit',
+        lossOwner: 'pending_review',
+        sellerReversalAllowed: false
+      }
+    }
+  });
+
+  assert.equal(result.entries.some((entry) => entry.type === 'chargeback_debit'), false);
+  assert.equal(result.effectiveSummary.net, 880);
+});
+
+test('chargeback com responsabilidade explícita do seller permite reversão', () => {
+  const result = buildShadowLedgerEntries({
+    order: { id: 'order_cb_seller' },
+    sellerId: 'seller_cb',
+    settlement: { gross: 1000, commission: 120, net: 880 },
+    release: {
+      state: 'blocked',
+      reason: 'financial_risk_chargeback',
+      risk: {
+        active: true,
+        kind: 'chargeback',
+        terminal: true,
+        reversalType: 'chargeback_debit',
+        lossOwner: 'seller',
+        responsibilitySource: 'explicit_order_or_provider',
+        sellerReversalAllowed: true
+      }
+    }
+  });
+
+  assert.equal(result.entries.at(-1).type, 'chargeback_debit');
+  assert.equal(result.entries.at(-1).amount, 880);
+  assert.equal(result.effectiveSummary.net, 0);
+});
