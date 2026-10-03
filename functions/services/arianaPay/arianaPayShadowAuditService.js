@@ -6,6 +6,7 @@ import { projectOrdersToShadowLedger } from './arianaPayShadowProjectorService.j
 import { deriveSellerBalance } from './arianaPayBalanceService.js';
 import { buildReleaseSchedule } from './arianaPayReleaseScheduleService.js';
 import { hadApprovedPayment, detectFinancialRisk, applyRiskToRelease } from './arianaPayRiskService.js';
+import { buildPayoutBatchPreview } from './arianaPayPayoutPlannerService.js';
 
 const APPROVED_STATUS_TOKENS = [
   'pago',
@@ -185,12 +186,35 @@ export function createArianaPayShadowAuditService({
       }
     }
 
+    const payoutPreview = buildPayoutBatchPreview({
+      sellers: Array.isArray(sellerDocs) ? sellerDocs : [],
+      balances: summary.sellers
+    });
+
+    const payoutPlanMap = new Map(
+      (payoutPreview.plans || []).map((plan) => [String(plan.sellerId || ''), plan])
+    );
+
+    const sellersWithPayout = summary.sellers.map((row) => ({
+      ...row,
+      payoutPreview: payoutPlanMap.get(String(row.sellerId || '')) || null
+    }));
+
     return {
       ...summary,
+      sellers: sellersWithPayout,
       orderCount: orders.length,
       detectedSellerIds,
       releaseStats,
       riskStats,
+      payoutPreview: {
+        mode: payoutPreview.mode,
+        payoutExecutionEnabled: false,
+        totalSellers: payoutPreview.totalSellers,
+        readySellers: payoutPreview.readySellers,
+        blockedSellers: payoutPreview.blockedSellers,
+        readyAmount: payoutPreview.readyAmount
+      },
       generatedAt: now.toISOString()
     };
   }
