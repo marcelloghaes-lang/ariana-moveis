@@ -287,3 +287,46 @@ test('devolução em análise mantém recebível a liberar sem zerar', async () 
   assert.equal(result.totals.pending, 880);
   assert.equal(result.totals.available, 0);
 });
+
+
+test('preview de payout só considera saldo disponível e seller apto', async () => {
+  const Order = fakeOrderModel([
+    {
+      id: 'payout_ready_1',
+      status: 'entregue',
+      paymentStatus: 'approved',
+      shipping: { deliveredAt: '2026-09-10T12:00:00Z' },
+      sellerIds: ['seller_a']
+    }
+  ]);
+
+  const service = createArianaPayShadowAuditService({
+    Order,
+    Seller: fakeSellerModel([
+      {
+        sellerId: 'seller_a',
+        status: 'approved',
+        metadata: {
+          bankAccount: {
+            pixKey: 'financeiro@fabricante.com.br',
+            holderName: 'Fabricante LTDA',
+            holderDocument: '12.345.678/0001-90'
+          }
+        }
+      }
+    ]),
+    buildProductBasePriceMapForOrders: baseMapBuilder,
+    getSellerSettlementForOrder: settlement
+  });
+
+  const result = await service.audit({
+    now: new Date('2026-10-03T18:00:00-03:00')
+  });
+
+  assert.equal(result.totals.available, 880);
+  assert.equal(result.payoutPreview.payoutExecutionEnabled, false);
+  assert.equal(result.payoutPreview.readySellers, 1);
+  assert.equal(result.payoutPreview.readyAmount, 880);
+  assert.equal(result.sellers[0].payoutPreview.ready, true);
+  assert.equal(result.sellers[0].payoutPreview.destination.method, 'pix');
+});
