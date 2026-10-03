@@ -8,6 +8,7 @@ import { buildReleaseSchedule } from './arianaPayReleaseScheduleService.js';
 import { hadApprovedPayment, detectFinancialRisk, applyRiskToRelease } from './arianaPayRiskService.js';
 import { buildPayoutBatchPreview } from './arianaPayPayoutPlannerService.js';
 import { assessCardSecurity, applyCardSecurityToRelease } from './arianaPayCardSecurityService.js';
+import { classifyDisputeResponsibility, attachDisputeResponsibilityToRisk } from './arianaPayDisputeResponsibilityService.js';
 
 const APPROVED_STATUS_TOKENS = [
   'pago',
@@ -138,16 +139,29 @@ export function createArianaPayShadowAuditService({
       productBaseMap,
       getSettlement: getSellerSettlementForOrder,
       availableAtForOrder,
-      releaseForSeller: (order, sid) => {
+      releaseForSeller: (order, sid, settlement) => {
         const baseRelease = buildReleaseSchedule({
           order,
           seller: sellerMap.get(String(sid || '').trim()) || {},
           sellerId: sid
         });
-        const risk = detectFinancialRisk(order);
-        const riskRelease = applyRiskToRelease(baseRelease, risk);
+
+        const baseRisk = detectFinancialRisk(order);
         const cardSecurity = assessCardSecurity(order);
-        return applyCardSecurityToRelease(riskRelease, cardSecurity);
+        const responsibility = classifyDisputeResponsibility({
+          order,
+          settlement,
+          risk: baseRisk,
+          cardSecurity
+        });
+        const risk = attachDisputeResponsibilityToRisk(baseRisk, responsibility);
+        const riskRelease = applyRiskToRelease(baseRelease, risk);
+        const securedRelease = applyCardSecurityToRelease(riskRelease, cardSecurity);
+
+        return {
+          ...securedRelease,
+          disputeResponsibility: responsibility
+        };
       }
     });
 
@@ -170,12 +184,25 @@ export function createArianaPayShadowAuditService({
       review: 0,
       low: 0
     };
+    const disputeResponsibilityStats = {
+      total: 0,
+      byOwner: {},
+      byReason: {}
+    };
 
     for (const projection of projectedBatch.projected || []) {
       for (const row of projection.sellers || []) {
         const release = row.release || {};
         const risk = release.risk || null;
         const cardSecurity = release.cardSecurity || null;
+        const responsibility = release.disputeResponsibility || null;
+        if (responsibility?.owner) {
+          disputeResponsibilityStats.total += 1;
+          const owner = String(responsibility.owner || 'unknown');
+          disputeResponsibilityStats.byOwner[owner] = Number(disputeResponsibilityStats.byOwner[owner] || 0) + 1;
+          const reason = String(responsibility.reason?.code || 'unknown');
+          disputeResponsibilityStats.byReason[reason] = Number(disputeResponsibilityStats.byReason[reason] || 0) + 1;
+        }
         if (cardSecurity?.applies) {
           cardSecurityStats.applicable += 1;
           if (cardSecurity.level === 'blocked') cardSecurityStats.blocked += 1;
@@ -227,6 +254,7 @@ export function createArianaPayShadowAuditService({
       releaseStats,
       riskStats,
       cardSecurityStats,
+      disputeResponsibilityStats,
       payoutPreview: {
         mode: payoutPreview.mode,
         payoutExecutionEnabled: false,
