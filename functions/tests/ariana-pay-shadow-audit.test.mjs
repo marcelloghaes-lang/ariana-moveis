@@ -200,7 +200,7 @@ test('entrega confirmada e prazo vencido libera saldo no shadow', async () => {
   assert.equal(result.releaseStats.availableNow, 1);
 });
 
-test('seller sem prazo configurado continua a liberar mesmo com entrega', async () => {
+test('seller sem prazo configurado usa prazo padrão de 15 dias', async () => {
   const Order = fakeOrderModel([
     {
       id: '1',
@@ -223,5 +223,7 @@ test('seller sem prazo configurado continua a liberar mesmo com entrega', async 
 
   assert.equal(result.totals.available, 0);
   assert.equal(result.totals.pending, 880);
-  assert.equal(result.releaseStats.blockedReasons.missing_transfer_deadline, 1);
+  assert.equal(result.releaseStats.blocked, 0);
+  assert.equal(result.releaseStats.scheduled, 1);
+  assert.equal(result.releaseStats.availableNow, 0);
 });
