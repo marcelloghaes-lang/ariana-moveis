@@ -57,6 +57,7 @@ export function createArianaPayModels(mongoose) {
     available: { type: Number, default: 0 },
     reserved: { type: Number, default: 0 },
     paid: { type: Number, default: 0 },
+    debt: { type: Number, default: 0 },
     totalEquity: { type: Number, default: 0 },
     lastLedgerCreatedAt: { type: Date, default: null },
     lastLedgerEntryId: { type: String, default: '' },
