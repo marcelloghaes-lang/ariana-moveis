@@ -54,6 +54,8 @@
     <div class="stat"><small>Pronto p/ repasse*</small><b id="payoutReady">—</b></div>
     <div class="stat red"><small>Dívida de seller</small><b id="sellerDebt">—</b></div>
     <div class="stat"><small>Contestação p/ revisão</small><b id="liabilityReview">—</b></div>
+    <div class="stat"><small>Pagamentos conciliados</small><b id="paymentMatched">—</b></div>
+    <div class="stat red"><small>Falhas conciliação</small><b id="paymentReconIssues">—</b></div>
     <div class="stat red"><small>Divergências</small><b id="divergences">—</b></div>
   </div>
 
@@ -75,6 +77,17 @@
       <table>
         <thead><tr><th>Pedido</th><th>Seller</th><th>Risco</th><th>Motivo</th><th>Responsabilidade</th><th class="right">Valor</th><th>Evidências</th><th>Ação</th></tr></thead>
         <tbody id="reviewRows"><tr><td colspan="8" class="empty">Nenhuma auditoria executada.</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Conciliação de pagamentos</h2>
+    <p>Compara o total do pedido com a evidência de pagamento já armazenada. Nesta fase não consulta o gateway ao vivo.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Pedido</th><th>Provider</th><th>Pagamento</th><th class="right">Pedido</th><th class="right">Provider</th><th class="right">Diferença</th><th>Motivo</th></tr></thead>
+        <tbody id="reconRows"><tr><td colspan="7" class="empty">Nenhuma auditoria executada.</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -131,6 +144,9 @@ async function runAudit(){
       (liability.ariana_or_provider_review||0)+
       (liability.commercial_reversal_review||0)
     );
+    const reconStats=data.paymentReconciliation?.stats||{};
+    $('paymentMatched').textContent=Number(reconStats.matched||0);
+    $('paymentReconIssues').textContent=Number((reconStats.divergent||0)+(reconStats.insufficientEvidence||0));
     $('divergences').textContent=Number(data.divergenceCount||0);
 
     const sellers=Array.isArray(data.sellers)?data.sellers:[];
@@ -165,6 +181,17 @@ async function runAudit(){
       </td>
       <td>${esc(row.action||'revisar')}</td>
     </tr>`).join(''):'<tr><td colspan="8" class="empty ok">Nenhum caso de segurança/contestação nesta amostra.</td></tr>';
+
+    const reconIssues=Array.isArray(data.paymentReconciliation?.issues)?data.paymentReconciliation.issues:[];
+    $('reconRows').innerHTML=reconIssues.length?reconIssues.map(row=>`<tr>
+      <td>${esc(row.orderId||'—')}</td>
+      <td>${esc(row.provider||'—')}</td>
+      <td>${esc(row.paymentId||'—')}</td>
+      <td class="right">${row.expectedAmount===null?'—':money(row.expectedAmount)}</td>
+      <td class="right">${row.providerAmount===null?'—':money(row.providerAmount)}</td>
+      <td class="right">${row.difference===null?'—':'<span class="bad">'+money(row.difference)+'</span>'}</td>
+      <td>${esc(row.reason||row.status||'—')}</td>
+    </tr>`).join(''):'<tr><td colspan="7" class="empty ok">Nenhuma falha de conciliação encontrada nos dados armazenados.</td></tr>';
 
     const diffs=Array.isArray(data.divergences)?data.divergences:[];
     $('diffRows').innerHTML=diffs.length?diffs.map(row=>`<tr>
