@@ -270,7 +270,12 @@ function managedCatalogPricing(item={}, options={}){
   const operationMode=normalizeCatalogMode(options.operationMode||'');
   const managed=MANAGED_CATALOG_MODES.has(operationMode);
   const supplierPrice=roundCatalogMoney(item.price||0);
-  const taxesIncluded=options.taxesIncluded===true || String(options.taxesIncluded).toLowerCase()==='true';
+  const legacyTaxesIncluded=options.taxesIncluded===true || String(options.taxesIncluded).toLowerCase()==='true';
+  const requestedTaxMode=String(options.taxMode||'').trim().toLowerCase();
+  const taxMode=['included_confirmed','possible_extra','extra_not_included'].includes(requestedTaxMode)
+    ? requestedTaxMode
+    : (legacyTaxesIncluded?'included_confirmed':'extra_not_included');
+  const taxesIncluded=taxMode!=='extra_not_included';
   const explicitStAmount=Math.max(0,roundCatalogMoney(item.stAmountInput||0));
   const explicitStPercent=Math.max(0,Number(item.stPercentInput||0)||0);
   let stAmount=0,stEffectivePercent=0,stStatus='not_applicable';
@@ -283,8 +288,10 @@ function managedCatalogPricing(item={}, options={}){
       stEffectivePercent=roundCatalogMoney(explicitStPercent);
       stAmount=roundCatalogMoney(supplierPrice*(stEffectivePercent/100));
       stStatus='supplier_percent';
-    }else if(taxesIncluded){
+    }else if(taxMode==='included_confirmed'){
       stStatus='included_in_supplier_price';
+    }else if(taxMode==='possible_extra'){
+      stStatus='possible_extra_st_review';
     }else{
       stStatus='review_required';
     }
@@ -295,12 +302,12 @@ function managedCatalogPricing(item={}, options={}){
   const grossMarginPercent=managed&&finalCashPrice>0?roundCatalogMoney((grossMarginValue/finalCashPrice)*100):0;
   const mvaRef=mgMvaReference(item.ncm,item.cest);
   return {
-    operationMode,managed,supplierPrice,taxesIncluded,stAmount,stEffectivePercent,stStatus,
+    operationMode,managed,supplierPrice,taxMode,taxesIncluded,stAmount,stEffectivePercent,stStatus,
     mvaReferencePercent:mvaRef?.mva??null,
     mvaCestCompatible:mvaRef?.cestCompatible??null,
     officialCests:mvaRef?.officialCests||[],
     priceFactor:CATALOG_PRICE_FACTOR,supplierPayable,finalCashPrice,grossMarginValue,grossMarginPercent,
-    pricingPendingTaxReview:managed&&stStatus==='review_required'
+    pricingPendingTaxReview:managed&&['review_required','possible_extra_st_review'].includes(stStatus)
   };
 }
 function normalizeCatalogRow(row={}, index=0, source='catalog'){
@@ -458,6 +465,7 @@ export default function createSellerProductRoutes(deps = {}) {
       if (!rows.length) return res.status(400).json({ ok:false, error:'Envie pelo menos uma linha do catálogo.' });
       const source=String(req.body?.source||'catalogo_fornecedor').trim().slice(0,80);
       const operationMode=normalizeCatalogMode(req.body?.operationMode||'dropshipping');
+      const taxMode=String(req.body?.taxMode||'').trim().toLowerCase();
       const taxesIncluded=req.body?.taxesIncluded===true||String(req.body?.taxesIncluded).toLowerCase()==='true';
       const normalized=rows.map((row,index)=>normalizeCatalogRow(row,index,source));
       const valid=normalized.filter(x=>!x.errors.length);
@@ -477,7 +485,7 @@ export default function createSellerProductRoutes(deps = {}) {
       });
       const items=normalized.map(item=>{
         const exists=(item.sku&&existingKeys.has('sku:'+item.sku))||(item.ean&&existingKeys.has('ean:'+item.ean))||(item.supplierProductId&&existingKeys.has('supplier:'+item.supplierProductId));
-        const pricing=managedCatalogPricing(item,{operationMode,taxesIncluded});
+        const pricing=managedCatalogPricing(item,{operationMode,taxMode,taxesIncluded});
         const errors=[...(item.errors||[])];
         if(pricing.managed&&pricing.pricingPendingTaxReview) errors.push('ST extra não confirmado: revisar antes de publicar.');
         return {...item,pricing,errors,action:item.errors.length?'invalid':(exists?'update':'create')};
@@ -488,7 +496,7 @@ export default function createSellerProductRoutes(deps = {}) {
         invalid:items.filter(x=>x.action==='invalid').length,
         create:items.filter(x=>x.action==='create').length,
         update:items.filter(x=>x.action==='update').length,
-        operationMode,taxesIncluded,priceFactor:CATALOG_PRICE_FACTOR,items
+        operationMode,taxMode,taxesIncluded,priceFactor:CATALOG_PRICE_FACTOR,items
       });
     } catch(error){
       return res.status(500).json({ok:false,error:error.message||'Erro ao pré-validar catálogo.'});
@@ -501,6 +509,7 @@ export default function createSellerProductRoutes(deps = {}) {
       if (!rows.length) return res.status(400).json({ok:false,error:'Envie pelo menos uma linha do catálogo.'});
       const source=String(req.body?.source||'catalogo_fornecedor').trim().slice(0,80);
       const operationMode=normalizeCatalogMode(req.body?.operationMode||'dropshipping');
+      const taxMode=String(req.body?.taxMode||'').trim().toLowerCase();
       const taxesIncluded=req.body?.taxesIncluded===true||String(req.body?.taxesIncluded).toLowerCase()==='true';
       const sellerId=String(req.sellerId||'').trim();
       const sellerName=String(req.seller?.storeName||req.seller?.displayName||req.user?.name||'').trim();
@@ -508,7 +517,7 @@ export default function createSellerProductRoutes(deps = {}) {
       const ops=[];
       const stamp=now();
       for(const item of normalized){
-        const pricing=managedCatalogPricing(item,{operationMode,taxesIncluded});
+        const pricing=managedCatalogPricing(item,{operationMode,taxMode,taxesIncluded});
         const filter=item.sku?{sellerId,sku:item.sku}:item.ean?{sellerId,'specs.ean':item.ean}:{sellerId,'dropshipping.supplierProductId':item.supplierProductId};
         const image=item.imageList[0]||'';
         const set={
@@ -522,6 +531,7 @@ export default function createSellerProductRoutes(deps = {}) {
           'dropshipping.pricing.finalCashPrice':pricing.finalCashPrice,
           'dropshipping.pricing.grossMarginValue':pricing.grossMarginValue,
           'dropshipping.pricing.grossMarginPercent':pricing.grossMarginPercent,
+          'dropshipping.pricing.taxMode':pricing.taxMode,
           'dropshipping.pricing.taxesIncluded':pricing.taxesIncluded,
           'dropshipping.pricing.stAmount':pricing.stAmount,
           'dropshipping.pricing.stEffectivePercent':pricing.stEffectivePercent,
