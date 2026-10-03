@@ -330,3 +330,102 @@ test('preview de payout só considera saldo disponível e seller apto', async ()
   assert.equal(result.sellers[0].payoutPreview.ready, true);
   assert.equal(result.sellers[0].payoutPreview.destination.method, 'pix');
 });
+
+
+test('repasse já pago aparece como pago no shadow sem saldo pendente residual', async () => {
+  const Order = fakeOrderModel([
+    {
+      id: 'paid_legacy_1',
+      status: 'entregue',
+      paymentStatus: 'approved',
+      shipping: { deliveredAt: '2026-09-01T12:00:00Z' },
+      sellerIds: ['seller_a'],
+      sellerSettlements: {
+        seller_a: {
+          status: 'paid',
+          amount: 880,
+          paidAt: '2026-09-20T12:00:00Z',
+          reference: 'PIX-001'
+        }
+      }
+    }
+  ]);
+
+  const service = createArianaPayShadowAuditService({
+    Order,
+    Seller: fakeSellerModel([
+      {
+        sellerId: 'seller_a',
+        status: 'approved',
+        metadata: {
+          bankAccount: {
+            pixKey: 'seller@pix.com',
+            holderName: 'Seller A',
+            holderDocument: '12345678901'
+          }
+        }
+      }
+    ]),
+    buildProductBasePriceMapForOrders: baseMapBuilder,
+    getSellerSettlementForOrder: settlement
+  });
+
+  const result = await service.audit({
+    now: new Date('2026-10-03T18:00:00-03:00')
+  });
+
+  assert.equal(result.totals.paid, 880);
+  assert.equal(result.totals.pending, 0);
+  assert.equal(result.totals.available, 0);
+  assert.equal(result.totals.debt, 0);
+  assert.equal(result.payoutPreview.readyAmount, 0);
+});
+
+test('reembolso após repasse já pago expõe dívida do seller e bloqueia novo payout', async () => {
+  const Order = fakeOrderModel([
+    {
+      id: 'paid_refund_1',
+      status: 'reembolsado',
+      paymentStatus: 'approved',
+      payment: { status: 'approved', statusDetail: 'refunded' },
+      sellerIds: ['seller_a'],
+      sellerSettlements: {
+        seller_a: {
+          status: 'paid',
+          amount: 880,
+          paidAt: '2026-09-20T12:00:00Z',
+          reference: 'PIX-002'
+        }
+      }
+    }
+  ]);
+
+  const service = createArianaPayShadowAuditService({
+    Order,
+    Seller: fakeSellerModel([
+      {
+        sellerId: 'seller_a',
+        status: 'approved',
+        metadata: {
+          bankAccount: {
+            pixKey: 'seller@pix.com',
+            holderName: 'Seller A',
+            holderDocument: '12345678901'
+          }
+        }
+      }
+    ]),
+    buildProductBasePriceMapForOrders: baseMapBuilder,
+    getSellerSettlementForOrder: settlement
+  });
+
+  const result = await service.audit({
+    now: new Date('2026-10-03T18:00:00-03:00')
+  });
+
+  assert.equal(result.totals.paid, 880);
+  assert.equal(result.totals.debt, 880);
+  assert.equal(result.totals.totalEquity, -880);
+  assert.equal(result.payoutPreview.readySellers, 0);
+  assert.equal(result.sellers[0].payoutPreview.blockers.includes('outstanding_seller_debt'), true);
+});
