@@ -78,20 +78,11 @@ export function findDeliveryConfirmation(order={}){
   return {confirmed:false,date:null,source:'not_delivered',confidence:'none'};
 }
 
-export function normalizeTransferDeadlineDays(seller={}){
-  const raw=
-    seller?.metadata?.transferDeadlineDays ??
-    seller?.transferDeadlineDays ??
-    seller?.metadata?.payoutDeadlineDays ??
-    null;
-
-  // Regra Ariana Pay: 15 dias após a entrega é o piso de segurança.
-  // Sem configuração específica, usa 15. Configurações maiores continuam válidas;
-  // configurações menores nunca reduzem o prazo abaixo de 15 dias.
-  if(raw===null||raw===undefined||String(raw).trim()==='') return ARIANA_PAY_MIN_RELEASE_DAYS;
-  const days=Number(String(raw).replace(',','.'));
-  if(!Number.isFinite(days)||days<0||days>90) return ARIANA_PAY_MIN_RELEASE_DAYS;
-  return Math.max(ARIANA_PAY_MIN_RELEASE_DAYS, days);
+export function normalizeTransferDeadlineDays(_seller={}){
+  // Política global Ariana Pay definida pela administração:
+  // o recebível é liberado exatamente 15 dias após a entrega confirmada.
+  // Configurações legadas do seller não encurtam nem alongam este prazo.
+  return ARIANA_PAY_MIN_RELEASE_DAYS;
 }
 
 export function buildReleaseSchedule({order={},seller={},sellerId=''}={}){
