@@ -228,6 +228,81 @@ function catalogImages(value){
   if(Array.isArray(value)) return value.map(v=>String(v?.url||v||'').trim()).filter(Boolean).slice(0,12);
   return String(value||'').split(/[|;\n]/).map(v=>v.trim()).filter(v=>/^https?:\/\//i.test(v)).slice(0,12);
 }
+
+const MANAGED_CATALOG_MODES=new Set(['sale_order','dropshipping','cross_docking']);
+const CATALOG_PRICE_FACTOR=0.70;
+
+// Referência conservadora para exibir a MVA do cadastro fiscal. MVA NÃO é a
+// alíquota efetiva de ST e, sozinha, não autoriza cálculo tributário.
+const MG_ST_MVA_REFERENCE=[
+  {match:['73211100','73218100','73219000'],cests:['2100100'],mva:50},
+  {match:['84181000'],cests:['2100200'],mva:40},
+  {match:['84182100'],cests:['2100300'],mva:40},
+  {match:['84182900'],cests:['2100400'],mva:40},
+  {match:['84183000'],cests:['2100500'],mva:40},
+  {match:['84184000'],cests:['2100600'],mva:45},
+  {prefix:['845020'],cests:['2102200'],mva:45},
+  {match:['84501100'],cests:['2101900'],mva:45},
+  {match:['84501200'],cests:['2102000'],mva:45},
+  {match:['84501900'],cests:['2102100'],mva:45},
+  {match:['85171300'],cests:['2105300','2105301'],mva:18.34},
+  {prefix:['8517143'],cests:['2105300','2105301'],mva:18.34}
+];
+function roundCatalogMoney(v=0){return Math.round((Number(v||0)+Number.EPSILON)*100)/100}
+function normalizeCatalogMode(value=''){
+  const raw=catalogKey(value);
+  if(['saleorder','vendaordem','vendaaordem'].includes(raw)) return 'sale_order';
+  if(['crossdocking','crossdock','cross'].includes(raw)) return 'cross_docking';
+  if(['dropshipping','drop'].includes(raw)) return 'dropshipping';
+  return 'marketplace_pure';
+}
+function mgMvaReference(ncm='',cest=''){
+  const code=String(ncm||'').replace(/\D/g,'').slice(0,8);
+  const c=String(cest||'').replace(/\D/g,'').slice(0,7);
+  for(const rule of MG_ST_MVA_REFERENCE){
+    const ok=(rule.match||[]).includes(code)||(rule.prefix||[]).some(p=>code.startsWith(p));
+    if(!ok) continue;
+    return {mva:rule.mva,cestCompatible:!c||(rule.cests||[]).includes(c),officialCests:rule.cests||[]};
+  }
+  return null;
+}
+function managedCatalogPricing(item={}, options={}){
+  const operationMode=normalizeCatalogMode(options.operationMode||'');
+  const managed=MANAGED_CATALOG_MODES.has(operationMode);
+  const supplierPrice=roundCatalogMoney(item.price||0);
+  const taxesIncluded=options.taxesIncluded===true || String(options.taxesIncluded).toLowerCase()==='true';
+  const explicitStAmount=Math.max(0,roundCatalogMoney(item.stAmountInput||0));
+  const explicitStPercent=Math.max(0,Number(item.stPercentInput||0)||0);
+  let stAmount=0,stEffectivePercent=0,stStatus='not_applicable';
+  if(managed){
+    if(explicitStAmount>0){
+      stAmount=explicitStAmount;
+      stEffectivePercent=supplierPrice>0?roundCatalogMoney((stAmount/supplierPrice)*100):0;
+      stStatus='supplier_amount';
+    }else if(explicitStPercent>0){
+      stEffectivePercent=roundCatalogMoney(explicitStPercent);
+      stAmount=roundCatalogMoney(supplierPrice*(stEffectivePercent/100));
+      stStatus='supplier_percent';
+    }else if(taxesIncluded){
+      stStatus='included_in_supplier_price';
+    }else{
+      stStatus='review_required';
+    }
+  }
+  const supplierPayable=roundCatalogMoney(supplierPrice+stAmount);
+  const finalCashPrice=managed ? roundCatalogMoney(supplierPayable/CATALOG_PRICE_FACTOR) : supplierPrice;
+  const grossMarginValue=managed?roundCatalogMoney(finalCashPrice-supplierPayable):0;
+  const grossMarginPercent=managed&&finalCashPrice>0?roundCatalogMoney((grossMarginValue/finalCashPrice)*100):0;
+  const mvaRef=mgMvaReference(item.ncm,item.cest);
+  return {
+    operationMode,managed,supplierPrice,taxesIncluded,stAmount,stEffectivePercent,stStatus,
+    mvaReferencePercent:mvaRef?.mva??null,
+    mvaCestCompatible:mvaRef?.cestCompatible??null,
+    officialCests:mvaRef?.officialCests||[],
+    priceFactor:CATALOG_PRICE_FACTOR,supplierPayable,finalCashPrice,grossMarginValue,grossMarginPercent,
+    pricingPendingTaxReview:managed&&stStatus==='review_required'
+  };
+}
 function normalizeCatalogRow(row={}, index=0, source='catalog'){
   const name=String(catalogValue(row,['name','nome','produto','titulo','title','descricao curta'])||'').trim();
   const sku=String(catalogValue(row,['sku','codigo','código','codigo produto','referencia','referência','ref'])||'').trim();
@@ -241,6 +316,8 @@ function normalizeCatalogRow(row={}, index=0, source='catalog'){
   const description=String(catalogValue(row,['description','descricao','descrição','descricao completa','descrição completa'])||name).trim();
   const ncm=String(catalogValue(row,['ncm'])||'').replace(/\D/g,'').trim();
   const cest=String(catalogValue(row,['cest'])||'').replace(/\D/g,'').trim();
+  const stAmountInput=catalogNumber(catalogValue(row,['icms st','icmsst','valor st','valor icms st','st amount','st valor']),0);
+  const stPercentInput=catalogNumber(catalogValue(row,['st percent','st percentual','percentual st','aliquota st','alíquota st','icms st percent']),0);
   const weight=Math.max(0,catalogNumber(catalogValue(row,['weight','peso','peso kg','pesokg']),0));
   const height=Math.max(0,catalogNumber(catalogValue(row,['height','altura','altura cm','alturacm']),0));
   const width=Math.max(0,catalogNumber(catalogValue(row,['width','largura','largura cm','larguracm']),0));
@@ -252,7 +329,7 @@ function normalizeCatalogRow(row={}, index=0, source='catalog'){
   if(!(price>0)) errors.push('Preço inválido');
   return {
     index,name,sku,ean,supplierProductId,stableKey,price,stock,category,brand,description,ncm,cest,
-    weight,height,width,length,imageList,source:String(source||'catalog').trim().slice(0,80),errors
+    stAmountInput,stPercentInput,weight,height,width,length,imageList,source:String(source||'catalog').trim().slice(0,80),errors
   };
 }
 
@@ -380,6 +457,8 @@ export default function createSellerProductRoutes(deps = {}) {
       const rows = Array.isArray(req.body?.rows) ? req.body.rows.slice(0, 1000) : [];
       if (!rows.length) return res.status(400).json({ ok:false, error:'Envie pelo menos uma linha do catálogo.' });
       const source=String(req.body?.source||'catalogo_fornecedor').trim().slice(0,80);
+      const operationMode=normalizeCatalogMode(req.body?.operationMode||'dropshipping');
+      const taxesIncluded=req.body?.taxesIncluded===true||String(req.body?.taxesIncluded).toLowerCase()==='true';
       const normalized=rows.map((row,index)=>normalizeCatalogRow(row,index,source));
       const valid=normalized.filter(x=>!x.errors.length);
       const skus=[...new Set(valid.map(x=>x.sku).filter(Boolean))];
@@ -398,7 +477,10 @@ export default function createSellerProductRoutes(deps = {}) {
       });
       const items=normalized.map(item=>{
         const exists=(item.sku&&existingKeys.has('sku:'+item.sku))||(item.ean&&existingKeys.has('ean:'+item.ean))||(item.supplierProductId&&existingKeys.has('supplier:'+item.supplierProductId));
-        return {...item,action:item.errors.length?'invalid':(exists?'update':'create')};
+        const pricing=managedCatalogPricing(item,{operationMode,taxesIncluded});
+        const errors=[...(item.errors||[])];
+        if(pricing.managed&&pricing.pricingPendingTaxReview) errors.push('ST extra não confirmado: revisar antes de publicar.');
+        return {...item,pricing,errors,action:item.errors.length?'invalid':(exists?'update':'create')};
       });
       return res.json({
         ok:true,total:items.length,
@@ -406,7 +488,7 @@ export default function createSellerProductRoutes(deps = {}) {
         invalid:items.filter(x=>x.action==='invalid').length,
         create:items.filter(x=>x.action==='create').length,
         update:items.filter(x=>x.action==='update').length,
-        items
+        operationMode,taxesIncluded,priceFactor:CATALOG_PRICE_FACTOR,items
       });
     } catch(error){
       return res.status(500).json({ok:false,error:error.message||'Erro ao pré-validar catálogo.'});
@@ -418,18 +500,34 @@ export default function createSellerProductRoutes(deps = {}) {
       const rows = Array.isArray(req.body?.rows) ? req.body.rows.slice(0, 1000) : [];
       if (!rows.length) return res.status(400).json({ok:false,error:'Envie pelo menos uma linha do catálogo.'});
       const source=String(req.body?.source||'catalogo_fornecedor').trim().slice(0,80);
+      const operationMode=normalizeCatalogMode(req.body?.operationMode||'dropshipping');
+      const taxesIncluded=req.body?.taxesIncluded===true||String(req.body?.taxesIncluded).toLowerCase()==='true';
       const sellerId=String(req.sellerId||'').trim();
       const sellerName=String(req.seller?.storeName||req.seller?.displayName||req.user?.name||'').trim();
       const normalized=rows.map((row,index)=>normalizeCatalogRow(row,index,source)).filter(x=>!x.errors.length);
       const ops=[];
       const stamp=now();
       for(const item of normalized){
+        const pricing=managedCatalogPricing(item,{operationMode,taxesIncluded});
         const filter=item.sku?{sellerId,sku:item.sku}:item.ean?{sellerId,'specs.ean':item.ean}:{sellerId,'dropshipping.supplierProductId':item.supplierProductId};
         const image=item.imageList[0]||'';
         const set={
           sellerId,sellerName,name:item.name,description:item.description,category:item.category,categoryName:item.category,
-          brand:item.brand,price:item.price,pixPrice:item.price,stock:item.stock,updatedAt:stamp,
-          'dropshipping.enabled':true,
+          brand:item.brand,price:pricing.finalCashPrice,pixPrice:pricing.finalCashPrice,stock:item.stock,updatedAt:stamp,
+          'dropshipping.enabled':pricing.managed,
+          'dropshipping.mode':pricing.operationMode,
+          'dropshipping.supplierPrice':pricing.supplierPrice,
+          'dropshipping.supplierPayableUnit':pricing.supplierPayable,
+          'dropshipping.pricing.priceFactor':pricing.priceFactor,
+          'dropshipping.pricing.finalCashPrice':pricing.finalCashPrice,
+          'dropshipping.pricing.grossMarginValue':pricing.grossMarginValue,
+          'dropshipping.pricing.grossMarginPercent':pricing.grossMarginPercent,
+          'dropshipping.pricing.taxesIncluded':pricing.taxesIncluded,
+          'dropshipping.pricing.stAmount':pricing.stAmount,
+          'dropshipping.pricing.stEffectivePercent':pricing.stEffectivePercent,
+          'dropshipping.pricing.stStatus':pricing.stStatus,
+          'dropshipping.pricing.mvaReferencePercent':pricing.mvaReferencePercent,
+          'dropshipping.pricing.pricingPendingTaxReview':pricing.pricingPendingTaxReview,
           'dropshipping.catalogSource':item.source,
           'dropshipping.supplierSku':item.sku,
           'dropshipping.supplierProductId':item.supplierProductId,
@@ -449,6 +547,11 @@ export default function createSellerProductRoutes(deps = {}) {
         if(image){
           set.image=image;set.imageUrl=image;set.imagem=image;set.mainImageUrl=image;
           set.imageUrls=item.imageList;set.images=item.imageList.map((url,i)=>({url,path:url,isMain:i===0,name:'catalogo_'+(i+1)}));
+        }
+        if(pricing.pricingPendingTaxReview){
+          set.active=false;
+          set.storefrontStatus='pending_tax_review';
+          set['specs.catalogImport.status']='pending_tax_review';
         }
         ops.push({updateOne:{filter,update:{
           $set:set,
