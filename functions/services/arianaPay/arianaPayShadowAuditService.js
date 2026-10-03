@@ -7,6 +7,7 @@ import { deriveSellerBalance } from './arianaPayBalanceService.js';
 import { buildReleaseSchedule } from './arianaPayReleaseScheduleService.js';
 import { hadApprovedPayment, detectFinancialRisk, applyRiskToRelease } from './arianaPayRiskService.js';
 import { buildPayoutBatchPreview } from './arianaPayPayoutPlannerService.js';
+import { assessCardSecurity, applyCardSecurityToRelease } from './arianaPayCardSecurityService.js';
 
 const APPROVED_STATUS_TOKENS = [
   'pago',
@@ -144,7 +145,9 @@ export function createArianaPayShadowAuditService({
           sellerId: sid
         });
         const risk = detectFinancialRisk(order);
-        return applyRiskToRelease(baseRelease, risk);
+        const riskRelease = applyRiskToRelease(baseRelease, risk);
+        const cardSecurity = assessCardSecurity(order);
+        return applyCardSecurityToRelease(riskRelease, cardSecurity);
       }
     });
 
@@ -160,11 +163,26 @@ export function createArianaPayShadowAuditService({
       terminal: 0,
       byKind: {}
     };
+    const cardSecurityStats = {
+      applicable: 0,
+      blocked: 0,
+      highReview: 0,
+      review: 0,
+      low: 0
+    };
 
     for (const projection of projectedBatch.projected || []) {
       for (const row of projection.sellers || []) {
         const release = row.release || {};
         const risk = release.risk || null;
+        const cardSecurity = release.cardSecurity || null;
+        if (cardSecurity?.applies) {
+          cardSecurityStats.applicable += 1;
+          if (cardSecurity.level === 'blocked') cardSecurityStats.blocked += 1;
+          else if (cardSecurity.level === 'high_review') cardSecurityStats.highReview += 1;
+          else if (cardSecurity.level === 'review') cardSecurityStats.review += 1;
+          else if (cardSecurity.level === 'low') cardSecurityStats.low += 1;
+        }
         if (risk?.active) {
           riskStats.active += 1;
           if (risk.terminal) riskStats.terminal += 1;
@@ -208,6 +226,7 @@ export function createArianaPayShadowAuditService({
       detectedSellerIds,
       releaseStats,
       riskStats,
+      cardSecurityStats,
       payoutPreview: {
         mode: payoutPreview.mode,
         payoutExecutionEnabled: false,
