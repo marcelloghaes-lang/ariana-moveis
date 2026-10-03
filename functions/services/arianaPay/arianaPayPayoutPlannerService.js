@@ -55,6 +55,7 @@ export function getSellerPayoutDestinationReadiness(seller={}){
 export function buildSellerPayoutPlan({seller={},balance={}}={}){
   const sellerId=clean(seller.sellerId||seller.id||seller._id);
   const available=money(balance.available||0);
+  const debt=money(balance.debt||0);
   const destination=getSellerPayoutDestinationReadiness(seller);
   const approved=sellerStatusApproved(seller);
   const blockers=[];
@@ -62,6 +63,7 @@ export function buildSellerPayoutPlan({seller={},balance={}}={}){
   if(!sellerId) blockers.push('missing_seller_id');
   if(!approved) blockers.push('seller_not_approved');
   if(available<=0) blockers.push('no_available_balance');
+  if(debt>0) blockers.push('outstanding_seller_debt');
   if(!destination.ready) blockers.push(...destination.missing);
 
   return {
@@ -69,6 +71,7 @@ export function buildSellerPayoutPlan({seller={},balance={}}={}){
     sellerId,
     ready:blockers.length===0,
     amount:available,
+    debt,
     currency:'BRL',
     provider:'unassigned',
     destination:{
