@@ -8,6 +8,7 @@ export default function registerArianaPayShadowRoutes(app, context = {}) {
   const {
     adminRequired,
     Order,
+    Seller,
     buildProductBasePriceMapForOrders,
     getSellerSettlementForOrder
   } = context;
@@ -17,6 +18,7 @@ export default function registerArianaPayShadowRoutes(app, context = {}) {
 
   const auditService = createArianaPayShadowAuditService({
     Order,
+    Seller,
     buildProductBasePriceMapForOrders,
     getSellerSettlementForOrder
   });
