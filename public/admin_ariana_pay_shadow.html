@@ -51,6 +51,7 @@
     <div class="stat"><small>Disponível*</small><b id="available">—</b></div>
     <div class="stat"><small>Liberação bloqueada</small><b id="blocked">—</b></div>
     <div class="stat red"><small>Riscos financeiros</small><b id="risks">—</b></div>
+    <div class="stat"><small>Pronto p/ repasse*</small><b id="payoutReady">—</b></div>
     <div class="stat red"><small>Divergências</small><b id="divergences">—</b></div>
   </div>
 
@@ -59,8 +60,8 @@
     <p>*Nesta fase, “disponível” serve apenas para comparação com o cálculo atual e ainda não significa saldo liberado para saque.</p>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Seller</th><th class="right">Lançamentos</th><th class="right">A liberar</th><th class="right">Disponível</th><th class="right">Reservado</th><th class="right">Pago</th><th class="right">Patrimônio projetado</th></tr></thead>
-        <tbody id="sellerRows"><tr><td colspan="7" class="empty">Execute a auditoria para carregar os dados.</td></tr></tbody>
+        <thead><tr><th>Seller</th><th class="right">Lançamentos</th><th class="right">A liberar</th><th class="right">Disponível</th><th class="right">Reservado</th><th class="right">Pago</th><th class="right">Patrimônio projetado</th><th>Repasse shadow</th></tr></thead>
+        <tbody id="sellerRows"><tr><td colspan="8" class="empty">Execute a auditoria para carregar os dados.</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -106,6 +107,7 @@ async function runAudit(){
     $('available').textContent=money(data.totals?.available);
     $('blocked').textContent=Number(data.releaseStats?.blocked||0);
     $('risks').textContent=Number(data.riskStats?.active||0);
+    $('payoutReady').textContent=money(data.payoutPreview?.readyAmount||0);
     $('divergences').textContent=Number(data.divergenceCount||0);
 
     const sellers=Array.isArray(data.sellers)?data.sellers:[];
@@ -117,7 +119,12 @@ async function runAudit(){
       <td class="right">${money(row.balance?.reserved)}</td>
       <td class="right">${money(row.balance?.paid)}</td>
       <td class="right"><b>${money(row.balance?.totalEquity)}</b></td>
-    </tr>`).join(''):'<tr><td colspan="7" class="empty">Nenhum seller elegível encontrado.</td></tr>';
+      <td>${row.payoutPreview?.ready
+        ? '<span class="ok">APTO (somente prévia)</span>'
+        : '<span class="bad">BLOQUEADO</span>'}
+        ${row.payoutPreview?.blockers?.length?'<div style="font-size:11px;color:#64748b;margin-top:3px">'+esc(row.payoutPreview.blockers.join(', '))+'</div>':''}
+      </td>
+    </tr>`).join(''):'<tr><td colspan="8" class="empty">Nenhum seller elegível encontrado.</td></tr>';
 
     const diffs=Array.isArray(data.divergences)?data.divergences:[];
     $('diffRows').innerHTML=diffs.length?diffs.map(row=>`<tr>
