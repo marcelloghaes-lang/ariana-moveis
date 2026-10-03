@@ -120,7 +120,10 @@ export function buildShadowLedgerEntries({
   const difference = money(summary.net - expectedNet);
 
   const risk = release?.risk || null;
-  if (risk?.terminal && risk?.reversalType && expectedNet > 0) {
+  const chargebackSellerReversalAllowed =
+    risk?.kind !== 'chargeback' ||
+    risk?.sellerReversalAllowed === true;
+  if (risk?.terminal && risk?.reversalType && chargebackSellerReversalAllowed && expectedNet > 0) {
     entries.push(makeEntry({
       orderId,
       sellerId: sid,
@@ -133,6 +136,9 @@ export function buildShadowLedgerEntries({
         releaseReason: String(release?.reason || `financial_risk_${risk.kind || 'unknown'}`),
         riskKind: String(risk.kind || ''),
         riskSeverity: String(risk.severity || ''),
+        lossOwner: String(risk.lossOwner || ''),
+        responsibilitySource: String(risk.responsibilitySource || ''),
+        sellerReversalAllowed: risk.sellerReversalAllowed === true,
         source: 'shadow_financial_risk'
       }
     }));
