@@ -69,6 +69,17 @@
   </div>
 
   <div class="panel">
+    <h2>Revisão de segurança e contestações</h2>
+    <p>Casos que exigem conferência antes de despacho ou repasse. A Ariana Pay não debita o seller automaticamente sem responsabilidade definida.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Pedido</th><th>Seller</th><th>Risco</th><th>Motivo</th><th>Responsabilidade</th><th class="right">Valor</th><th>Evidências</th><th>Ação</th></tr></thead>
+        <tbody id="reviewRows"><tr><td colspan="8" class="empty">Nenhuma auditoria executada.</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
     <h2>Divergências</h2>
     <p>Qualquer diferença entre o cálculo atual e o shadow ledger aparece aqui para revisão.</p>
     <div class="table-wrap">
@@ -138,6 +149,22 @@ async function runAudit(){
         ${row.payoutPreview?.blockers?.length?'<div style="font-size:11px;color:#64748b;margin-top:3px">'+esc(row.payoutPreview.blockers.join(', '))+'</div>':''}
       </td>
     </tr>`).join(''):'<tr><td colspan="9" class="empty">Nenhum seller elegível encontrado.</td></tr>';
+
+    const reviews=Array.isArray(data.reviewCases)?data.reviewCases:[];
+    $('reviewRows').innerHTML=reviews.length?reviews.map(row=>`<tr>
+      <td>${esc(row.orderId||'—')}</td>
+      <td>${esc(row.sellerId||'—')}</td>
+      <td>${esc(row.riskKind||row.cardSecurity?.level||'—')}</td>
+      <td>${esc(row.disputeReason?.label||row.releaseReason||'—')}</td>
+      <td>${esc(row.lossOwner||'pendente')}</td>
+      <td class="right">${money(row.expectedNet)}</td>
+      <td>${row.evidence?.complete
+        ? '<span class="ok">COMPLETAS</span>'
+        : '<span class="bad">FALTANDO</span>'}
+        <div style="font-size:11px;color:#64748b;margin-top:3px">score ${Number(row.evidence?.score||0)}${row.evidence?.missing?.length?' • '+esc(row.evidence.missing.join(', ')):''}</div>
+      </td>
+      <td>${esc(row.action||'revisar')}</td>
+    </tr>`).join(''):'<tr><td colspan="8" class="empty ok">Nenhum caso de segurança/contestação nesta amostra.</td></tr>';
 
     const diffs=Array.isArray(data.divergences)?data.divergences:[];
     $('diffRows').innerHTML=diffs.length?diffs.map(row=>`<tr>
