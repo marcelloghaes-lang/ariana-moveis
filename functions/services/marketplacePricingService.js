@@ -75,6 +75,21 @@ export default function createMarketplacePricingService(context = {}) {
     return 0;
   }
 
+  function getProductSettlementProfile(product = {}) {
+    const ds = product?.dropshipping && typeof product.dropshipping === 'object' ? product.dropshipping : {};
+    const mode = String(ds.mode || '').trim().toLowerCase();
+    const managed = ds.enabled === true && ['sale_order','dropshipping','cross_docking'].includes(mode);
+    const retailCashPrice = roundMoney(Number(product.pixPrice ?? product.price ?? product.preco ?? 0) || 0);
+    const supplierPayable = roundMoney(Number(ds.supplierPayableUnit ?? ds.supplierPrice ?? 0) || 0);
+    const marketplaceBase = getProductSellerBasePrice(product);
+    return {
+      managed,
+      operationMode: managed ? mode : 'marketplace_pure',
+      settlementBase: managed && supplierPayable > 0 ? supplierPayable : marketplaceBase,
+      retailCashPrice: retailCashPrice > 0 ? retailCashPrice : marketplaceBase
+    };
+  }
+
   async function buildProductBasePriceMapForOrders(orders = []) {
     const ids = Array.from(new Set(
       ensureArray(orders)
@@ -86,13 +101,20 @@ export default function createMarketplacePricingService(context = {}) {
     if (!ids.length) return new Map();
 
     const products = await Product.find({ _id: { $in: ids.map((id) => new mongoose.Types.ObjectId(id)) } })
-      .select('_id price preco pixPrice sellerBasePrice sellerBaseUnitPrice basePrice precoBaseSeller precoSeller sellerId')
+      .select('_id price preco pixPrice sellerBasePrice sellerBaseUnitPrice basePrice precoBaseSeller precoSeller sellerId dropshipping')
       .lean();
 
-    return new Map(products.map((product) => [String(product._id), {
-      price: getProductSellerBasePrice(product),
-      sellerId: String(product.sellerId || '').trim()
-    }]));
+    return new Map(products.map((product) => {
+      const profile = getProductSettlementProfile(product);
+      return [String(product._id), {
+        price: profile.settlementBase,
+        settlementBase: profile.settlementBase,
+        retailCashPrice: profile.retailCashPrice,
+        managed: profile.managed,
+        operationMode: profile.operationMode,
+        sellerId: String(product.sellerId || '').trim()
+      }];
+    }));
   }
 
   function getItemSellerBaseTotal(item = {}, order = {}, productBaseMap = new Map()) {
@@ -127,14 +149,53 @@ export default function createMarketplacePricingService(context = {}) {
     const order = toJSON(orderDoc) || orderDoc || {};
     const sid = String(sellerId || '').trim();
     const rows = ensureArray(order.items).filter((it) => !sid || String(it?.sellerId || it?.seller_id || '').trim() === sid);
-    const chargedGross = roundMoney(rows.reduce((sum, it) => sum + getChargedItemTotal(it), 0));
-    const gross = roundMoney(rows.reduce((sum, it) => sum + getItemSellerBaseTotal(it, order, productBaseMap), 0));
-    const cardFee = roundMoney(Math.max(0, chargedGross - gross));
-    const commission = roundMoney(gross * (MARKETPLACE_COMMISSION_PERCENT / 100));
+
+    let chargedGross = 0;
+    let gross = 0;
+    let retailCashGross = 0;
+    let marketplaceGross = 0;
+    let managedGross = 0;
+    let managedMargin = 0;
+
+    for (const it of rows) {
+      const qty = Math.max(1, Number(it.qty || it.quantity || 1) || 1);
+      const charged = getChargedItemTotal(it);
+      const productId = getItemProductId(it);
+      const profile = productBaseMap instanceof Map ? productBaseMap.get(productId) : null;
+      const settlementBaseTotal = getItemSellerBaseTotal(it, order, productBaseMap);
+      const retailUnit = Number(profile?.retailCashPrice || 0);
+      const retailCashTotal = retailUnit > 0
+        ? roundMoney(retailUnit * qty)
+        : (isCreditCardPayment(getOrderPaymentMethod(order)) ? marketplacePriceToSellerBase(charged) : charged);
+      const managed = profile?.managed === true;
+
+      chargedGross += charged;
+      gross += settlementBaseTotal;
+      retailCashGross += retailCashTotal;
+      if (managed) {
+        managedGross += settlementBaseTotal;
+        managedMargin += Math.max(0, retailCashTotal - settlementBaseTotal);
+      } else {
+        marketplaceGross += settlementBaseTotal;
+      }
+    }
+
+    chargedGross = roundMoney(chargedGross);
+    gross = roundMoney(gross);
+    retailCashGross = roundMoney(retailCashGross);
+    marketplaceGross = roundMoney(marketplaceGross);
+    managedGross = roundMoney(managedGross);
+    managedMargin = roundMoney(managedMargin);
+
+    // Comissão de marketplace existe apenas na intermediação pura.
+    // Venda à ordem, dropshipping e cross docking remuneram o fornecedor pelo
+    // custo/valor a pagar gravado no produto; a margem comercial fica na Ariana.
+    const commission = roundMoney(marketplaceGross * (MARKETPLACE_COMMISSION_PERCENT / 100));
+    const cardMarkup = roundMoney(Math.max(0, chargedGross - retailCashGross));
+    const cardFee = cardMarkup;
 
     // A etiqueta/frete da Ariana é informativa para conciliação, mas não reduz o
-    // líquido do seller. Operação atual: Ariana recebe Cielo/MP e repassa manualmente
-    // ao seller o preço-base menos a comissão do marketplace.
+    // líquido do seller/fornecedor automaticamente.
     const labels = ensureArray(order.logisticsLabels || order.labels || []);
     let labelFee = 0;
     for (const label of labels) {
@@ -147,17 +208,24 @@ export default function createMarketplacePricingService(context = {}) {
     labelFee = roundMoney(labelFee);
 
     const net = roundMoney(Math.max(0, gross - commission));
+    const onlyManaged = managedGross > 0 && marketplaceGross <= 0;
+    const mixed = managedGross > 0 && marketplaceGross > 0;
     return {
       chargedGross,
+      retailCashGross,
       gross,
+      marketplaceGross,
+      managedGross,
+      managedMargin,
+      cardMarkup,
       cardFee,
       commission,
       fee: commission,
       label: labelFee,
       labelDeductedFromSeller: false,
       net,
-      commissionPercent: MARKETPLACE_COMMISSION_PERCENT,
-      settlementMode: 'manual'
+      commissionPercent: marketplaceGross > 0 ? MARKETPLACE_COMMISSION_PERCENT : 0,
+      settlementMode: mixed ? 'manual_mixed' : (onlyManaged ? 'manual_supplier_payable' : 'manual_marketplace')
     };
   }
 
@@ -174,6 +242,7 @@ export default function createMarketplacePricingService(context = {}) {
     getChargedItemTotal,
     getItemProductId,
     getProductSellerBasePrice,
+    getProductSettlementProfile,
     buildProductBasePriceMapForOrders,
     getItemSellerBaseTotal,
     getSellerSettlementForOrder
