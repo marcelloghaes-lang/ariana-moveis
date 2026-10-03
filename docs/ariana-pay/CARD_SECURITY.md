@@ -98,3 +98,27 @@ Classificação inicial:
 - **Responsabilidade expressamente confirmada como seller:** somente então o shadow ledger pode criar `chargeback_debit` no saldo dele.
 
 A documentação atual do Mercado Pago informa que uma contestação normalmente pode retirar fundos do vendedor, mas no fluxo 3DS da API Orders com `liability_shift: required` a responsabilidade financeira da contestação é da bandeira do cartão. Por isso a classificação precisa olhar a causa e a proteção aplicada na transação.
+
+
+## Sandbox 3DS isolado
+
+Foi preparado um adapter separado para a API Orders do Mercado Pago:
+`functions/services/arianaPay/mercadoPagoOrders3dsSandboxService.js`
+
+Proteções:
+- não usa `MP_ACCESS_TOKEN` como fallback;
+- exige `MP_3DS_SANDBOX_ENABLED=true`;
+- exige `MP_3DS_SANDBOX_ACCESS_TOKEN` próprio;
+- usa `POST /v1/orders`;
+- força `validation: on_fraud_risk`;
+- força `liability_shift: required`;
+- token do cartão é removido do objeto de auditoria/log;
+- nenhuma rota de produção chama este adapter nesta fase.
+
+Variáveis previstas:
+- `MP_3DS_SANDBOX_ENABLED=false`
+- `MP_3DS_SANDBOX_ACCESS_TOKEN`
+- `MP_3DS_SANDBOX_BASE_URL=https://api.mercadopago.com`
+- `MP_3DS_SANDBOX_NOTIFICATION_URL`
+
+Não habilitar até existir credencial de teste separada e plano de teste com cartões de sandbox.
