@@ -187,8 +187,7 @@ Não avançar para movimentação real enquanto:
 
 ## Política de liberação definida
 
-- Prazo padrão de segurança: **15 dias após a entrega confirmada**.
+- Prazo de segurança: **15 dias após a entrega confirmada**.
 - O prazo só começa com evidência de entrega de alta confiança.
-- Configuração ausente ou inferior a 15 dias não reduz o piso de segurança.
-- Um seller pode ter prazo maior que 15 dias se configurado administrativamente.
+- A regra é global da Ariana Pay: configurações legadas de prazo do seller não encurtam nem alongam os 15 dias.
 - Sem entrega confirmada com data confiável, o recebível permanece em **A liberar**.
