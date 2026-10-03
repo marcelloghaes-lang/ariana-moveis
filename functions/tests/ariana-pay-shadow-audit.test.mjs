@@ -176,7 +176,7 @@ test('entrega confirmada e prazo vencido libera saldo no shadow', async () => {
     {
       id: '1',
       status: 'entregue',
-      shipping: { deliveredAt: '2026-09-20T12:00:00Z' },
+      shipping: { deliveredAt: '2026-09-15T12:00:00Z' },
       sellerIds: ['seller_a']
     }
   ]);
