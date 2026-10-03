@@ -34,5 +34,12 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Syntax checks for wired routes
+        run: |
+          node --check routes/paymentRoutes.js
+          node --check routes/arianaPayShadowRoutes.js
+          node --check routes/orderStatusRoutes.js
+          node --check routes/legacyRuntimeRoutes.js
+
       - name: Ariana Pay isolated tests
         run: node --test tests/ariana-pay-*.test.mjs
