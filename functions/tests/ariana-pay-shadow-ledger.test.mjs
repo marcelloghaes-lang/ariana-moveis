@@ -167,3 +167,58 @@ test('risco não terminal bloqueia liberação sem criar débito de reversão', 
   assert.equal(result.effectiveSummary.net, 880);
   assert.equal(result.entries.every((entry) => entry.metadata.releaseState === 'blocked'), true);
 });
+
+
+test('repasse manual existente entra como payout_debit no shadow ledger', () => {
+  const result = buildShadowLedgerEntries({
+    order: {
+      id: 'order_paid_1',
+      sellerSettlements: {
+        seller_1: {
+          status: 'paid',
+          amount: 880,
+          paidAt: '2026-09-25T12:00:00Z',
+          reference: 'PIX-LEGACY-1'
+        }
+      }
+    },
+    sellerId: 'seller_1',
+    settlement: { gross: 1000, commission: 120, net: 880 },
+    release: { state: 'blocked', reason: 'delivery_not_confirmed' }
+  });
+
+  assert.equal(result.reconciliation.ok, true);
+  assert.equal(result.entries.at(-1).type, 'payout_debit');
+  assert.equal(result.entries.at(-1).amount, 880);
+  assert.equal(result.existingSettlement.status, 'paid');
+  assert.equal(result.existingSettlement.reference, 'PIX-LEGACY-1');
+  assert.equal(result.effectiveSummary.net, 0);
+});
+
+test('reembolso depois de repasse mantém reconciliação comercial e expõe efeito negativo', () => {
+  const result = buildShadowLedgerEntries({
+    order: {
+      id: 'order_paid_refund',
+      sellerSettlements: {
+        seller_1: { status: 'paid', amount: 880 }
+      }
+    },
+    sellerId: 'seller_1',
+    settlement: { gross: 1000, commission: 120, net: 880 },
+    release: {
+      state: 'blocked',
+      reason: 'financial_risk_refund',
+      risk: {
+        active: true,
+        kind: 'refund',
+        terminal: true,
+        reversalType: 'refund_debit'
+      }
+    }
+  });
+
+  assert.equal(result.reconciliation.ok, true);
+  assert.equal(result.summary.net, 880);
+  assert.equal(result.effectiveSummary.net, -880);
+  assert.deepEqual(result.entries.slice(-2).map((entry) => entry.type), ['refund_debit','payout_debit']);
+});
