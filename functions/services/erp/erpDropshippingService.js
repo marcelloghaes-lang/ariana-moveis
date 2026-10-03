@@ -126,6 +126,73 @@ export function createErpDropshippingService(context = {}) {
     return supplier.toObject();
   }
 
+
+  async function setupDropDeCasa(actor = {}) {
+    let supplier = await Supplier.findOne({
+      $or: [
+        { website: /dropdecasa\.com\.br/i },
+        { name: /drop\s*de\s*casa/i },
+        { tradeName: /drop\s*de\s*casa/i },
+        { document: '52.528.438/0001-40' }
+      ]
+    });
+
+    const seed = {
+      name: 'Drop de Casa',
+      tradeName: 'Drop de Casa',
+      document: '52.528.438/0001-40',
+      email: 'comercial@dropdecasa.com.br',
+      phone: '17976026420',
+      contactName: 'Rafaela ou Matheus',
+      city: 'Mirassol',
+      uf: 'SP',
+      supplierType: 'dropshipping',
+      website: 'https://dropdecasa.com.br',
+      active: true,
+      dropshipping: {
+        enabled: true,
+        catalogMode: 'dslite',
+        integrationMode: 'dslite_api',
+        integrationStatus: 'awaiting_dslite_access',
+        neutralPackaging: null,
+        allowsOwnLabel: true,
+        shippingSlaDays: 1,
+        warrantyDays: 0,
+        invoiceModel: 'venda_a_ordem_dropshipping',
+        returnPolicyNotes: 'Após o despacho, devoluções e custos de retorno ficam sob responsabilidade da Ariana. O produto não retorna automaticamente à Drop de Casa.',
+        credentialEnvName: 'DSLITE_API_TOKEN',
+        hub: 'dslite',
+        dsliteSupplierId: '66',
+        originCep: '15135098',
+        orderPaymentMode: 'prepaid_pix',
+        supplierGeneratesShippingLabel: false,
+        retailerProvidesShippingLabel: true,
+        pricingRule: 'supplier_payable_div_0_70',
+        taxTreatment: 'catalog_price_plus_extra_st_if_applicable',
+        catalogUrl: 'https://dropdecasa.com.br/catalogo-dropshipping-nacional',
+        lastCatalogSyncAt: null
+      },
+      notes: 'Operação oficial recebida da Drop de Casa: pedido pré-pago via PIX; integração obrigatória via DSlite; Ariana emite NF-e ao cliente e envia XML/etiqueta; fornecedor despacha de Mirassol/SP, CEP 15135-098, com SLA padrão D+1; fornecedor emite remessa e posteriormente NF de venda para Ariana.',
+      updatedBy: actorName(actor)
+    };
+
+    if (supplier) {
+      Object.assign(supplier, {
+        ...seed,
+        dropshipping: { ...(supplier.dropshipping || {}), ...seed.dropshipping, enabled: true },
+        updatedBy: actorName(actor)
+      });
+      await supplier.save();
+      return supplier.toObject();
+    }
+
+    supplier = await Supplier.create({
+      ...seed,
+      createdBy: actorName(actor)
+    });
+    return supplier.toObject();
+  }
+
   async function listProducts(query = {}) {
     const filter = { 'dropshipping.enabled': true };
     if (query.supplierId) filter['dropshipping.supplierId'] = clean(query.supplierId, 80);
@@ -412,6 +479,7 @@ export function createErpDropshippingService(context = {}) {
   return {
     listSuppliers,
     setupAtacadum,
+    setupDropDeCasa,
     listProducts,
     createDraftProduct,
     updateProduct,
