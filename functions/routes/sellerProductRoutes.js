@@ -548,19 +548,22 @@ export default function createSellerProductRoutes(deps = {}) {
           set.image=image;set.imageUrl=image;set.imagem=image;set.mainImageUrl=image;
           set.imageUrls=item.imageList;set.images=item.imageList.map((url,i)=>({url,path:url,isMain:i===0,name:'catalogo_'+(i+1)}));
         }
+        const setOnInsert={
+          active:false,
+          storefrontStatus:'pending',
+          storefrontSource:'supplier_catalog_import',
+          storefrontSubmittedAt:stamp
+        };
         if(pricing.pricingPendingTaxReview){
           set.active=false;
           set.storefrontStatus='pending_tax_review';
           set['specs.catalogImport.status']='pending_tax_review';
+          delete setOnInsert.active;
+          delete setOnInsert.storefrontStatus;
         }
         ops.push({updateOne:{filter,update:{
           $set:set,
-          $setOnInsert:{
-            active:false,
-            storefrontStatus:'pending',
-            storefrontSource:'supplier_catalog_import',
-            storefrontSubmittedAt:stamp
-          }
+          $setOnInsert:setOnInsert
         },upsert:true}});
       }
       if(!ops.length) return res.status(400).json({ok:false,error:'Nenhuma linha válida para importar.'});
