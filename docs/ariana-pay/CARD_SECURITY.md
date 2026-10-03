@@ -83,3 +83,18 @@ Nesta fase isso **não altera o fluxo real de despacho**. Primeiro será auditad
 - trilha de auditoria;
 - procedimento operacional para suporte;
 - autorização explícita do Marcelo.
+
+
+## Responsabilidade financeira da contestação
+
+Ariana Pay não transforma toda contestação em dívida do seller.
+
+Classificação inicial:
+
+- **Compra não reconhecida / fraude + 3DS autenticado com liability shift:** responsabilidade classificada como `provider_network`; não debitar seller automaticamente.
+- **Chargeback sem motivo suficiente:** `pending_review`; bloquear novo payout, mas não criar dívida do seller.
+- **Produto não recebido / diferente / defeituoso:** revisar a operação e a responsabilidade de entrega antes de qualquer débito.
+- **Cobrança duplicada / erro de processamento:** revisão Ariana/provedor; nunca jogar automaticamente no seller.
+- **Responsabilidade expressamente confirmada como seller:** somente então o shadow ledger pode criar `chargeback_debit` no saldo dele.
+
+A documentação atual do Mercado Pago informa que uma contestação normalmente pode retirar fundos do vendedor, mas no fluxo 3DS da API Orders com `liability_shift: required` a responsabilidade financeira da contestação é da bandeira do cartão. Por isso a classificação precisa olhar a causa e a proteção aplicada na transação.
