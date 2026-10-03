@@ -227,3 +227,63 @@ test('seller sem prazo configurado usa prazo padrão de 15 dias', async () => {
   assert.equal(result.releaseStats.scheduled, 1);
   assert.equal(result.releaseStats.availableNow, 0);
 });
+
+
+test('pedido pago depois cancelado continua na auditoria e zera recebível', async () => {
+  const Order = fakeOrderModel([
+    {
+      id: 'cancel_1',
+      status: 'cancelado',
+      paymentStatus: 'approved',
+      payment: { status: 'approved' },
+      sellerIds: ['seller_a']
+    }
+  ]);
+
+  const service = createArianaPayShadowAuditService({
+    Order,
+    Seller: fakeSellerModel([{ sellerId: 'seller_a', metadata: {} }]),
+    buildProductBasePriceMapForOrders: baseMapBuilder,
+    getSellerSettlementForOrder: settlement
+  });
+
+  const result = await service.audit({
+    now: new Date('2026-10-03T18:00:00-03:00')
+  });
+
+  assert.equal(result.orderCount, 1);
+  assert.equal(result.riskStats.active, 1);
+  assert.equal(result.riskStats.terminal, 1);
+  assert.equal(result.riskStats.byKind.cancellation, 1);
+  assert.equal(result.totals.pending, 0);
+  assert.equal(result.totals.available, 0);
+});
+
+test('devolução em análise mantém recebível a liberar sem zerar', async () => {
+  const Order = fakeOrderModel([
+    {
+      id: 'return_1',
+      status: 'pago',
+      statusLabel: 'Devolução solicitada',
+      paymentStatus: 'approved',
+      sellerIds: ['seller_a']
+    }
+  ]);
+
+  const service = createArianaPayShadowAuditService({
+    Order,
+    Seller: fakeSellerModel([{ sellerId: 'seller_a', metadata: {} }]),
+    buildProductBasePriceMapForOrders: baseMapBuilder,
+    getSellerSettlementForOrder: settlement
+  });
+
+  const result = await service.audit({
+    now: new Date('2026-10-03T18:00:00-03:00')
+  });
+
+  assert.equal(result.riskStats.active, 1);
+  assert.equal(result.riskStats.terminal, 0);
+  assert.equal(result.riskStats.byKind.return_review, 1);
+  assert.equal(result.totals.pending, 880);
+  assert.equal(result.totals.available, 0);
+});
