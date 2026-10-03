@@ -70,12 +70,12 @@ test('lançamentos anulados não afetam saldo', () => {
 test('payout só pode ser agendado contra saldo disponível', () => {
   assert.deepEqual(
     canSchedulePayout({ available: 880 }, 900),
-    { ok: false, requested: 900, available: 880, shortfall: 20 }
+    { ok: false, requested: 900, available: 880, debt: 0, shortfall: 20 }
   );
 
   assert.deepEqual(
     canSchedulePayout({ available: 880 }, 800),
-    { ok: true, requested: 800, available: 880, shortfall: 0 }
+    { ok: true, requested: 800, available: 880, debt: 0, shortfall: 0 }
   );
 });
 
@@ -103,4 +103,47 @@ test('preview bloqueia saque acima do disponível', () => {
   assert.equal(preview.ok, false);
   assert.equal(preview.reason, 'insufficient_available_balance');
   assert.equal(preview.shortfall, 20);
+});
+
+
+test('payout histórico consome saldo pendente sem criar disponível negativo', () => {
+  const result = deriveSellerBalance([
+    { type: 'sale_credit', direction: 'credit', amount: 1000, status: 'shadow', metadata: { releaseState: 'blocked' } },
+    { type: 'commission_debit', direction: 'debit', amount: 120, status: 'shadow', metadata: { releaseState: 'blocked' } },
+    { type: 'payout_debit', direction: 'debit', amount: 880, status: 'shadow' }
+  ], { now: NOW });
+
+  assert.equal(result.pending, 0);
+  assert.equal(result.available, 0);
+  assert.equal(result.paid, 880);
+  assert.equal(result.debt, 0);
+  assert.equal(result.totalEquity, 0);
+});
+
+test('reembolso depois de payout gera dívida do seller em vez de saldo fantasma', () => {
+  const result = deriveSellerBalance([
+    { type: 'sale_credit', direction: 'credit', amount: 1000, status: 'shadow', metadata: { releaseState: 'blocked' } },
+    { type: 'commission_debit', direction: 'debit', amount: 120, status: 'shadow', metadata: { releaseState: 'blocked' } },
+    { type: 'refund_debit', direction: 'debit', amount: 880, status: 'shadow', metadata: { releaseState: 'blocked' } },
+    { type: 'payout_debit', direction: 'debit', amount: 880, status: 'shadow' }
+  ], { now: NOW });
+
+  assert.equal(result.pending, 0);
+  assert.equal(result.available, 0);
+  assert.equal(result.paid, 880);
+  assert.equal(result.debt, 880);
+  assert.equal(result.totalEquity, -880);
+});
+
+test('dívida em aberto impede novo payout', () => {
+  const check = canSchedulePayout({ available: 1000, debt: 200 }, 100);
+  assert.equal(check.ok, false);
+
+  const preview = buildPayoutPreview({
+    sellerId: 'seller_debt',
+    balance: { available: 1000, debt: 200 },
+    amount: 100
+  });
+  assert.equal(preview.ok, false);
+  assert.equal(preview.reason, 'outstanding_seller_debt');
 });
