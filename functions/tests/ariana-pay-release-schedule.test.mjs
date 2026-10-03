@@ -41,20 +41,21 @@ test('status entregue sem timestamp usa updatedAt apenas como fallback de baixa 
 });
 
 test('prazo de repasse vem da configuração administrativa do seller',()=>{
-  assert.equal(normalizeTransferDeadlineDays({metadata:{transferDeadlineDays:7}}),7);
+  assert.equal(normalizeTransferDeadlineDays({metadata:{transferDeadlineDays:7}}),15);
   assert.equal(normalizeTransferDeadlineDays({metadata:{transferDeadlineDays:'15'}}),15);
-  assert.equal(normalizeTransferDeadlineDays({metadata:{}}),null);
-  assert.equal(normalizeTransferDeadlineDays({metadata:{transferDeadlineDays:91}}),null);
+  assert.equal(normalizeTransferDeadlineDays({metadata:{transferDeadlineDays:30}}),30);
+  assert.equal(normalizeTransferDeadlineDays({metadata:{}}),15);
+  assert.equal(normalizeTransferDeadlineDays({metadata:{transferDeadlineDays:91}}),15);
 });
 
-test('sem prazo configurado mantém recebível bloqueado',()=>{
+test('sem prazo configurado aplica o padrão seguro de 15 dias',()=>{
   const schedule=buildReleaseSchedule({
-    order:{status:'entregue',updatedAt:'2026-10-01T10:00:00Z'},
+    order:{shipping:{deliveredAt:'2026-10-01T10:00:00Z'}},
     seller:{sellerId:'s1',metadata:{}}
   });
-  assert.equal(schedule.state,'blocked');
-  assert.equal(schedule.reason,'missing_transfer_deadline');
-  assert.equal(schedule.availableAt,null);
+  assert.equal(schedule.state,'scheduled');
+  assert.equal(schedule.transferDeadlineDays,15);
+  assert.equal(schedule.availableAt,'2026-10-16T10:00:00.000Z');
 });
 
 test('sem entrega confirmada mantém recebível bloqueado',()=>{
@@ -72,7 +73,8 @@ test('entrega mais prazo produz data prevista de liberação',()=>{
     seller:{sellerId:'s1',metadata:{transferDeadlineDays:7}}
   });
   assert.equal(schedule.state,'scheduled');
-  assert.equal(schedule.availableAt,'2026-10-08T12:00:00.000Z');
+  assert.equal(schedule.transferDeadlineDays,15);
+  assert.equal(schedule.availableAt,'2026-10-16T12:00:00.000Z');
 });
 
 
@@ -84,4 +86,15 @@ test('fallback de baixa confiança não libera recebível automaticamente',()=>{
   assert.equal(schedule.state,'blocked');
   assert.equal(schedule.reason,'delivery_timestamp_low_confidence');
   assert.equal(schedule.availableAt,null);
+});
+
+
+test('prazo maior que 15 dias é respeitado',()=>{
+  const schedule=buildReleaseSchedule({
+    order:{shipping:{deliveredAt:'2026-10-01T12:00:00Z'}},
+    seller:{sellerId:'s1',metadata:{transferDeadlineDays:30}}
+  });
+  assert.equal(schedule.state,'scheduled');
+  assert.equal(schedule.transferDeadlineDays,30);
+  assert.equal(schedule.availableAt,'2026-10-31T12:00:00.000Z');
 });
