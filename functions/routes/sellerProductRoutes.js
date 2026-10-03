@@ -230,7 +230,7 @@ function catalogImages(value){
 }
 
 const MANAGED_CATALOG_MODES=new Set(['sale_order','dropshipping','cross_docking']);
-const CATALOG_PRICE_FACTOR=0.70;
+const CATALOG_PRICE_MULTIPLIER=1.70;
 
 // Referência conservadora para exibir a MVA do cadastro fiscal. MVA NÃO é a
 // alíquota efetiva de ST e, sozinha, não autoriza cálculo tributário.
@@ -297,7 +297,7 @@ function managedCatalogPricing(item={}, options={}){
     }
   }
   const supplierPayable=roundCatalogMoney(supplierPrice+stAmount);
-  const finalCashPrice=managed ? roundCatalogMoney(supplierPayable/CATALOG_PRICE_FACTOR) : supplierPrice;
+  const finalCashPrice=managed ? roundCatalogMoney(supplierPayable*CATALOG_PRICE_MULTIPLIER) : supplierPrice;
   const grossMarginValue=managed?roundCatalogMoney(finalCashPrice-supplierPayable):0;
   const grossMarginPercent=managed&&finalCashPrice>0?roundCatalogMoney((grossMarginValue/finalCashPrice)*100):0;
   const mvaRef=mgMvaReference(item.ncm,item.cest);
@@ -306,10 +306,48 @@ function managedCatalogPricing(item={}, options={}){
     mvaReferencePercent:mvaRef?.mva??null,
     mvaCestCompatible:mvaRef?.cestCompatible??null,
     officialCests:mvaRef?.officialCests||[],
-    priceFactor:CATALOG_PRICE_FACTOR,supplierPayable,finalCashPrice,grossMarginValue,grossMarginPercent,
+    priceMultiplier:CATALOG_PRICE_MULTIPLIER,priceFactor:CATALOG_PRICE_MULTIPLIER,supplierPayable,finalCashPrice,grossMarginValue,grossMarginPercent,
     pricingPendingTaxReview:managed&&['review_required','possible_extra_st_review'].includes(stStatus)
   };
 }
+
+function prepareCatalogRows(rows=[],source='catalog'){
+  const isDropDeCasa=catalogKey(source).includes('dropdecasa');
+  if(!isDropDeCasa) return rows;
+  let base=null;
+  return rows.map((original)=>{
+    const row={...(original||{})};
+    const sku=String(catalogValue(row,['sku','codigo','código','referencia','referência'])||'').trim();
+    const name=String(catalogValue(row,['name','nome','produto','titulo','title'])||'').trim();
+    if(!sku&&!name) return row;
+
+    const price=catalogNumber(catalogValue(row,['price','preco','preço','valor']),0);
+    if(price>0){
+      base={...row};
+      return row;
+    }
+    if(!base) return row;
+
+    const inheritAliases=[
+      ['VALOR',['price','preco','preço','valor']],
+      ['FORNECEDOR',['supplier','fornecedor','seller','distribuidor']],
+      ['CATEGORIA',['category','categoria','departamento']],
+      ['MÉTODOS DE ENVIO',['metodos de envio','métodos de envio','formas de envio','shipping methods']],
+      ['DIMENSÃO EMBALAGEM)',['dimensao embalagem','dimensão embalagem','dimensao embalagem)','dimensão embalagem)','embalagem']],
+      ['PESO (kg)',['weight','peso','peso kg','pesokg']],
+      ['DESCRITIVO TÉCNICO',['description','descricao','descrição','descritivo tecnico','descritivo técnico']]
+    ];
+    for(const [target,aliases] of inheritAliases){
+      if(String(catalogValue(row,aliases)||'').trim()===''){
+        const v=catalogValue(base,aliases);
+        if(v!==undefined&&v!==null&&String(v).trim()!=='') row[target]=v;
+      }
+    }
+    row.__inheritedVariantFrom=String(catalogValue(base,['sku','codigo','código','referencia','referência'])||'').trim();
+    return row;
+  });
+}
+
 function normalizeCatalogRow(row={}, index=0, source='catalog'){
   const name=String(catalogValue(row,['name','nome','produto','titulo','title','descricao curta'])||'').trim();
   const sku=String(catalogValue(row,['sku','codigo','código','codigo produto','referencia','referência','ref'])||'').trim();
@@ -319,8 +357,11 @@ function normalizeCatalogRow(row={}, index=0, source='catalog'){
   const price=catalogNumber(catalogValue(row,['price','preco','preço','preco venda','preço venda','preco lojista','preço lojista','valor']),0);
   const stock=Math.max(0,Math.trunc(catalogNumber(catalogValue(row,['stock','estoque','saldo','quantidade','qty']),0)));
   const category=String(catalogValue(row,['category','categoria','departamento'])||'Outros').trim();
+  const supplierName=String(catalogValue(row,['supplier','fornecedor','seller','distribuidor'])||'').trim();
   const brand=String(catalogValue(row,['brand','marca','fabricante'])||'').trim();
-  const description=String(catalogValue(row,['description','descricao','descrição','descricao completa','descrição completa'])||name).trim();
+  const shippingMethods=String(catalogValue(row,['metodos de envio','métodos de envio','formas de envio','shipping methods'])||'').trim();
+  const packagingDimension=String(catalogValue(row,['dimensao embalagem','dimensão embalagem','dimensao embalagem)','dimensão embalagem)','embalagem'])||'').trim();
+  const description=String(catalogValue(row,['description','descricao','descrição','descricao completa','descrição completa','descritivo tecnico','descritivo técnico'])||name).trim();
   const ncm=String(catalogValue(row,['ncm'])||'').replace(/\D/g,'').trim();
   const cest=String(catalogValue(row,['cest'])||'').replace(/\D/g,'').trim();
   const stAmountInput=catalogNumber(catalogValue(row,['icms st','icmsst','valor st','valor icms st','st amount','st valor']),0);
@@ -334,8 +375,9 @@ function normalizeCatalogRow(row={}, index=0, source='catalog'){
   if(!name) errors.push('Nome ausente');
   if(!stableKey) errors.push('SKU/EAN/ID do fornecedor ausente');
   if(!(price>0)) errors.push('Preço inválido');
+  const inheritedVariantFrom=String(row.__inheritedVariantFrom||'').trim();
   return {
-    index,name,sku,ean,supplierProductId,stableKey,price,stock,category,brand,description,ncm,cest,
+    index,name,sku,ean,supplierProductId,stableKey,price,stock,category,supplierName,brand,shippingMethods,packagingDimension,description,ncm,cest,inheritedVariantFrom,
     stAmountInput,stPercentInput,weight,height,width,length,imageList,source:String(source||'catalog').trim().slice(0,80),errors
   };
 }
@@ -467,7 +509,8 @@ export default function createSellerProductRoutes(deps = {}) {
       const operationMode=normalizeCatalogMode(req.body?.operationMode||'dropshipping');
       const taxMode=String(req.body?.taxMode||'').trim().toLowerCase();
       const taxesIncluded=req.body?.taxesIncluded===true||String(req.body?.taxesIncluded).toLowerCase()==='true';
-      const normalized=rows.map((row,index)=>normalizeCatalogRow(row,index,source));
+      const preparedRows=prepareCatalogRows(rows,source);
+      const normalized=preparedRows.map((row,index)=>normalizeCatalogRow(row,index,source));
       const valid=normalized.filter(x=>!x.errors.length);
       const skus=[...new Set(valid.map(x=>x.sku).filter(Boolean))];
       const eans=[...new Set(valid.map(x=>x.ean).filter(Boolean))];
@@ -496,7 +539,7 @@ export default function createSellerProductRoutes(deps = {}) {
         invalid:items.filter(x=>x.action==='invalid').length,
         create:items.filter(x=>x.action==='create').length,
         update:items.filter(x=>x.action==='update').length,
-        operationMode,taxMode,taxesIncluded,priceFactor:CATALOG_PRICE_FACTOR,items
+        operationMode,taxMode,taxesIncluded,priceMultiplier:CATALOG_PRICE_MULTIPLIER,priceFactor:CATALOG_PRICE_MULTIPLIER,items
       });
     } catch(error){
       return res.status(500).json({ok:false,error:error.message||'Erro ao pré-validar catálogo.'});
@@ -513,7 +556,8 @@ export default function createSellerProductRoutes(deps = {}) {
       const taxesIncluded=req.body?.taxesIncluded===true||String(req.body?.taxesIncluded).toLowerCase()==='true';
       const sellerId=String(req.sellerId||'').trim();
       const sellerName=String(req.seller?.storeName||req.seller?.displayName||req.user?.name||'').trim();
-      const normalized=rows.map((row,index)=>normalizeCatalogRow(row,index,source)).filter(x=>!x.errors.length);
+      const preparedRows=prepareCatalogRows(rows,source);
+      const normalized=preparedRows.map((row,index)=>normalizeCatalogRow(row,index,source)).filter(x=>!x.errors.length);
       const ops=[];
       const stamp=now();
       for(const item of normalized){
@@ -527,6 +571,7 @@ export default function createSellerProductRoutes(deps = {}) {
           'dropshipping.mode':pricing.operationMode,
           'dropshipping.supplierPrice':pricing.supplierPrice,
           'dropshipping.supplierPayableUnit':pricing.supplierPayable,
+          'dropshipping.pricing.priceMultiplier':pricing.priceMultiplier,
           'dropshipping.pricing.priceFactor':pricing.priceFactor,
           'dropshipping.pricing.finalCashPrice':pricing.finalCashPrice,
           'dropshipping.pricing.grossMarginValue':pricing.grossMarginValue,
@@ -539,9 +584,13 @@ export default function createSellerProductRoutes(deps = {}) {
           'dropshipping.pricing.mvaReferencePercent':pricing.mvaReferencePercent,
           'dropshipping.pricing.pricingPendingTaxReview':pricing.pricingPendingTaxReview,
           'dropshipping.catalogSource':item.source,
+          'dropshipping.supplierName':item.supplierName,
           'dropshipping.supplierSku':item.sku,
           'dropshipping.supplierProductId':item.supplierProductId,
           'dropshipping.lastCatalogSyncAt':stamp,
+          'dropshipping.shippingMethodsRaw':item.shippingMethods,
+          'dropshipping.packagingDimensionRaw':item.packagingDimension,
+          'dropshipping.variantInheritedFromSku':item.inheritedVariantFrom,
           'specs.ean':item.ean,
           'specs.ncm':item.ncm,
           'specs.cest':item.cest,
@@ -586,7 +635,7 @@ export default function createSellerProductRoutes(deps = {}) {
         modified:Number(result.modifiedCount||0),
         skipped:rows.length-ops.length,
         staged:true,
-        message:'Catálogo importado em modo de revisão. Produtos novos não foram publicados automaticamente.'
+        message:'Catálogo importado em modo de revisão. Operações próprias usam custo/valor devido ao fornecedor + ST extra confirmado, com multiplicador 1,70. Produtos novos não foram publicados automaticamente.'
       });
     } catch(error){
       return res.status(500).json({ok:false,error:error.message||'Erro ao importar catálogo.'});
