@@ -5,6 +5,7 @@
 import { projectOrdersToShadowLedger } from './arianaPayShadowProjectorService.js';
 import { deriveSellerBalance } from './arianaPayBalanceService.js';
 import { buildReleaseSchedule } from './arianaPayReleaseScheduleService.js';
+import { hadApprovedPayment, detectFinancialRisk, applyRiskToRelease } from './arianaPayRiskService.js';
 
 const APPROVED_STATUS_TOKENS = [
   'pago',
@@ -25,7 +26,7 @@ function statusText(order = {}) {
 
 export function isFinanciallyEligibleOrder(order = {}) {
   const value = statusText(order);
-  return APPROVED_STATUS_TOKENS.some((token) => value.includes(token));
+  return APPROVED_STATUS_TOKENS.some((token) => value.includes(token)) || hadApprovedPayment(order);
 }
 
 function sellerIdsFromOrders(orders = []) {
@@ -134,11 +135,15 @@ export function createArianaPayShadowAuditService({
       productBaseMap,
       getSettlement: getSellerSettlementForOrder,
       availableAtForOrder,
-      releaseForSeller: (order, sid) => buildReleaseSchedule({
-        order,
-        seller: sellerMap.get(String(sid || '').trim()) || {},
-        sellerId: sid
-      })
+      releaseForSeller: (order, sid) => {
+        const baseRelease = buildReleaseSchedule({
+          order,
+          seller: sellerMap.get(String(sid || '').trim()) || {},
+          sellerId: sid
+        });
+        const risk = detectFinancialRisk(order);
+        return applyRiskToRelease(baseRelease, risk);
+      }
     });
 
     const summary = summarizeProjectedAudit(projectedBatch, { now });
@@ -148,10 +153,22 @@ export function createArianaPayShadowAuditService({
       availableNow: 0,
       blockedReasons: {}
     };
+    const riskStats = {
+      active: 0,
+      terminal: 0,
+      byKind: {}
+    };
 
     for (const projection of projectedBatch.projected || []) {
       for (const row of projection.sellers || []) {
         const release = row.release || {};
+        const risk = release.risk || null;
+        if (risk?.active) {
+          riskStats.active += 1;
+          if (risk.terminal) riskStats.terminal += 1;
+          const kind = String(risk.kind || 'unknown');
+          riskStats.byKind[kind] = Number(riskStats.byKind[kind] || 0) + 1;
+        }
         if (release.state === 'blocked') {
           releaseStats.blocked += 1;
           const reason = String(release.reason || 'unknown');
@@ -173,6 +190,7 @@ export function createArianaPayShadowAuditService({
       orderCount: orders.length,
       detectedSellerIds,
       releaseStats,
+      riskStats,
       generatedAt: now.toISOString()
     };
   }
