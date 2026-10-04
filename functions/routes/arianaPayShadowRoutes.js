@@ -1,10 +1,24 @@
 import createArianaPayShadowAuditService from '../services/arianaPay/arianaPayShadowAuditService.js';
 import { extractStoredProviderPayment, reconcileOrderPayment } from '../services/arianaPay/arianaPayReconciliationService.js';
 import { createMpReconciliationSandboxClient } from '../services/arianaPay/mercadoPagoReconciliationSandboxService.js';
+import { createMercadoPago3dsSandboxClient } from '../services/arianaPay/mercadoPagoOrders3dsSandboxService.js';
 import { buildArianaPayPhase1Readiness } from '../services/arianaPay/arianaPayPhase1ReadinessService.js';
 
 function enabled() {
   return String(process.env.ARIANA_PAY_SHADOW_ENABLED || 'false').trim().toLowerCase() === 'true';
+}
+
+function shadowDisabled(res) {
+  return res.status(404).json({
+    ok: false,
+    code: 'ARIANA_PAY_SHADOW_DISABLED',
+    error: 'Ariana Pay shadow não está habilitado neste ambiente.'
+  });
+}
+
+function safeStatus(error = {}) {
+  const status = Number(error?.statusCode || 500);
+  return status >= 400 && status < 600 ? status : 500;
 }
 
 export default function registerArianaPayShadowRoutes(app, context = {}) {
@@ -17,7 +31,7 @@ export default function registerArianaPayShadowRoutes(app, context = {}) {
     getSellerSettlementForOrder
   } = context;
 
-  if (!app?.get) throw new TypeError('Express app é obrigatório.');
+  if (!app?.get || !app?.post) throw new TypeError('Express app com GET/POST é obrigatório.');
   if (typeof adminRequired !== 'function') throw new TypeError('adminRequired é obrigatório.');
 
   const auditService = createArianaPayShadowAuditService({
@@ -53,14 +67,91 @@ export default function registerArianaPayShadowRoutes(app, context = {}) {
     }
   });
 
-  app.get('/api/admin/ariana-pay/reconcile-sandbox/:orderId', adminRequired, async (req, res) => {
-    if (!enabled()) {
-      return res.status(404).json({
+  app.post('/api/admin/ariana-pay/3ds-sandbox/orders', adminRequired, async (req, res) => {
+    if (!enabled()) return shadowDisabled(res);
+
+    try {
+      const body = req.body || {};
+      const client = createMercadoPago3dsSandboxClient({ axios });
+      const created = await client.createOrder({
+        orderId: String(body.orderId || body.reference || '').trim(),
+        amount: Number(body.amount || 0),
+        email: String(body.email || '').trim(),
+        paymentMethodId: String(body.paymentMethodId || body.payment_method_id || '').trim(),
+        cardToken: String(body.cardToken || body.token || '').trim(),
+        installmentCount: Number(body.installmentCount || body.installments || 1),
+        idempotencyKey: String(body.idempotencyKey || '').trim()
+      });
+
+      if (!created.ok) {
+        const providerStatus = Number(created.statusCode || 502);
+        return res.status(providerStatus >= 400 && providerStatus < 600 ? providerStatus : 502).json({
+          ok: false,
+          feature: 'ariana_pay',
+          mode: 'sandbox_3ds',
+          code: 'MP_3DS_SANDBOX_CREATE_FAILED',
+          providerStatus: created.statusCode || null,
+          writesEnabled: false,
+          checkoutChanged: false,
+          payoutsEnabled: false,
+          request: created.request,
+          result: created.result
+        });
+      }
+
+      return res.status(created.statusCode || 201).json({
+        ok: true,
+        feature: 'ariana_pay',
+        mode: 'sandbox_3ds',
+        providerStatus: created.statusCode,
+        idempotencyKey: created.idempotencyKey,
+        writesEnabled: false,
+        checkoutChanged: false,
+        payoutsEnabled: false,
+        request: created.request,
+        result: created.result
+      });
+    } catch (error) {
+      return res.status(safeStatus(error)).json({
         ok: false,
-        code: 'ARIANA_PAY_SHADOW_DISABLED',
-        error: 'Ariana Pay shadow não está habilitado neste ambiente.'
+        feature: 'ariana_pay',
+        mode: 'sandbox_3ds',
+        code: error?.code || 'MP_3DS_SANDBOX_CREATE_ERROR',
+        error: error?.message || 'Falha ao criar order 3DS sandbox.'
       });
     }
+  });
+
+  app.get('/api/admin/ariana-pay/3ds-sandbox/orders/:providerOrderId', adminRequired, async (req, res) => {
+    if (!enabled()) return shadowDisabled(res);
+
+    try {
+      const client = createMercadoPago3dsSandboxClient({ axios });
+      const lookup = await client.getOrder(String(req.params?.providerOrderId || '').trim());
+
+      return res.json({
+        ok: true,
+        feature: 'ariana_pay',
+        mode: 'sandbox_3ds_read_only',
+        providerStatus: lookup.statusCode,
+        writesEnabled: false,
+        checkoutChanged: false,
+        payoutsEnabled: false,
+        result: lookup.result
+      });
+    } catch (error) {
+      return res.status(safeStatus(error)).json({
+        ok: false,
+        feature: 'ariana_pay',
+        mode: 'sandbox_3ds_read_only',
+        code: error?.code || 'MP_3DS_SANDBOX_LOOKUP_ERROR',
+        error: error?.message || 'Falha ao consultar order 3DS sandbox.'
+      });
+    }
+  });
+
+  app.get('/api/admin/ariana-pay/reconcile-sandbox/:orderId', adminRequired, async (req, res) => {
+    if (!enabled()) return shadowDisabled(res);
 
     try {
       const orderId = String(req.params?.orderId || '').trim();
@@ -102,8 +193,7 @@ export default function registerArianaPayShadowRoutes(app, context = {}) {
         reconciliation
       });
     } catch (error) {
-      const status = Number(error?.statusCode || 500);
-      return res.status(status >= 400 && status < 600 ? status : 500).json({
+      return res.status(safeStatus(error)).json({
         ok: false,
         code: error?.code || 'ARIANA_PAY_RECON_SANDBOX_ERROR',
         error: error?.message || 'Falha na conciliação sandbox.'
@@ -112,13 +202,7 @@ export default function registerArianaPayShadowRoutes(app, context = {}) {
   });
 
   app.get('/api/admin/ariana-pay/shadow-audit', adminRequired, async (req, res) => {
-    if (!enabled()) {
-      return res.status(404).json({
-        ok: false,
-        code: 'ARIANA_PAY_SHADOW_DISABLED',
-        error: 'Ariana Pay shadow não está habilitado neste ambiente.'
-      });
-    }
+    if (!enabled()) return shadowDisabled(res);
 
     try {
       const limit = Math.max(1, Math.min(Number(req.query?.limit || 500), 2000));
