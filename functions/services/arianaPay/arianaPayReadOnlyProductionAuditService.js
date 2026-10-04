@@ -1,13 +1,23 @@
 // Ariana Pay — auditoria de amostra real com credencial Mongo dedicada e SOMENTE LEITURA.
 // A conexão é separada do backend de produção e falha fechada se detectar privilégio de escrita.
 // Nenhuma informação pessoal do cliente sai do banco: a consulta projeta apenas sinais financeiros/operacionais.
+// IMPORTANTE: valores históricos de seller são reconstruídos somente com snapshot gravado no pedido.
+// O preço ATUAL do produto nunca é usado como base monetária nesta auditoria.
 
 import createMarketplacePricingService from '../marketplacePricingService.js';
-import { hadApprovedPayment, detectFinancialRisk, applyRiskToRelease } from './arianaPayRiskService.js';
+import { detectFinancialRisk, applyRiskToRelease } from './arianaPayRiskService.js';
 import { assessCardSecurity, applyCardSecurityToRelease } from './arianaPayCardSecurityService.js';
 import { classifyDisputeResponsibility } from './arianaPayDisputeResponsibilityService.js';
 import { reconcileOrderPayment } from './arianaPayReconciliationService.js';
 import { buildReleaseSchedule } from './arianaPayReleaseScheduleService.js';
+import {
+  collectSellerIds,
+  assessArianaPayOrderEligibility,
+  buildHistoricalSnapshotProductMap,
+  assessSellerSettlementIntegrity,
+  applyArianaPayProductionSafetyGate,
+  isPlatformSellerId
+} from './arianaPayProductionEligibilityService.js';
 
 function clean(value=''){
   return String(value||'').trim();
@@ -134,20 +144,6 @@ async function assertMongoCredentialIsReadOnly(db){
   return inspection;
 }
 
-function sellerIdsFromOrder(order={}){
-  const ids=new Set();
-  for(const value of Array.isArray(order.sellerIds)?order.sellerIds:[]){
-    const id=clean(value);
-    if(id) ids.add(id);
-  }
-  for(const item of Array.isArray(order.items)?order.items:[]){
-    const id=clean(item?.sellerId||item?.seller_id);
-    if(id) ids.add(id);
-  }
-  if(order.manufacturer) ids.add(clean(order.manufacturer));
-  return [...ids].filter(Boolean);
-}
-
 function safeOrderForSecurity(order={}){
   const presence=order.contactPresence||{};
   return {
@@ -166,7 +162,6 @@ function orderProjectionStage(){
     $project:{
       _id:1,
       sellerIds:1,
-      manufacturer:1,
       status:1,
       statusLabel:1,
       paymentStatus:1,
@@ -195,6 +190,7 @@ function orderProjectionStage(){
             totalPrice:'$$it.totalPrice',
             sellerBaseUnitPrice:'$$it.sellerBaseUnitPrice',
             sellerBaseTotal:'$$it.sellerBaseTotal',
+            cardMarkupUnit:'$$it.cardMarkupUnit',
             cardMarkupTotal:'$$it.cardMarkupTotal'
           }
         }
@@ -214,6 +210,8 @@ function orderProjectionStage(){
         currency:'$payment.currency',
         paymentId:'$payment.paymentId',
         id:'$payment.id',
+        externalId:'$payment.externalId',
+        externalReference:'$payment.externalReference',
         transactionSecurity:'$payment.transactionSecurity',
         transaction_security:'$payment.transaction_security',
         raw:{
@@ -225,6 +223,10 @@ function orderProjectionStage(){
           total_amount:'$payment.raw.total_amount',
           amount_received:'$payment.raw.amount_received',
           currency_id:'$payment.raw.currency_id',
+          external_reference:'$payment.raw.external_reference',
+          transaction_details:{
+            net_received_amount:'$payment.raw.transaction_details.net_received_amount'
+          },
           transaction_security:'$payment.raw.transaction_security',
           payment_method:{
             transaction_security:'$payment.raw.payment_method.transaction_security'
@@ -265,6 +267,9 @@ function orderProjectionStage(){
           in:{
             status:'$$ev.status',
             statusLabel:'$$ev.statusLabel',
+            description:'$$ev.description',
+            message:'$$ev.message',
+            title:'$$ev.title',
             occurredAt:'$$ev.occurredAt',
             eventAt:'$$ev.eventAt',
             dateTime:'$$ev.dateTime',
@@ -290,36 +295,6 @@ function orderProjectionStage(){
       }
     }
   };
-}
-
-async function loadProductBaseMap(db,orders=[],pricing,mongoose){
-  const rawIds=[...new Set(
-    orders.flatMap(order=>(Array.isArray(order.items)?order.items:[]))
-      .map(item=>clean(item?.productId))
-      .filter(id=>mongoose.Types.ObjectId.isValid(id))
-  )];
-
-  if(!rawIds.length) return new Map();
-
-  const docs=await db.collection('products').find(
-    {_id:{$in:rawIds.map(id=>new mongoose.Types.ObjectId(id))}},
-    {projection:{
-      _id:1,price:1,preco:1,pixPrice:1,sellerBasePrice:1,sellerBaseUnitPrice:1,
-      basePrice:1,precoBaseSeller:1,precoSeller:1,sellerId:1,dropshipping:1
-    }}
-  ).toArray();
-
-  return new Map(docs.map(product=>{
-    const profile=pricing.getProductSettlementProfile(product);
-    return [String(product._id),{
-      price:profile.settlementBase,
-      settlementBase:profile.settlementBase,
-      retailCashPrice:profile.retailCashPrice,
-      managed:profile.managed,
-      operationMode:profile.operationMode,
-      sellerId:clean(product.sellerId)
-    }];
-  }));
 }
 
 export async function auditRealProductionSample({
@@ -357,14 +332,22 @@ export async function auditRealProductionSample({
       ensureArray:value=>Array.isArray(value)?value:[],
       toJSON:value=>value
     });
-    const productBaseMap=await loadProductBaseMap(db,orders,pricing,mongoose);
 
     const rows=[];
     const summary={
       sampledOrders:orders.length,
+      marketplaceCandidates:0,
       financiallyEligible:0,
+      externalSellerOrders:0,
+      internalOnlyOrders:0,
+      excludedInternalCreditOrders:0,
       ordersWithSeller:0,
       sellerProjections:0,
+      externalSellerProjections:0,
+      internalSellerProjections:0,
+      trustedSnapshotProjections:0,
+      missingSnapshotProjections:0,
+      settlementIntegrityBlocked:0,
       releaseScheduled:0,
       releaseBlocked:0,
       activeFinancialRisk:0,
@@ -380,8 +363,12 @@ export async function auditRealProductionSample({
 
     for(const rawOrder of orders){
       const order={...rawOrder,_id:String(rawOrder._id||'')};
-      const eligible=hadApprovedPayment(order);
-      if(eligible) summary.financiallyEligible+=1;
+      const eligibility=assessArianaPayOrderEligibility(order);
+      if(eligibility.marketplaceCandidate) summary.marketplaceCandidates+=1;
+      if(eligibility.financiallyEligible) summary.financiallyEligible+=1;
+      if(eligibility.externalSellerIds.length) summary.externalSellerOrders+=1;
+      if(eligibility.internalSellerIds.length&&!eligibility.externalSellerIds.length) summary.internalOnlyOrders+=1;
+      if(eligibility.reasons.includes('internal_credit_method')) summary.excludedInternalCreditOrders+=1;
 
       const risk=detectFinancialRisk(order);
       if(risk.active) summary.activeFinancialRisk+=1;
@@ -397,15 +384,26 @@ export async function auditRealProductionSample({
       else if(reconciliation.status==='divergent') summary.paymentDivergent+=1;
       else summary.paymentInsufficientEvidence+=1;
 
-      const sellerIds=sellerIdsFromOrder(order);
+      const sellerIds=collectSellerIds(order);
       if(sellerIds.length) summary.ordersWithSeller+=1;
+
+      // Mapa deliberadamente construído SEM consultar a coleção products.
+      // Somente snapshots salvos no próprio pedido podem definir a base histórica.
+      const historicalProductMap=buildHistoricalSnapshotProductMap(order,new Map());
 
       const sellers=[];
       for(const sellerId of sellerIds){
-        const settlement=pricing.getSellerSettlementForOrder(order,sellerId,productBaseMap);
+        const settlement=pricing.getSellerSettlementForOrder(order,sellerId,historicalProductMap);
+        const integrity=assessSellerSettlementIntegrity({order,sellerId,settlement});
         const baseRelease=buildReleaseSchedule({order,seller:{},sellerId});
         const riskRelease=applyRiskToRelease(baseRelease,risk);
-        const release=applyCardSecurityToRelease(riskRelease,cardSecurity);
+        const cardRelease=applyCardSecurityToRelease(riskRelease,cardSecurity);
+        const release=applyArianaPayProductionSafetyGate({
+          release:cardRelease,
+          eligibility,
+          integrity,
+          reconciliation
+        });
         const responsibility=classifyDisputeResponsibility({
           order,
           settlement,
@@ -413,16 +411,27 @@ export async function auditRealProductionSample({
           cardSecurity
         });
 
+        const externalSeller=!isPlatformSellerId(sellerId);
         summary.sellerProjections+=1;
+        if(externalSeller) summary.externalSellerProjections+=1;
+        else summary.internalSellerProjections+=1;
+        if(integrity.snapshotItems===integrity.itemCount&&integrity.itemCount>0) summary.trustedSnapshotProjections+=1;
+        if(integrity.missingSnapshotItems>0) summary.missingSnapshotProjections+=1;
+        if(integrity.blocked) summary.settlementIntegrityBlocked+=1;
         if(release.state==='scheduled') summary.releaseScheduled+=1;
         else summary.releaseBlocked+=1;
         if(responsibility.requiresManualReview) summary.responsibilityReview+=1;
-        summary.projectedSellerGross+=Number(settlement.gross||0);
-        summary.projectedSellerCommission+=Number(settlement.commission||0);
-        summary.projectedSellerNet+=Number(settlement.net||0);
+
+        // Totais projetados de payout consideram apenas seller externo.
+        if(externalSeller){
+          summary.projectedSellerGross+=Number(settlement.gross||0);
+          summary.projectedSellerCommission+=Number(settlement.commission||0);
+          summary.projectedSellerNet+=Number(settlement.net||0);
+        }
 
         sellers.push({
           sellerId,
+          externalSeller,
           settlement:{
             chargedGross:settlement.chargedGross,
             gross:settlement.gross,
@@ -434,6 +443,7 @@ export async function auditRealProductionSample({
             label:settlement.label,
             labelDeductedFromSeller:settlement.labelDeductedFromSeller
           },
+          integrity,
           release:{
             state:release.state,
             reason:release.reason,
@@ -453,16 +463,21 @@ export async function auditRealProductionSample({
       rows.push({
         orderId:String(order._id||''),
         createdAt:order.createdAt||null,
+        origin:clean(order.origin),
+        salesChannel:clean(order.salesChannel),
         status:clean(order.status),
         statusLabel:clean(order.statusLabel),
         total:money(order.total),
         currency:clean(order.currency||'BRL'),
-        financiallyEligible:eligible,
+        eligibility,
         sellerCount:sellerIds.length,
         payment:{
           provider:clean(order.payment?.provider),
           status:clean(order.payment?.status||order.paymentStatus),
-          method:clean(order.payment?.method||order.payment?.type)
+          method:clean(order.payment?.method||order.payment?.type),
+          hasProviderReference:Boolean(
+            clean(order.payment?.paymentId||order.payment?.id||order.payment?.externalId||order.payment?.raw?.id)
+          )
         },
         reconciliation,
         risk,
@@ -487,6 +502,8 @@ export async function auditRealProductionSample({
       ok:true,
       mode:'production_sample_shadow_read_only',
       source:'dedicated_readonly_mongodb',
+      historicalSettlementSource:'order_snapshot_only',
+      currentProductPriceUsedForSettlement:false,
       writesEnabled:false,
       payoutsEnabled:false,
       checkoutChanged:false,
