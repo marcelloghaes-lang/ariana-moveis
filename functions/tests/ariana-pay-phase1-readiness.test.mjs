@@ -10,10 +10,10 @@ const SAFE_ENV={
   MP_WEBHOOK_SECRET:'secret',
   MP_WEBHOOK_SIGNATURE_ENFORCE:'true',
   MP_3DS_SANDBOX_ENABLED:'true',
-  MP_3DS_SANDBOX_ACCESS_TOKEN:'TEST-3DS',
+  MP_3DS_SANDBOX_ACCESS_TOKEN:'DEDICATED-3DS-DUMMY',
   MP_3DS_SANDBOX_NOTIFICATION_URL:'https://sandbox.example.com/webhook',
   ARIANA_PAY_RECON_SANDBOX_ENABLED:'true',
-  MP_RECON_SANDBOX_ACCESS_TOKEN:'TEST-RECON'
+  MP_RECON_SANDBOX_ACCESS_TOKEN:'DEDICATED-RECON-DUMMY'
 };
 
 test('readiness nunca considera Fase 1 pronta para dinheiro real',()=>{
@@ -32,7 +32,8 @@ test('readiness nunca considera Fase 1 pronta para dinheiro real',()=>{
   assert.deepEqual(result.dataPending,[]);
   assert.equal(result.nextStage,'controlled_homologation_review');
   assert.equal(JSON.stringify(result).includes('secret'),false);
-  assert.equal(JSON.stringify(result).includes('TEST-3DS'),false);
+  assert.equal(JSON.stringify(result).includes('DEDICATED-3DS-DUMMY'),false);
+  assert.equal(JSON.stringify(result).includes('DEDICATED-RECON-DUMMY'),false);
 });
 
 test('readiness aponta exatamente dependências externas ausentes',()=>{
@@ -43,12 +44,13 @@ test('readiness aponta exatamente dependências externas ausentes',()=>{
   assert.equal(result.gates.mp3dsSandboxConfigured,false);
 });
 
-test('readiness rejeita token de produção disfarçado como configuração sandbox',()=>{
+test('readiness rejeita reutilização do token padrão do checkout nos adapters sandbox',()=>{
   const result=buildArianaPayPhase1Readiness({
     env:{
       ...SAFE_ENV,
-      MP_3DS_SANDBOX_ACCESS_TOKEN:'APP_USR-PROD',
-      MP_RECON_SANDBOX_ACCESS_TOKEN:'APP_USR-PROD'
+      MP_ACCESS_TOKEN:'SAME-TOKEN',
+      MP_3DS_SANDBOX_ACCESS_TOKEN:'SAME-TOKEN',
+      MP_RECON_SANDBOX_ACCESS_TOKEN:'SAME-TOKEN'
     }
   });
 
@@ -56,6 +58,24 @@ test('readiness rejeita token de produção disfarçado como configuração sand
   assert.equal(result.gates.mpReconciliationSandboxConfigured,false);
   assert.equal(result.externalPending.includes('mercado_pago_3ds_sandbox_credentials_or_callback'),true);
   assert.equal(result.externalPending.includes('mercado_pago_reconciliation_sandbox_credentials'),true);
+});
+
+test('readiness rejeita callback inseguro ou endpoint sandbox adulterado',()=>{
+  const insecureCallback=buildArianaPayPhase1Readiness({
+    env:{
+      ...SAFE_ENV,
+      MP_3DS_SANDBOX_NOTIFICATION_URL:'http://localhost/webhook'
+    }
+  });
+  assert.equal(insecureCallback.gates.mp3dsSandboxConfigured,false);
+
+  const wrongBase=buildArianaPayPhase1Readiness({
+    env:{
+      ...SAFE_ENV,
+      MP_RECON_SANDBOX_BASE_URL:'https://example.invalid'
+    }
+  });
+  assert.equal(wrongBase.gates.mpReconciliationSandboxConfigured,false);
 });
 
 test('qualquer tentativa de ativação real derruba codeReady e vira violação de segurança',()=>{
