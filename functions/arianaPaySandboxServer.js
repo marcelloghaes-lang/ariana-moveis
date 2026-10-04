@@ -373,7 +373,9 @@ form.addEventListener('submit',async event=>{
         token:token.id,
         paymentMethodId:'master',
         installments:1,
-        email
+        email,
+        tokenizedCardholderName:tokenizedName||cardholderName,
+        tokenLiveMode:token?.live_mode===true
       })
     });
     const j=await r.json();
@@ -412,7 +414,19 @@ app.post('/api/sandbox/3ds-test',requireShadow,async(req,res)=>{
     if(!result.ok){
       console.log('[ariana-pay-sandbox][3ds-test] provider_rejected',JSON.stringify({status:result.statusCode,providerError:result.providerError}));
     }
-    return res.status(result.statusCode||201).json({ok:result.ok,mode:'sandbox_3ds_ui',writesEnabled:false,payoutsEnabled:false,providerStatus:result.statusCode,providerError:result.ok?undefined:result.providerError,result:result.result});
+    return res.status(result.statusCode||201).json({
+      ok:result.ok,
+      mode:'sandbox_3ds_ui',
+      writesEnabled:false,
+      payoutsEnabled:false,
+      providerStatus:result.statusCode,
+      providerError:result.ok?undefined:result.providerError,
+      tokenDiagnostics:{
+        cardholderName:clean(body.tokenizedCardholderName),
+        liveMode:body.tokenLiveMode===true
+      },
+      result:result.result
+    });
   }catch(error){
     return res.status(safeStatus(error)).json({ok:false,code:error?.code||'ARIANA_PAY_3DS_TEST_ERROR',error:error?.message||'Falha no teste 3DS.'});
   }
