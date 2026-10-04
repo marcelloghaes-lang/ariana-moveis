@@ -64,8 +64,73 @@ export function normalizeMpPaymentForReconciliation(data={}){
   };
 }
 
+export function normalizeMpOrderForReconciliation(data={}){
+  const payment=Array.isArray(data?.transactions?.payments)
+    ? data.transactions.payments[0]||{}
+    : {};
+  return {
+    provider:'mercadopago',
+    orderId:clean(data.id),
+    paymentId:clean(payment.id),
+    providerAmount:money(
+      payment.paid_amount ??
+      payment.amount ??
+      data.total_paid_amount ??
+      data.total_amount ??
+      null
+    ),
+    orderStatus:clean(data.status).toLowerCase(),
+    paymentStatus:clean(payment.status).toLowerCase(),
+    statusDetail:clean(payment.status_detail||data.status_detail).toLowerCase(),
+    currency:clean(data.currency_id||data.currency||'BRL').toUpperCase(),
+    externalReference:clean(data.external_reference),
+    liveMode:data.live_mode===true,
+    dateApproved:payment.date_approved||data.date_approved||null,
+    dateCreated:data.date_created||data.created_date||null
+  };
+}
+
 export function createMpReconciliationSandboxClient({axios,env=process.env}={}){
   if(!axios?.get) throw new TypeError('Cliente HTTP é obrigatório.');
+
+  async function fetchOrder(orderId){
+    const id=clean(orderId);
+    if(!id) throw new Error('orderId é obrigatório.');
+    const config=assertMpReconciliationSandboxReady(getMpReconciliationSandboxConfig(env));
+
+    const response=await axios.get(
+      `${config.baseUrl}/v1/orders/${encodeURIComponent(id)}`,
+      {
+        headers:{
+          Authorization:`Bearer ${config.accessToken}`,
+          'Content-Type':'application/json'
+        },
+        timeout:30000,
+        validateStatus:()=>true
+      }
+    );
+
+    const statusCode=Number(response?.status||0);
+    if(statusCode<200||statusCode>=300){
+      const error=new Error(response?.data?.message||`Mercado Pago retornou HTTP ${statusCode}.`);
+      error.statusCode=statusCode||502;
+      error.code='MP_RECON_SANDBOX_ORDER_LOOKUP_FAILED';
+      throw error;
+    }
+
+    const providerRecord=normalizeMpOrderForReconciliation(response?.data||{});
+    if(providerRecord.liveMode){
+      const error=new Error('A conciliação sandbox recusou uma order live_mode=true.');
+      error.statusCode=409;
+      error.code='MP_RECON_LIVE_MODE_REJECTED';
+      throw error;
+    }
+
+    return {
+      statusCode,
+      providerRecord
+    };
+  }
 
   async function fetchPayment(paymentId){
     const id=clean(paymentId);
@@ -106,12 +171,13 @@ export function createMpReconciliationSandboxClient({axios,env=process.env}={}){
     };
   }
 
-  return {fetchPayment};
+  return {fetchPayment,fetchOrder};
 }
 
 export default {
   getMpReconciliationSandboxConfig,
   assertMpReconciliationSandboxReady,
   normalizeMpPaymentForReconciliation,
+  normalizeMpOrderForReconciliation,
   createMpReconciliationSandboxClient
 };
