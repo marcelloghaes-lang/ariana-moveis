@@ -69,7 +69,7 @@ As flags de dinheiro real continuam desligadas.
 Antes de qualquer merge/produção:
 
 1. ✅ pagamento de cartão sandbox sem challenge — validado (`processed/accredited`);
-2. ✅ pagamento de cartão sandbox com challenge 3DS — validado (`action_required/pending_challenge` → `processed/accredited`);
+2. ✅ pagamento de cartão sandbox com challenge 3DS — cenário aprovado validado (`action_required/pending_challenge` → `processed/accredited`) e cenário negado validado (`failed/3ds_challenge_failed`, `not_authenticated`);
 3. ✅ validar `liability_shift` — `required` confirmado e autenticação 3DS concluída (`authenticated=true`);
 4. ✅ validar webhook assinado — simulador Mercado Pago retornou HTTP 200 com HMAC ativo;
 5. ⏳ validar alerta de fraude/stop delivery;
