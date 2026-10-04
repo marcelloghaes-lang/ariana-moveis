@@ -1,5 +1,5 @@
 // Ariana Pay — leitura de pagamento Mercado Pago para conciliação em sandbox.
-// Nunca usa credencial de produção por fallback. Não grava nada.
+// Nunca usa MP_ACCESS_TOKEN como fallback. Não grava nada.
 
 function clean(value=''){
   return String(value||'').trim();
@@ -22,23 +22,22 @@ function isOfficialMercadoPagoApiBaseUrl(value=''){
   }
 }
 
-export function isMpReconciliationTestAccessToken(value=''){
-  return /^TEST-/i.test(clean(value));
-}
-
 export function getMpReconciliationSandboxConfig(env=process.env){
+  const accessToken=clean(env.MP_RECON_SANDBOX_ACCESS_TOKEN);
+  const defaultAccessToken=clean(env.MP_ACCESS_TOKEN);
   return {
     enabled:clean(env.ARIANA_PAY_RECON_SANDBOX_ENABLED).toLowerCase()==='true',
     baseUrl:clean(env.MP_RECON_SANDBOX_BASE_URL||'https://api.mercadopago.com').replace(/\/+$/,''),
-    accessToken:clean(env.MP_RECON_SANDBOX_ACCESS_TOKEN)
+    accessToken,
+    reusesDefaultAccessToken:Boolean(accessToken&&defaultAccessToken&&accessToken===defaultAccessToken)
   };
 }
 
 export function assertMpReconciliationSandboxReady(config=getMpReconciliationSandboxConfig()){
   if(!config.enabled) throw new Error('Conciliação sandbox Mercado Pago desabilitada.');
   if(!config.accessToken) throw new Error('MP_RECON_SANDBOX_ACCESS_TOKEN não configurado.');
-  if(!isMpReconciliationTestAccessToken(config.accessToken)){
-    throw new Error('MP_RECON_SANDBOX_ACCESS_TOKEN deve ser uma credencial de teste Mercado Pago (prefixo TEST-).');
+  if(config.reusesDefaultAccessToken){
+    throw new Error('MP_RECON_SANDBOX_ACCESS_TOKEN não pode reutilizar MP_ACCESS_TOKEN.');
   }
   if(!isOfficialMercadoPagoApiBaseUrl(config.baseUrl)){
     throw new Error('MP_RECON_SANDBOX_BASE_URL deve apontar para https://api.mercadopago.com.');
@@ -111,7 +110,6 @@ export function createMpReconciliationSandboxClient({axios,env=process.env}={}){
 }
 
 export default {
-  isMpReconciliationTestAccessToken,
   getMpReconciliationSandboxConfig,
   assertMpReconciliationSandboxReady,
   normalizeMpPaymentForReconciliation,
