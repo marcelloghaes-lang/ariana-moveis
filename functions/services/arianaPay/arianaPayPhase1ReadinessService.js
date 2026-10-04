@@ -1,3 +1,12 @@
+import {
+  getMercadoPago3dsSandboxConfig,
+  assertMercadoPago3dsSandboxReady
+} from './mercadoPagoOrders3dsSandboxService.js';
+import {
+  getMpReconciliationSandboxConfig,
+  assertMpReconciliationSandboxReady
+} from './mercadoPagoReconciliationSandboxService.js';
+
 // Ariana Pay — readiness seguro da Fase 1.
 // Expõe apenas booleanos/contagens; nunca retorna secrets ou credenciais.
 
@@ -7,11 +16,29 @@ function on(value=''){
 function present(value=''){
   return Boolean(String(value||'').trim());
 }
+function canRun3dsSandbox(env){
+  try{
+    assertMercadoPago3dsSandboxReady(getMercadoPago3dsSandboxConfig(env));
+    return true;
+  }catch(_error){
+    return false;
+  }
+}
+function canRunReconciliationSandbox(env){
+  try{
+    assertMpReconciliationSandboxReady(getMpReconciliationSandboxConfig(env));
+    return true;
+  }catch(_error){
+    return false;
+  }
+}
 
 export function buildArianaPayPhase1Readiness({audit=null,env=process.env}={}){
   const recon=audit?.paymentReconciliation?.stats||{};
   const gates={
     shadowFeatureEnabled:on(env.ARIANA_PAY_SHADOW_ENABLED),
+    realMoneyFeatureDisabled:!on(env.ARIANA_PAY_ENABLED),
+    checkoutTakeoverDisabled:!on(env.ARIANA_PAY_CHECKOUT_ENABLED),
     fixedReleasePolicy15Days:true,
     ledgerReconciliationClean:audit?Number(audit.divergenceCount||0)===0:null,
     storedPaymentReconciliationClean:audit?Number(recon.divergent||0)===0:null,
@@ -19,17 +46,17 @@ export function buildArianaPayPhase1Readiness({audit=null,env=process.env}={}){
     sellerReadOnlyView:true,
     chargebackResponsibilityClassification:true,
     cardSecurityShadow:true,
-    payoutExecutionDisabled:true,
+    payoutExecutionDisabled:!on(env.ARIANA_PAY_PAYOUT_ENABLED),
     mpWebhookSecretConfigured:present(env.MP_WEBHOOK_SECRET),
     mpWebhookSignatureEnforced:on(env.MP_WEBHOOK_SIGNATURE_ENFORCE),
-    mp3dsSandboxConfigured:
-      on(env.MP_3DS_SANDBOX_ENABLED)&&
-      present(env.MP_3DS_SANDBOX_ACCESS_TOKEN)&&
-      present(env.MP_3DS_SANDBOX_NOTIFICATION_URL),
-    mpReconciliationSandboxConfigured:
-      on(env.ARIANA_PAY_RECON_SANDBOX_ENABLED)&&
-      present(env.MP_RECON_SANDBOX_ACCESS_TOKEN)
+    mp3dsSandboxConfigured:canRun3dsSandbox(env),
+    mpReconciliationSandboxConfigured:canRunReconciliationSandbox(env)
   };
+
+  const safetyViolations=[];
+  if(!gates.realMoneyFeatureDisabled) safetyViolations.push('real_money_feature_enabled');
+  if(!gates.checkoutTakeoverDisabled) safetyViolations.push('checkout_takeover_enabled');
+  if(!gates.payoutExecutionDisabled) safetyViolations.push('payout_execution_enabled');
 
   const externalPending=[];
   if(!gates.mp3dsSandboxConfigured) externalPending.push('mercado_pago_3ds_sandbox_credentials_or_callback');
@@ -47,7 +74,13 @@ export function buildArianaPayPhase1Readiness({audit=null,env=process.env}={}){
     gates.sellerReadOnlyView &&
     gates.chargebackResponsibilityClassification &&
     gates.cardSecurityShadow &&
+    gates.realMoneyFeatureDisabled &&
+    gates.checkoutTakeoverDisabled &&
     gates.payoutExecutionDisabled;
+
+  let nextStage='controlled_homologation_review';
+  if(safetyViolations.length) nextStage='stop_and_restore_fail_closed';
+  else if(externalPending.length||dataPending.length) nextStage='finish_sandbox_and_data_validation';
 
   return {
     phase:'1',
@@ -55,11 +88,10 @@ export function buildArianaPayPhase1Readiness({audit=null,env=process.env}={}){
     codeReady,
     readyForRealMoney:false,
     gates,
+    safetyViolations,
     externalPending,
     dataPending,
-    nextStage:externalPending.length||dataPending.length
-      ? 'finish_sandbox_and_data_validation'
-      : 'controlled_homologation_review'
+    nextStage
   };
 }
 
