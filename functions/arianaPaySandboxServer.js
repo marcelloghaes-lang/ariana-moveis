@@ -92,6 +92,44 @@ function sandboxMaxAmount(){
   return Math.min(configured,1000);
 }
 
+async function assertMercadoPagoTestAccountIdentity(){
+  const expected=clean(process.env.MP_3DS_SANDBOX_EXPECTED_USER_ID);
+  const accessToken=clean(process.env.MP_3DS_SANDBOX_ACCESS_TOKEN);
+  if(!expected){
+    const error=new Error('MP_3DS_SANDBOX_EXPECTED_USER_ID não configurado.');
+    error.statusCode=503;
+    error.code='MP_3DS_TEST_ACCOUNT_ID_MISSING';
+    throw error;
+  }
+  if(!accessToken){
+    const error=new Error('MP_3DS_SANDBOX_ACCESS_TOKEN não configurado.');
+    error.statusCode=503;
+    error.code='MP_3DS_SANDBOX_ACCESS_TOKEN_MISSING';
+    throw error;
+  }
+
+  const response=await axios.get('https://api.mercadopago.com/users/me',{
+    headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json'},
+    timeout:15000,
+    validateStatus:()=>true
+  });
+  const status=Number(response?.status||0);
+  const actual=clean(response?.data?.id);
+  if(status<200||status>=300||!actual){
+    const error=new Error('Não foi possível validar a identidade da conta de teste Mercado Pago.');
+    error.statusCode=status>=400&&status<600?status:502;
+    error.code='MP_3DS_TEST_ACCOUNT_LOOKUP_FAILED';
+    throw error;
+  }
+  if(actual!==expected){
+    const error=new Error('A credencial configurada não pertence à conta de teste esperada da Ariana Pay.');
+    error.statusCode=409;
+    error.code='MP_3DS_TEST_ACCOUNT_MISMATCH';
+    throw error;
+  }
+  return {ok:true,userId:actual};
+}
+
 function assertSandboxAmount(amount){
   const value=Number(amount);
   const max=sandboxMaxAmount();
@@ -369,9 +407,8 @@ form.addEventListener('submit',async event=>{
     if(tokenLastFour!=='3311'){
       throw new Error('O Mercado Pago tokenizou outro cartão (final '+(tokenLastFour||'desconhecido')+'). Faça Ctrl+F5, limpe os campos e digite o Mastercard de teste final 3311.');
     }
-    if(tokenLiveMode){
-      throw new Error('O CardToken veio com live_mode=true. Por segurança, a Ariana Pay não enviará essa Order. Recarregue a página com Ctrl+F5 e gere novamente usando somente o cartão de teste final 3311.');
-    }
+    // O ambiente de teste é definido pelas credenciais da aplicação, não por este campo isolado do CardToken.
+    // A segurança real é validada no backend pelo usuário de teste esperado + Access Token dedicado.
 
     const r=await fetch('/api/sandbox/3ds-test',{
       method:'POST',
@@ -412,6 +449,7 @@ app.post('/api/sandbox/3ds-test',requireShadow,async(req,res)=>{
   }
   try{
     const body=req.body||{};
+    await assertMercadoPagoTestAccountIdentity();
     const client=createMercadoPago3dsSandboxClient({axios});
     const result=await client.createOrder({
       orderId:`ariana-pay-3ds-${Date.now()}`,
