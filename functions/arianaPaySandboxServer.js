@@ -33,6 +33,16 @@ function clean(value=''){
   return String(value||'').trim();
 }
 
+function parsePtBrMoney(value){
+  const raw=clean(value);
+  if(!raw) return null;
+  const normalized=raw.includes(',')
+    ? raw.replace(/\./g,'').replace(',','.')
+    : raw;
+  const n=Number(normalized);
+  return Number.isFinite(n)?Math.round((n+Number.EPSILON)*100)/100:null;
+}
+
 function safeEqual(a='',b=''){
   const left=Buffer.from(clean(a),'utf8');
   const right=Buffer.from(clean(b),'utf8');
@@ -369,10 +379,10 @@ app.get('/api/sandbox/reconciliation-test/payment/:paymentId',requireShadow,asyn
     const lookup=rawId.toUpperCase().startsWith('ORD')
       ? await client.fetchOrder(rawId)
       : await client.fetchPayment(rawId);
-    const expected=Number(req.query?.expectedAmount);
-    const providerAmount=Number(lookup?.providerRecord?.providerAmount);
-    const expectedValid=Number.isFinite(expected);
-    const providerValid=Number.isFinite(providerAmount);
+    const expected=parsePtBrMoney(req.query?.expectedAmount);
+    const providerAmount=parsePtBrMoney(lookup?.providerRecord?.providerAmount);
+    const expectedValid=expected!==null;
+    const providerValid=providerAmount!==null;
     const difference=expectedValid&&providerValid
       ? Math.round(((providerAmount-expected)+Number.EPSILON)*100)/100
       : null;
@@ -383,7 +393,7 @@ app.get('/api/sandbox/reconciliation-test/payment/:paymentId',requireShadow,asyn
       writesEnabled:false,
       payoutsEnabled:false,
       providerStatus:lookup.statusCode,
-      expectedAmount:expectedValid?Math.round((expected+Number.EPSILON)*100)/100:null,
+      expectedAmount:expectedValid?expected:null,
       providerAmount:providerValid?providerAmount:null,
       difference,
       matchesExpected:expectedValid&&providerValid?difference===0:null,
@@ -406,10 +416,10 @@ app.get('/api/sandbox/reconciliation-test/order/:orderId',requireShadow,async(re
     await assertMercadoPagoTestAccountIdentity();
     const client=createMpReconciliationSandboxClient({axios});
     const lookup=await client.fetchOrder(clean(req.params?.orderId));
-    const expected=Number(req.query?.expectedAmount);
-    const providerAmount=Number(lookup?.providerRecord?.providerAmount);
-    const expectedValid=Number.isFinite(expected);
-    const providerValid=Number.isFinite(providerAmount);
+    const expected=parsePtBrMoney(req.query?.expectedAmount);
+    const providerAmount=parsePtBrMoney(lookup?.providerRecord?.providerAmount);
+    const expectedValid=expected!==null;
+    const providerValid=providerAmount!==null;
     const difference=expectedValid&&providerValid
       ? Math.round(((providerAmount-expected)+Number.EPSILON)*100)/100
       : null;
@@ -419,7 +429,7 @@ app.get('/api/sandbox/reconciliation-test/order/:orderId',requireShadow,async(re
       writesEnabled:false,
       payoutsEnabled:false,
       providerStatus:lookup.statusCode,
-      expectedAmount:expectedValid?Math.round((expected+Number.EPSILON)*100)/100:null,
+      expectedAmount:expectedValid?expected:null,
       providerAmount:providerValid?providerAmount:null,
       difference,
       matchesExpected:expectedValid&&providerValid?difference===0:null,
