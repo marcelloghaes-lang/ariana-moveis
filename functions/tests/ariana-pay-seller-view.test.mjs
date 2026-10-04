@@ -28,6 +28,7 @@ test('seller vê somente seus próprios saldos e revisões',()=>{
 test('visão seller não expõe dados internos de provider ou score antifraude',()=>{
   const view=buildSellerArianaPayShadowView({
     sellers:[{sellerId:'a',balance:{available:0},payoutPreview:{ready:false,amount:0,destination:{ready:false},blockers:['security_review']}}],
+    generatedAt:'2026-10-04T00:00:00.000Z',
     reviewCases:[{
       sellerId:'a',
       orderId:'o1',
