@@ -224,11 +224,15 @@ export function assessSellerSettlementIntegrity({order={},sellerId='',settlement
   chargedGross=money(chargedGross)||0;
   snapshotGross=money(snapshotGross)||0;
   const computedGross=money(settlement?.gross)||0;
+  const orderTotal=money(order?.total);
   const externalSeller=!isPlatformSellerId(sid);
   const missingSnapshotItems=Math.max(0,items.length-snapshotItems);
 
   if(externalSeller&&missingSnapshotItems>0){
     anomalies.push('missing_sale_time_settlement_snapshot');
+  }
+  if(orderTotal!==null&&orderTotal>=0&&chargedGross>orderTotal+0.01){
+    anomalies.push('seller_charged_gross_exceeds_order_total');
   }
   if(computedGross>chargedGross+0.01){
     anomalies.push('computed_seller_gross_exceeds_charged_gross');
@@ -248,6 +252,7 @@ export function assessSellerSettlementIntegrity({order={},sellerId='',settlement
     missingSnapshotItems,
     snapshotCoverage:items.length?Math.round((snapshotItems/items.length)*10000)/100:0,
     snapshotSources:sources,
+    orderTotal,
     chargedGross,
     snapshotGross,
     computedGross,
