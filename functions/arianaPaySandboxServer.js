@@ -358,6 +358,46 @@ form.addEventListener('submit',async e=>{
 </script></body></html>`);
 });
 
+app.get('/api/sandbox/reconciliation-test/payment/:paymentId',requireShadow,async(req,res)=>{
+  if(!threeDsTestCodeAllowed(req.headers['x-ariana-pay-3ds-code'])){
+    return res.status(401).json({ok:false,code:'ARIANA_PAY_RECON_TEST_UNAUTHORIZED'});
+  }
+  try{
+    await assertMercadoPagoTestAccountIdentity();
+    const client=createMpReconciliationSandboxClient({axios});
+    const rawId=clean(req.params?.paymentId);
+    const lookup=rawId.toUpperCase().startsWith('ORD')
+      ? await client.fetchOrder(rawId)
+      : await client.fetchPayment(rawId);
+    const expected=Number(req.query?.expectedAmount);
+    const providerAmount=Number(lookup?.providerRecord?.providerAmount);
+    const expectedValid=Number.isFinite(expected);
+    const providerValid=Number.isFinite(providerAmount);
+    const difference=expectedValid&&providerValid
+      ? Math.round(((providerAmount-expected)+Number.EPSILON)*100)/100
+      : null;
+    return res.json({
+      ok:true,
+      mode:'sandbox_reconciliation_read_only',
+      compatibilityRoute:true,
+      writesEnabled:false,
+      payoutsEnabled:false,
+      providerStatus:lookup.statusCode,
+      expectedAmount:expectedValid?Math.round((expected+Number.EPSILON)*100)/100:null,
+      providerAmount:providerValid?providerAmount:null,
+      difference,
+      matchesExpected:expectedValid&&providerValid?difference===0:null,
+      providerRecord:lookup.providerRecord
+    });
+  }catch(error){
+    return res.status(safeStatus(error)).json({
+      ok:false,
+      code:error?.code||'ARIANA_PAY_RECON_TEST_ERROR',
+      error:error?.message||'Falha na conciliação sandbox.'
+    });
+  }
+});
+
 app.get('/api/sandbox/reconciliation-test/order/:orderId',requireShadow,async(req,res)=>{
   if(!threeDsTestCodeAllowed(req.headers['x-ariana-pay-3ds-code'])){
     return res.status(401).json({ok:false,code:'ARIANA_PAY_RECON_TEST_UNAUTHORIZED'});
