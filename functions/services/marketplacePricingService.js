@@ -78,7 +78,7 @@ export default function createMarketplacePricingService(context = {}) {
   function getProductSettlementProfile(product = {}) {
     const ds = product?.dropshipping && typeof product.dropshipping === 'object' ? product.dropshipping : {};
     const mode = String(ds.mode || '').trim().toLowerCase();
-    const managed = ds.enabled === true && ['sale_order','dropshipping','cross_docking'].includes(mode);
+    const managed = ds.enabled === true && ['sale_order', 'dropshipping', 'cross_docking'].includes(mode);
     const retailCashPrice = roundMoney(Number(product.pixPrice ?? product.price ?? product.preco ?? 0) || 0);
     const supplierPayable = roundMoney(Number(ds.supplierPayableUnit ?? ds.supplierPrice ?? 0) || 0);
     const marketplaceBase = getProductSellerBasePrice(product);
@@ -120,29 +120,58 @@ export default function createMarketplacePricingService(context = {}) {
   function getItemSellerBaseTotal(item = {}, order = {}, productBaseMap = new Map()) {
     const qty = Math.max(1, Number(item.qty || item.quantity || 1) || 1);
     const chargedTotal = getChargedItemTotal(item);
-    const productId = getItemProductId(item);
-    const productBase = productBaseMap instanceof Map ? productBaseMap.get(productId) : null;
+    const tolerance = 0.01;
 
-    // Regra principal: o preço cadastrado pelo seller no produto é a base real do repasse.
-    // Acréscimos de cartão/parcelamento e valores operacionais da Ariana não entram
-    // na base sobre a qual o seller recebe.
-    if (productBase && Number(productBase.price || 0) > 0) {
-      return roundMoney(Number(productBase.price || 0) * qty);
+    // O snapshot gravado no pedido tem prioridade. O preço atual do produto
+    // jamais pode sobrescrever silenciosamente um valor histórico confiável.
+    const explicitTotal = Number(item.sellerBaseTotal || item.sellerSubtotal || item.baseTotal || 0);
+    if (explicitTotal > 0 && explicitTotal <= chargedTotal + tolerance) {
+      return roundMoney(explicitTotal);
     }
 
     const explicitUnit = Number(item.sellerBaseUnitPrice || item.baseUnitPrice || item.basePrice || 0);
-    if (explicitUnit > 0) return roundMoney(explicitUnit * qty);
-
-    const explicitTotal = Number(item.sellerBaseTotal || item.sellerSubtotal || item.baseTotal || 0);
-    if (explicitTotal > 0 && explicitTotal <= chargedTotal) return roundMoney(explicitTotal);
+    if (explicitUnit > 0) {
+      const explicitUnitTotal = roundMoney(explicitUnit * qty);
+      if (explicitUnitTotal <= chargedTotal + tolerance) return explicitUnitTotal;
+    }
 
     const markupTotal = Number(item.cardMarkupTotal || 0);
-    if (markupTotal > 0 && chargedTotal > markupTotal) return roundMoney(chargedTotal - markupTotal);
+    if (markupTotal > 0 && chargedTotal > markupTotal) {
+      return roundMoney(chargedTotal - markupTotal);
+    }
+
+    // Compatibilidade com registros antigos sem snapshot. O produto atual só
+    // pode ser usado como fallback se não superar o que foi efetivamente
+    // cobrado no item. Caso contrário, a base atual é descartada.
+    const productId = getItemProductId(item);
+    const productBase = productBaseMap instanceof Map ? productBaseMap.get(productId) : null;
+    if (productBase && Number(productBase.price || 0) > 0) {
+      const currentBaseTotal = roundMoney(Number(productBase.price || 0) * qty);
+      if (currentBaseTotal <= chargedTotal + tolerance) return currentBaseTotal;
+    }
 
     // Compatibilidade com pedidos antigos que salvaram somente o valor final cobrado.
-    if (isCreditCardPayment(getOrderPaymentMethod(order))) return marketplacePriceToSellerBase(chargedTotal);
+    if (isCreditCardPayment(getOrderPaymentMethod(order))) {
+      return marketplacePriceToSellerBase(chargedTotal);
+    }
 
-    return roundMoney(explicitTotal > 0 ? explicitTotal : chargedTotal);
+    // Fail-safe: nunca ressuscitar explicitTotal inválido acima do valor cobrado.
+    return roundMoney(chargedTotal);
+  }
+
+  function getOrderTotal(order = {}) {
+    const candidates = [
+      order?.total,
+      order?.totals?.total,
+      order?.totals?.grandTotal,
+      order?.grandTotal,
+      order?.amount
+    ];
+    for (const value of candidates) {
+      const n = Number(value);
+      if (Number.isFinite(n) && n > 0) return roundMoney(n);
+    }
+    return 0;
   }
 
   function getSellerSettlementForOrder(orderDoc = {}, sellerId = '', productBaseMap = new Map()) {
@@ -187,12 +216,14 @@ export default function createMarketplacePricingService(context = {}) {
     managedGross = roundMoney(managedGross);
     managedMargin = roundMoney(managedMargin);
 
-    // Comissão de marketplace existe apenas na intermediação pura.
-    // Venda à ordem, dropshipping e cross docking remuneram o fornecedor pelo
-    // custo/valor a pagar gravado no produto; a margem comercial fica na Ariana.
-    const commission = roundMoney(marketplaceGross * (MARKETPLACE_COMMISSION_PERCENT / 100));
-    const cardMarkup = roundMoney(Math.max(0, chargedGross - retailCashGross));
-    const cardFee = cardMarkup;
+    const orderTotal = getOrderTotal(order);
+    const integrityReasons = [];
+    if (orderTotal > 0 && chargedGross > orderTotal + 0.01) {
+      integrityReasons.push('seller_charged_gross_exceeds_order_total');
+    }
+    if (gross > chargedGross + 0.01) {
+      integrityReasons.push('seller_gross_exceeds_charged_gross');
+    }
 
     // A etiqueta/frete da Ariana é informativa para conciliação, mas não reduz o
     // líquido do seller/fornecedor automaticamente.
@@ -204,12 +235,49 @@ export default function createMarketplacePricingService(context = {}) {
       const marketplace = label?.marketplace === true || label?.usesMarketplaceLabel === true || label?.provider === 'correios' || label?.provider === 'frenet' || label?.provider === 'ariana_local';
       if (marketplace) labelFee += Number(label?.shippingCost || label?.cost || 0) || 0;
     }
-    if (!labelFee && order.etiqueta && (order.shipping?.usesArianaLogistics || order.etiqueta?.provider)) labelFee = Number(order.etiqueta.shippingCost || 0) || 0;
+    if (!labelFee && order.etiqueta && (order.shipping?.usesArianaLogistics || order.etiqueta?.provider)) {
+      labelFee = Number(order.etiqueta.shippingCost || 0) || 0;
+    }
     labelFee = roundMoney(labelFee);
 
+    if (integrityReasons.length) {
+      // Em inconsistência estrutural, não inferir nem prometer valor ao seller.
+      // O pedido fica financeiramente zerado para cálculo/extrato até revisão,
+      // preservando os valores observados apenas como diagnóstico interno.
+      return {
+        chargedGross: 0,
+        retailCashGross: 0,
+        gross: 0,
+        marketplaceGross: 0,
+        managedGross: 0,
+        managedMargin: 0,
+        cardMarkup: 0,
+        cardFee: 0,
+        commission: 0,
+        fee: 0,
+        label: labelFee,
+        labelDeductedFromSeller: false,
+        net: 0,
+        commissionPercent: 0,
+        settlementMode: 'blocked_integrity',
+        integrityBlocked: true,
+        integrityReasons: [...new Set(integrityReasons)],
+        orderTotal,
+        observedChargedGross: chargedGross,
+        observedGross: gross
+      };
+    }
+
+    // Comissão de marketplace existe apenas na intermediação pura.
+    // Venda à ordem, dropshipping e cross docking remuneram o fornecedor pelo
+    // custo/valor a pagar gravado no produto; a margem comercial fica na Ariana.
+    const commission = roundMoney(marketplaceGross * (MARKETPLACE_COMMISSION_PERCENT / 100));
+    const cardMarkup = roundMoney(Math.max(0, chargedGross - retailCashGross));
+    const cardFee = cardMarkup;
     const net = roundMoney(Math.max(0, gross - commission));
     const onlyManaged = managedGross > 0 && marketplaceGross <= 0;
     const mixed = managedGross > 0 && marketplaceGross > 0;
+
     return {
       chargedGross,
       retailCashGross,
@@ -225,7 +293,10 @@ export default function createMarketplacePricingService(context = {}) {
       labelDeductedFromSeller: false,
       net,
       commissionPercent: marketplaceGross > 0 ? MARKETPLACE_COMMISSION_PERCENT : 0,
-      settlementMode: mixed ? 'manual_mixed' : (onlyManaged ? 'manual_supplier_payable' : 'manual_marketplace')
+      settlementMode: mixed ? 'manual_mixed' : (onlyManaged ? 'manual_supplier_payable' : 'manual_marketplace'),
+      integrityBlocked: false,
+      integrityReasons: [],
+      orderTotal
     };
   }
 
