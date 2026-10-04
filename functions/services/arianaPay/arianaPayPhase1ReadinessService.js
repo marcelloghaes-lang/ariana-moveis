@@ -59,7 +59,7 @@ export function buildArianaPayPhase1Readiness({audit=null,env=process.env}={}){
   if(!gates.payoutExecutionDisabled) safetyViolations.push('payout_execution_enabled');
 
   const externalPending=[];
-  if(!gates.mp3dsSandboxConfigured) externalPending.push('mercado_pago_3ds_sandbox_credentials_or_callback');
+  if(!gates.mp3dsSandboxConfigured) externalPending.push('mercado_pago_3ds_sandbox_credentials');
   if(!gates.mpReconciliationSandboxConfigured) externalPending.push('mercado_pago_reconciliation_sandbox_credentials');
   if(!gates.mpWebhookSecretConfigured) externalPending.push('mercado_pago_webhook_secret');
   if(gates.mpWebhookSecretConfigured&&!gates.mpWebhookSignatureEnforced) externalPending.push('webhook_signature_enforcement_not_enabled');
