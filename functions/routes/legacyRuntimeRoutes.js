@@ -332,6 +332,7 @@ registerArianaPayShadowRoutes(app, {
   adminRequired,
   Order,
   Seller,
+  axios,
   buildProductBasePriceMapForOrders,
   getSellerSettlementForOrder
 });
