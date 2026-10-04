@@ -77,9 +77,25 @@ Antes de qualquer merge/produção:
 7. ✅ simular valor divergente — valor esperado R$ 49,99 x provedor R$ 50,00 resultou em diferença R$ 0,01 e `matchesExpected=false`;
 8. ✅ simular chargeback com responsabilidade conhecida — seller identificado como responsável, payout bloqueado e reversão permitida, mas `sellerDebtCreated=false` no sandbox;
 9. ✅ simular chargeback sem motivo conclusivo — caso ficou em `pending_review`, payout bloqueado, reversão do seller não autorizada e `sellerDebtCreated=false`;
-10. ⏳ revisar uma amostra de pedidos reais somente em shadow mode.
+10. ⚠️ auditoria real executada em shadow mode com credencial MongoDB dedicada `read` e sem PII: 25 pedidos lidos com `writesEnabled=false`, `payoutsEnabled=false` e `checkoutChanged=false`. A infraestrutura read-only foi validada, porém a amostra revelou pendências de qualidade de dados/mapeamento antes da aprovação final.
 
 Validação adicional: compra não reconhecida com 3DS autenticado foi atribuída a `provider_network` por `3ds_liability_shift`, sem débito do seller e sem bloqueio de payout.
+
+## Achados da auditoria real
+
+Execução de 2026-10-04, somente leitura:
+
+- credencial confirmada pelo MongoDB como papel `read` em `ariana_moveis_db`;
+- 25 pedidos amostrados;
+- 15 pedidos continham identificação de seller;
+- 15 projeções de seller ficaram bloqueadas para liberação, principalmente por entrega não confirmada;
+- 2 pedidos tinham risco financeiro ativo por cancelamento;
+- 25/25 pedidos não possuíam referência suficiente do provedor para conciliação automática (`missing_provider_reference`);
+- apenas 1/25 tinha pagamento marcado como aprovado;
+- a amostra contém vendas internas/crediário e pedidos históricos cujo preço-base atual do produto pode não representar o snapshot financeiro do momento da venda;
+- foram observadas projeções históricas em que a base calculada do seller supera o valor cobrado no item/pedido. Esses casos devem ser tratados como anomalia de mapeamento/snapshot e não podem virar repasse automático.
+
+Consequência: a conexão read-only e as travas de segurança estão aprovadas, mas a Fase 1 ainda não deve ser declarada pronta para dinheiro real nem para payout. O próximo passo é separar pedidos realmente elegíveis à Ariana Pay e validar snapshot histórico do seller antes da aprovação final.
 
 ## O que NÃO fazer ainda
 
