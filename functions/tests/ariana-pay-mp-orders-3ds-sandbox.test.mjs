@@ -41,16 +41,15 @@ test('sandbox aceita credencial dedicada sem depender de prefixo',()=>{
   assert.doesNotThrow(()=>assertMercadoPago3dsSandboxReady(cfg));
 });
 
-test('sandbox exige callback HTTPS antes de permitir order 3DS',()=>{
-  assert.throws(
+test('sandbox aceita ausência de callback porque Orders usa Webhooks configurados no painel',()=>{
+  assert.doesNotThrow(
     ()=>assertMercadoPago3dsSandboxReady({
       enabled:true,
       baseUrl:'https://api.mercadopago.com',
       accessToken:'DEDICATED',
       reusesDefaultAccessToken:false,
       notificationUrl:''
-    }),
-    /NOTIFICATION_URL/
+    })
   );
 
   assert.throws(
@@ -174,7 +173,7 @@ test('cliente só chama /v1/orders quando sandbox explicitamente habilitado',asy
   assert.equal(calls.length,1);
   assert.equal(calls[0].url,'https://api.mercadopago.com/v1/orders');
   assert.equal(calls[0].options.headers.Authorization,'Bearer DEDICATED-SANDBOX-TOKEN');
-  assert.equal(calls[0].payload.notification_url,SAFE_ENV.MP_3DS_SANDBOX_NOTIFICATION_URL);
+  assert.equal('notification_url' in calls[0].payload,false);
   assert.equal(JSON.stringify(result.request).includes('sandbox-card-token'),false);
 });
 
