@@ -76,6 +76,11 @@ function requireShadow(req,res,next){
   return next();
 }
 
+function threeDsTestCodeAllowed(value=''){
+  const configured=clean(process.env.ARIANA_PAY_3DS_TEST_CODE);
+  return configured&&safeEqual(configured,clean(value));
+}
+
 function safeStatus(error={}){
   const status=Number(error?.statusCode||500);
   return status>=400&&status<600?status:500;
@@ -259,6 +264,77 @@ app.post('/api/webhooks/ariana-pay/mercadopago-sandbox',requireShadow,(req,res)=
     payoutsEnabled:false,
     verified:true
   });
+});
+
+app.get('/3ds-test',requireShadow,(_req,res)=>{
+  const publicKey=clean(process.env.MP_3DS_SANDBOX_PUBLIC_KEY);
+  if(!publicKey){
+    return res.status(503).send('Public Key de teste ainda não configurada.');
+  }
+  res.type('html').send(`<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ariana Pay — Teste 3DS</title>
+<style>body{font-family:Arial,sans-serif;background:#f5f7fb;margin:0;padding:24px;color:#152238}.card{max-width:720px;margin:auto;background:#fff;padding:24px;border-radius:16px;box-shadow:0 8px 30px #0001}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.full{grid-column:1/-1}label{font-size:13px;font-weight:700;display:block;margin:8px 0 4px}.field,input,select{width:100%;box-sizing:border-box;min-height:42px;border:1px solid #ccd3df;border-radius:8px;padding:10px;background:#fff}.field{padding:11px}button{margin-top:18px;background:#0047ab;color:#fff;border:0;border-radius:10px;padding:13px 18px;font-weight:700;cursor:pointer}.note{background:#eef5ff;padding:12px;border-radius:10px;margin-bottom:16px;font-size:14px}.status{white-space:pre-wrap;background:#0d1726;color:#e7edf7;padding:12px;border-radius:10px;margin-top:16px;min-height:70px}.challenge{width:100%;height:560px;border:1px solid #ccd3df;border-radius:10px;margin-top:16px;display:none}@media(max-width:650px){.grid{grid-template-columns:1fr}}</style>
+<script src="https://sdk.mercadopago.com/js/v2"></script></head><body><div class="card">
+<h1>Ariana Pay — Homologação 3DS</h1><div class="note">Somente sandbox. Nenhum pagamento real é criado. Use apenas cartões de teste do Mercado Pago.</div>
+<form id="form-checkout"><div class="grid">
+<div class="full"><label>Código de acesso</label><input id="test-code" autocomplete="off" required></div>
+<div class="full"><label>Número do cartão</label><div id="form-checkout__cardNumber" class="field"></div></div>
+<div><label>Validade</label><div id="form-checkout__expirationDate" class="field"></div></div>
+<div><label>CVV</label><div id="form-checkout__securityCode" class="field"></div></div>
+<div class="full"><label>Titular / cenário 3DS</label><input id="form-checkout__cardholderName" value="APRO-CHOK" required></div>
+<div><label>Emissor</label><select id="form-checkout__issuer"></select></div>
+<div><label>Parcelas</label><select id="form-checkout__installments"></select></div>
+<div><label>Documento</label><select id="form-checkout__identificationType"></select></div>
+<div><label>Número do documento</label><input id="form-checkout__identificationNumber" value="12345678909" required></div>
+<div class="full"><label>E-mail de teste</label><input type="email" id="form-checkout__cardholderEmail" value="test@testuser.com" required></div>
+</div><button type="submit" id="form-checkout__submit">Criar Order 3DS de teste</button><progress value="0" class="progress-bar" style="display:none">Carregando...</progress></form>
+<div class="note" style="margin-top:16px"><b>Challenge aprovado:</b> Mastercard 5483 9281 6457 4623, CVV 123, validade 11/30, titular APRO-CHOK.<br><b>Challenge negado:</b> Mastercard 5361 9568 0611 7557, CVV 123, validade 11/30, titular OTHE-CHNO.</div>
+<div id="status" class="status">Aguardando teste.</div><iframe id="challenge" class="challenge"></iframe></div>
+<script>
+const mp=new MercadoPago(${JSON.stringify(publicKey)});
+const statusEl=document.getElementById('status');
+const challenge=document.getElementById('challenge');
+let currentOrder='';
+let currentCode='';
+function show(v){statusEl.textContent=typeof v==='string'?v:JSON.stringify(v,null,2)}
+async function poll(){if(!currentOrder||!currentCode)return;try{const r=await fetch('/api/sandbox/3ds-test/orders/'+encodeURIComponent(currentOrder),{headers:{'x-ariana-pay-3ds-code':currentCode}});const j=await r.json();show(j);if(j?.result?.status==='processed'||j?.result?.status==='failed'){challenge.style.display='none';return}setTimeout(poll,2500)}catch(e){show('Falha ao consultar status: '+e.message)}}
+const cardForm=mp.cardForm({amount:'50.00',iframe:true,form:{id:'form-checkout',cardNumber:{id:'form-checkout__cardNumber',placeholder:'Número do cartão'},expirationDate:{id:'form-checkout__expirationDate',placeholder:'MM/YY'},securityCode:{id:'form-checkout__securityCode',placeholder:'CVV'},cardholderName:{id:'form-checkout__cardholderName',placeholder:'Titular'},issuer:{id:'form-checkout__issuer',placeholder:'Emissor'},installments:{id:'form-checkout__installments',placeholder:'Parcelas'},identificationType:{id:'form-checkout__identificationType',placeholder:'Documento'},identificationNumber:{id:'form-checkout__identificationNumber',placeholder:'CPF'},cardholderEmail:{id:'form-checkout__cardholderEmail',placeholder:'E-mail'}},callbacks:{onFormMounted:error=>{if(error)show('Erro ao montar formulário: '+error.message)},onSubmit:async event=>{event.preventDefault();const data=cardForm.getCardFormData();currentCode=document.getElementById('test-code').value.trim();show('Enviando Order 3DS sandbox...');try{const r=await fetch('/api/sandbox/3ds-test',{method:'POST',headers:{'Content-Type':'application/json','x-ariana-pay-3ds-code':currentCode},body:JSON.stringify({token:data.token,paymentMethodId:data.paymentMethodId,installments:Number(data.installments||1),email:data.cardholderEmail||'test@testuser.com'})});const j=await r.json();show(j);if(!r.ok)return;currentOrder=j?.result?.orderId||'';const url=j?.result?.challengeUrl||'';if(url){challenge.src=url;challenge.style.display='block'}if(currentOrder)setTimeout(poll,2500)}catch(e){show('Erro: '+e.message)}}}});
+</script></body></html>`);
+});
+
+app.post('/api/sandbox/3ds-test',requireShadow,async(req,res)=>{
+  if(!threeDsTestCodeAllowed(req.headers['x-ariana-pay-3ds-code'])){
+    return res.status(401).json({ok:false,code:'ARIANA_PAY_3DS_TEST_UNAUTHORIZED'});
+  }
+  try{
+    const body=req.body||{};
+    const client=createMercadoPago3dsSandboxClient({axios});
+    const result=await client.createOrder({
+      orderId:`ariana-pay-3ds-${Date.now()}`,
+      amount:50,
+      email:clean(body.email)||'test@testuser.com',
+      paymentMethodId:clean(body.paymentMethodId),
+      cardToken:clean(body.token),
+      installmentCount:Number(body.installments||1)
+    });
+    return res.status(result.statusCode||201).json({ok:result.ok,mode:'sandbox_3ds_ui',writesEnabled:false,payoutsEnabled:false,result:result.result});
+  }catch(error){
+    return res.status(safeStatus(error)).json({ok:false,code:error?.code||'ARIANA_PAY_3DS_TEST_ERROR',error:error?.message||'Falha no teste 3DS.'});
+  }
+});
+
+app.get('/api/sandbox/3ds-test/orders/:providerOrderId',requireShadow,async(req,res)=>{
+  if(!threeDsTestCodeAllowed(req.headers['x-ariana-pay-3ds-code'])){
+    return res.status(401).json({ok:false,code:'ARIANA_PAY_3DS_TEST_UNAUTHORIZED'});
+  }
+  try{
+    const client=createMercadoPago3dsSandboxClient({axios});
+    const lookup=await client.getOrder(clean(req.params?.providerOrderId));
+    return res.json({ok:true,mode:'sandbox_3ds_ui_read_only',result:lookup.result});
+  }catch(error){
+    return res.status(safeStatus(error)).json({ok:false,code:error?.code||'ARIANA_PAY_3DS_TEST_LOOKUP_ERROR',error:error?.message||'Falha ao consultar Order 3DS.'});
+  }
 });
 
 app.use((_req,res)=>{
