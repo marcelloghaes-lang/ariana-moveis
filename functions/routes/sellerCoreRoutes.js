@@ -1,6 +1,3 @@
-import createArianaPayShadowAuditService from '../services/arianaPay/arianaPayShadowAuditService.js';
-import { buildSellerArianaPayShadowView } from '../services/arianaPay/arianaPaySellerViewService.js';
-
 // ============================================================
 // ROTAS PRINCIPAIS DO SELLER - ARIANA MÓVEIS
 // Extraído de legacyRoutes.js na divisão de rotas - Etapa 4.
@@ -1295,42 +1292,6 @@ app.post('/api/seller/notifications/mark-read', sellerAuthRequired, async (req, 
     return res.json({ ok: true });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao marcar notificações como lidas' });
-  }
-});
-
-app.get('/api/seller/ariana-pay/shadow', sellerAuthRequired, async (req, res) => {
-  try {
-    const enabled = String(process.env.ARIANA_PAY_SHADOW_ENABLED || 'false').trim().toLowerCase() === 'true';
-    if (!enabled) {
-      return res.status(404).json({
-        ok: false,
-        code: 'ARIANA_PAY_SHADOW_DISABLED',
-        error: 'Ariana Pay ainda não está disponível para consulta.'
-      });
-    }
-
-    const sid = String(req.sellerId || '').trim();
-    const auditService = createArianaPayShadowAuditService({
-      Order,
-      Seller,
-      buildProductBasePriceMapForOrders,
-      getSellerSettlementForOrder
-    });
-
-    const audit = await auditService.audit({
-      sellerId: sid,
-      limit: Math.max(1, Math.min(Number(req.query?.limit || 500), 1000)),
-      now: new Date()
-    });
-
-    return res.json(buildSellerArianaPayShadowView(audit, sid));
-  } catch (error) {
-    console.error('[ariana-pay][seller-shadow]', error?.message || error);
-    return res.status(500).json({
-      ok: false,
-      code: 'ARIANA_PAY_SELLER_SHADOW_ERROR',
-      error: 'Não foi possível carregar a visão financeira da Ariana Pay.'
-    });
   }
 });
 
