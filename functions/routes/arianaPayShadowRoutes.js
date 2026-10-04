@@ -1,6 +1,7 @@
 import createArianaPayShadowAuditService from '../services/arianaPay/arianaPayShadowAuditService.js';
 import { extractStoredProviderPayment, reconcileOrderPayment } from '../services/arianaPay/arianaPayReconciliationService.js';
 import { createMpReconciliationSandboxClient } from '../services/arianaPay/mercadoPagoReconciliationSandboxService.js';
+import { buildArianaPayPhase1Readiness } from '../services/arianaPay/arianaPayPhase1ReadinessService.js';
 
 function enabled() {
   return String(process.env.ARIANA_PAY_SHADOW_ENABLED || 'false').trim().toLowerCase() === 'true';
@@ -26,6 +27,31 @@ export default function registerArianaPayShadowRoutes(app, context = {}) {
     getSellerSettlementForOrder
   });
 
+
+  app.get('/api/admin/ariana-pay/readiness', adminRequired, async (req, res) => {
+    try {
+      let audit = null;
+      if (enabled()) {
+        audit = await auditService.audit({
+          limit: Math.max(1, Math.min(Number(req.query?.limit || 300), 1000)),
+          sellerId: String(req.query?.sellerId || '').trim(),
+          now: new Date()
+        });
+      }
+
+      return res.json({
+        ok: true,
+        feature: 'ariana_pay',
+        ...buildArianaPayPhase1Readiness({ audit, env: process.env })
+      });
+    } catch (error) {
+      return res.status(500).json({
+        ok: false,
+        code: 'ARIANA_PAY_READINESS_ERROR',
+        error: error?.message || 'Falha ao avaliar readiness da Ariana Pay.'
+      });
+    }
+  });
 
   app.get('/api/admin/ariana-pay/reconcile-sandbox/:orderId', adminRequired, async (req, res) => {
     if (!enabled()) {
