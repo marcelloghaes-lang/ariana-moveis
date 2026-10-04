@@ -92,6 +92,24 @@ test('base do seller acima do valor cobrado é anomalia bloqueante',()=>{
   assert.ok(integrity.anomalies.includes('computed_seller_gross_exceeds_charged_gross'));
 });
 
+test('total dos itens do seller acima do total do pedido é bloqueado fail-closed',()=>{
+  const order={
+    total:58.32,
+    items:[{
+      sellerId:'seller_123',qty:1,unitPrice:2198,totalPrice:2198,
+      sellerBaseTotal:2198
+    }]
+  };
+  const integrity=assessSellerSettlementIntegrity({
+    order,
+    sellerId:'seller_123',
+    settlement:{gross:2198}
+  });
+  assert.equal(integrity.orderTotal,58.32);
+  assert.equal(integrity.blocked,true);
+  assert.ok(integrity.anomalies.includes('seller_charged_gross_exceeds_order_total'));
+});
+
 test('gate nunca libera sem conciliação financeira matched',()=>{
   const release={state:'scheduled',reason:'',availableAt:'2026-11-01T00:00:00.000Z',transferDeadlineDays:15};
   const result=applyArianaPayProductionSafetyGate({
