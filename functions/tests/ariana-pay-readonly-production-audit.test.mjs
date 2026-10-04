@@ -7,6 +7,7 @@ import {
   normalizeAuditLimit,
   isFinancialProjectionEligible
 } from '../services/arianaPay/arianaPayReadOnlyProductionAuditService.js';
+import { assessSellerSettlementIntegrity } from '../services/arianaPay/arianaPayProductionEligibilityService.js';
 
 test('auditoria real exige URI Mongo dedicada',()=>{
   const cfg=getReadOnlyProductionAuditConfig({
@@ -107,4 +108,42 @@ test('risco financeiro ou bloqueio de segurança exclui payout projetado',()=>{
   };
   assert.equal(isFinancialProjectionEligible({...base,risk:{blocksRelease:true},cardSecurity:{blocksPayout:false}}),false);
   assert.equal(isFinancialProjectionEligible({...base,risk:{blocksRelease:false},cardSecurity:{blocksPayout:true}}),false);
+});
+
+test('integridade bloqueia seller quando itens cobrados superam o total do pedido',()=>{
+  const integrity=assessSellerSettlementIntegrity({
+    order:{
+      total:58.32,
+      items:[{
+        sellerId:'seller_externo',
+        quantity:1,
+        totalPrice:2198,
+        sellerBaseTotal:2198
+      }]
+    },
+    sellerId:'seller_externo',
+    settlement:{gross:2198}
+  });
+  assert.equal(integrity.orderTotal,58.32);
+  assert.equal(integrity.blocked,true);
+  assert.ok(integrity.anomalies.includes('seller_charged_gross_exceeds_order_total'));
+});
+
+test('integridade mantém seller válido quando base cobrada cabe no total do pedido',()=>{
+  const integrity=assessSellerSettlementIntegrity({
+    order:{
+      total:2379,
+      items:[{
+        sellerId:'seller_externo',
+        quantity:1,
+        totalPrice:2299,
+        sellerBaseTotal:2299
+      }]
+    },
+    sellerId:'seller_externo',
+    settlement:{gross:2299}
+  });
+  assert.equal(integrity.orderTotal,2379);
+  assert.equal(integrity.blocked,false);
+  assert.deepEqual(integrity.anomalies,[]);
 });
