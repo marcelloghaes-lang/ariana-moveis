@@ -24,21 +24,43 @@ Status atual: **shadow mode / sem dinheiro real / sem deploy na main**
 - Fila de revisão manual de segurança/contestação.
 - Visão read-only do seller.
 - Adapter Mercado Pago Orders + 3DS sandbox isolado.
+- Rotas 3DS sandbox apenas de Admin, fora do checkout atual.
+- Consulta read-only da Order 3DS para conferir challenge e liability shift.
 - Adapter de conciliação Mercado Pago sandbox isolado.
+- Credenciais sandbox dedicadas: nunca há fallback para `MP_ACCESS_TOKEN`.
+- Bloqueio se uma credencial sandbox repetir explicitamente `MP_ACCESS_TOKEN`.
+- Bloqueio de qualquer resposta/registro sandbox que informe `live_mode=true`.
+- API base do Mercado Pago fixada no host oficial HTTPS.
+- Callback 3DS exige HTTPS.
 - Readiness da Fase 1 com fail-closed.
+- Readiness bloqueia ativação acidental de dinheiro real, checkout ou payout.
 - CI dedicado com testes e syntax check das rotas afetadas.
+
+## Travas de ativação
+
+Na Fase 1, o estado seguro é:
+
+- `ARIANA_PAY_ENABLED=false`
+- `ARIANA_PAY_CHECKOUT_ENABLED=false`
+- `ARIANA_PAY_PAYOUT_ENABLED=false`
+- produção sem movimentação nova da Ariana Pay
+
+O readiness retorna `readyForRealMoney=false` independentemente do restante da configuração.
 
 ## Ainda depende de configuração externa
 
 ### Mercado Pago
-Necessário obter/configurar de forma segura:
+
+Necessário obter/configurar de forma segura, fora do código-fonte:
 
 - `MP_WEBHOOK_SECRET`
 - `MP_3DS_SANDBOX_ACCESS_TOKEN`
 - `MP_3DS_SANDBOX_NOTIFICATION_URL`
 - `MP_RECON_SANDBOX_ACCESS_TOKEN`
 
-Flags continuam desligadas até existir credencial correta:
+As credenciais dos adapters sandbox devem ser dedicadas ao ambiente de teste e nunca reutilizadas automaticamente a partir de `MP_ACCESS_TOKEN`.
+
+Flags continuam desligadas até existir configuração correta e teste controlado:
 
 - `MP_WEBHOOK_SIGNATURE_ENFORCE=false`
 - `MP_3DS_SANDBOX_ENABLED=false`
@@ -63,10 +85,12 @@ Antes de qualquer merge/produção:
 
 - Não ativar payout real.
 - Não ativar `ARIANA_PAY_ENABLED`.
+- Não ativar `ARIANA_PAY_CHECKOUT_ENABLED`.
+- Não ativar `ARIANA_PAY_PAYOUT_ENABLED`.
 - Não migrar checkout atual.
 - Não trocar gateway de produção.
 - Não habilitar enforcement do webhook sem o secret correto.
-- Não usar credencial de produção nos adapters sandbox.
+- Não usar credencial do checkout/produção nos adapters sandbox.
 - Não criar débito de seller sem responsabilidade confirmada.
 - Não tocar no Gustavo, ERP ou outros fluxos fora do escopo.
 
