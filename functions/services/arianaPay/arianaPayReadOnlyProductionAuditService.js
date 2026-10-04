@@ -28,6 +28,31 @@ function money(value=0){
   return Number.isFinite(n)?Math.round((n+Number.EPSILON)*100)/100:0;
 }
 
+export function normalizeAuditLimit(value=25){
+  const parsed=Number(value);
+  if(!Number.isFinite(parsed)) return 25;
+  return Math.max(5,Math.min(Math.trunc(parsed),100));
+}
+
+export function isFinancialProjectionEligible({
+  externalSeller=false,
+  eligibility={},
+  integrity={},
+  reconciliation={},
+  risk={},
+  cardSecurity={}
+}={}){
+  return Boolean(
+    externalSeller&&
+    eligibility.marketplaceCandidate&&
+    eligibility.financiallyEligible&&
+    !integrity.blocked&&
+    reconciliation.status==='matched'&&
+    !risk.blocksRelease&&
+    !cardSecurity.blocksPayout
+  );
+}
+
 function errorWith(code,message,statusCode=503){
   const error=new Error(message);
   error.code=code;
@@ -303,7 +328,7 @@ export async function auditRealProductionSample({
   now=new Date()
 }={}){
   const config=assertReadOnlyProductionAuditConfigured(getReadOnlyProductionAuditConfig(env));
-  const safeLimit=Math.max(5,Math.min(Number(limit||25),100));
+  const safeLimit=normalizeAuditLimit(limit);
   const {default:mongoose}=await import('mongoose');
   const connection=mongoose.createConnection(config.uri,{
     dbName:config.databaseName||undefined,
@@ -319,6 +344,9 @@ export async function auditRealProductionSample({
     await connection.asPromise();
     const db=connection.db;
     const credential=await assertMongoCredentialIsReadOnly(db);
+    const totalOrdersInCollection=await db.collection('orders')
+      .estimatedDocumentCount({maxTimeMS:5000})
+      .catch(()=>null);
 
     const orders=await db.collection('orders').aggregate([
       {$sort:{createdAt:-1}},
@@ -335,7 +363,12 @@ export async function auditRealProductionSample({
 
     const rows=[];
     const summary={
+      requestedOrders:safeLimit,
+      totalOrdersInCollection:Number.isFinite(totalOrdersInCollection)?totalOrdersInCollection:null,
       sampledOrders:orders.length,
+      sampleExhaustedCollection:Number.isFinite(totalOrdersInCollection)
+        ? orders.length>=totalOrdersInCollection
+        : null,
       marketplaceCandidates:0,
       financiallyEligible:0,
       externalSellerOrders:0,
@@ -345,6 +378,7 @@ export async function auditRealProductionSample({
       sellerProjections:0,
       externalSellerProjections:0,
       internalSellerProjections:0,
+      financialProjectionEligibleProjections:0,
       trustedSnapshotProjections:0,
       missingSnapshotProjections:0,
       settlementIntegrityBlocked:0,
@@ -412,9 +446,18 @@ export async function auditRealProductionSample({
         });
 
         const externalSeller=!isPlatformSellerId(sellerId);
+        const financialProjectionEligible=isFinancialProjectionEligible({
+          externalSeller,
+          eligibility,
+          integrity,
+          reconciliation,
+          risk,
+          cardSecurity
+        });
         summary.sellerProjections+=1;
         if(externalSeller) summary.externalSellerProjections+=1;
         else summary.internalSellerProjections+=1;
+        if(financialProjectionEligible) summary.financialProjectionEligibleProjections+=1;
         if(integrity.snapshotItems===integrity.itemCount&&integrity.itemCount>0) summary.trustedSnapshotProjections+=1;
         if(integrity.missingSnapshotItems>0) summary.missingSnapshotProjections+=1;
         if(integrity.blocked) summary.settlementIntegrityBlocked+=1;
@@ -422,8 +465,10 @@ export async function auditRealProductionSample({
         else summary.releaseBlocked+=1;
         if(responsibility.requiresManualReview) summary.responsibilityReview+=1;
 
-        // Totais projetados de payout consideram apenas seller externo.
-        if(externalSeller){
+        // Totais projetados só incluem seller externo que passou pelas travas financeiras.
+        // Crediário Ariana, pagamento não aprovado, conciliação ausente/divergente, risco ou bloqueio
+        // de segurança continuam visíveis na auditoria, mas NÃO entram como payout projetado.
+        if(financialProjectionEligible){
           summary.projectedSellerGross+=Number(settlement.gross||0);
           summary.projectedSellerCommission+=Number(settlement.commission||0);
           summary.projectedSellerNet+=Number(settlement.net||0);
@@ -432,6 +477,7 @@ export async function auditRealProductionSample({
         sellers.push({
           sellerId,
           externalSeller,
+          financialProjectionEligible,
           settlement:{
             chargedGross:settlement.chargedGross,
             gross:settlement.gross,
@@ -526,5 +572,7 @@ export default {
   getReadOnlyProductionAuditConfig,
   assertReadOnlyProductionAuditConfigured,
   inspectReadOnlyPrivileges,
+  normalizeAuditLimit,
+  isFinancialProjectionEligible,
   auditRealProductionSample
 };
