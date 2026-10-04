@@ -38,7 +38,7 @@ test('readiness nunca considera Fase 1 pronta para dinheiro real',()=>{
 
 test('readiness aponta exatamente dependências externas ausentes',()=>{
   const result=buildArianaPayPhase1Readiness({env:{}});
-  assert.equal(result.externalPending.includes('mercado_pago_3ds_sandbox_credentials_or_callback'),true);
+  assert.equal(result.externalPending.includes('mercado_pago_3ds_sandbox_credentials'),true);
   assert.equal(result.externalPending.includes('mercado_pago_reconciliation_sandbox_credentials'),true);
   assert.equal(result.externalPending.includes('mercado_pago_webhook_secret'),true);
   assert.equal(result.gates.mp3dsSandboxConfigured,false);
@@ -56,11 +56,19 @@ test('readiness rejeita reutilização do token padrão do checkout nos adapters
 
   assert.equal(result.gates.mp3dsSandboxConfigured,false);
   assert.equal(result.gates.mpReconciliationSandboxConfigured,false);
-  assert.equal(result.externalPending.includes('mercado_pago_3ds_sandbox_credentials_or_callback'),true);
+  assert.equal(result.externalPending.includes('mercado_pago_3ds_sandbox_credentials'),true);
   assert.equal(result.externalPending.includes('mercado_pago_reconciliation_sandbox_credentials'),true);
 });
 
-test('readiness rejeita callback inseguro ou endpoint sandbox adulterado',()=>{
+test('readiness aceita callback ausente, rejeita callback inseguro quando informado e endpoint adulterado',()=>{
+  const noCallback=buildArianaPayPhase1Readiness({
+    env:{
+      ...SAFE_ENV,
+      MP_3DS_SANDBOX_NOTIFICATION_URL:''
+    }
+  });
+  assert.equal(noCallback.gates.mp3dsSandboxConfigured,true);
+
   const insecureCallback=buildArianaPayPhase1Readiness({
     env:{
       ...SAFE_ENV,
