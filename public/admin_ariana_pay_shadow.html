@@ -37,6 +37,22 @@
 <main>
   <div id="notice" class="notice warn">Esta tela é apenas de conferência. Nenhum saldo, pedido, gateway ou repasse é alterado. A política atual da Ariana Pay libera o recebível 15 dias após a entrega confirmada.</div>
 
+  <div class="panel">
+    <h2>Prontidão da Fase 1</h2>
+    <p>Conferência fail-closed das travas, adapters sandbox e pendências externas. Nenhum secret é exibido nesta tela.</p>
+    <div class="stats">
+      <div class="stat"><small>Código</small><b id="readyCode">—</b></div>
+      <div class="stat"><small>Dinheiro real</small><b id="readyMoney">—</b></div>
+      <div class="stat"><small>Checkout Ariana Pay</small><b id="readyCheckout">—</b></div>
+      <div class="stat"><small>Payout real</small><b id="readyPayout">—</b></div>
+      <div class="stat"><small>3DS sandbox</small><b id="ready3ds">—</b></div>
+      <div class="stat"><small>Conciliação sandbox</small><b id="readyRecon">—</b></div>
+      <div class="stat"><small>Webhook assinado</small><b id="readyWebhook">—</b></div>
+    </div>
+    <div id="readinessPending" class="notice warn">Carregando estado de prontidão...</div>
+    <button id="refreshReadiness" class="soft"><i class="fas fa-rotate"></i> Atualizar prontidão</button>
+  </div>
+
   <div class="toolbar">
     <div class="field"><label>Seller específico (opcional)</label><input id="sellerId" placeholder="sellerId"></div>
     <div class="field" style="max-width:180px"><label>Pedidos a analisar</label><input id="limit" type="number" min="1" max="2000" value="500"></div>
@@ -111,6 +127,48 @@ const $=id=>document.getElementById(id);
 const token=()=>localStorage.getItem('admin_token')||'';
 const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+function gateText(value, safeOff=false){
+  if(value===true)return safeOff?'DESLIGADO ✓':'OK';
+  if(value===false)return safeOff?'ATENÇÃO':'PENDENTE';
+  return '—';
+}
+
+async function loadReadiness(){
+  const t=token();
+  if(!t){location.href='admin_login.html';return}
+  $('refreshReadiness').disabled=true;
+  try{
+    const res=await fetch(API_BASE+'/admin/ariana-pay/readiness?limit=300',{headers:{Authorization:'Bearer '+t}});
+    const data=await res.json().catch(()=>({}));
+    if(res.status===401){location.href='admin_login.html';return}
+    if(!res.ok)throw new Error(data.error||'Não foi possível consultar a prontidão da Ariana Pay.');
+    const g=data.gates||{};
+    $('readyCode').textContent=data.codeReady?'OK':'BLOQUEADO';
+    $('readyMoney').textContent=gateText(g.realMoneyFeatureDisabled,true);
+    $('readyCheckout').textContent=gateText(g.checkoutTakeoverDisabled,true);
+    $('readyPayout').textContent=gateText(g.payoutExecutionDisabled,true);
+    $('ready3ds').textContent=gateText(g.mp3dsSandboxConfigured);
+    $('readyRecon').textContent=gateText(g.mpReconciliationSandboxConfigured);
+    $('readyWebhook').textContent=g.mpWebhookSecretConfigured&&g.mpWebhookSignatureEnforced?'OK':'PENDENTE';
+    const safety=Array.isArray(data.safetyViolations)?data.safetyViolations:[];
+    const external=Array.isArray(data.externalPending)?data.externalPending:[];
+    const pending=Array.isArray(data.dataPending)?data.dataPending:[];
+    const parts=[];
+    if(safety.length)parts.push('Travas de segurança: '+safety.join(', '));
+    if(external.length)parts.push('Configuração externa: '+external.join(', '));
+    if(pending.length)parts.push('Dados: '+pending.join(', '));
+    $('readinessPending').className=safety.length?'notice err':(parts.length?'notice warn':'notice');
+    $('readinessPending').textContent=parts.length
+      ? parts.join(' • ')
+      : 'Fase 1 pronta para revisão controlada de homologação. Dinheiro real continua bloqueado.';
+  }catch(err){
+    $('readinessPending').className='notice err';
+    $('readinessPending').textContent=err.message;
+  }finally{
+    $('refreshReadiness').disabled=false;
+  }
+}
 
 async function runAudit(){
   const t=token();
@@ -227,6 +285,8 @@ async function runAudit(){
   }
 }
 $('run').addEventListener('click',runAudit);
+$('refreshReadiness').addEventListener('click',loadReadiness);
+loadReadiness();
 </script>
 </body>
 </html>
