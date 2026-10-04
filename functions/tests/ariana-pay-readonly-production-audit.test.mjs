@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {
   getReadOnlyProductionAuditConfig,
   assertReadOnlyProductionAuditConfigured,
-  inspectReadOnlyPrivileges
+  inspectReadOnlyPrivileges,
+  normalizeAuditLimit,
+  isFinancialProjectionEligible
 } from '../services/arianaPay/arianaPayReadOnlyProductionAuditService.js';
 
 test('auditoria real exige URI Mongo dedicada',()=>{
@@ -62,4 +64,47 @@ test('papel readWrite é rejeitado mesmo sem lista de privilégios',()=>{
   });
   assert.equal(inspection.verifiedReadOnly,false);
   assert.ok(inspection.suspiciousRoles.includes('readWrite'));
+});
+
+test('limite da auditoria aceita 100 e permanece fail-closed fora da faixa',()=>{
+  assert.equal(normalizeAuditLimit('100'),100);
+  assert.equal(normalizeAuditLimit(999),100);
+  assert.equal(normalizeAuditLimit(1),5);
+  assert.equal(normalizeAuditLimit('invalido'),25);
+});
+
+test('crediário interno de seller externo não entra nos totais projetados de payout',()=>{
+  const eligible=isFinancialProjectionEligible({
+    externalSeller:true,
+    eligibility:{marketplaceCandidate:false,financiallyEligible:false},
+    integrity:{blocked:false},
+    reconciliation:{status:'matched'},
+    risk:{blocksRelease:false},
+    cardSecurity:{blocksPayout:false}
+  });
+  assert.equal(eligible,false);
+});
+
+test('seller externo só entra na projeção após elegibilidade e conciliação matched',()=>{
+  const base={
+    externalSeller:true,
+    eligibility:{marketplaceCandidate:true,financiallyEligible:true},
+    integrity:{blocked:false},
+    risk:{blocksRelease:false},
+    cardSecurity:{blocksPayout:false}
+  };
+  assert.equal(isFinancialProjectionEligible({...base,reconciliation:{status:'matched'}}),true);
+  assert.equal(isFinancialProjectionEligible({...base,reconciliation:{status:'insufficient_evidence'}}),false);
+  assert.equal(isFinancialProjectionEligible({...base,reconciliation:{status:'divergent'}}),false);
+});
+
+test('risco financeiro ou bloqueio de segurança exclui payout projetado',()=>{
+  const base={
+    externalSeller:true,
+    eligibility:{marketplaceCandidate:true,financiallyEligible:true},
+    integrity:{blocked:false},
+    reconciliation:{status:'matched'}
+  };
+  assert.equal(isFinancialProjectionEligible({...base,risk:{blocksRelease:true},cardSecurity:{blocksPayout:false}}),false);
+  assert.equal(isFinancialProjectionEligible({...base,risk:{blocksRelease:false},cardSecurity:{blocksPayout:true}}),false);
 });
