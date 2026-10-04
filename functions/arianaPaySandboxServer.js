@@ -15,6 +15,16 @@ import {
 
 const app=express();
 app.disable('x-powered-by');
+
+app.use((req,res,next)=>{
+  res.setHeader('X-Content-Type-Options','nosniff');
+  res.setHeader('X-Frame-Options','DENY');
+  res.setHeader('Referrer-Policy','no-referrer');
+  res.setHeader('Cache-Control','no-store');
+  res.setHeader('Pragma','no-cache');
+  next();
+});
+
 app.use(express.json({limit:'1mb'}));
 
 function clean(value=''){
@@ -70,6 +80,30 @@ function safeStatus(error={}){
   return status>=400&&status<600?status:500;
 }
 
+function sandboxMaxAmount(){
+  const configured=Number(process.env.ARIANA_PAY_SANDBOX_MAX_AMOUNT||100);
+  if(!Number.isFinite(configured)||configured<=0) return 100;
+  return Math.min(configured,1000);
+}
+
+function assertSandboxAmount(amount){
+  const value=Number(amount);
+  const max=sandboxMaxAmount();
+  if(!Number.isFinite(value)||value<=0){
+    const error=new Error('Valor de teste inválido.');
+    error.statusCode=400;
+    error.code='ARIANA_PAY_SANDBOX_AMOUNT_INVALID';
+    throw error;
+  }
+  if(value>max){
+    const error=new Error(`Valor de teste excede o limite seguro de R$ ${max.toFixed(2)}.`);
+    error.statusCode=400;
+    error.code='ARIANA_PAY_SANDBOX_AMOUNT_LIMIT';
+    throw error;
+  }
+  return value;
+}
+
 app.get('/health',(_req,res)=>{
   const readiness=buildArianaPayPhase1Readiness({env:process.env});
   return res.json({
@@ -88,6 +122,7 @@ app.get('/api/admin/ariana-pay/readiness',adminRequired,(_req,res)=>{
     ok:true,
     feature:'ariana_pay',
     service:'isolated_sandbox',
+    sandboxMaxAmount:sandboxMaxAmount(),
     ...buildArianaPayPhase1Readiness({env:process.env})
   });
 });
@@ -95,10 +130,11 @@ app.get('/api/admin/ariana-pay/readiness',adminRequired,(_req,res)=>{
 app.post('/api/admin/ariana-pay/3ds-sandbox/orders',adminRequired,requireShadow,async(req,res)=>{
   try{
     const body=req.body||{};
+    const amount=assertSandboxAmount(body.amount);
     const client=createMercadoPago3dsSandboxClient({axios});
     const result=await client.createOrder({
       orderId:clean(body.orderId||body.reference),
-      amount:Number(body.amount||0),
+      amount,
       email:clean(body.email),
       paymentMethodId:clean(body.paymentMethodId||body.payment_method_id),
       cardToken:clean(body.cardToken||body.token),
@@ -190,15 +226,22 @@ app.post('/api/webhooks/ariana-pay/mercadopago-sandbox',requireShadow,(req,res)=
     signatureHeader:clean(req.headers['x-signature']),
     requestId:clean(req.headers['x-request-id']),
     dataId:getMercadoPagoWebhookDataId(req),
-    secret
+    secret,
+    requireFreshTimestamp:true,
+    toleranceSeconds:Number(process.env.MP_WEBHOOK_SIGNATURE_TOLERANCE_SECONDS||300)
   });
 
   if(!verification.ok){
-    return res.status(verification.reason==='secret_not_configured'?503:401).json({
+    const missingSecret=verification.reason==='secret_not_configured';
+    return res.status(missingSecret?503:401).json({
       ok:false,
-      code:verification.reason==='secret_not_configured'
+      code:missingSecret
         ? 'MP_WEBHOOK_SECRET_MISSING'
-        : 'MP_WEBHOOK_SIGNATURE_INVALID',
+        : verification.reason==='signature_too_old'
+          ? 'MP_WEBHOOK_SIGNATURE_STALE'
+          : verification.reason==='signature_from_future'
+            ? 'MP_WEBHOOK_SIGNATURE_FUTURE'
+            : 'MP_WEBHOOK_SIGNATURE_INVALID',
       error:'Webhook Mercado Pago sandbox não autenticado.'
     });
   }
