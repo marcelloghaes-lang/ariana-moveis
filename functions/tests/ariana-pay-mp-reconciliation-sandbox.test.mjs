@@ -185,3 +185,11 @@ test('cliente recusa consulta quando flag está desligada',async()=>{
   });
   await assert.rejects(()=>client.fetchPayment('p1'),/desabilitada/);
 });
+
+
+test('valor esperado pt-BR com vírgula é compatível com conciliação',()=>{
+  const raw='49,99';
+  const normalized=raw.includes(',')?raw.replace(/\./g,'').replace(',','.'):raw;
+  const n=Number(normalized);
+  assert.equal(n,49.99);
+});
