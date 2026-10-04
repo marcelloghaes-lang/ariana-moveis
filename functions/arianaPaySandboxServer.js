@@ -318,7 +318,10 @@ app.post('/api/sandbox/3ds-test',requireShadow,async(req,res)=>{
       cardToken:clean(body.token),
       installmentCount:Number(body.installments||1)
     });
-    return res.status(result.statusCode||201).json({ok:result.ok,mode:'sandbox_3ds_ui',writesEnabled:false,payoutsEnabled:false,result:result.result});
+    if(!result.ok){
+      console.log('[ariana-pay-sandbox][3ds-test] provider_rejected',JSON.stringify({status:result.statusCode,providerError:result.providerError}));
+    }
+    return res.status(result.statusCode||201).json({ok:result.ok,mode:'sandbox_3ds_ui',writesEnabled:false,payoutsEnabled:false,providerStatus:result.statusCode,providerError:result.ok?undefined:result.providerError,result:result.result});
   }catch(error){
     return res.status(safeStatus(error)).json({ok:false,code:error?.code||'ARIANA_PAY_3DS_TEST_ERROR',error:error?.message||'Falha no teste 3DS.'});
   }
