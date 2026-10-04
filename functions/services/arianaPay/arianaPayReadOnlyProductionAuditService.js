@@ -2,7 +2,6 @@
 // A conexão é separada do backend de produção e falha fechada se detectar privilégio de escrita.
 // Nenhuma informação pessoal do cliente sai do banco: a consulta projeta apenas sinais financeiros/operacionais.
 
-import mongoose from 'mongoose';
 import createMarketplacePricingService from '../marketplacePricingService.js';
 import { hadApprovedPayment, detectFinancialRisk, applyRiskToRelease } from './arianaPayRiskService.js';
 import { assessCardSecurity, applyCardSecurityToRelease } from './arianaPayCardSecurityService.js';
@@ -293,7 +292,7 @@ function orderProjectionStage(){
   };
 }
 
-async function loadProductBaseMap(db,orders=[],pricing){
+async function loadProductBaseMap(db,orders=[],pricing,mongoose){
   const rawIds=[...new Set(
     orders.flatMap(order=>(Array.isArray(order.items)?order.items:[]))
       .map(item=>clean(item?.productId))
@@ -330,6 +329,7 @@ export async function auditRealProductionSample({
 }={}){
   const config=assertReadOnlyProductionAuditConfigured(getReadOnlyProductionAuditConfig(env));
   const safeLimit=Math.max(5,Math.min(Number(limit||25),100));
+  const {default:mongoose}=await import('mongoose');
   const connection=mongoose.createConnection(config.uri,{
     dbName:config.databaseName||undefined,
     serverSelectionTimeoutMS:12000,
@@ -357,7 +357,7 @@ export async function auditRealProductionSample({
       ensureArray:value=>Array.isArray(value)?value:[],
       toJSON:value=>value
     });
-    const productBaseMap=await loadProductBaseMap(db,orders,pricing);
+    const productBaseMap=await loadProductBaseMap(db,orders,pricing,mongoose);
 
     const rows=[];
     const summary={
