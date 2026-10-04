@@ -14,7 +14,6 @@ import registerCatalogHomeProductBannerRoutes from './catalogHomeProductBannerRo
 import registerSellerPartnerRoutes from './sellerPartnerRoutes.js';
 import registerCoreAuthUserRoutes from './coreAuthUserRoutes.js';
 import registerSellerCoreRoutes from './sellerCoreRoutes.js';
-import registerArianaPayShadowRoutes from './arianaPayShadowRoutes.js';
 import registerAdminSigeCrediarioBotRoutes from './adminSigeCrediarioBotRoutes.js';
 import registerExternalIntegrationRoutes from './externalIntegrationRoutes.js';
 import createAdminOperationalController from '../controllers/adminOperationalController.js';
@@ -325,17 +324,6 @@ const {
   getItemSellerBaseTotal,
   getSellerSettlementForOrder
 } = createMarketplacePricingController(context);
-
-// Ariana Pay Fase 1: endpoint administrativo somente leitura.
-// Permanece invisível/desligado por padrão até ARIANA_PAY_SHADOW_ENABLED=true.
-registerArianaPayShadowRoutes(app, {
-  adminRequired,
-  Order,
-  Seller,
-  axios,
-  buildProductBasePriceMapForOrders,
-  getSellerSettlementForOrder
-});
 
 // Funções avançadas de WhatsApp/notificações foram movidas para controllers/whatsappController.js na Etapa 24.
 
