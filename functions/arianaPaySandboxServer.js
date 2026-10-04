@@ -283,9 +283,9 @@ app.get('/3ds-test',requireShadow,(_req,res)=>{
 <div><label>Validade</label><div id="form-checkout__expirationDate" class="field"></div></div>
 <div><label>CVV</label><div id="form-checkout__securityCode" class="field"></div></div>
 <div class="full"><label>Titular / cenário 3DS</label><input id="form-checkout__cardholderName" value="APRO-CHOK" required></div>
-<div><label>Emissor</label><select id="form-checkout__issuer"></select></div>
-<div><label>Parcelas</label><select id="form-checkout__installments"></select></div>
-<div><label>Documento</label><select id="form-checkout__identificationType"></select></div>
+<div><label>Bandeira</label><input value="Mastercard" readonly></div>
+<div><label>Parcelas</label><input value="1x" readonly></div>
+<div><label>Documento</label><select id="form-checkout__identificationType"><option value="CPF">CPF</option></select></div>
 <div><label>Número do documento</label><input id="form-checkout__identificationNumber" value="12345678909" required></div>
 <div class="full"><label>E-mail de teste</label><input type="email" id="form-checkout__cardholderEmail" value="test@testuser.com" required></div>
 </div><button type="submit" id="form-checkout__submit">Criar Order 3DS de teste</button><progress value="0" class="progress-bar" style="display:none">Carregando...</progress></form>
@@ -295,11 +295,102 @@ app.get('/3ds-test',requireShadow,(_req,res)=>{
 const mp=new MercadoPago(${JSON.stringify(publicKey)});
 const statusEl=document.getElementById('status');
 const challenge=document.getElementById('challenge');
+const form=document.getElementById('form-checkout');
 let currentOrder='';
 let currentCode='';
+
 function show(v){statusEl.textContent=typeof v==='string'?v:JSON.stringify(v,null,2)}
-async function poll(){if(!currentOrder||!currentCode)return;try{const r=await fetch('/api/sandbox/3ds-test/orders/'+encodeURIComponent(currentOrder),{headers:{'x-ariana-pay-3ds-code':currentCode}});const j=await r.json();show(j);if(j?.result?.status==='processed'||j?.result?.status==='failed'){challenge.style.display='none';return}setTimeout(poll,2500)}catch(e){show('Falha ao consultar status: '+e.message)}}
-const cardForm=mp.cardForm({amount:'50.00',iframe:true,form:{id:'form-checkout',cardNumber:{id:'form-checkout__cardNumber',placeholder:'Número do cartão'},expirationDate:{id:'form-checkout__expirationDate',placeholder:'MM/YY'},securityCode:{id:'form-checkout__securityCode',placeholder:'CVV'},cardholderName:{id:'form-checkout__cardholderName',placeholder:'Titular'},issuer:{id:'form-checkout__issuer',placeholder:'Emissor'},installments:{id:'form-checkout__installments',placeholder:'Parcelas'},identificationType:{id:'form-checkout__identificationType',placeholder:'Documento'},identificationNumber:{id:'form-checkout__identificationNumber',placeholder:'CPF'},cardholderEmail:{id:'form-checkout__cardholderEmail',placeholder:'E-mail'}},callbacks:{onFormMounted:error=>{if(error)show('Erro ao montar formulário: '+error.message)},onSubmit:async event=>{event.preventDefault();const data=cardForm.getCardFormData();currentCode=document.getElementById('test-code').value.trim();show('Enviando Order 3DS sandbox...');try{const r=await fetch('/api/sandbox/3ds-test',{method:'POST',headers:{'Content-Type':'application/json','x-ariana-pay-3ds-code':currentCode},body:JSON.stringify({token:data.token,paymentMethodId:data.paymentMethodId||'master',installments:Number(data.installments||1),email:data.cardholderEmail||'test@testuser.com'})});const j=await r.json();show(j);if(!r.ok)return;currentOrder=j?.result?.orderId||'';const url=j?.result?.challengeUrl||'';if(url){challenge.src=url;challenge.style.display='block'}if(currentOrder)setTimeout(poll,2500)}catch(e){show('Erro: '+e.message)}}}});
+
+mp.fields.create('cardNumber',{placeholder:'Número do cartão'}).mount('form-checkout__cardNumber');
+mp.fields.create('expirationDate',{placeholder:'MM/YY'}).mount('form-checkout__expirationDate');
+mp.fields.create('securityCode',{placeholder:'CVV'}).mount('form-checkout__securityCode');
+
+async function poll(){
+  if(!currentOrder||!currentCode)return;
+  try{
+    const r=await fetch('/api/sandbox/3ds-test/orders/'+encodeURIComponent(currentOrder),{
+      headers:{'x-ariana-pay-3ds-code':currentCode}
+    });
+    const j=await r.json();
+    show(j);
+    if(j?.result?.status==='processed'||j?.result?.status==='failed'||j?.result?.status==='canceled'){
+      challenge.style.display='none';
+      return;
+    }
+    setTimeout(poll,2500);
+  }catch(e){
+    show('Falha ao consultar status: '+e.message);
+  }
+}
+
+window.addEventListener('message',(event)=>{
+  if(event?.data?.status==='COMPLETE'&&currentOrder){
+    setTimeout(poll,800);
+  }
+});
+
+form.addEventListener('submit',async event=>{
+  event.preventDefault();
+  currentCode=document.getElementById('test-code').value.trim();
+  const cardholderName=document.getElementById('form-checkout__cardholderName').value.trim();
+  const identificationType=document.getElementById('form-checkout__identificationType').value;
+  const identificationNumber=document.getElementById('form-checkout__identificationNumber').value.trim();
+  const email=document.getElementById('form-checkout__cardholderEmail').value.trim()||'test@testuser.com';
+
+  show('Gerando token de teste com titular '+cardholderName+'...');
+  challenge.style.display='none';
+  challenge.removeAttribute('src');
+
+  try{
+    const token=await mp.fields.createCardToken({
+      cardholderName,
+      identificationType,
+      identificationNumber
+    });
+
+    if(!token?.id) throw new Error('Mercado Pago não retornou o CardToken.');
+
+    const tokenizedName=String(token?.cardholder?.name||'').trim();
+    if(tokenizedName&&tokenizedName!==cardholderName){
+      throw new Error('O titular tokenizado não corresponde ao cenário informado.');
+    }
+
+    show({
+      etapa:'token_criado',
+      cardholderName:tokenizedName||cardholderName,
+      liveMode:token?.live_mode===true,
+      cardLastFour:String(token?.last_four_digits||''),
+      aviso:'Token protegido; ID não exibido.'
+    });
+
+    const r=await fetch('/api/sandbox/3ds-test',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-ariana-pay-3ds-code':currentCode
+      },
+      body:JSON.stringify({
+        token:token.id,
+        paymentMethodId:'master',
+        installments:1,
+        email
+      })
+    });
+    const j=await r.json();
+    show(j);
+    if(!r.ok)return;
+
+    currentOrder=j?.result?.orderId||'';
+    const url=j?.result?.challengeUrl||'';
+    if(url){
+      challenge.src=url;
+      challenge.style.display='block';
+    }
+    if(currentOrder)setTimeout(poll,2500);
+  }catch(e){
+    show('Erro: '+(e?.message||String(e)));
+  }
+});
 </script></body></html>`);
 });
 
