@@ -63,8 +63,7 @@ export function assertMercadoPago3dsSandboxReady(config=getMercadoPago3dsSandbox
   if(!isOfficialMercadoPagoApiBaseUrl(config.baseUrl)){
     throw new Error('MP_3DS_SANDBOX_BASE_URL deve apontar para https://api.mercadopago.com.');
   }
-  if(!config.notificationUrl) throw new Error('MP_3DS_SANDBOX_NOTIFICATION_URL não configurada.');
-  if(!isHttpsUrl(config.notificationUrl)) throw new Error('MP_3DS_SANDBOX_NOTIFICATION_URL deve usar HTTPS.');
+  if(config.notificationUrl&&!isHttpsUrl(config.notificationUrl)) throw new Error('MP_3DS_SANDBOX_NOTIFICATION_URL deve usar HTTPS.');
   return config;
 }
 
@@ -118,8 +117,8 @@ export function buildMercadoPago3dsOrderPayload({
     }
   };
 
-  const callback=clean(notificationUrl);
-  if(callback) payload.notification_url=callback;
+  // Orders API usa a configuração de Webhooks da aplicação no painel do Mercado Pago.
+  // Não enviar notification_url aqui: a propriedade não pertence ao schema de criação de Orders.
   return payload;
 }
 
@@ -199,10 +198,7 @@ export function createMercadoPago3dsSandboxClient({axios,env=process.env}={}){
   async function createOrder(input={}){
     if(typeof axios.post!=='function') throw new TypeError('Cliente HTTP POST é obrigatório.');
     const config=assertMercadoPago3dsSandboxReady(getMercadoPago3dsSandboxConfig(env));
-    const payload=buildMercadoPago3dsOrderPayload({
-      ...input,
-      notificationUrl:input.notificationUrl||config.notificationUrl
-    });
+    const payload=buildMercadoPago3dsOrderPayload(input);
     const idempotencyKey=clean(input.idempotencyKey)||`ariana-pay-3ds-${clean(input.orderId)}`;
 
     const response=await axios.post(
