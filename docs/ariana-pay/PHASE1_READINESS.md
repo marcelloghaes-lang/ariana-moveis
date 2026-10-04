@@ -47,39 +47,37 @@ Na Fase 1, o estado seguro é:
 
 O readiness retorna `readyForRealMoney=false` independentemente do restante da configuração.
 
-## Ainda depende de configuração externa
+## Configuração externa da homologação
 
 ### Mercado Pago
 
-Necessário obter/configurar de forma segura, fora do código-fonte:
+Configurado no serviço isolado `ariana-pay-shadow`:
 
-- `MP_WEBHOOK_SECRET`
-- `MP_3DS_SANDBOX_ACCESS_TOKEN`
-- `MP_3DS_SANDBOX_NOTIFICATION_URL`
-- `MP_RECON_SANDBOX_ACCESS_TOKEN`
+- credencial dedicada para Orders/3DS;
+- credencial dedicada para conciliação;
+- Webhook com assinatura secreta;
+- `MP_WEBHOOK_SIGNATURE_ENFORCE=true`;
+- `MP_3DS_SANDBOX_ENABLED=true`;
+- `ARIANA_PAY_RECON_SANDBOX_ENABLED=true`;
+- identificação da conta de teste validada antes de criar Orders;
+- nenhum fallback para `MP_ACCESS_TOKEN` do checkout atual.
 
-As credenciais dos adapters sandbox devem ser dedicadas ao ambiente de teste e nunca reutilizadas automaticamente a partir de `MP_ACCESS_TOKEN`.
-
-Flags continuam desligadas até existir configuração correta e teste controlado:
-
-- `MP_WEBHOOK_SIGNATURE_ENFORCE=false`
-- `MP_3DS_SANDBOX_ENABLED=false`
-- `ARIANA_PAY_RECON_SANDBOX_ENABLED=false`
+As flags de dinheiro real continuam desligadas.
 
 ### Testes externos obrigatórios
 
 Antes de qualquer merge/produção:
 
-1. pagamento de cartão sandbox sem challenge;
-2. pagamento de cartão sandbox com challenge 3DS;
-3. validar `liability_shift`;
-4. validar webhook assinado;
-5. validar alerta de fraude/stop delivery;
-6. consultar pagamento do sandbox para conciliação;
-7. simular valor divergente;
-8. simular chargeback com responsabilidade conhecida;
-9. simular chargeback sem motivo e confirmar que não cria dívida automática do seller;
-10. revisar uma amostra de pedidos reais somente em shadow mode.
+1. ✅ pagamento de cartão sandbox sem challenge — validado (`processed/accredited`);
+2. ✅ pagamento de cartão sandbox com challenge 3DS — validado (`action_required/pending_challenge` → `processed/accredited`);
+3. ✅ validar `liability_shift` — `required` confirmado e autenticação 3DS concluída (`authenticated=true`);
+4. ✅ validar webhook assinado — simulador Mercado Pago retornou HTTP 200 com HMAC ativo;
+5. ⏳ validar alerta de fraude/stop delivery;
+6. ⏳ consultar pagamento do sandbox para conciliação;
+7. ⏳ simular valor divergente;
+8. ⏳ simular chargeback com responsabilidade conhecida;
+9. ⏳ simular chargeback sem motivo e confirmar que não cria dívida automática do seller;
+10. ⏳ revisar uma amostra de pedidos reais somente em shadow mode.
 
 ## O que NÃO fazer ainda
 
