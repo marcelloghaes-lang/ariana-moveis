@@ -17,6 +17,28 @@ function installments(value=1){
   return Math.trunc(n);
 }
 
+function isOfficialMercadoPagoApiBaseUrl(value=''){
+  const raw=clean(value).replace(/\/+$/,'');
+  try{
+    const parsed=new URL(raw);
+    return parsed.protocol==='https:'&&parsed.hostname.toLowerCase()==='api.mercadopago.com';
+  }catch(_error){
+    return false;
+  }
+}
+
+function isHttpsUrl(value=''){
+  try{
+    return new URL(clean(value)).protocol==='https:';
+  }catch(_error){
+    return false;
+  }
+}
+
+export function isMercadoPagoTestAccessToken(value=''){
+  return /^TEST-/i.test(clean(value));
+}
+
 export function getMercadoPago3dsSandboxConfig(env=process.env){
   return {
     enabled: clean(env.MP_3DS_SANDBOX_ENABLED).toLowerCase()==='true',
@@ -29,7 +51,14 @@ export function getMercadoPago3dsSandboxConfig(env=process.env){
 export function assertMercadoPago3dsSandboxReady(config=getMercadoPago3dsSandboxConfig()){
   if(!config.enabled) throw new Error('Sandbox 3DS Mercado Pago desabilitado.');
   if(!config.accessToken) throw new Error('MP_3DS_SANDBOX_ACCESS_TOKEN não configurado.');
-  if(!/^https:\/\//i.test(config.baseUrl)) throw new Error('MP_3DS_SANDBOX_BASE_URL inválida.');
+  if(!isMercadoPagoTestAccessToken(config.accessToken)){
+    throw new Error('MP_3DS_SANDBOX_ACCESS_TOKEN deve ser uma credencial de teste Mercado Pago (prefixo TEST-).');
+  }
+  if(!isOfficialMercadoPagoApiBaseUrl(config.baseUrl)){
+    throw new Error('MP_3DS_SANDBOX_BASE_URL deve apontar para https://api.mercadopago.com.');
+  }
+  if(!config.notificationUrl) throw new Error('MP_3DS_SANDBOX_NOTIFICATION_URL não configurada.');
+  if(!isHttpsUrl(config.notificationUrl)) throw new Error('MP_3DS_SANDBOX_NOTIFICATION_URL deve usar HTTPS.');
   return config;
 }
 
@@ -99,7 +128,11 @@ export function normalizeMercadoPago3dsOrderResponse(data={}){
   const payment=Array.isArray(data?.transactions?.payments)
     ? data.transactions.payments[0]||{}
     : {};
-  const security=payment?.payment_method?.transaction_security||{};
+  const security=
+    payment?.payment_method?.transaction_security||
+    payment?.transaction_security||
+    data?.transaction_security||
+    {};
 
   return {
     orderId:clean(data.id),
@@ -108,7 +141,7 @@ export function normalizeMercadoPago3dsOrderResponse(data={}){
     statusDetail:clean(payment.status_detail||data.status_detail),
     paymentId:clean(payment.id),
     actionRequired:clean(payment.status)==='action_required'||clean(data.status)==='action_required',
-    pendingChallenge:clean(payment.status_detail)==='pending_challenge',
+    pendingChallenge:clean(payment.status_detail)==='pending_challenge'||clean(data.status_detail)==='pending_challenge',
     challengeUrl:clean(security.url),
     transactionSecurity:{
       id:clean(security.id),
@@ -123,9 +156,18 @@ export function normalizeMercadoPago3dsOrderResponse(data={}){
 }
 
 export function createMercadoPago3dsSandboxClient({axios,env=process.env}={}){
-  if(!axios?.post) throw new TypeError('Cliente HTTP é obrigatório.');
+  if(!axios) throw new TypeError('Cliente HTTP é obrigatório.');
+
+  function authHeaders(config,extra={}){
+    return {
+      Authorization:`Bearer ${config.accessToken}`,
+      'Content-Type':'application/json',
+      ...extra
+    };
+  }
 
   async function createOrder(input={}){
+    if(typeof axios.post!=='function') throw new TypeError('Cliente HTTP POST é obrigatório.');
     const config=assertMercadoPago3dsSandboxReady(getMercadoPago3dsSandboxConfig(env));
     const payload=buildMercadoPago3dsOrderPayload({
       ...input,
@@ -137,11 +179,7 @@ export function createMercadoPago3dsSandboxClient({axios,env=process.env}={}){
       `${config.baseUrl}/v1/orders`,
       payload,
       {
-        headers:{
-          Authorization:`Bearer ${config.accessToken}`,
-          'Content-Type':'application/json',
-          'X-Idempotency-Key':idempotencyKey
-        },
+        headers:authHeaders(config,{'X-Idempotency-Key':idempotencyKey}),
         timeout:30000,
         validateStatus:()=>true
       }
@@ -157,10 +195,41 @@ export function createMercadoPago3dsSandboxClient({axios,env=process.env}={}){
     };
   }
 
-  return {createOrder};
+  async function getOrder(providerOrderId=''){
+    if(typeof axios.get!=='function') throw new TypeError('Cliente HTTP GET é obrigatório.');
+    const id=clean(providerOrderId);
+    if(!id) throw new Error('providerOrderId é obrigatório.');
+    const config=assertMercadoPago3dsSandboxReady(getMercadoPago3dsSandboxConfig(env));
+
+    const response=await axios.get(
+      `${config.baseUrl}/v1/orders/${encodeURIComponent(id)}`,
+      {
+        headers:authHeaders(config),
+        timeout:30000,
+        validateStatus:()=>true
+      }
+    );
+
+    const statusCode=Number(response?.status||0);
+    if(statusCode<200||statusCode>=300){
+      const error=new Error(response?.data?.message||`Mercado Pago retornou HTTP ${statusCode} ao consultar a order 3DS sandbox.`);
+      error.statusCode=statusCode||502;
+      error.code='MP_3DS_SANDBOX_LOOKUP_FAILED';
+      throw error;
+    }
+
+    return {
+      statusCode,
+      ok:true,
+      result:normalizeMercadoPago3dsOrderResponse(response?.data||{})
+    };
+  }
+
+  return {createOrder,getOrder};
 }
 
 export default {
+  isMercadoPagoTestAccessToken,
   getMercadoPago3dsSandboxConfig,
   assertMercadoPago3dsSandboxReady,
   buildMercadoPago3dsOrderPayload,
