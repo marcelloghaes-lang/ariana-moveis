@@ -351,6 +351,8 @@ form.addEventListener('submit',async event=>{
     if(!token?.id) throw new Error('Mercado Pago não retornou o CardToken.');
 
     const tokenizedName=String(token?.cardholder?.name||'').trim();
+    const tokenLastFour=String(token?.last_four_digits||'').trim();
+    const tokenLiveMode=token?.live_mode===true;
     if(tokenizedName&&tokenizedName!==cardholderName){
       throw new Error('O titular tokenizado não corresponde ao cenário informado.');
     }
@@ -358,10 +360,18 @@ form.addEventListener('submit',async event=>{
     show({
       etapa:'token_criado',
       cardholderName:tokenizedName||cardholderName,
-      liveMode:token?.live_mode===true,
-      cardLastFour:String(token?.last_four_digits||''),
+      liveMode:tokenLiveMode,
+      cardLastFour:tokenLastFour,
+      expectedLastFour:'3311',
       aviso:'Token protegido; ID não exibido.'
     });
+
+    if(tokenLastFour!=='3311'){
+      throw new Error('O Mercado Pago tokenizou outro cartão (final '+(tokenLastFour||'desconhecido')+'). Faça Ctrl+F5, limpe os campos e digite o Mastercard de teste final 3311.');
+    }
+    if(tokenLiveMode){
+      throw new Error('O CardToken veio com live_mode=true. Por segurança, a Ariana Pay não enviará essa Order. Recarregue a página com Ctrl+F5 e gere novamente usando somente o cartão de teste final 3311.');
+    }
 
     const r=await fetch('/api/sandbox/3ds-test',{
       method:'POST',
@@ -375,7 +385,7 @@ form.addEventListener('submit',async event=>{
         installments:1,
         email,
         tokenizedCardholderName:tokenizedName||cardholderName,
-        tokenLiveMode:token?.live_mode===true
+        tokenLiveMode
       })
     });
     const j=await r.json();
