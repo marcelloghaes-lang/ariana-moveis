@@ -4,6 +4,7 @@ import {
   getMpReconciliationSandboxConfig,
   assertMpReconciliationSandboxReady,
   normalizeMpPaymentForReconciliation,
+  normalizeMpOrderForReconciliation,
   createMpReconciliationSandboxClient
 } from '../services/arianaPay/mercadoPagoReconciliationSandboxService.js';
 
@@ -54,6 +55,67 @@ test('normaliza pagamento do provider sem confundir valor ausente com zero',()=>
   assert.equal(a.providerAmount,null);
   const b=normalizeMpPaymentForReconciliation({id:'p2',transaction_amount:0,status:'refunded'});
   assert.equal(b.providerAmount,0);
+});
+
+
+test('normaliza order e usa valor da transação de pagamento',()=>{
+  const r=normalizeMpOrderForReconciliation({
+    id:'ORD1',
+    total_amount:'50.00',
+    status:'processed',
+    live_mode:false,
+    external_reference:'ariana-order-1',
+    transactions:{
+      payments:[{
+        id:'PAY1',
+        amount:'50.00',
+        paid_amount:'50.00',
+        status:'processed',
+        status_detail:'accredited'
+      }]
+    }
+  });
+  assert.equal(r.orderId,'ORD1');
+  assert.equal(r.paymentId,'PAY1');
+  assert.equal(r.providerAmount,50);
+  assert.equal(r.orderStatus,'processed');
+  assert.equal(r.paymentStatus,'processed');
+  assert.equal(r.statusDetail,'accredited');
+});
+
+test('cliente consulta Orders API por order id em modo read-only',async()=>{
+  const calls=[];
+  const axios={
+    async get(url,options){
+      calls.push({url,options});
+      return {
+        status:200,
+        data:{
+          id:'ORD1',
+          total_amount:'50.00',
+          status:'processed',
+          live_mode:false,
+          external_reference:'ariana-order-1',
+          transactions:{
+            payments:[{
+              id:'PAY1',
+              amount:'50.00',
+              paid_amount:'50.00',
+              status:'processed',
+              status_detail:'accredited'
+            }]
+          }
+        }
+      };
+    }
+  };
+  const client=createMpReconciliationSandboxClient({axios,env:SAFE_ENV});
+  const result=await client.fetchOrder('ORD1');
+  assert.equal(result.providerRecord.orderId,'ORD1');
+  assert.equal(result.providerRecord.paymentId,'PAY1');
+  assert.equal(result.providerRecord.providerAmount,50);
+  assert.equal(calls.length,1);
+  assert.equal(calls[0].url,'https://api.mercadopago.com/v1/orders/ORD1');
 });
 
 test('cliente faz somente GET read-only no pagamento solicitado',async()=>{
