@@ -33,7 +33,9 @@ export function extractStoredProviderPayment(order={}){
   const paymentId=clean(
     payment.paymentId||
     payment.id||
+    payment.externalId||
     raw.id||
+    raw.payment_id||
     order.paymentId||
     ''
   );
