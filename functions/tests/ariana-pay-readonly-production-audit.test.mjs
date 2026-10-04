@@ -67,9 +67,10 @@ test('papel readWrite é rejeitado mesmo sem lista de privilégios',()=>{
   assert.ok(inspection.suspiciousRoles.includes('readWrite'));
 });
 
-test('limite da auditoria aceita 100 e permanece fail-closed fora da faixa',()=>{
+test('limite da auditoria permite varrer a coleção inteira sem ultrapassar 500 pedidos',()=>{
   assert.equal(normalizeAuditLimit('100'),100);
-  assert.equal(normalizeAuditLimit(999),100);
+  assert.equal(normalizeAuditLimit(218),218);
+  assert.equal(normalizeAuditLimit(999),500);
   assert.equal(normalizeAuditLimit(1),5);
   assert.equal(normalizeAuditLimit('invalido'),25);
 });
