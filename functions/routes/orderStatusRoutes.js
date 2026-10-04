@@ -33,15 +33,6 @@ app.patch('/api/orders/:id/status', authRequired, async (req, res) => {
       trackingCode: req.body?.trackingCode !== undefined ? req.body.trackingCode : before.trackingCode
     };
 
-    const nextStatusText = `${String(patch.status || '').toLowerCase()} ${String(patch.statusLabel || '').toLowerCase()}`;
-    const marksDelivered = nextStatusText.includes('entregue') || nextStatusText.includes('delivered');
-    const existingDeliveredAt = before?.shipping?.deliveredAt || before?.deliveredAt || null;
-    if (marksDelivered && !existingDeliveredAt) {
-      // Timestamp aditivo para futura agenda da Ariana Pay.
-      // Não altera o status nem o fluxo atual do pedido.
-      patch['shipping.deliveredAt'] = new Date().toISOString();
-    }
-
     const after = await Order.findByIdAndUpdate(oid, { $set: patch }, { new: true });
 
     await writeAuditLog({
