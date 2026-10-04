@@ -97,7 +97,7 @@ test('gate nunca libera sem conciliação financeira matched',()=>{
   const result=applyArianaPayProductionSafetyGate({
     release,
     eligibility:{marketplaceCandidate:true,financiallyEligible:true},
-    integrity:{blocked:false},
+    integrity:{externalSeller:true,blocked:false},
     reconciliation:{status:'insufficient_evidence',reason:'missing_provider_reference'}
   });
   assert.equal(result.state,'blocked');
@@ -105,12 +105,25 @@ test('gate nunca libera sem conciliação financeira matched',()=>{
   assert.equal(result.reason,'payment_reconciliation_missing_provider_reference');
 });
 
+test('seller da própria Ariana continua bloqueado mesmo em pedido misto com seller externo',()=>{
+  const release={state:'scheduled',reason:'',availableAt:'2026-11-01T00:00:00.000Z',transferDeadlineDays:15};
+  const result=applyArianaPayProductionSafetyGate({
+    release,
+    eligibility:{marketplaceCandidate:true,financiallyEligible:true},
+    integrity:{externalSeller:false,blocked:false},
+    reconciliation:{status:'matched'}
+  });
+  assert.equal(result.state,'blocked');
+  assert.equal(result.reason,'platform_seller_not_payable');
+  assert.equal(result.availableAt,null);
+});
+
 test('gate preserva agenda de 15 dias quando tudo está validado',()=>{
   const release={state:'scheduled',reason:'',availableAt:'2026-11-01T00:00:00.000Z',transferDeadlineDays:15};
   const result=applyArianaPayProductionSafetyGate({
     release,
     eligibility:{marketplaceCandidate:true,financiallyEligible:true},
-    integrity:{blocked:false},
+    integrity:{externalSeller:true,blocked:false},
     reconciliation:{status:'matched'}
   });
   assert.deepEqual(result,release);
