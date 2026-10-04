@@ -8,6 +8,14 @@ function money(value = 0) {
   return Number.isFinite(n) ? Math.round((n + Number.EPSILON) * 100) / 100 : 0;
 }
 
+function firstPositive(...values) {
+  for (const value of values) {
+    const n = Number(value);
+    if (Number.isFinite(n) && n > 0) return money(n);
+  }
+  return 0;
+}
+
 function orderSellerIds(order = {}) {
   const ids = new Set();
   (Array.isArray(order?.sellerIds) ? order.sellerIds : []).forEach((value) => {
@@ -26,6 +34,31 @@ function chargedItemTotal(item = {}) {
   const total = Number(item?.totalPrice);
   if (Number.isFinite(total) && total > 0) return money(total);
   return money((Number(item?.unitPrice || item?.price || 0) || 0) * qty);
+}
+
+function safeFinancialDiagnostics(order = {}) {
+  const shipping = firstPositive(
+    order?.shippingCost,
+    order?.shipping?.price,
+    order?.shipping?.cost,
+    order?.totals?.shippingCost
+  );
+  const montagem = firstPositive(order?.montagemCost, order?.totals?.montagemCost);
+  const discount = firstPositive(
+    order?.discountTotal,
+    order?.discount,
+    order?.desconto,
+    order?.totals?.discount,
+    order?.totals?.desconto
+  );
+  const items = Array.isArray(order?.items) ? order.items : [];
+  return {
+    itemCount: items.length,
+    shipping,
+    montagem,
+    discount,
+    nonGoodsTotal: money(shipping + montagem)
+  };
 }
 
 export function summarizeMarketplaceOrderFinancials(order = {}) {
@@ -62,7 +95,7 @@ export async function runMarketplaceHistoricalFinancialAudit({
       { 'items.sellerId': { $exists: true, $nin: ['', null] } }
     ]
   })
-    .select('_id sellerIds items subtotal shippingCost montagemCost total totals discountTotal discount desconto payment paymentMethod method createdAt')
+    .select('_id sellerIds items subtotal shippingCost montagemCost shipping total totals discountTotal discount desconto payment paymentMethod method createdAt')
     .sort({ createdAt: -1 })
     .limit(max)
     .lean();
@@ -77,12 +110,19 @@ export async function runMarketplaceHistoricalFinancialAudit({
     blockedSellerSettlements: 0,
     consistentSellerSettlements: 0,
     multiSellerAggregateDivergences: 0,
+    blockedDiagnostics: {
+      singleItem: 0,
+      multiItem: 0,
+      withDiscount: 0,
+      nonGoodsAtOrAboveOrderTotal: 0
+    },
     samples: []
   };
 
   for (const order of docs) {
     const base = summarizeMarketplaceOrderFinancials(order);
     if (!base.sellerIds.length) continue;
+    const diagnostics = safeFinancialDiagnostics(order);
     summary.ordersWithSellers += 1;
     if (base.divergent) summary.orderItemTotalDivergences += 1;
 
@@ -90,9 +130,19 @@ export async function runMarketplaceHistoricalFinancialAudit({
     for (const sellerId of base.sellerIds) {
       const settlement = pricing.getSellerSettlementForOrder(order, sellerId, new Map());
       settlements.push({ sellerId, settlement });
-      if (settlement?.integrityRecovered === true) summary.recoveredSellerSettlements += 1;
-      else if (settlement?.integrityBlocked === true) summary.blockedSellerSettlements += 1;
-      else summary.consistentSellerSettlements += 1;
+      if (settlement?.integrityRecovered === true) {
+        summary.recoveredSellerSettlements += 1;
+      } else if (settlement?.integrityBlocked === true) {
+        summary.blockedSellerSettlements += 1;
+        if (diagnostics.itemCount === 1) summary.blockedDiagnostics.singleItem += 1;
+        if (diagnostics.itemCount > 1) summary.blockedDiagnostics.multiItem += 1;
+        if (diagnostics.discount > 0) summary.blockedDiagnostics.withDiscount += 1;
+        if (diagnostics.nonGoodsTotal >= base.total && base.total > 0) {
+          summary.blockedDiagnostics.nonGoodsAtOrAboveOrderTotal += 1;
+        }
+      } else {
+        summary.consistentSellerSettlements += 1;
+      }
     }
 
     const safeChargedAcrossSellers = money(settlements.reduce((sum, row) => sum + Number(row?.settlement?.chargedGross || 0), 0));
@@ -110,6 +160,11 @@ export async function runMarketplaceHistoricalFinancialAudit({
         orderTotal: base.total,
         rawItemTotal: base.itemTotal,
         sellerCount: base.sellerIds.length,
+        itemCount: diagnostics.itemCount,
+        shipping: diagnostics.shipping,
+        montagem: diagnostics.montagem,
+        discount: diagnostics.discount,
+        nonGoodsTotal: diagnostics.nonGoodsTotal,
         safeChargedAcrossSellers,
         sellers: settlements.map((row) => ({
           sellerId: row.sellerId,
