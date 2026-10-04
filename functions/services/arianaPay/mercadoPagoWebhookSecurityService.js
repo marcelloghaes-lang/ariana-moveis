@@ -34,23 +34,70 @@ export function buildMercadoPagoWebhookManifest({dataId='',requestId='',timestam
 }
 
 function safeHexEqual(a='',b=''){
-  const aa=Buffer.from(clean(a).toLowerCase(),'hex');
-  const bb=Buffer.from(clean(b).toLowerCase(),'hex');
+  const left=clean(a).toLowerCase();
+  const right=clean(b).toLowerCase();
+  if(!/^[a-f0-9]+$/i.test(left)||!/^[a-f0-9]+$/i.test(right)) return false;
+  const aa=Buffer.from(left,'hex');
+  const bb=Buffer.from(right,'hex');
   if(!aa.length||aa.length!==bb.length) return false;
   return crypto.timingSafeEqual(aa,bb);
+}
+
+export function verifyMercadoPagoWebhookTimestamp({
+  timestamp='',
+  nowMs=Date.now(),
+  toleranceSeconds=300
+}={}){
+  const ts=Number(clean(timestamp));
+  const tolerance=Math.max(1,Math.min(Number(toleranceSeconds||300),3600));
+  if(!Number.isFinite(ts)||ts<=0){
+    return {ok:false,reason:'timestamp_invalid',ageSeconds:null};
+  }
+
+  const timestampMs=ts>1e12?ts:ts*1000;
+  const ageSeconds=(Number(nowMs)-timestampMs)/1000;
+  if(!Number.isFinite(ageSeconds)){
+    return {ok:false,reason:'timestamp_invalid',ageSeconds:null};
+  }
+  if(ageSeconds>tolerance){
+    return {ok:false,reason:'signature_too_old',ageSeconds:Math.round(ageSeconds)};
+  }
+  if(ageSeconds<(-1*tolerance)){
+    return {ok:false,reason:'signature_from_future',ageSeconds:Math.round(ageSeconds)};
+  }
+  return {ok:true,reason:'',ageSeconds:Math.round(ageSeconds)};
 }
 
 export function verifyMercadoPagoWebhookSignature({
   signatureHeader='',
   requestId='',
   dataId='',
-  secret=''
+  secret='',
+  requireFreshTimestamp=false,
+  nowMs=Date.now(),
+  toleranceSeconds=300
 }={}){
   const key=clean(secret);
   if(!key) return {ok:false,reason:'secret_not_configured'};
 
   const parsed=parseMercadoPagoSignature(signatureHeader);
   if(!parsed.ts||!parsed.v1) return {ok:false,reason:'signature_header_invalid'};
+
+  if(requireFreshTimestamp){
+    const freshness=verifyMercadoPagoWebhookTimestamp({
+      timestamp:parsed.ts,
+      nowMs,
+      toleranceSeconds
+    });
+    if(!freshness.ok){
+      return {
+        ok:false,
+        reason:freshness.reason,
+        timestamp:parsed.ts,
+        ageSeconds:freshness.ageSeconds
+      };
+    }
+  }
 
   const manifest=buildMercadoPagoWebhookManifest({
     dataId,
@@ -63,9 +110,10 @@ export function verifyMercadoPagoWebhookSignature({
     .update(manifest)
     .digest('hex');
 
+  const ok=safeHexEqual(expected,parsed.v1);
   return {
-    ok:safeHexEqual(expected,parsed.v1),
-    reason:safeHexEqual(expected,parsed.v1)?'':'signature_mismatch',
+    ok,
+    reason:ok?'':'signature_mismatch',
     timestamp:parsed.ts
   };
 }
@@ -83,6 +131,7 @@ export function getMercadoPagoWebhookDataId(req={}){
 export default {
   parseMercadoPagoSignature,
   buildMercadoPagoWebhookManifest,
+  verifyMercadoPagoWebhookTimestamp,
   verifyMercadoPagoWebhookSignature,
   getMercadoPagoWebhookDataId
 };
