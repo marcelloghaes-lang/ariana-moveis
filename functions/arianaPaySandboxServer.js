@@ -320,6 +320,80 @@ app.post('/api/webhooks/ariana-pay/mercadopago-sandbox',requireShadow,(req,res)=
   });
 });
 
+app.get('/reconciliation-test',requireShadow,(_req,res)=>{
+  res.type('html').send(`<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ariana Pay — Conciliação Sandbox</title>
+<style>body{font-family:Arial,sans-serif;background:#f5f7fb;margin:0;padding:24px;color:#152238}.card{max-width:760px;margin:auto;background:#fff;padding:24px;border-radius:16px;box-shadow:0 8px 30px #0001}label{font-size:13px;font-weight:700;display:block;margin:10px 0 4px}input{width:100%;box-sizing:border-box;min-height:42px;border:1px solid #ccd3df;border-radius:8px;padding:10px}button{margin-top:18px;background:#0047ab;color:#fff;border:0;border-radius:10px;padding:13px 18px;font-weight:700;cursor:pointer}.note{background:#eef5ff;padding:12px;border-radius:10px;margin-bottom:16px;font-size:14px}.status{white-space:pre-wrap;background:#0d1726;color:#e7edf7;padding:12px;border-radius:10px;margin-top:16px;min-height:90px}</style></head><body><div class="card">
+<h1>Ariana Pay — Conciliação Sandbox</h1>
+<div class="note">Consulta somente leitura. Não altera pagamento, pedido, saldo ou payout.</div>
+<form id="recon-form">
+<label>Código de acesso</label><input id="code" value="AR3DS-641927" autocomplete="off" required>
+<label>Payment ID</label><input id="paymentId" placeholder="PAY..." autocomplete="off" required>
+<label>Valor esperado (R$)</label><input id="expectedAmount" value="50.00" inputmode="decimal" required>
+<button type="submit">Conferir pagamento</button>
+</form>
+<div id="status" class="status">Aguardando consulta.</div>
+</div>
+<script>
+const form=document.getElementById('recon-form');
+const statusEl=document.getElementById('status');
+function show(v){statusEl.textContent=typeof v==='string'?v:JSON.stringify(v,null,2)}
+form.addEventListener('submit',async e=>{
+  e.preventDefault();
+  const code=document.getElementById('code').value.trim();
+  const paymentId=document.getElementById('paymentId').value.trim();
+  const expectedAmount=document.getElementById('expectedAmount').value.trim();
+  show('Consultando pagamento sandbox...');
+  try{
+    const r=await fetch('/api/sandbox/reconciliation-test/payment/'+encodeURIComponent(paymentId)+'?expectedAmount='+encodeURIComponent(expectedAmount),{
+      headers:{'x-ariana-pay-3ds-code':code}
+    });
+    const j=await r.json();
+    show(j);
+  }catch(err){
+    show('Erro: '+(err?.message||String(err)));
+  }
+});
+</script></body></html>`);
+});
+
+app.get('/api/sandbox/reconciliation-test/payment/:paymentId',requireShadow,async(req,res)=>{
+  if(!threeDsTestCodeAllowed(req.headers['x-ariana-pay-3ds-code'])){
+    return res.status(401).json({ok:false,code:'ARIANA_PAY_RECON_TEST_UNAUTHORIZED'});
+  }
+  try{
+    await assertMercadoPagoTestAccountIdentity();
+    const client=createMpReconciliationSandboxClient({axios});
+    const lookup=await client.fetchPayment(clean(req.params?.paymentId));
+    const expected=Number(req.query?.expectedAmount);
+    const providerAmount=Number(lookup?.providerRecord?.providerAmount);
+    const expectedValid=Number.isFinite(expected);
+    const providerValid=Number.isFinite(providerAmount);
+    const difference=expectedValid&&providerValid
+      ? Math.round(((providerAmount-expected)+Number.EPSILON)*100)/100
+      : null;
+    return res.json({
+      ok:true,
+      mode:'sandbox_reconciliation_read_only',
+      writesEnabled:false,
+      payoutsEnabled:false,
+      providerStatus:lookup.statusCode,
+      expectedAmount:expectedValid?Math.round((expected+Number.EPSILON)*100)/100:null,
+      providerAmount:providerValid?providerAmount:null,
+      difference,
+      matchesExpected:expectedValid&&providerValid?difference===0:null,
+      providerRecord:lookup.providerRecord
+    });
+  }catch(error){
+    return res.status(safeStatus(error)).json({
+      ok:false,
+      code:error?.code||'ARIANA_PAY_RECON_TEST_ERROR',
+      error:error?.message||'Falha na conciliação sandbox.'
+    });
+  }
+});
+
 app.get('/3ds-test',requireShadow,(_req,res)=>{
   const publicKey=clean(process.env.MP_3DS_SANDBOX_PUBLIC_KEY);
   if(!publicKey){
