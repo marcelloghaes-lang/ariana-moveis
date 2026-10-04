@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ariana Pay | Seller</title>
+<link rel="icon" href="./favicon.ico">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<style>
+:root{--blue:#0047ab;--navy:#052b63;--bg:#f3f6fb;--card:#fff;--line:#e2e8f0;--text:#0f172a;--muted:#64748b;--green:#15803d;--amber:#b45309;--red:#b91c1c}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:linear-gradient(180deg,#eef5ff 0,#f7f9fc 340px,#f3f6fb 100%);color:var(--text);min-height:100vh}
+header{background:linear-gradient(135deg,var(--blue),var(--navy));color:white;padding:22px 18px;box-shadow:0 10px 30px rgba(5,43,99,.18)}
+.head{max-width:1180px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}.brand{font-size:26px;font-weight:950}.sub{opacity:.86;margin-top:4px}.badge{background:#fff7ed;color:#9a3412;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:900}
+main{max-width:1180px;margin:auto;padding:22px}.notice,.panel,.stat{background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:0 12px 28px rgba(15,23,42,.06)}
+.notice{padding:15px 16px;margin-bottom:18px;color:#1e40af;background:#eff6ff;border-color:#bfdbfe;font-weight:700}.notice.warn{background:#fff7ed;border-color:#fed7aa;color:#9a3412}.notice.err{background:#fef2f2;border-color:#fecaca;color:#991b1b}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:14px;margin-bottom:18px}.stat{padding:18px}.stat small{display:block;color:var(--muted);font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.06em}.stat b{display:block;font-size:26px;color:var(--blue);margin-top:7px}.stat.red b{color:var(--red)}
+.panel{padding:18px;margin-bottom:18px}.panel h2{margin:0 0 5px;font-size:19px}.panel p{margin:0 0 13px;color:var(--muted)}.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #eef2f7}.row:last-child{border-bottom:0}.ok{color:var(--green);font-weight:900}.bad{color:var(--red);font-weight:900}.muted{color:var(--muted)}.actions{display:flex;gap:10px;flex-wrap:wrap}.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;border-radius:13px;padding:11px 14px;font-weight:900}.primary{background:var(--blue);color:#fff}.soft{border:1px solid var(--line);background:#fff;color:var(--text)}
+@media(max-width:620px){main{padding:14px}.stats{grid-template-columns:1fr}.actions .btn{width:100%}}
+</style>
+</head>
+<body>
+<header><div class="head"><div><div class="brand">Ariana Pay</div><div class="sub">Minha posição financeira</div></div><span class="badge">SHADOW • SOMENTE CONSULTA</span></div></header>
+<main>
+  <div id="notice" class="notice warn">Os valores desta tela ainda estão em conferência. Nenhum repasse é executado por aqui.</div>
+
+  <div class="stats">
+    <div class="stat"><small>A liberar</small><b id="pending">—</b></div>
+    <div class="stat"><small>Disponível</small><b id="available">—</b></div>
+    <div class="stat"><small>Reservado</small><b id="reserved">—</b></div>
+    <div class="stat"><small>Já pago</small><b id="paid">—</b></div>
+    <div class="stat red"><small>Saldo em ajuste</small><b id="debt">—</b></div>
+  </div>
+
+  <div class="panel">
+    <h2>Política de liberação</h2>
+    <p id="policy">Os recebíveis são liberados 15 dias após a entrega confirmada, desde que não exista bloqueio de segurança, devolução ou contestação.</p>
+    <div class="row"><span>Repasse disponível para próxima etapa</span><strong id="payoutStatus">—</strong></div>
+    <div class="row"><span>Valor elegível</span><strong id="payoutAmount">—</strong></div>
+    <div class="row"><span>Destino de recebimento</span><strong id="destination">—</strong></div>
+  </div>
+
+  <div class="panel">
+    <h2>Vendas em análise</h2>
+    <p>Quando uma venda precisa de conferência, ela permanece protegida e não é liberada automaticamente.</p>
+    <div id="reviews"><div class="muted">Carregando...</div></div>
+  </div>
+
+  <div class="actions">
+    <a class="btn primary" href="seller_extrato.html"><i class="fas fa-receipt"></i> Ver extrato</a>
+    <a class="btn soft" href="seller_dashboard.html"><i class="fas fa-arrow-left"></i> Voltar ao painel</a>
+  </div>
+</main>
+<script>
+const API_BASE=(location.hostname==='127.0.0.1'||location.hostname==='localhost')?'http://localhost:3000/api':'https://ariana-backend.onrender.com/api';
+const $=id=>document.getElementById(id);
+const token=()=>localStorage.getItem('seller_token')||'';
+const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+async function load(){
+  if(!token()){location.href='seller_login.html';return}
+  try{
+    const res=await fetch(API_BASE+'/seller/ariana-pay/shadow',{headers:{Authorization:'Bearer '+token()}});
+    const data=await res.json().catch(()=>({}));
+    if(res.status===401||res.status===403){location.href='seller_login.html';return}
+    if(!res.ok)throw new Error(data.error||'Ariana Pay indisponível.');
+    $('pending').textContent=money(data.balance?.pending);
+    $('available').textContent=money(data.balance?.available);
+    $('reserved').textContent=money(data.balance?.reserved);
+    $('paid').textContent=money(data.balance?.paid);
+    $('debt').textContent=money(data.balance?.debt);
+    $('policy').textContent=data.policy?.description||'Liberação em 15 dias após a entrega confirmada.';
+    $('payoutStatus').innerHTML=data.payout?.ready?'<span class="ok">APTO PARA PRÓXIMA ETAPA</span>':'<span class="bad">AGUARDANDO</span>';
+    $('payoutAmount').textContent=money(data.payout?.amount);
+    $('destination').textContent=data.payout?.destinationReady?(data.payout?.destinationMethod==='pix'?'Pix configurado':'Conta configurada'):'Dados de recebimento pendentes';
+
+    const rows=Array.isArray(data.review?.cases)?data.review.cases:[];
+    $('reviews').innerHTML=rows.length?rows.map(row=>`<div class="row"><div><strong>Pedido ${esc(row.orderId||'—')}</strong><div class="muted">${esc(row.reason||'Venda em análise')}</div></div><div><strong>${money(row.amount)}</strong><div class="muted">${esc(row.action||'Aguardar análise')}</div></div></div>`).join(''):'<div class="ok">Nenhuma venda em análise neste momento.</div>';
+    $('notice').className='notice';
+    $('notice').textContent=data.disclaimer||'Consulta financeira carregada.';
+  }catch(err){
+    $('notice').className='notice err';
+    $('notice').textContent=err.message;
+    $('reviews').innerHTML='<div class="muted">Não foi possível carregar os dados.</div>';
+  }
+}
+load();
+</script>
+</body>
+</html>
