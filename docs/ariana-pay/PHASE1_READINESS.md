@@ -73,7 +73,7 @@ Antes de qualquer merge/produção:
 3. ✅ validar `liability_shift` — `required` confirmado e autenticação 3DS concluída (`authenticated=true`);
 4. ✅ validar webhook assinado — simulador Mercado Pago retornou HTTP 200 com HMAC ativo;
 5. ✅ validar alerta de fraude/stop delivery — Webhook assinado HTTP 200 e classificação preventiva confirmada em sandbox;
-6. ⏳ consultar pagamento do sandbox para conciliação;
+6. ✅ consultar pagamento/order do sandbox para conciliação — Orders API retornou `processed/accredited`, `liveMode=false`, valor do provedor R$ 50,00, diferença R$ 0,00 e `matchesExpected=true`;
 7. ⏳ simular valor divergente;
 8. ⏳ simular chargeback com responsabilidade conhecida;
 9. ⏳ simular chargeback sem motivo e confirmar que não cria dívida automática do seller;
