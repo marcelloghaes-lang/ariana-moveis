@@ -38,6 +38,7 @@ jobs:
         run: |
           node --check routes/paymentRoutes.js
           node --check routes/arianaPayShadowRoutes.js
+          node --check routes/sellerCoreRoutes.js
           node --check routes/orderStatusRoutes.js
           node --check routes/legacyRuntimeRoutes.js
 
