@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  isMpReconciliationTestAccessToken,
   getMpReconciliationSandboxConfig,
   assertMpReconciliationSandboxReady,
   normalizeMpPaymentForReconciliation,
@@ -10,36 +9,41 @@ import {
 
 const SAFE_ENV={
   ARIANA_PAY_RECON_SANDBOX_ENABLED:'true',
-  MP_RECON_SANDBOX_ACCESS_TOKEN:'TEST-ONLY'
+  MP_RECON_SANDBOX_ACCESS_TOKEN:'DEDICATED-RECON-TOKEN'
 };
 
-test('sandbox de conciliação nunca usa MP_ACCESS_TOKEN de produção',()=>{
+test('sandbox de conciliação nunca usa MP_ACCESS_TOKEN como fallback',()=>{
   const cfg=getMpReconciliationSandboxConfig({
-    MP_ACCESS_TOKEN:'APP_USR-PROD',
+    MP_ACCESS_TOKEN:'DEFAULT-CHECKOUT-TOKEN',
     ARIANA_PAY_RECON_SANDBOX_ENABLED:'true'
   });
   assert.equal(cfg.accessToken,'');
+  assert.equal(cfg.reusesDefaultAccessToken,false);
   assert.throws(()=>assertMpReconciliationSandboxReady(cfg),/MP_RECON_SANDBOX_ACCESS_TOKEN/);
 });
 
-test('sandbox de conciliação recusa token de produção e base URL não oficial',()=>{
-  assert.equal(isMpReconciliationTestAccessToken('TEST-abc'),true);
-  assert.equal(isMpReconciliationTestAccessToken('APP_USR-prod'),false);
+test('sandbox de conciliação bloqueia reutilização explícita do MP_ACCESS_TOKEN',()=>{
+  const cfg=getMpReconciliationSandboxConfig({
+    MP_ACCESS_TOKEN:'SAME-TOKEN',
+    MP_RECON_SANDBOX_ACCESS_TOKEN:'SAME-TOKEN',
+    ARIANA_PAY_RECON_SANDBOX_ENABLED:'true'
+  });
+  assert.equal(cfg.reusesDefaultAccessToken,true);
+  assert.throws(()=>assertMpReconciliationSandboxReady(cfg),/não pode reutilizar MP_ACCESS_TOKEN/);
+});
 
+test('sandbox de conciliação aceita credencial dedicada sem depender de prefixo',()=>{
+  const cfg=getMpReconciliationSandboxConfig(SAFE_ENV);
+  assert.doesNotThrow(()=>assertMpReconciliationSandboxReady(cfg));
+});
+
+test('sandbox de conciliação exige base URL oficial',()=>{
   assert.throws(
     ()=>assertMpReconciliationSandboxReady({
       enabled:true,
-      accessToken:'APP_USR-prod',
-      baseUrl:'https://api.mercadopago.com'
-    }),
-    /credencial de teste/
-  );
-
-  assert.throws(
-    ()=>assertMpReconciliationSandboxReady({
-      enabled:true,
-      accessToken:'TEST-abc',
-      baseUrl:'https://evil.example.com'
+      accessToken:'DEDICATED',
+      reusesDefaultAccessToken:false,
+      baseUrl:'https://example.invalid'
     }),
     /api\.mercadopago\.com/
   );
@@ -81,7 +85,7 @@ test('cliente faz somente GET read-only no pagamento solicitado',async()=>{
   assert.equal(result.providerRecord.providerAmount,99.9);
   assert.equal(calls.length,1);
   assert.equal(calls[0].url,'https://api.mercadopago.com/v1/payments/p123');
-  assert.equal(calls[0].options.headers.Authorization,'Bearer TEST-ONLY');
+  assert.equal(calls[0].options.headers.Authorization,'Bearer DEDICATED-RECON-TOKEN');
 });
 
 test('sandbox de conciliação rejeita qualquer registro live_mode=true',async()=>{
@@ -105,7 +109,7 @@ test('sandbox de conciliação rejeita qualquer registro live_mode=true',async()
 
   await assert.rejects(
     ()=>client.fetchPayment('live1'),
-    error=>error?.code==='MP_RECON_LIVE_MODE_REJECTED'
+    error=>error?.code==='MP_RECON_LIVE_MODE_REJECTED'&&error?.statusCode===409
   );
 });
 
