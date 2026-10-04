@@ -75,9 +75,11 @@ Antes de qualquer merge/produção:
 5. ✅ validar alerta de fraude/stop delivery — Webhook assinado HTTP 200 e classificação preventiva confirmada em sandbox;
 6. ✅ consultar pagamento/order do sandbox para conciliação — Orders API retornou `processed/accredited`, `liveMode=false`, valor do provedor R$ 50,00, diferença R$ 0,00 e `matchesExpected=true`;
 7. ✅ simular valor divergente — valor esperado R$ 49,99 x provedor R$ 50,00 resultou em diferença R$ 0,01 e `matchesExpected=false`;
-8. ⏳ simular chargeback com responsabilidade conhecida;
-9. ⏳ simular chargeback sem motivo e confirmar que não cria dívida automática do seller;
+8. ✅ simular chargeback com responsabilidade conhecida — seller identificado como responsável, payout bloqueado e reversão permitida, mas `sellerDebtCreated=false` no sandbox;
+9. ✅ simular chargeback sem motivo conclusivo — caso ficou em `pending_review`, payout bloqueado, reversão do seller não autorizada e `sellerDebtCreated=false`;
 10. ⏳ revisar uma amostra de pedidos reais somente em shadow mode.
+
+Validação adicional: compra não reconhecida com 3DS autenticado foi atribuída a `provider_network` por `3ds_liability_shift`, sem débito do seller e sem bloqueio de payout.
 
 ## O que NÃO fazer ainda
 
