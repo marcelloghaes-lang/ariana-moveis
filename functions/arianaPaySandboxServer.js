@@ -265,6 +265,42 @@ app.use((_req,res)=>{
   return res.status(404).json({ok:false,error:'Rota não encontrada.'});
 });
 
+async function checkProviderCredential({label,token,path}){
+  const accessToken=clean(token);
+  if(!accessToken){
+    console.log(`[ariana-pay-sandbox][self-check] ${label}: missing`);
+    return {ok:false,status:0};
+  }
+  try{
+    const response=await axios.get(`https://api.mercadopago.com${path}`,{
+      headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json'},
+      timeout:15000,
+      validateStatus:()=>true
+    });
+    const status=Number(response?.status||0);
+    const ok=status>0&&status!==401&&status!==403;
+    console.log(`[ariana-pay-sandbox][self-check] ${label}: ${ok?'credential_accepted':'credential_rejected'} http=${status}`);
+    return {ok,status};
+  }catch(error){
+    console.log(`[ariana-pay-sandbox][self-check] ${label}: network_error`);
+    return {ok:false,status:0};
+  }
+}
+
+async function runProviderCredentialSelfChecks(){
+  if(!shadowEnabled()) return;
+  await checkProviderCredential({
+    label:'3ds_orders',
+    token:process.env.MP_3DS_SANDBOX_ACCESS_TOKEN,
+    path:'/v1/orders/ariana-pay-credential-check'
+  });
+  await checkProviderCredential({
+    label:'reconciliation_payments',
+    token:process.env.MP_RECON_SANDBOX_ACCESS_TOKEN,
+    path:'/v1/payments/ariana-pay-credential-check'
+  });
+}
+
 const port=Number(process.env.PORT||8099);
 
 export function startArianaPaySandboxServer(){
@@ -272,6 +308,7 @@ export function startArianaPaySandboxServer(){
   return app.listen(port,()=>{
     console.log(`[ariana-pay-sandbox] listening on port ${port}`);
     console.log('[ariana-pay-sandbox] isolated shadow only; checkout and payouts disabled');
+    void runProviderCredentialSelfChecks();
   });
 }
 
