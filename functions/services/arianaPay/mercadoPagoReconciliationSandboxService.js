@@ -12,6 +12,20 @@ function money(value){
   return Math.round((n+Number.EPSILON)*100)/100;
 }
 
+function isOfficialMercadoPagoApiBaseUrl(value=''){
+  const raw=clean(value).replace(/\/+$/,'');
+  try{
+    const parsed=new URL(raw);
+    return parsed.protocol==='https:'&&parsed.hostname.toLowerCase()==='api.mercadopago.com';
+  }catch(_error){
+    return false;
+  }
+}
+
+export function isMpReconciliationTestAccessToken(value=''){
+  return /^TEST-/i.test(clean(value));
+}
+
 export function getMpReconciliationSandboxConfig(env=process.env){
   return {
     enabled:clean(env.ARIANA_PAY_RECON_SANDBOX_ENABLED).toLowerCase()==='true',
@@ -23,7 +37,12 @@ export function getMpReconciliationSandboxConfig(env=process.env){
 export function assertMpReconciliationSandboxReady(config=getMpReconciliationSandboxConfig()){
   if(!config.enabled) throw new Error('Conciliação sandbox Mercado Pago desabilitada.');
   if(!config.accessToken) throw new Error('MP_RECON_SANDBOX_ACCESS_TOKEN não configurado.');
-  if(!/^https:\/\//i.test(config.baseUrl)) throw new Error('MP_RECON_SANDBOX_BASE_URL inválida.');
+  if(!isMpReconciliationTestAccessToken(config.accessToken)){
+    throw new Error('MP_RECON_SANDBOX_ACCESS_TOKEN deve ser uma credencial de teste Mercado Pago (prefixo TEST-).');
+  }
+  if(!isOfficialMercadoPagoApiBaseUrl(config.baseUrl)){
+    throw new Error('MP_RECON_SANDBOX_BASE_URL deve apontar para https://api.mercadopago.com.');
+  }
   return config;
 }
 
@@ -74,9 +93,17 @@ export function createMpReconciliationSandboxClient({axios,env=process.env}={}){
       throw error;
     }
 
+    const providerRecord=normalizeMpPaymentForReconciliation(response?.data||{});
+    if(providerRecord.liveMode){
+      const error=new Error('A conciliação sandbox recusou um registro live_mode=true.');
+      error.statusCode=409;
+      error.code='MP_RECON_LIVE_MODE_REJECTED';
+      throw error;
+    }
+
     return {
       statusCode,
-      providerRecord:normalizeMpPaymentForReconciliation(response?.data||{})
+      providerRecord
     };
   }
 
@@ -84,6 +111,7 @@ export function createMpReconciliationSandboxClient({axios,env=process.env}={}){
 }
 
 export default {
+  isMpReconciliationTestAccessToken,
   getMpReconciliationSandboxConfig,
   assertMpReconciliationSandboxReady,
   normalizeMpPaymentForReconciliation,
