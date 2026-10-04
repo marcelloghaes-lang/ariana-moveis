@@ -1,5 +1,4 @@
 import { ensureStockReservationForPaymentAttempt, syncStockReservationForPayment } from '../services/stockReservationService.js';
-import { verifyMercadoPagoWebhookSignature, getMercadoPagoWebhookDataId } from '../services/arianaPay/mercadoPagoWebhookSecurityService.js';
 
 // ============================================================
 // ROTAS DE PAGAMENTOS - MERCADO PAGO / PAGAR.ME / WEBHOOKS
@@ -49,52 +48,6 @@ export default function registerPaymentRoutes(app, context = {}) {
     normalizeObjectId,
     toJSON
   } = context;
-
-  async function verifyMercadoPagoWebhookIfEnforced(req) {
-    const enforce = String(process.env.MP_WEBHOOK_SIGNATURE_ENFORCE || 'false').trim().toLowerCase() === 'true';
-    const settings = await getPaymentsSettings().catch(() => ({}));
-    const secret = String(
-      process.env.MP_WEBHOOK_SECRET ||
-      settings?.mercadopago?.webhookSecret ||
-      settings?.mercadopago?.notificationSecret ||
-      ''
-    ).trim();
-
-    const signatureHeader = String(req.headers?.['x-signature'] || '');
-    const requestId = String(req.headers?.['x-request-id'] || '');
-    const dataId = getMercadoPagoWebhookDataId(req);
-
-    if (!enforce && !secret) {
-      return { enforced: false, checked: false, ok: null, reason: 'not_configured' };
-    }
-
-    const verification = verifyMercadoPagoWebhookSignature({
-      signatureHeader,
-      requestId,
-      dataId,
-      secret
-    });
-
-    if (enforce && !verification.ok) {
-      const error = new Error(
-        verification.reason === 'secret_not_configured'
-          ? 'Validação de assinatura do webhook Mercado Pago está ativa, mas o secret não foi configurado.'
-          : 'Assinatura inválida do webhook Mercado Pago.'
-      );
-      error.statusCode = verification.reason === 'secret_not_configured' ? 503 : 401;
-      error.code = verification.reason === 'secret_not_configured'
-        ? 'MP_WEBHOOK_SECRET_MISSING'
-        : 'MP_WEBHOOK_SIGNATURE_INVALID';
-      error.webhookVerification = verification;
-      throw error;
-    }
-
-    return {
-      enforced: enforce,
-      checked: Boolean(secret),
-      ...verification
-    };
-  }
 
   async function fetchMercadoPagoPaymentById(paymentId) {
     const id = String(paymentId || '').trim();
@@ -581,7 +534,6 @@ app.post('/api/payments/mp/boleto', authRequired, async (req, res) => {
 
 app.post('/api/webhooks/mercadopago', async (req, res) => {
   try {
-    const webhookSecurity = await verifyMercadoPagoWebhookIfEnforced(req);
     const payload = req.body || {};
     const paymentId = payload.data?.id ? String(payload.data.id) : (payload.id ? String(payload.id) : '');
     const mpData = paymentId ? await fetchMercadoPagoPaymentById(paymentId) : null;
@@ -627,30 +579,13 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
       status: 'received',
       request: payload,
       response: mpData || null,
-      metadata: {
-        provider: 'mercadopago',
-        orderUpdate,
-        webhookSignature: {
-          enforced: webhookSecurity.enforced,
-          checked: webhookSecurity.checked,
-          valid: webhookSecurity.ok === true
-        }
-      }
+      metadata: { provider: 'mercadopago', orderUpdate }
     });
 
     return res.json({ ok: true, received: true, orderUpdate });
   } catch (error) {
     console.error('Erro ao processar webhook do Mercado Pago:', error.message || error);
-    const status = Number(error?.statusCode || 500);
-    return res.status(status >= 400 && status < 600 ? status : 500).json({
-      ok: false,
-      code: error?.code || 'MP_WEBHOOK_PROCESSING_ERROR',
-      error: error?.code === 'MP_WEBHOOK_SIGNATURE_INVALID'
-        ? 'Webhook Mercado Pago rejeitado por assinatura inválida.'
-        : error?.code === 'MP_WEBHOOK_SECRET_MISSING'
-          ? 'Webhook Mercado Pago indisponível por configuração de segurança incompleta.'
-          : 'Erro ao processar webhook do Mercado Pago'
-    });
+    return res.status(500).json({ ok: false, error: 'Erro ao processar webhook do Mercado Pago' });
   }
 });
 
