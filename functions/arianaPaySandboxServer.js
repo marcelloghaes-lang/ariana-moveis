@@ -521,6 +521,12 @@ async function checkProviderCredential({label,token,path}){
 
 async function runProviderCredentialSelfChecks(){
   if(!shadowEnabled()) return;
+  try{
+    const identity=await assertMercadoPagoTestAccountIdentity();
+    console.log(`[ariana-pay-sandbox][self-check] test_account_identity: ok user=${identity.userId}`);
+  }catch(error){
+    console.log(`[ariana-pay-sandbox][self-check] test_account_identity: failed code=${error?.code||'unknown'}`);
+  }
   await checkProviderCredential({
     label:'3ds_orders',
     token:process.env.MP_3DS_SANDBOX_ACCESS_TOKEN,
