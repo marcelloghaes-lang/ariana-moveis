@@ -329,7 +329,7 @@ app.get('/reconciliation-test',requireShadow,(_req,res)=>{
 <div class="note">Consulta somente leitura. Não altera pagamento, pedido, saldo ou payout.</div>
 <form id="recon-form">
 <label>Código de acesso</label><input id="code" value="AR3DS-641927" autocomplete="off" required>
-<label>Payment ID</label><input id="paymentId" placeholder="PAY..." autocomplete="off" required>
+<label>Order ID</label><input id="orderId" value="ORDTST01M43S9KT74DGYRDP31JWFCDE7" placeholder="ORD..." autocomplete="off" required>
 <label>Valor esperado (R$)</label><input id="expectedAmount" value="50.00" inputmode="decimal" required>
 <button type="submit">Conferir pagamento</button>
 </form>
@@ -342,11 +342,11 @@ function show(v){statusEl.textContent=typeof v==='string'?v:JSON.stringify(v,nul
 form.addEventListener('submit',async e=>{
   e.preventDefault();
   const code=document.getElementById('code').value.trim();
-  const paymentId=document.getElementById('paymentId').value.trim();
+  const orderId=document.getElementById('orderId').value.trim();
   const expectedAmount=document.getElementById('expectedAmount').value.trim();
   show('Consultando pagamento sandbox...');
   try{
-    const r=await fetch('/api/sandbox/reconciliation-test/payment/'+encodeURIComponent(paymentId)+'?expectedAmount='+encodeURIComponent(expectedAmount),{
+    const r=await fetch('/api/sandbox/reconciliation-test/order/'+encodeURIComponent(orderId)+'?expectedAmount='+encodeURIComponent(expectedAmount),{
       headers:{'x-ariana-pay-3ds-code':code}
     });
     const j=await r.json();
@@ -358,14 +358,14 @@ form.addEventListener('submit',async e=>{
 </script></body></html>`);
 });
 
-app.get('/api/sandbox/reconciliation-test/payment/:paymentId',requireShadow,async(req,res)=>{
+app.get('/api/sandbox/reconciliation-test/order/:orderId',requireShadow,async(req,res)=>{
   if(!threeDsTestCodeAllowed(req.headers['x-ariana-pay-3ds-code'])){
     return res.status(401).json({ok:false,code:'ARIANA_PAY_RECON_TEST_UNAUTHORIZED'});
   }
   try{
     await assertMercadoPagoTestAccountIdentity();
     const client=createMpReconciliationSandboxClient({axios});
-    const lookup=await client.fetchPayment(clean(req.params?.paymentId));
+    const lookup=await client.fetchOrder(clean(req.params?.orderId));
     const expected=Number(req.query?.expectedAmount);
     const providerAmount=Number(lookup?.providerRecord?.providerAmount);
     const expectedValid=Number.isFinite(expected);
