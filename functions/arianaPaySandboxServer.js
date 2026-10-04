@@ -11,6 +11,7 @@ import { createMpReconciliationSandboxClient } from './services/arianaPay/mercad
 import { evaluateArianaPaySandboxGuard, assertArianaPaySandboxSafe } from './services/arianaPay/arianaPaySandboxGuardService.js';
 import { classifyMercadoPagoSandboxWebhook } from './services/arianaPay/mercadoPagoSandboxWebhookEventService.js';
 import { classifyDisputeResponsibility } from './services/arianaPay/arianaPayDisputeResponsibilityService.js';
+import { auditRealProductionSample, getReadOnlyProductionAuditConfig } from './services/arianaPay/arianaPayReadOnlyProductionAuditService.js';
 import {
   verifyMercadoPagoWebhookSignature,
   getMercadoPagoWebhookDataId
@@ -172,7 +173,8 @@ app.get('/health',(_req,res)=>{
     adminTokenConfigured:guard.adminTokenConfigured,
     sandboxMaxAmount:guard.maxAmount,
     safetyViolations:[...new Set([...(readiness.safetyViolations||[]),...(guard.violations||[])])],
-    externalPending:readiness.externalPending
+    externalPending:readiness.externalPending,
+    productionSampleAuditConfigured:Boolean(getReadOnlyProductionAuditConfig(process.env).uri)
   });
 });
 
@@ -329,6 +331,66 @@ app.post('/api/webhooks/ariana-pay/mercadopago-sandbox',requireShadow,(req,res)=
     verified:true,
     event
   });
+});
+
+app.get('/production-sample-audit',requireShadow,(_req,res)=>{
+  const configured=Boolean(getReadOnlyProductionAuditConfig(process.env).uri);
+  res.type('html').send(`<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ariana Pay — Auditoria Real Shadow</title>
+<style>body{font-family:Arial,sans-serif;background:#f5f7fb;margin:0;padding:24px;color:#152238}.card{max-width:900px;margin:auto;background:#fff;padding:24px;border-radius:16px;box-shadow:0 8px 30px #0001}.grid{display:grid;grid-template-columns:1fr 180px;gap:12px}label{font-size:13px;font-weight:700;display:block;margin:10px 0 4px}input{width:100%;box-sizing:border-box;min-height:42px;border:1px solid #ccd3df;border-radius:8px;padding:10px}button{margin-top:18px;background:#0047ab;color:#fff;border:0;border-radius:10px;padding:13px 18px;font-weight:700;cursor:pointer}.note{background:#eef5ff;padding:12px;border-radius:10px;margin-bottom:16px;font-size:14px}.warn{background:#fff7ed}.status{white-space:pre-wrap;background:#0d1726;color:#e7edf7;padding:12px;border-radius:10px;margin-top:16px;min-height:140px;max-height:650px;overflow:auto}@media(max-width:650px){.grid{grid-template-columns:1fr}}</style></head><body><div class="card">
+<h1>Ariana Pay — Amostra real em Shadow</h1>
+<div class="note">Somente leitura. A credencial Mongo precisa ter papel read-only comprovado pelo próprio banco. A consulta não retorna nome, CPF, telefone, e-mail ou endereço de clientes.</div>
+<div class="note ${configured?'':'warn'}">${configured?'Credencial read-only configurada. A auditoria está pronta para execução.':'Falta configurar ARIANA_PAY_SHADOW_READONLY_MONGODB_URI no Render com um usuário MongoDB SOMENTE LEITURA.'}</div>
+<form id="form">
+<div class="grid">
+<div><label>Código de acesso</label><input id="code" value="AR3DS-641927" autocomplete="off" required></div>
+<div><label>Pedidos recentes</label><input id="limit" type="number" min="5" max="100" value="25" required></div>
+</div>
+<button type="submit" ${configured?'':'disabled'}>Executar auditoria read-only</button>
+</form>
+<div id="status" class="status">Aguardando auditoria.</div>
+</div>
+<script>
+const form=document.getElementById('form');
+const statusEl=document.getElementById('status');
+function show(v){statusEl.textContent=typeof v==='string'?v:JSON.stringify(v,null,2)}
+form.addEventListener('submit',async e=>{
+  e.preventDefault();
+  show('Consultando amostra real com credencial read-only...');
+  try{
+    const limit=Math.max(5,Math.min(Number(document.getElementById('limit').value||25),100));
+    const r=await fetch('/api/sandbox/production-sample-audit?limit='+encodeURIComponent(limit),{
+      headers:{'x-ariana-pay-3ds-code':document.getElementById('code').value.trim()}
+    });
+    const j=await r.json();
+    show(j);
+  }catch(err){show('Erro: '+(err?.message||String(err)))}
+});
+</script></body></html>`);
+});
+
+app.get('/api/sandbox/production-sample-audit',requireShadow,async(req,res)=>{
+  if(!threeDsTestCodeAllowed(req.headers['x-ariana-pay-3ds-code'])){
+    return res.status(401).json({ok:false,code:'ARIANA_PAY_PRODUCTION_AUDIT_UNAUTHORIZED'});
+  }
+  try{
+    const result=await auditRealProductionSample({
+      env:process.env,
+      limit:Number(req.query?.limit||25),
+      now:new Date()
+    });
+    return res.json(result);
+  }catch(error){
+    return res.status(safeStatus(error)).json({
+      ok:false,
+      code:error?.code||'ARIANA_PAY_PRODUCTION_AUDIT_ERROR',
+      error:error?.message||'Falha na auditoria real em shadow.',
+      writesEnabled:false,
+      payoutsEnabled:false,
+      checkoutChanged:false
+    });
+  }
 });
 
 app.get('/dispute-test',requireShadow,(_req,res)=>{
