@@ -345,7 +345,7 @@ app.get('/production-sample-audit',requireShadow,(_req,res)=>{
 <form id="form">
 <div class="grid">
 <div><label>Código de acesso</label><input id="code" value="AR3DS-641927" autocomplete="off" required></div>
-<div><label>Pedidos recentes</label><input id="limit" type="number" min="5" max="100" value="25" required></div>
+<div><label>Pedidos recentes</label><input id="limit" type="number" min="5" max="100" value="100" required></div>
 </div>
 <button type="submit" ${configured?'':'disabled'}>Executar auditoria read-only</button>
 </form>
@@ -359,7 +359,7 @@ form.addEventListener('submit',async e=>{
   e.preventDefault();
   show('Consultando amostra real com credencial read-only...');
   try{
-    const limit=Math.max(5,Math.min(Number(document.getElementById('limit').value||25),100));
+    const limit=Math.max(5,Math.min(Number(document.getElementById('limit').value||100),100));
     const r=await fetch('/api/sandbox/production-sample-audit?limit='+encodeURIComponent(limit),{
       headers:{'x-ariana-pay-3ds-code':document.getElementById('code').value.trim()}
     });
@@ -377,7 +377,7 @@ app.get('/api/sandbox/production-sample-audit',requireShadow,async(req,res)=>{
   try{
     const result=await auditRealProductionSample({
       env:process.env,
-      limit:Number(req.query?.limit||25),
+      limit:Number(req.query?.limit||100),
       now:new Date()
     });
     return res.json(result);
@@ -497,7 +497,6 @@ form.addEventListener('submit',async e=>{
 });
 </script></body></html>`);
 });
-
 app.get('/api/sandbox/reconciliation-test/payment/:paymentId',requireShadow,async(req,res)=>{
   if(!threeDsTestCodeAllowed(req.headers['x-ariana-pay-3ds-code'])){
     return res.status(401).json({ok:false,code:'ARIANA_PAY_RECON_TEST_UNAUTHORIZED'});
@@ -532,7 +531,7 @@ app.get('/api/sandbox/reconciliation-test/payment/:paymentId',requireShadow,asyn
   }catch(error){
     return res.status(safeStatus(error)).json({
       ok:false,
-      code:error?.code||'ARIANA_PAY_RECON_TEST_ERROR',
+      code:error?.code||'MP_RECON_SANDBOX_ERROR',
       error:error?.message||'Falha na conciliação sandbox.'
     });
   }
@@ -568,7 +567,7 @@ app.get('/api/sandbox/reconciliation-test/order/:orderId',requireShadow,async(re
   }catch(error){
     return res.status(safeStatus(error)).json({
       ok:false,
-      code:error?.code||'ARIANA_PAY_RECON_TEST_ERROR',
+      code:error?.code||'MP_RECON_SANDBOX_ERROR',
       error:error?.message||'Falha na conciliação sandbox.'
     });
   }
