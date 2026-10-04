@@ -130,6 +130,29 @@ export function redactMercadoPago3dsPayload(payload={}){
   return clone;
 }
 
+export function summarizeMercadoPago3dsProviderError(data={}){
+  const raw=data&&typeof data==='object'?data:{};
+  const details=Array.isArray(raw.errors)
+    ? raw.errors.slice(0,5).map(item=>({
+        code:clean(item?.code||item?.error||item?.type),
+        message:clean(item?.message||item?.description||item?.detail),
+        field:clean(item?.field||item?.path)
+      }))
+    : Array.isArray(raw.cause)
+      ? raw.cause.slice(0,5).map(item=>({
+          code:clean(item?.code),
+          message:clean(item?.description||item?.message),
+          field:clean(item?.data||item?.field)
+        }))
+      : [];
+
+  return {
+    code:clean(raw.code||raw.error||raw.status),
+    message:clean(raw.message||raw.error_description||raw.description),
+    details
+  };
+}
+
 export function normalizeMercadoPago3dsOrderResponse(data={}){
   const payment=Array.isArray(data?.transactions?.payments)
     ? data.transactions.payments[0]||{}
@@ -201,6 +224,7 @@ export function createMercadoPago3dsSandboxClient({axios,env=process.env}={}){
       idempotencyKey,
       request:redactMercadoPago3dsPayload(payload),
       result,
+      providerError:summarizeMercadoPago3dsProviderError(response?.data||{}),
       raw:response?.data||{}
     };
   }
@@ -247,5 +271,6 @@ export default {
   buildMercadoPago3dsOrderPayload,
   redactMercadoPago3dsPayload,
   normalizeMercadoPago3dsOrderResponse,
+  summarizeMercadoPago3dsProviderError,
   createMercadoPago3dsSandboxClient
 };
