@@ -48,6 +48,17 @@ test('sem referência do provedor fica como evidência insuficiente',()=>{
   assert.equal(rec.matched,false);
 });
 
+test('externalId legado é aceito como referência do pagamento do provedor',()=>{
+  const order={
+    id:'o3b',
+    total:500,
+    payment:{provider:'mercadopago',externalId:'pay-ext-1',raw:{transaction_amount:500}}
+  };
+  const rec=reconcileOrderPayment({order});
+  assert.equal(rec.paymentId,'pay-ext-1');
+  assert.equal(rec.status,'matched');
+});
+
 test('sem valor financeiro do provedor nunca considera conciliado',()=>{
   const order={id:'o4',total:500,payment:{provider:'mercadopago',paymentId:'pay4',status:'approved'}};
   const rec=reconcileOrderPayment({order});
