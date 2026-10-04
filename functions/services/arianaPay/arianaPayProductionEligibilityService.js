@@ -271,6 +271,10 @@ export function applyArianaPayProductionSafetyGate({
   integrity={},
   reconciliation={}
 }={}){
+  // Em pedido misto, a existência de seller externo jamais pode tornar o seller da própria Ariana pagável.
+  if(integrity.externalSeller===false){
+    return blockRelease(release,'platform_seller_not_payable');
+  }
   if(!eligibility.marketplaceCandidate){
     return blockRelease(release,'not_ariana_pay_marketplace_candidate');
   }
