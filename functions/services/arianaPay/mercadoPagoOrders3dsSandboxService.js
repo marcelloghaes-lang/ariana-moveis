@@ -1,6 +1,6 @@
 // Ariana Pay — Mercado Pago Orders + 3DS sandbox adapter.
-// Nunca usa MP_ACCESS_TOKEN de produção por fallback.
-// Só pode ser chamado com MP_3DS_SANDBOX_ENABLED=true e credencial própria de teste.
+// Nunca usa MP_ACCESS_TOKEN como fallback.
+// A credencial dedicada precisa ser configurada em MP_3DS_SANDBOX_ACCESS_TOKEN.
 
 function clean(value=''){
   return String(value||'').trim();
@@ -35,24 +35,30 @@ function isHttpsUrl(value=''){
   }
 }
 
-export function isMercadoPagoTestAccessToken(value=''){
-  return /^TEST-/i.test(clean(value));
+function liveModeError(){
+  const error=new Error('Ariana Pay sandbox recusou resposta Mercado Pago com live_mode=true.');
+  error.statusCode=409;
+  error.code='MP_3DS_LIVE_MODE_REJECTED';
+  return error;
 }
 
 export function getMercadoPago3dsSandboxConfig(env=process.env){
+  const accessToken=clean(env.MP_3DS_SANDBOX_ACCESS_TOKEN);
+  const defaultAccessToken=clean(env.MP_ACCESS_TOKEN);
   return {
     enabled: clean(env.MP_3DS_SANDBOX_ENABLED).toLowerCase()==='true',
     baseUrl: clean(env.MP_3DS_SANDBOX_BASE_URL||'https://api.mercadopago.com').replace(/\/+$/,''),
-    accessToken: clean(env.MP_3DS_SANDBOX_ACCESS_TOKEN),
-    notificationUrl: clean(env.MP_3DS_SANDBOX_NOTIFICATION_URL)
+    accessToken,
+    notificationUrl: clean(env.MP_3DS_SANDBOX_NOTIFICATION_URL),
+    reusesDefaultAccessToken:Boolean(accessToken&&defaultAccessToken&&accessToken===defaultAccessToken)
   };
 }
 
 export function assertMercadoPago3dsSandboxReady(config=getMercadoPago3dsSandboxConfig()){
   if(!config.enabled) throw new Error('Sandbox 3DS Mercado Pago desabilitado.');
   if(!config.accessToken) throw new Error('MP_3DS_SANDBOX_ACCESS_TOKEN não configurado.');
-  if(!isMercadoPagoTestAccessToken(config.accessToken)){
-    throw new Error('MP_3DS_SANDBOX_ACCESS_TOKEN deve ser uma credencial de teste Mercado Pago (prefixo TEST-).');
+  if(config.reusesDefaultAccessToken){
+    throw new Error('MP_3DS_SANDBOX_ACCESS_TOKEN não pode reutilizar MP_ACCESS_TOKEN.');
   }
   if(!isOfficialMercadoPagoApiBaseUrl(config.baseUrl)){
     throw new Error('MP_3DS_SANDBOX_BASE_URL deve apontar para https://api.mercadopago.com.');
@@ -140,6 +146,7 @@ export function normalizeMercadoPago3dsOrderResponse(data={}){
     status:clean(data.status||payment.status),
     statusDetail:clean(payment.status_detail||data.status_detail),
     paymentId:clean(payment.id),
+    liveMode:data?.live_mode===true,
     actionRequired:clean(payment.status)==='action_required'||clean(data.status)==='action_required',
     pendingChallenge:clean(payment.status_detail)==='pending_challenge'||clean(data.status_detail)==='pending_challenge',
     challengeUrl:clean(security.url),
@@ -185,12 +192,15 @@ export function createMercadoPago3dsSandboxClient({axios,env=process.env}={}){
       }
     );
 
+    const result=normalizeMercadoPago3dsOrderResponse(response?.data||{});
+    if(result.liveMode) throw liveModeError();
+
     return {
       statusCode:Number(response?.status||0),
       ok:Number(response?.status||0)>=200&&Number(response?.status||0)<300,
       idempotencyKey,
       request:redactMercadoPago3dsPayload(payload),
-      result:normalizeMercadoPago3dsOrderResponse(response?.data||{}),
+      result,
       raw:response?.data||{}
     };
   }
@@ -218,10 +228,13 @@ export function createMercadoPago3dsSandboxClient({axios,env=process.env}={}){
       throw error;
     }
 
+    const result=normalizeMercadoPago3dsOrderResponse(response?.data||{});
+    if(result.liveMode) throw liveModeError();
+
     return {
       statusCode,
       ok:true,
-      result:normalizeMercadoPago3dsOrderResponse(response?.data||{})
+      result
     };
   }
 
@@ -229,7 +242,6 @@ export function createMercadoPago3dsSandboxClient({axios,env=process.env}={}){
 }
 
 export default {
-  isMercadoPagoTestAccessToken,
   getMercadoPago3dsSandboxConfig,
   assertMercadoPago3dsSandboxReady,
   buildMercadoPago3dsOrderPayload,
