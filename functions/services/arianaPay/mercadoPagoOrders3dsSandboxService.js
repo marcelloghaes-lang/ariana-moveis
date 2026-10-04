@@ -91,7 +91,6 @@ export function buildMercadoPago3dsOrderPayload({
     type:'online',
     external_reference:oid,
     processing_mode:'automatic',
-    capture_mode:'automatic',
     total_amount:total.toFixed(2),
     config:{
       online:{
