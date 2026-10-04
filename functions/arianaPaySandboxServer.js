@@ -9,6 +9,7 @@ import { buildArianaPayPhase1Readiness } from './services/arianaPay/arianaPayPha
 import { createMercadoPago3dsSandboxClient } from './services/arianaPay/mercadoPagoOrders3dsSandboxService.js';
 import { createMpReconciliationSandboxClient } from './services/arianaPay/mercadoPagoReconciliationSandboxService.js';
 import { evaluateArianaPaySandboxGuard, assertArianaPaySandboxSafe } from './services/arianaPay/arianaPaySandboxGuardService.js';
+import { classifyMercadoPagoSandboxWebhook } from './services/arianaPay/mercadoPagoSandboxWebhookEventService.js';
 import {
   verifyMercadoPagoWebhookSignature,
   getMercadoPagoWebhookDataId
@@ -293,6 +294,20 @@ app.post('/api/webhooks/ariana-pay/mercadopago-sandbox',requireShadow,(req,res)=
     });
   }
 
+  const event=classifyMercadoPagoSandboxWebhook({
+    queryType:clean(req.query?.type),
+    body:req.body||{}
+  });
+
+  console.log('[ariana-pay-sandbox][webhook]',JSON.stringify({
+    verified:true,
+    dataId:getMercadoPagoWebhookDataId(req),
+    queryType:clean(req.query?.type),
+    kind:event.kind,
+    recommendedAction:event.recommendedAction,
+    executeAction:false
+  }));
+
   return res.status(200).json({
     ok:true,
     feature:'ariana_pay',
@@ -300,7 +315,8 @@ app.post('/api/webhooks/ariana-pay/mercadopago-sandbox',requireShadow,(req,res)=
     writesEnabled:false,
     checkoutChanged:false,
     payoutsEnabled:false,
-    verified:true
+    verified:true,
+    event
   });
 });
 
