@@ -8,6 +8,7 @@ import axios from 'axios';
 import { buildArianaPayPhase1Readiness } from './services/arianaPay/arianaPayPhase1ReadinessService.js';
 import { createMercadoPago3dsSandboxClient } from './services/arianaPay/mercadoPagoOrders3dsSandboxService.js';
 import { createMpReconciliationSandboxClient } from './services/arianaPay/mercadoPagoReconciliationSandboxService.js';
+import { evaluateArianaPaySandboxGuard, assertArianaPaySandboxSafe } from './services/arianaPay/arianaPaySandboxGuardService.js';
 import {
   verifyMercadoPagoWebhookSignature,
   getMercadoPagoWebhookDataId
@@ -106,13 +107,16 @@ function assertSandboxAmount(amount){
 
 app.get('/health',(_req,res)=>{
   const readiness=buildArianaPayPhase1Readiness({env:process.env});
-  return res.json({
-    ok:true,
+  const guard=evaluateArianaPaySandboxGuard(process.env);
+  return res.status(guard.ok?200:503).json({
+    ok:guard.ok,
     service:'ariana-pay-sandbox',
     mode:'isolated_shadow',
     readyForRealMoney:false,
     shadowFeatureEnabled:readiness.gates.shadowFeatureEnabled,
-    safetyViolations:readiness.safetyViolations,
+    adminTokenConfigured:guard.adminTokenConfigured,
+    sandboxMaxAmount:guard.maxAmount,
+    safetyViolations:[...new Set([...(readiness.safetyViolations||[]),...(guard.violations||[])])],
     externalPending:readiness.externalPending
   });
 });
@@ -264,6 +268,7 @@ app.use((_req,res)=>{
 const port=Number(process.env.PORT||8099);
 
 export function startArianaPaySandboxServer(){
+  assertArianaPaySandboxSafe(process.env);
   return app.listen(port,()=>{
     console.log(`[ariana-pay-sandbox] listening on port ${port}`);
     console.log('[ariana-pay-sandbox] isolated shadow only; checkout and payouts disabled');
