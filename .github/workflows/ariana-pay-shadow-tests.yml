@@ -5,15 +5,14 @@ on:
     branches:
       - feature/ariana-pay-phase1
     paths:
+      - 'functions/arianaPaySandboxServer.js'
       - 'functions/services/arianaPay/**'
       - 'functions/models/arianaPayModels.js'
       - 'functions/routes/arianaPayShadowRoutes.js'
-      - 'functions/routes/orderStatusRoutes.js'
-      - 'functions/routes/legacyRuntimeRoutes.js'
       - 'functions/tests/ariana-pay-*.test.mjs'
-      - 'functions/package.json'
       - 'public/admin_ariana_pay_shadow.html'
       - 'public/seller_ariana_pay.html'
+      - 'docs/ariana-pay/**'
       - '.github/workflows/ariana-pay-shadow-tests.yml'
   workflow_dispatch:
 
@@ -36,13 +35,10 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Syntax checks for wired routes
+      - name: Syntax checks for Ariana Pay isolated code
         run: |
-          node --check routes/paymentRoutes.js
+          node --check arianaPaySandboxServer.js
           node --check routes/arianaPayShadowRoutes.js
-          node --check routes/sellerCoreRoutes.js
-          node --check routes/orderStatusRoutes.js
-          node --check routes/legacyRuntimeRoutes.js
 
       - name: Ariana Pay isolated tests
         run: node --test tests/ariana-pay-*.test.mjs
