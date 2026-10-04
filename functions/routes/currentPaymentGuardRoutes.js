@@ -1,4 +1,5 @@
 import createMarketplacePricingService from '../services/marketplacePricingService.js';
+import { runMarketplaceHistoricalFinancialAudit } from '../services/marketplaceHistoricalFinancialAuditService.js';
 
 // ============================================================
 // GUARDA DE PAGAMENTOS ATUAIS - ARIANA MÓVEIS
@@ -111,7 +112,31 @@ export function calculateExpectedOrderFinancials(body = {}, productMap = new Map
 }
 
 export default function registerCurrentPaymentGuardRoutes(app, context = {}) {
-  const { adminRequired, Product, mongoose } = context;
+  const { adminRequired, Product, Order, mongoose } = context;
+
+  const createPricing = () => createMarketplacePricingService({
+    Product,
+    mongoose,
+    ensureArray: (value) => Array.isArray(value) ? value : [],
+    toJSON: (value) => value?.toObject ? value.toObject() : value
+  });
+
+  // Varredura histórica opcional e SOMENTE LEITURA. É ligada temporariamente
+  // por variável de ambiente e escreve apenas um resumo seguro nos logs.
+  const historicalAuditEnabled = String(process.env.MARKETPLACE_HISTORICAL_AUDIT_ON_STARTUP || '').toLowerCase() === 'true';
+  if (historicalAuditEnabled && Order && typeof Order.find === 'function') {
+    const timer = setTimeout(() => {
+      runMarketplaceHistoricalFinancialAudit({
+        Order,
+        pricing: createPricing(),
+        limit: Number(process.env.MARKETPLACE_HISTORICAL_AUDIT_LIMIT || 5000),
+        sampleLimit: Number(process.env.MARKETPLACE_HISTORICAL_AUDIT_SAMPLE_LIMIT || 60)
+      }).catch((error) => {
+        console.error('[marketplace-historical-audit] falha segura', error?.message || error);
+      });
+    }, 15000);
+    timer.unref?.();
+  }
 
   const pagarmeDisabled = (_req, res) => res.status(410).json({
     ok: false,
@@ -150,13 +175,7 @@ export default function registerCurrentPaymentGuardRoutes(app, context = {}) {
         : [];
       const productMap = new Map(products.map((product) => [String(product._id), product]));
 
-      const pricing = createMarketplacePricingService({
-        Product,
-        mongoose,
-        ensureArray: (value) => Array.isArray(value) ? value : [],
-        toJSON: (value) => value
-      });
-
+      const pricing = createPricing();
       const check = calculateExpectedOrderFinancials(body, productMap, pricing);
       if (!check.consistent) {
         console.warn('[order-integrity] Pedido bloqueado antes da persistência', {
