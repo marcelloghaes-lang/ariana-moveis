@@ -1,4 +1,4 @@
-// Ariana Pay — auditoria de amostra real com credencial Mongo dedicada e SOMENTE LEITURA.
+// Ariana Pay — auditoria real com credencial Mongo dedicada e SOMENTE LEITURA.
 // A conexão é separada do backend de produção e falha fechada se detectar privilégio de escrita.
 // Nenhuma informação pessoal do cliente sai do banco: a consulta projeta apenas sinais financeiros/operacionais.
 // IMPORTANTE: valores históricos de seller são reconstruídos somente com snapshot gravado no pedido.
@@ -31,7 +31,7 @@ function money(value=0){
 export function normalizeAuditLimit(value=25){
   const parsed=Number(value);
   if(!Number.isFinite(parsed)) return 25;
-  return Math.max(5,Math.min(Math.trunc(parsed),100));
+  return Math.max(5,Math.min(Math.trunc(parsed),500));
 }
 
 export function isFinancialProjectionEligible({
@@ -73,7 +73,7 @@ export function getReadOnlyProductionAuditConfig(env=process.env){
 
 export function assertReadOnlyProductionAuditConfigured(config=getReadOnlyProductionAuditConfig()){
   if(!config.enabled){
-    throw errorWith('ARIANA_PAY_PRODUCTION_AUDIT_DISABLED','Auditoria de amostra real está desabilitada.');
+    throw errorWith('ARIANA_PAY_PRODUCTION_AUDIT_DISABLED','Auditoria real está desabilitada.');
   }
   if(!config.uri){
     throw errorWith('ARIANA_PAY_READONLY_MONGO_URI_MISSING','ARIANA_PAY_SHADOW_READONLY_MONGODB_URI ainda não foi configurada.');
@@ -145,7 +145,7 @@ async function assertMongoCredentialIsReadOnly(db){
   let status;
   try{
     status=await db.command({connectionStatus:1,showPrivileges:true});
-  }catch(error){
+  }catch(_error){
     throw errorWith(
       'ARIANA_PAY_READONLY_PRIVILEGE_CHECK_FAILED',
       'Não foi possível comprovar os privilégios somente leitura da credencial Mongo. A auditoria foi bloqueada.',
@@ -322,6 +322,31 @@ function orderProjectionStage(){
   };
 }
 
+function summarizeAnomalyRows(rows=[]){
+  const out=[];
+  for(const row of rows){
+    const sellers=Array.isArray(row?.sellers)?row.sellers:[];
+    for(const seller of sellers){
+      const anomalies=Array.isArray(seller?.integrity?.anomalies)?seller.integrity.anomalies:[];
+      if(!anomalies.length) continue;
+      out.push({
+        orderId:String(row?.orderId||''),
+        createdAt:row?.createdAt||null,
+        orderTotal:money(row?.total),
+        sellerId:String(seller?.sellerId||''),
+        externalSeller:seller?.externalSeller===true,
+        anomalies,
+        chargedGross:money(seller?.integrity?.chargedGross),
+        snapshotGross:money(seller?.integrity?.snapshotGross),
+        computedGross:money(seller?.integrity?.computedGross),
+        observedChargedGross:money(seller?.settlement?.observedChargedGross),
+        observedGross:money(seller?.settlement?.observedGross)
+      });
+    }
+  }
+  return out;
+}
+
 export async function auditRealProductionSample({
   env=process.env,
   limit=25,
@@ -334,7 +359,7 @@ export async function auditRealProductionSample({
     dbName:config.databaseName||undefined,
     serverSelectionTimeoutMS:12000,
     connectTimeoutMS:12000,
-    socketTimeoutMS:20000,
+    socketTimeoutMS:30000,
     maxPoolSize:2,
     minPoolSize:0,
     retryWrites:false
@@ -352,7 +377,7 @@ export async function auditRealProductionSample({
       {$sort:{createdAt:-1}},
       {$limit:safeLimit},
       orderProjectionStage()
-    ],{allowDiskUse:false,maxTimeMS:12000}).toArray();
+    ],{allowDiskUse:false,maxTimeMS:20000}).toArray();
 
     const pricing=createMarketplacePricingService({
       Product:null,
@@ -382,6 +407,7 @@ export async function auditRealProductionSample({
       trustedSnapshotProjections:0,
       missingSnapshotProjections:0,
       settlementIntegrityBlocked:0,
+      ordersWithSettlementAnomaly:0,
       releaseScheduled:0,
       releaseBlocked:0,
       activeFinancialRisk:0,
@@ -426,6 +452,7 @@ export async function auditRealProductionSample({
       const historicalProductMap=buildHistoricalSnapshotProductMap(order,new Map());
 
       const sellers=[];
+      let orderHasSettlementAnomaly=false;
       for(const sellerId of sellerIds){
         const settlement=pricing.getSellerSettlementForOrder(order,sellerId,historicalProductMap);
         const integrity=assessSellerSettlementIntegrity({order,sellerId,settlement});
@@ -454,20 +481,21 @@ export async function auditRealProductionSample({
           risk,
           cardSecurity
         });
+
         summary.sellerProjections+=1;
         if(externalSeller) summary.externalSellerProjections+=1;
         else summary.internalSellerProjections+=1;
         if(financialProjectionEligible) summary.financialProjectionEligibleProjections+=1;
         if(integrity.snapshotItems===integrity.itemCount&&integrity.itemCount>0) summary.trustedSnapshotProjections+=1;
         if(integrity.missingSnapshotItems>0) summary.missingSnapshotProjections+=1;
-        if(integrity.blocked) summary.settlementIntegrityBlocked+=1;
+        if(integrity.blocked){
+          summary.settlementIntegrityBlocked+=1;
+          orderHasSettlementAnomaly=true;
+        }
         if(release.state==='scheduled') summary.releaseScheduled+=1;
         else summary.releaseBlocked+=1;
         if(responsibility.requiresManualReview) summary.responsibilityReview+=1;
 
-        // Totais projetados só incluem seller externo que passou pelas travas financeiras.
-        // Crediário Ariana, pagamento não aprovado, conciliação ausente/divergente, risco ou bloqueio
-        // de segurança continuam visíveis na auditoria, mas NÃO entram como payout projetado.
         if(financialProjectionEligible){
           summary.projectedSellerGross+=Number(settlement.gross||0);
           summary.projectedSellerCommission+=Number(settlement.commission||0);
@@ -485,6 +513,11 @@ export async function auditRealProductionSample({
             commissionPercent:settlement.commissionPercent,
             net:settlement.net,
             settlementMode:settlement.settlementMode,
+            integrityBlocked:settlement.integrityBlocked===true,
+            integrityReasons:Array.isArray(settlement.integrityReasons)?settlement.integrityReasons:[],
+            orderTotal:settlement.orderTotal??money(order.total),
+            observedChargedGross:settlement.observedChargedGross??null,
+            observedGross:settlement.observedGross??null,
             cardMarkup:settlement.cardMarkup,
             label:settlement.label,
             labelDeductedFromSeller:settlement.labelDeductedFromSeller
@@ -505,6 +538,7 @@ export async function auditRealProductionSample({
           responsibility
         });
       }
+      if(orderHasSettlementAnomaly) summary.ordersWithSettlementAnomaly+=1;
 
       rows.push({
         orderId:String(order._id||''),
@@ -544,6 +578,8 @@ export async function auditRealProductionSample({
       summary[key]=money(summary[key]);
     }
 
+    const anomalyRows=summarizeAnomalyRows(rows);
+
     return {
       ok:true,
       mode:'production_sample_shadow_read_only',
@@ -561,12 +597,43 @@ export async function auditRealProductionSample({
       },
       generatedAt:now.toISOString(),
       summary,
+      anomalyRows,
       rows
     };
   }finally{
     await connection.close().catch(()=>{});
   }
 }
+
+let autoSweepStarted=false;
+function maybeRunAutoFullSweep(){
+  if(autoSweepStarted) return;
+  if(clean(process.env.ARIANA_PAY_SHADOW_AUTO_FULL_AUDIT).toLowerCase()!=='true') return;
+  autoSweepStarted=true;
+  const limit=normalizeAuditLimit(process.env.ARIANA_PAY_SHADOW_AUTO_FULL_AUDIT_LIMIT||500);
+  setTimeout(async()=>{
+    try{
+      const result=await auditRealProductionSample({limit,now:new Date()});
+      console.log('[ariana-pay][full-readonly-audit][summary]',JSON.stringify({
+        generatedAt:result.generatedAt,
+        writesEnabled:result.writesEnabled,
+        payoutsEnabled:result.payoutsEnabled,
+        checkoutChanged:result.checkoutChanged,
+        piiReturned:result.piiReturned,
+        credentialVerification:result.credentialVerification,
+        summary:result.summary
+      }));
+      console.log('[ariana-pay][full-readonly-audit][anomalies]',JSON.stringify(result.anomalyRows||[]));
+    }catch(error){
+      console.error('[ariana-pay][full-readonly-audit][error]',JSON.stringify({
+        code:error?.code||'ARIANA_PAY_FULL_AUDIT_ERROR',
+        message:error?.message||String(error)
+      }));
+    }
+  },1500);
+}
+
+maybeRunAutoFullSweep();
 
 export default {
   getReadOnlyProductionAuditConfig,
