@@ -289,7 +289,7 @@ app.get('/3ds-test',requireShadow,(_req,res)=>{
 <div><label>Número do documento</label><input id="form-checkout__identificationNumber" value="12345678909" required></div>
 <div class="full"><label>E-mail de teste</label><input type="email" id="form-checkout__cardholderEmail" value="test@testuser.com" required></div>
 </div><button type="submit" id="form-checkout__submit">Criar Order 3DS de teste</button><progress value="0" class="progress-bar" style="display:none">Carregando...</progress></form>
-<div class="note" style="margin-top:16px"><b>Challenge aprovado:</b> Mastercard 5483 9281 6457 4623, CVV 123, validade 11/30, titular APRO-CHOK.<br><b>Challenge negado:</b> Mastercard 5361 9568 0611 7557, CVV 123, validade 11/30, titular OTHE-CHNO.</div>
+<div class="note" style="margin-top:16px"><b>Cartão Orders API:</b> Mastercard 5480 8328 0103 3311, CVV 123, validade 11/30.<br><b>Challenge aprovado:</b> titular APRO-CHOK.<br><b>Challenge negado:</b> use o mesmo cartão e titular OTHE-CHNO.</div>
 <div id="status" class="status">Aguardando teste.</div><iframe id="challenge" class="challenge"></iframe></div>
 <script>
 const mp=new MercadoPago(${JSON.stringify(publicKey)});
