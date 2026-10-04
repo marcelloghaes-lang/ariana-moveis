@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import {
   parseMercadoPagoSignature,
   buildMercadoPagoWebhookManifest,
+  verifyMercadoPagoWebhookTimestamp,
   verifyMercadoPagoWebhookSignature,
   getMercadoPagoWebhookDataId
 } from '../services/arianaPay/mercadoPagoWebhookSecurityService.js';
@@ -31,9 +32,91 @@ test('valida HMAC SHA256 com comparação segura',()=>{
   assert.equal(result.reason,'');
 });
 
+test('timestamp recente é aceito e timestamp antigo é rejeitado',()=>{
+  const nowMs=1_800_000_000_000;
+  const nowSeconds=Math.floor(nowMs/1000);
+
+  assert.equal(
+    verifyMercadoPagoWebhookTimestamp({
+      timestamp:String(nowSeconds-60),
+      nowMs,
+      toleranceSeconds:300
+    }).ok,
+    true
+  );
+
+  const old=verifyMercadoPagoWebhookTimestamp({
+    timestamp:String(nowSeconds-301),
+    nowMs,
+    toleranceSeconds:300
+  });
+  assert.equal(old.ok,false);
+  assert.equal(old.reason,'signature_too_old');
+
+  const future=verifyMercadoPagoWebhookTimestamp({
+    timestamp:String(nowSeconds+301),
+    nowMs,
+    toleranceSeconds:300
+  });
+  assert.equal(future.ok,false);
+  assert.equal(future.reason,'signature_from_future');
+});
+
+test('assinatura válida mas antiga falha quando freshness é obrigatória',()=>{
+  const secret='segredo-teste';
+  const nowMs=1_800_000_000_000;
+  const ts=Math.floor(nowMs/1000)-600;
+  const manifest=`id:999;request-id:req-123;ts:${ts};`;
+  const v1=crypto.createHmac('sha256',secret).update(manifest).digest('hex');
+
+  const result=verifyMercadoPagoWebhookSignature({
+    signatureHeader:`ts=${ts},v1=${v1}`,
+    requestId:'req-123',
+    dataId:'999',
+    secret,
+    requireFreshTimestamp:true,
+    nowMs,
+    toleranceSeconds:300
+  });
+
+  assert.equal(result.ok,false);
+  assert.equal(result.reason,'signature_too_old');
+});
+
+test('assinatura recente e correta passa com freshness obrigatória',()=>{
+  const secret='segredo-teste';
+  const nowMs=1_800_000_000_000;
+  const ts=Math.floor(nowMs/1000)-15;
+  const manifest=`id:999;request-id:req-123;ts:${ts};`;
+  const v1=crypto.createHmac('sha256',secret).update(manifest).digest('hex');
+
+  const result=verifyMercadoPagoWebhookSignature({
+    signatureHeader:`ts=${ts},v1=${v1}`,
+    requestId:'req-123',
+    dataId:'999',
+    secret,
+    requireFreshTimestamp:true,
+    nowMs,
+    toleranceSeconds:300
+  });
+
+  assert.equal(result.ok,true);
+});
+
 test('assinatura alterada é rejeitada',()=>{
   const result=verifyMercadoPagoWebhookSignature({
     signatureHeader:'ts=1704908010,v1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    requestId:'req',
+    dataId:'999',
+    secret:'segredo'
+  });
+  assert.equal(result.ok,false);
+  assert.equal(result.reason,'signature_mismatch');
+});
+
+test('hex inválido é rejeitado sem lançar exceção',()=>{
+  const result=verifyMercadoPagoWebhookSignature({
+    signatureHeader:'ts=1704908010,v1=zzzz',
     requestId:'req',
     dataId:'999',
     secret:'segredo'
