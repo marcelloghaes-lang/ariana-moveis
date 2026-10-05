@@ -3,103 +3,24 @@ import axios from 'axios';
 export const DSLITE_BETO_SUPPLIER_ID = 41;
 
 export const DSLITE_BETO_APPROVED_SKUS = Object.freeze([
-  'ADEGAV',
-  'CABIDEIROVERSATILN',
-  'CABIDEIROVERSATILV',
-  'CABPARISB',
-  'CABPARISP',
-  'CABTOQUIOB',
-  'CABTOQUIOP',
-  'CABTOQUIOV',
-  'FRUT1F',
-  'FRUT1N',
-  'FRUT1V',
-  'GLAMB',
-  'GLAMN',
-  'GLAMP',
-  'GLAMV',
-  'MB130',
-  'MB145',
-  'MESAGOIASB',
-  'MESAGOIASF',
-  'MESAGOIASP',
-  'MESAREDB',
-  'MESAREDF',
-  'MESAREDN',
-  'MESAREDP',
-  'MESAREDV',
-  'MF130',
-  'MF145',
-  'MF155',
-  'MM130V',
-  'MM145V',
-  'MM155V',
-  'MP130',
-  'MP145',
-  'MP155',
-  'MULTI2REPARCANTO30B',
-  'MULTI2REPARCANTO30P',
-  'PENTEADEIRAB',
-  'PENTEADEIRAN',
-  'PENTEADEIRAP',
-  'PENTEADEIRAV',
-  'SUPORTEPAPELN',
-  'TABUADECARNE50CM',
-  'TABUADECARNE60CM',
-  'TABUADECARNE70CM',
-  'SUPORTEPAPELV'
+  'ADEGAV','CABIDEIROVERSATILN','CABIDEIROVERSATILV','CABPARISB','CABPARISP','CABTOQUIOB','CABTOQUIOP','CABTOQUIOV','FRUT1F','FRUT1N','FRUT1V','GLAMB','GLAMN','GLAMP','GLAMV','MB130','MB145','MESAGOIASB','MESAGOIASF','MESAGOIASP','MESAREDB','MESAREDF','MESAREDN','MESAREDP','MESAREDV','MF130','MF145','MF155','MM130V','MM145V','MM155V','MP130','MP145','MP155','MULTI2REPARCANTO30B','MULTI2REPARCANTO30P','PENTEADEIRAB','PENTEADEIRAN','PENTEADEIRAP','PENTEADEIRAV','SUPORTEPAPELN','TABUADECARNE50CM','TABUADECARNE60CM','TABUADECARNE70CM','SUPORTEPAPELV'
 ]);
 
 const APPROVED_SKU_SET = new Set(DSLITE_BETO_APPROVED_SKUS);
 
-// Fallback validado contra o XLSX oficial do Beto Móveis recebido da DSLite.
-// Serve apenas para manter as famílias/variações agrupadas quando o XML não
-// expõe Produto_pai de forma consistente.
 const BETO_PARENT_BY_SKU = Object.freeze({
-  CABIDEIROVERSATILN: 'CABIDEIROVERSATIL',
-  CABIDEIROVERSATILV: 'CABIDEIROVERSATIL',
-  CABPARISB: 'CABPARIS',
-  CABPARISP: 'CABPARIS',
-  CABTOQUIOB: 'CABTOQUIO',
-  CABTOQUIOP: 'CABTOQUIO',
-  CABTOQUIOV: 'CABTOQUIO',
-  FRUT1F: 'FRUT1',
-  FRUT1N: 'FRUT1',
-  FRUT1V: 'FRUT1',
-  GLAMB: 'GLAM',
-  GLAMN: 'GLAM',
-  GLAMP: 'GLAM',
-  GLAMV: 'GLAM',
-  MB130: 'M1',
-  MB145: 'M1',
-  MF130: 'M1',
-  MF145: 'M1',
-  MF155: 'M1',
-  MM130V: 'M1',
-  MM145V: 'M1',
-  MM155V: 'M1',
-  MP130: 'M1',
-  MP145: 'M1',
-  MP155: 'M1',
-  MESAGOIASB: 'MESAGOIAS',
-  MESAGOIASF: 'MESAGOIAS',
-  MESAGOIASP: 'MESAGOIAS',
-  MESAREDB: 'MESARED',
-  MESAREDF: 'MESARED',
-  MESAREDN: 'MESARED',
-  MESAREDP: 'MESARED',
-  MESAREDV: 'MESARED',
-  MULTI2REPARCANTO30B: 'MULTI2REPARCANTO30',
-  MULTI2REPARCANTO30P: 'MULTI2REPARCANTO30',
-  PENTEADEIRAB: 'PENTEADEIRA',
-  PENTEADEIRAN: 'PENTEADEIRA',
-  PENTEADEIRAP: 'PENTEADEIRA',
-  PENTEADEIRAV: 'PENTEADEIRA',
-  SUPORTEPAPELN: 'SUPORTEPAPEL',
-  SUPORTEPAPELV: 'SUPORTEPAPEL',
-  TABUADECARNE50CM: 'TABUADECARNE',
-  TABUADECARNE60CM: 'TABUADECARNE',
-  TABUADECARNE70CM: 'TABUADECARNE'
+  CABIDEIROVERSATILN:'CABIDEIROVERSATIL', CABIDEIROVERSATILV:'CABIDEIROVERSATIL',
+  CABPARISB:'CABPARIS', CABPARISP:'CABPARIS',
+  CABTOQUIOB:'CABTOQUIO', CABTOQUIOP:'CABTOQUIO', CABTOQUIOV:'CABTOQUIO',
+  FRUT1F:'FRUT1', FRUT1N:'FRUT1', FRUT1V:'FRUT1',
+  GLAMB:'GLAM', GLAMN:'GLAM', GLAMP:'GLAM', GLAMV:'GLAM',
+  MB130:'M1', MB145:'M1', MF130:'M1', MF145:'M1', MF155:'M1', MM130V:'M1', MM145V:'M1', MM155V:'M1', MP130:'M1', MP145:'M1', MP155:'M1',
+  MESAGOIASB:'MESAGOIAS', MESAGOIASF:'MESAGOIAS', MESAGOIASP:'MESAGOIAS',
+  MESAREDB:'MESARED', MESAREDF:'MESARED', MESAREDN:'MESARED', MESAREDP:'MESARED', MESAREDV:'MESARED',
+  MULTI2REPARCANTO30B:'MULTI2REPARCANTO30', MULTI2REPARCANTO30P:'MULTI2REPARCANTO30',
+  PENTEADEIRAB:'PENTEADEIRA', PENTEADEIRAN:'PENTEADEIRA', PENTEADEIRAP:'PENTEADEIRA', PENTEADEIRAV:'PENTEADEIRA',
+  SUPORTEPAPELN:'SUPORTEPAPEL', SUPORTEPAPELV:'SUPORTEPAPEL',
+  TABUADECARNE50CM:'TABUADECARNE', TABUADECARNE60CM:'TABUADECARNE', TABUADECARNE70CM:'TABUADECARNE'
 });
 
 function requiredToken() {
@@ -119,298 +40,174 @@ function feedUrl({ supplierId = DSLITE_BETO_SUPPLIER_ID, token = requiredToken()
 function decodeXml(value = '') {
   return String(value || '')
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&amp;/g, '&');
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'").replace(/&amp;/g, '&');
+}
+
+function normalizeFeedPayload(payload) {
+  if (payload === null || payload === undefined) return '';
+  if (typeof payload === 'string') {
+    let text = payload.trim();
+    if (!text) return '';
+    if ((text.startsWith('"') && text.endsWith('"')) || text.startsWith('{') || text.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(text);
+        return normalizeFeedPayload(parsed);
+      } catch (_e) {}
+    }
+    if (!/<prod_id\b/i.test(text) && /&lt;prod_id\b/i.test(text)) text = decodeXml(text);
+    return text;
+  }
+  if (Array.isArray(payload)) {
+    for (const item of payload) {
+      const text = normalizeFeedPayload(item);
+      if (/<prod_id\b/i.test(text)) return text;
+    }
+    return JSON.stringify(payload);
+  }
+  if (typeof payload === 'object') {
+    for (const key of ['xml','data','content','body','result','response']) {
+      if (payload[key] !== undefined) {
+        const text = normalizeFeedPayload(payload[key]);
+        if (/<prod_id\b/i.test(text)) return text;
+      }
+    }
+    for (const value of Object.values(payload)) {
+      const text = normalizeFeedPayload(value);
+      if (/<prod_id\b/i.test(text)) return text;
+    }
+    return JSON.stringify(payload);
+  }
+  return String(payload);
 }
 
 function plainText(value = '') {
-  return decodeXml(value)
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/p>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\r/g, '')
-    .replace(/[ \t]+/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  return decodeXml(value).replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,' ').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,' ').replace(/<br\s*\/?>/gi,'\n').replace(/<\/p>/gi,'\n').replace(/<[^>]+>/g,' ').replace(/\r/g,'').replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim();
 }
 
 function extractTag(block = '', tag = '') {
-  const safe = String(tag).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const match = String(block).match(new RegExp(`<${safe}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${safe}>`, 'i'));
+  const safe = String(tag).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const match = String(block).match(new RegExp(`<${safe}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${safe}>`,'i'));
   return match ? decodeXml(match[1]).trim() : '';
 }
 
 function toNumber(value, fallback = 0) {
   if (value === null || value === undefined || value === '') return fallback;
-  let normalized = String(value).trim().replace(/\s/g, '');
-  if (normalized.includes(',') && normalized.includes('.')) {
-    normalized = normalized.replace(/\./g, '').replace(',', '.');
-  } else if (normalized.includes(',')) {
-    normalized = normalized.replace(',', '.');
-  }
+  let normalized = String(value).trim().replace(/\s/g,'');
+  if (normalized.includes(',') && normalized.includes('.')) normalized = normalized.replace(/\./g,'').replace(',','.');
+  else if (normalized.includes(',')) normalized = normalized.replace(',','.');
   const n = Number(normalized);
   return Number.isFinite(n) ? n : fallback;
 }
 
 function splitImages(value = '') {
-  return decodeXml(value)
-    .split(/[\n\r,;]+/)
-    .map((item) => item.trim())
-    .filter((item) => /^https?:\/\//i.test(item));
+  return decodeXml(value).split(/[\n\r,;]+/).map(v=>v.trim()).filter(v=>/^https?:\/\//i.test(v));
 }
 
 function extractImageUrlsFromBlock(block = '') {
   const decoded = decodeXml(block);
   const candidates = decoded.match(/https?:\/\/[^\s<>"']+/gi) || [];
-  return candidates
-    .map((url) => url.replace(/&amp;/g, '&').replace(/[),.;]+$/, '').trim())
-    .filter((url) => {
-      const lower = url.toLowerCase();
-      return (
-        /\.(?:jpg|jpeg|png|webp|gif)(?:\?|$)/i.test(url) ||
-        lower.includes('tiny-anexos') ||
-        lower.includes('/imagem') ||
-        lower.includes('/image')
-      );
-    });
+  return candidates.map(url=>url.replace(/&amp;/g,'&').replace(/[),.;]+$/,'').trim()).filter(url=>{
+    const lower=url.toLowerCase();
+    return /\.(?:jpg|jpeg|png|webp|gif)(?:\?|$)/i.test(url) || lower.includes('tiny-anexos') || lower.includes('/imagem') || lower.includes('/image');
+  });
 }
 
 function detectRecordBlocks(xml = '') {
-  const source = String(xml || '');
+  const source = normalizeFeedPayload(xml);
   const markers = [...source.matchAll(/<prod_id(?:\s[^>]*)?>[\s\S]*?<\/prod_id>/gi)];
   if (!markers.length) return [];
-
-  const blocks = [];
-  for (let i = 0; i < markers.length; i += 1) {
-    const start = markers[i].index || 0;
-    const end = i + 1 < markers.length ? (markers[i + 1].index || source.length) : source.length;
-    blocks.push(source.slice(start, end));
+  const blocks=[];
+  for (let i=0;i<markers.length;i+=1) {
+    const start=markers[i].index || 0;
+    const end=i+1<markers.length ? (markers[i+1].index || source.length) : source.length;
+    blocks.push(source.slice(start,end));
   }
   return blocks;
 }
 
-function mapCategory(rawCategory = '') {
-  const category = String(rawCategory || '').toLowerCase();
+function mapCategory(rawCategory='') {
+  const category=String(rawCategory||'').toLowerCase();
   if (category.includes('penteadeira') || category.includes('mesa cabeceira')) return 'Quarto';
   if (category.includes('cozinha') || category.includes('tábua') || category.includes('fruteira')) return 'Cozinha';
   if (category.includes('banheiro')) return 'Banheiro';
   if (category.includes('cabideiro') || category.includes('prateleira') || category.includes('expositor')) return 'Organização';
-  if (category.includes('adega') || category.includes('mesinhas') || category.includes('móveis decorativos')) return 'Móveis e Decoração';
   return 'Móveis e Decoração';
 }
 
-export function parseDsliteBetoXml(xml = '') {
-  const blocks = detectRecordBlocks(xml);
-  const products = [];
-
+export function parseDsliteBetoXml(xml='') {
+  const blocks=detectRecordBlocks(xml);
+  const products=[];
   for (const block of blocks) {
-    const sku = extractTag(block, 'prod_id').trim();
+    const sku=extractTag(block,'prod_id').trim();
     if (!sku) continue;
-
-    const imageFields = [
-      extractTag(block, 'images'),
-      extractTag(block, 'imagem01'),
-      extractTag(block, 'imagem02'),
-      extractTag(block, 'imagem03'),
-      extractTag(block, 'imagem04'),
-      extractTag(block, 'imagem05')
-    ];
-    const imageUrls = [...new Set([
-      ...imageFields.flatMap(splitImages),
-      ...extractImageUrlsFromBlock(block)
-    ])];
-
-    const rawCategory = extractTag(block, 'seg_name');
-    const rawDescription = extractTag(block, 'description');
-    const feedParentSku = extractTag(block, 'Produto_pai') || extractTag(block, 'produto_pai') || extractTag(block, 'parent_sku');
-    const parentSku = String(feedParentSku || BETO_PARENT_BY_SKU[sku] || '').trim();
-
+    const imageFields=['images','imagem','image','imageUrl','imagem01','imagem02','imagem03','imagem04','imagem05','url_imagem','urlImagem','foto','foto1','foto2','foto3'].map(tag=>extractTag(block,tag));
+    const imageUrls=[...new Set([...imageFields.flatMap(splitImages),...extractImageUrlsFromBlock(block)])];
+    const rawCategory=extractTag(block,'seg_name');
+    const rawDescription=extractTag(block,'description');
+    const feedParentSku=extractTag(block,'Produto_pai') || extractTag(block,'produto_pai') || extractTag(block,'parent_sku');
+    const parentSku=String(feedParentSku || BETO_PARENT_BY_SKU[sku] || '').trim();
     products.push({
-      sku,
-      approved: APPROVED_SKU_SET.has(sku),
-      name: extractTag(block, 'prod_name') || extractTag(block, 'shortname') || sku,
-      brand: extractTag(block, 'brand') || 'Beto Móveis',
-      rawCategory,
-      category: mapCategory(rawCategory),
-      description: plainText(rawDescription),
-      ean: extractTag(block, 'EAN'),
-      supplierCost: toNumber(extractTag(block, 'price_crossdocking') || extractTag(block, 'price'), 0),
-      supplierStock: Math.max(0, Math.trunc(toNumber(extractTag(block, 'stock'), 0))),
-      weight: toNumber(extractTag(block, 'weightValue'), 0),
-      width: toNumber(extractTag(block, 'width'), 0),
-      height: toNumber(extractTag(block, 'height'), 0),
-      depth: toNumber(extractTag(block, 'depth'), 0),
-      imageUrls,
-      parentSku,
-      variationGroup: parentSku || sku,
-      status: extractTag(block, 'Situacao') || 'Ativo'
+      sku, approved:APPROVED_SKU_SET.has(sku), name:extractTag(block,'prod_name') || extractTag(block,'shortname') || sku,
+      brand:extractTag(block,'brand') || 'Beto Móveis', rawCategory, category:mapCategory(rawCategory), description:plainText(rawDescription), ean:extractTag(block,'EAN'),
+      supplierCost:toNumber(extractTag(block,'price_crossdocking') || extractTag(block,'price'),0), supplierStock:Math.max(0,Math.trunc(toNumber(extractTag(block,'stock'),0))),
+      weight:toNumber(extractTag(block,'weightValue'),0), width:toNumber(extractTag(block,'width'),0), height:toNumber(extractTag(block,'height'),0), depth:toNumber(extractTag(block,'depth'),0),
+      imageUrls, parentSku, variationGroup:parentSku || sku, status:extractTag(block,'Situacao') || 'Ativo'
     });
   }
-
   return products;
 }
 
-export async function fetchDsliteBetoCatalog({ timeoutMs = 30000 } = {}) {
-  const url = feedUrl();
-  const response = await axios.get(url, {
-    responseType: 'text',
-    timeout: timeoutMs,
-    maxContentLength: 25 * 1024 * 1024,
-    headers: { 'User-Agent': 'ArianaMoveis-DSLite/1.1' }
-  });
-
-  const parsed = parseDsliteBetoXml(response.data);
-  const approved = parsed.filter((item) => item.approved);
-
+async function requestFeedOnce({ timeoutMs=30000 }={}) {
+  const response=await axios.get(feedUrl(), { responseType:'text', timeout:timeoutMs, maxContentLength:25*1024*1024, headers:{'User-Agent':'ArianaMoveis-DSLite/1.0','Accept':'application/xml,text/xml,text/plain,*/*','Cache-Control':'no-cache'} });
+  const raw=normalizeFeedPayload(response.data);
+  const parsed=parseDsliteBetoXml(raw);
   return {
-    supplierId: DSLITE_BETO_SUPPLIER_ID,
-    supplier: 'Beto Móveis',
-    fetchedAt: new Date(),
-    totalParsed: parsed.length,
-    approvedCount: approved.length,
-    expectedApprovedCount: DSLITE_BETO_APPROVED_SKUS.length,
-    products: approved
+    responseStatus:response.status,
+    contentType:String(response.headers?.['content-type'] || ''),
+    rawLength:raw.length,
+    containsProdId:/<prod_id\b/i.test(raw),
+    looksHtml:/<!doctype\s+html|<html\b/i.test(raw),
+    parsed
   };
 }
 
-function normalizeImages(urls = []) {
-  return urls.map((url, index) => ({
-    url,
-    path: url,
-    name: `dslite-${index + 1}`,
-    isMain: index === 0
-  }));
-}
+function wait(ms){ return new Promise(resolve=>setTimeout(resolve,ms)); }
 
-export async function syncDsliteBetoShadow({ Product, actor = 'system' } = {}) {
-  if (!Product) throw new Error('Model Product não informado para sincronização DSLite.');
-
-  const catalog = await fetchDsliteBetoCatalog();
-  const summary = {
-    supplierId: catalog.supplierId,
-    supplier: catalog.supplier,
-    mode: 'shadow',
-    fetched: catalog.totalParsed,
-    approved: catalog.approvedCount,
-    expectedApproved: catalog.expectedApprovedCount,
-    created: 0,
-    updated: 0,
-    skipped: 0,
-    missingApprovedSkus: [],
-    productsWithoutImages: [],
-    syncedAt: new Date()
-  };
-
-  const seen = new Set(catalog.products.map((item) => item.sku));
-  summary.missingApprovedSkus = DSLITE_BETO_APPROVED_SKUS.filter((sku) => !seen.has(sku));
-
-  for (const item of catalog.products) {
-    if (!item.sku || !item.name) {
-      summary.skipped += 1;
-      continue;
-    }
-    if (!item.imageUrls.length) summary.productsWithoutImages.push(item.sku);
-
-    const externalSku = `DSLITE-BETO-${item.sku}`;
-    const existing = await Product.findOne({ sku: externalSku }).lean();
-    const images = normalizeImages(item.imageUrls);
-    const mainImage = images[0]?.url || '';
-
-    const set = {
-      sellerId: 'ariana',
-      sellerName: 'Ariana Móveis',
-      name: item.name,
-      description: item.description || item.name,
-      category: item.category,
-      categoryName: item.category,
-      brand: item.brand || 'Beto Móveis',
-      image: mainImage,
-      imageUrl: mainImage,
-      imagem: mainImage,
-      mainImageUrl: mainImage,
-      mainImagePath: mainImage,
-      images,
-      imageUrls: item.imageUrls,
-      imagePaths: item.imageUrls,
-      weight: item.weight || 0,
-      width: item.width || 0,
-      height: item.height || 0,
-      length: item.depth || 0,
-      dimensions: {
-        width: item.width || 0,
-        height: item.height || 0,
-        depth: item.depth || 0,
-        unit: 'cm'
-      },
-      logistics: {
-        source: 'dslite',
-        supplierId: DSLITE_BETO_SUPPLIER_ID,
-        originCep: '16303-330'
-      },
-      storefrontSource: 'dslite',
-      dropshipping: {
-        provider: 'dslite',
-        supplier: 'Beto Móveis',
-        supplierId: DSLITE_BETO_SUPPLIER_ID,
-        sourceSku: item.sku,
-        sourceEan: item.ean || '',
-        sourceCategory: item.rawCategory || '',
-        sourceCost: item.supplierCost,
-        sourceStock: item.supplierStock,
-        sourceStatus: item.status,
-        parentSku: item.parentSku || '',
-        variationGroup: item.variationGroup || item.sku,
-        imageCount: item.imageUrls.length,
-        syncMode: 'shadow',
-        publishApproved: false,
-        pricingRequired: true,
-        lastSyncAt: new Date(),
-        lastSyncBy: actor
-      },
-      specs: {
-        ...(existing?.specs || {}),
-        dslite: {
-          supplierId: DSLITE_BETO_SUPPLIER_ID,
-          sourceSku: item.sku,
-          sourceEan: item.ean || '',
-          sourceCategory: item.rawCategory || '',
-          supplierCost: item.supplierCost,
-          supplierStock: item.supplierStock,
-          parentSku: item.parentSku || '',
-          variationGroup: item.variationGroup || item.sku,
-          imageCount: item.imageUrls.length
-        }
-      }
-    };
-
-    const setOnInsert = {
-      sku: externalSku,
-      slug: `dslite-beto-${String(item.sku).toLowerCase()}`,
-      price: 0,
-      pixPrice: null,
-      stock: 0,
-      active: false,
-      storefrontStatus: 'draft',
-      storefrontSubmittedAt: null,
-      storefrontReviewedAt: null,
-      storefrontReviewedBy: '',
-      storefrontReviewNote: 'Importado em modo shadow da DSLite. Definir preço/margem e aprovar antes de publicar.'
-    };
-
-    await Product.updateOne(
-      { sku: externalSku },
-      { $set: set, $setOnInsert: setOnInsert },
-      { upsert: true, runValidators: true }
-    );
-
-    if (existing) summary.updated += 1;
-    else summary.created += 1;
+export async function fetchDsliteBetoCatalog({ timeoutMs=30000 }={}) {
+  let attempt=await requestFeedOnce({timeoutMs});
+  if (!attempt.parsed.length) {
+    await wait(800);
+    const retry=await requestFeedOnce({timeoutMs});
+    if (retry.parsed.length || retry.rawLength > attempt.rawLength) attempt=retry;
   }
+  const approved=attempt.parsed.filter(item=>item.approved);
+  return {
+    supplierId:DSLITE_BETO_SUPPLIER_ID, supplier:'Beto Móveis', fetchedAt:new Date(), totalParsed:attempt.parsed.length, approvedCount:approved.length,
+    expectedApprovedCount:DSLITE_BETO_APPROVED_SKUS.length,
+    diagnostics:{ responseStatus:attempt.responseStatus, contentType:attempt.contentType, rawLength:attempt.rawLength, containsProdId:attempt.containsProdId, looksHtml:attempt.looksHtml },
+    products:approved
+  };
+}
 
+function normalizeImages(urls=[]) { return urls.map((url,index)=>({url,path:url,name:`dslite-${index+1}`,isMain:index===0})); }
+
+export async function syncDsliteBetoShadow({ Product, actor='system' }={}) {
+  if (!Product) throw new Error('Model Product não informado para sincronização DSLite.');
+  const catalog=await fetchDsliteBetoCatalog();
+  const summary={ supplierId:catalog.supplierId,supplier:catalog.supplier,mode:'shadow',fetched:catalog.totalParsed,approved:catalog.approvedCount,expectedApproved:catalog.expectedApprovedCount,created:0,updated:0,skipped:0,missingApprovedSkus:[],productsWithoutImages:[],diagnostics:catalog.diagnostics,syncedAt:new Date() };
+  const seen=new Set(catalog.products.map(item=>item.sku));
+  summary.missingApprovedSkus=DSLITE_BETO_APPROVED_SKUS.filter(sku=>!seen.has(sku));
+  for (const item of catalog.products) {
+    if (!item.sku || !item.name) { summary.skipped+=1; continue; }
+    if (!item.imageUrls.length) summary.productsWithoutImages.push(item.sku);
+    const externalSku=`DSLITE-BETO-${item.sku}`;
+    const existing=await Product.findOne({sku:externalSku}).lean();
+    const images=normalizeImages(item.imageUrls); const mainImage=images[0]?.url || '';
+    const set={ sellerId:'ariana',sellerName:'Ariana Móveis',name:item.name,description:item.description||item.name,category:item.category,categoryName:item.category,brand:item.brand||'Beto Móveis',image:mainImage,imageUrl:mainImage,imagem:mainImage,mainImageUrl:mainImage,mainImagePath:mainImage,images,imageUrls:item.imageUrls,imagePaths:item.imageUrls,weight:item.weight||0,width:item.width||0,height:item.height||0,length:item.depth||0,dimensions:{width:item.width||0,height:item.height||0,depth:item.depth||0,unit:'cm'},logistics:{source:'dslite',supplierId:DSLITE_BETO_SUPPLIER_ID,originCep:'16303-330'},storefrontSource:'dslite',dropshipping:{provider:'dslite',supplier:'Beto Móveis',supplierId:DSLITE_BETO_SUPPLIER_ID,sourceSku:item.sku,sourceEan:item.ean||'',sourceCategory:item.rawCategory||'',sourceCost:item.supplierCost,sourceStock:item.supplierStock,sourceStatus:item.status,parentSku:item.parentSku||'',variationGroup:item.variationGroup||item.sku,imageCount:item.imageUrls.length,syncMode:'shadow',publishApproved:false,pricingRequired:true,lastSyncAt:new Date(),lastSyncBy:actor},specs:{...(existing?.specs||{}),dslite:{supplierId:DSLITE_BETO_SUPPLIER_ID,sourceSku:item.sku,sourceEan:item.ean||'',sourceCategory:item.rawCategory||'',supplierCost:item.supplierCost,supplierStock:item.supplierStock,parentSku:item.parentSku||'',variationGroup:item.variationGroup||item.sku,imageCount:item.imageUrls.length}} };
+    const setOnInsert={sku:externalSku,slug:`dslite-beto-${String(item.sku).toLowerCase()}`,price:0,pixPrice:null,stock:0,active:false,storefrontStatus:'draft',storefrontSubmittedAt:null,storefrontReviewedAt:null,storefrontReviewedBy:'',storefrontReviewNote:'Importado em modo shadow da DSLite. Definir preço/margem e aprovar antes de publicar.'};
+    await Product.updateOne({sku:externalSku},{$set:set,$setOnInsert:setOnInsert},{upsert:true,runValidators:true});
+    if (existing) summary.updated+=1; else summary.created+=1;
+  }
   return summary;
 }
