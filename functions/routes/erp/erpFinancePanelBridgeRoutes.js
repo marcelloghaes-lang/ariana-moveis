@@ -4,8 +4,31 @@ import { createErpCollectionWorkflowService } from '../../services/erp/erpCollec
 import { createErpCarneCoraService } from '../../services/erp/erpCarneCoraService.js';
 import { createErpMarkedCollectionCampaignService } from '../../services/erp/erpMarkedCollectionCampaignService.js';
 import { createErpAriadnaReceiptRecoveryService } from '../../services/erp/erpAriadnaReceiptRecoveryService.js';
+import { createErpStage4MariaEloisaRecoveryService } from '../../services/erp/erpStage4MariaEloisaRecoveryService.js';
 
 const actor=req=>req.adminUser||req.admin||req.auth||req.user||{};
+const normalizeName=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+const withoutAnaClara=result=>{
+  if(!result||!Array.isArray(result.clients))return result;
+  const clients=result.clients.filter(client=>normalizeName(client?.name)!=='ana clara de souza carvalho');
+  if(clients.length===result.clients.length)return result;
+  const entries=clients.flatMap(client=>Array.isArray(client.entries)?client.entries:[]);
+  return{
+    ...result,
+    clients,
+    summary:{
+      ...(result.summary||{}),
+      clients:clients.length,
+      installments:entries.length,
+      totalOverdue:Math.round((clients.reduce((sum,client)=>sum+Number(client.totalOverdue||0),0)+Number.EPSILON)*100)/100,
+      totalUpdated:Math.round((clients.reduce((sum,client)=>sum+Number(client.totalUpdated||0),0)+Number.EPSILON)*100)/100,
+      promisesToday:entries.filter(item=>item?.case?.promiseToday).length,
+      promisesLate:entries.filter(item=>item?.case?.promiseLate).length,
+      returnsToday:entries.filter(item=>item?.case?.returnToday).length,
+      whatsappInternalAlertsDue:entries.filter(item=>item?.case?.internalWhatsAppAlertDue).length
+    }
+  };
+};
 const webhookAuthorized=req=>{
   const configured=String(process.env.FINANCEIRO_WHATSAPP_WEBHOOK_TOKEN||'').trim();
   if(!configured)return true;
@@ -90,6 +113,8 @@ export default function createErpFinancePanelBridgeRoutes(context={}){
     operatorRecoveries:[]
   });
   stage4Campaign.start();
+  const stage4MariaRecovery=createErpStage4MariaEloisaRecoveryService(context);
+  stage4MariaRecovery.start();
   const ariadnaReceiptRecovery=createErpAriadnaReceiptRecoveryService(context);
   ariadnaReceiptRecovery.start();
   const handle=(action,status=200)=>async(req,res)=>{
@@ -132,9 +157,9 @@ export default function createErpFinancePanelBridgeRoutes(context={}){
 
   router.get('/erp/finance-panel/clientes',context.adminRequired,handle(req=>bridge.clientes(req.query||{})));
   router.get('/erp/finance-panel/lancamentos',context.adminRequired,handle(req=>bridge.lancamentos(req.query||{})));
-  router.get('/erp/finance-panel/inadimplentes',context.adminRequired,handle(req=>{
+  router.get('/erp/finance-panel/inadimplentes',context.adminRequired,handle(async req=>{
     const view=String(req.query?.view||'').trim().toLowerCase();
-    if(view==='fila'||view==='fila-do-dia')return collections.fila(req.query||{});
+    if(view==='fila'||view==='fila-do-dia')return withoutAnaClara(await collections.fila(req.query||{}));
     if(view==='promessas')return collections.promessas(req.query||{});
     if(view==='recuperacao')return collections.recuperacao(req.query||{});
     return bridge.inadimplentes(req.query||{});
