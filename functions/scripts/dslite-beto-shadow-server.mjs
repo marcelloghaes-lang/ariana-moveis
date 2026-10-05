@@ -74,13 +74,43 @@ async function buildRecoveryDiagnostic() {
     }
   }).limit(8).toArray();
 
+  let stockMovementCount = 0;
+  let stockMovementSample = [];
+  let stockMovementKeys = [];
+  if (candidateCollections.includes('erpstockmovements')) {
+    const movements = db.collection('erpstockmovements');
+    stockMovementCount = await movements.countDocuments({});
+    stockMovementSample = await movements.find({}, { projection: { _id: 0 } }).sort({ _id: -1 }).limit(12).toArray();
+    stockMovementKeys = await movements.aggregate([
+      { $limit: 200 },
+      { $project: { kv: { $objectToArray: '$$ROOT' } } },
+      { $unwind: '$kv' },
+      { $group: { _id: '$kv.k', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 40 }
+    ]).toArray();
+  }
+
+  let sandboxProductCount = 0;
+  let sandboxProductSample = [];
+  if (candidateCollections.includes('enterprise_sandbox_products')) {
+    const sandboxProducts = db.collection('enterprise_sandbox_products');
+    sandboxProductCount = await sandboxProducts.countDocuments({});
+    sandboxProductSample = await sandboxProducts.find({}, { projection: { _id: 0 } }).limit(5).toArray();
+  }
+
   return {
     nonDsliteTotal: await products.countDocuments(filter),
     currentActive: await products.countDocuments({ $and: [filter, { active: true }] }),
     currentWithStock: await products.countDocuments({ $and: [filter, { stock: { $gt: 0 } }] }),
     alternateStockCounts,
     candidateCollections,
-    sample
+    sample,
+    stockMovementCount,
+    stockMovementKeys,
+    stockMovementSample,
+    sandboxProductCount,
+    sandboxProductSample
   };
 }
 
