@@ -1,6 +1,7 @@
 import registerLegacyRuntimeRoutes from './legacyRuntimeRoutes.js';
 import registerStorefrontProductVisibilityRoutes from './storefrontProductVisibilityRoutes.js';
 import registerCurrentPaymentGuardRoutes from './currentPaymentGuardRoutes.js';
+import registerDsliteRoutes from './dsliteRoutes.js';
 
 // ============================================================
 // ROTAS LEGADAS - ARIANA MÓVEIS
@@ -38,7 +39,8 @@ function isSpecificAdminRoute(pathValue) {
       normalized.startsWith('/api/admin/sige/') ||
       normalized.startsWith('/api/admin/crediario/') ||
       normalized.startsWith('/api/admin/cora/') ||
-      normalized.startsWith('/api/admin/bot/')
+      normalized.startsWith('/api/admin/bot/') ||
+      normalized.startsWith('/api/admin/dslite/')
     );
   });
 }
@@ -164,6 +166,9 @@ export default function registerLegacyRoutes(app, context = {}) {
   // A migração SIGE usa o mesmo model Product para o ERP; produtos criados apenas
   // para o ERP possuem specs.sigeSourceId e não devem ocupar a home/catálogo público.
   registerStorefrontProductVisibilityRoutes(app, runtimeContext);
+
+  // DSLite começa isolado em shadow: consulta/importa rascunhos, sem publicar na vitrine.
+  registerDsliteRoutes(app, runtimeContext);
 
   // Bloqueia primeiro os gateways que não fazem parte da operação vigente.
   // O código histórico permanece preservado dentro das rotas legadas.
