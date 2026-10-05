@@ -21,12 +21,7 @@ app.get('/', (_req, res) => {
 });
 
 app.get('/health', (_req, res) => {
-  res.json({
-    ok: true,
-    mode: 'read_only',
-    writesEnabled: false,
-    storefrontPublishEnabled: false
-  });
+  res.json({ ok: true, mode: 'read_only', writesEnabled: false, storefrontPublishEnabled: false });
 });
 
 app.get('/preview', async (_req, res) => {
@@ -42,7 +37,9 @@ app.get('/preview', async (_req, res) => {
       supplierStock: item.supplierStock,
       ean: item.ean,
       image: item.imageUrls?.[0] || '',
+      imageCount: item.imageUrls?.length || 0,
       parentSku: item.parentSku || '',
+      variationGroup: item.variationGroup || item.sku,
       status: item.status
     }));
 
@@ -57,6 +54,7 @@ app.get('/preview', async (_req, res) => {
       totalParsed: catalog.totalParsed,
       approvedCount: catalog.approvedCount,
       expectedApprovedCount: catalog.expectedApprovedCount,
+      diagnostics: catalog.diagnostics,
       products
     });
   } catch (error) {
