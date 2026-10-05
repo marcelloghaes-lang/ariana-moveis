@@ -54,6 +54,25 @@ async function connectMongo() {
   return true;
 }
 
+async function recoverLastShadowSync() {
+  if (!mongoReady) return null;
+  const latest = await ShadowProduct.findOne({ syncedAt: { $ne: null } })
+    .sort({ syncedAt: -1 })
+    .select({ syncedAt: 1, updatedAt: 1, _id: 0 })
+    .lean();
+  if (!latest?.syncedAt) return null;
+  return {
+    ok: true,
+    collection: SHADOW_COLLECTION,
+    total: await ShadowProduct.countDocuments({}),
+    approved: DSLITE_BETO_APPROVED_SKUS.length,
+    syncedAt: latest.syncedAt,
+    recoveredFromCollection: true,
+    writesRestrictedToShadowCollection: true,
+    storefrontPublishEnabled: false
+  };
+}
+
 async function syncShadowCollection() {
   if (!mongoReady) await connectMongo();
   if (!mongoReady) throw new Error('Mongo shadow indisponível.');
@@ -127,7 +146,8 @@ async function syncShadowCollection() {
   return lastShadowSync;
 }
 
-app.get('/', (_req, res) => {
+app.get('/', async (_req, res) => {
+  if (!lastShadowSync && mongoReady) lastShadowSync = await recoverLastShadowSync();
   res.json({
     ok: true,
     service: 'Ariana DSLite Beto Shadow',
@@ -207,6 +227,7 @@ app.get('/shadow-status', async (_req, res) => {
     const total = mongoReady ? await ShadowProduct.countDocuments({}) : 0;
     const withImages = mongoReady ? await ShadowProduct.countDocuments({ image: { $ne: '' } }) : 0;
     const activePublic = mongoReady ? await ShadowProduct.countDocuments({ $or: [{ active: true }, { storefrontPublishEnabled: true }] }) : 0;
+    if (!lastShadowSync && mongoReady) lastShadowSync = await recoverLastShadowSync();
     res.json({
       ok: true,
       mongoReady,
@@ -228,6 +249,7 @@ app.listen(port, '0.0.0.0', async () => {
   try {
     await connectMongo();
     if (mongoReady) {
+      lastShadowSync = await recoverLastShadowSync();
       const summary = await syncShadowCollection();
       console.log('[dslite-beto-shadow] sincronização inicial concluída:', JSON.stringify(summary));
     }
