@@ -97,7 +97,12 @@ function extractTag(block = '', tag = '') {
 
 function toNumber(value, fallback = 0) {
   if (value === null || value === undefined || value === '') return fallback;
-  const normalized = String(value).trim().replace(/\./g, '').replace(',', '.');
+  let normalized = String(value).trim().replace(/\s/g, '');
+  if (normalized.includes(',') && normalized.includes('.')) {
+    normalized = normalized.replace(/\./g, '').replace(',', '.');
+  } else if (normalized.includes(',')) {
+    normalized = normalized.replace(',', '.');
+  }
   const n = Number(normalized);
   return Number.isFinite(n) ? n : fallback;
 }
