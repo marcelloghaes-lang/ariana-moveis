@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   getHistoricalSellerBaseSnapshot,
   isPlatformSellerId,
+  assessArianaPayPaymentApplicability,
   assessArianaPayOrderEligibility,
   buildHistoricalSnapshotProductMap,
   assessSellerSettlementIntegrity,
@@ -18,7 +19,7 @@ test('identifica seller interno Ariana sem confundir seller externo',()=>{
 test('crediário interno nunca vira candidato Ariana Pay',()=>{
   const result=assessArianaPayOrderEligibility({
     sellerIds:['seller_123'],
-    payment:{method:'crediario_ariana',status:'approved'}
+    payment:{method:'crediario_ariana',status:'approved',provider:'ariana_pay',arianaPay:true}
   });
   assert.equal(result.marketplaceCandidate,false);
   assert.equal(result.financiallyEligible,false);
@@ -28,18 +29,58 @@ test('crediário interno nunca vira candidato Ariana Pay',()=>{
 test('pedido da própria Ariana não vira payout de marketplace',()=>{
   const result=assessArianaPayOrderEligibility({
     sellerIds:['ArianaMoveis'],
-    payment:{method:'pix',status:'approved'}
+    payment:{method:'pix',status:'approved',provider:'mercadopago',arianaPay:true}
   });
   assert.equal(result.marketplaceCandidate,false);
   assert.equal(result.externalSellerIds.length,0);
   assert.ok(result.reasons.includes('no_external_marketplace_seller'));
 });
 
-test('seller externo com pagamento aprovado vira candidato financeiro',()=>{
+test('seller externo com pagamento Ariana Pay aprovado vira candidato financeiro',()=>{
   const result=assessArianaPayOrderEligibility({
     sellerIds:['seller_123'],
-    payment:{method:'pix',status:'approved'}
+    origin:'ariana_pay',
+    payment:{method:'pix',status:'approved',provider:'mercadopago'}
   });
+  assert.equal(result.arianaPayApplicable,true);
+  assert.equal(result.marketplaceCandidate,true);
+  assert.equal(result.financiallyEligible,true);
+});
+
+test('Mercado Pago genérico sem origem Ariana Pay não entra no Ariana Pay',()=>{
+  const applicability=assessArianaPayPaymentApplicability({
+    sellerIds:['seller_123'],
+    payment:{method:'pix',status:'approved',provider:'mercadopago'}
+  });
+  const result=assessArianaPayOrderEligibility({
+    sellerIds:['seller_123'],
+    payment:{method:'pix',status:'approved',provider:'mercadopago'}
+  });
+  assert.equal(applicability.providerSupported,true);
+  assert.equal(applicability.originMarked,false);
+  assert.equal(result.marketplaceCandidate,false);
+  assert.ok(result.reasons.includes('not_ariana_pay_origin'));
+});
+
+test('Efí nunca entra no Ariana Pay mesmo se pedido estiver marcado incorretamente',()=>{
+  const result=assessArianaPayOrderEligibility({
+    sellerIds:['seller_123'],
+    origin:'ariana_pay',
+    payment:{method:'pix',status:'approved',provider:'efi'}
+  });
+  assert.equal(result.arianaPayOriginMarked,true);
+  assert.equal(result.paymentProviderSupported,false);
+  assert.equal(result.arianaPayApplicable,false);
+  assert.equal(result.marketplaceCandidate,false);
+  assert.ok(result.reasons.includes('unsupported_ariana_pay_provider'));
+});
+
+test('provider Ariana Pay explícito é suficiente como origem controlada',()=>{
+  const result=assessArianaPayOrderEligibility({
+    sellerIds:['seller_123'],
+    payment:{method:'pix',status:'approved',provider:'ariana_pay'}
+  });
+  assert.equal(result.arianaPayApplicable,true);
   assert.equal(result.marketplaceCandidate,true);
   assert.equal(result.financiallyEligible,true);
 });
