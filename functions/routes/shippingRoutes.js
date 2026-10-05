@@ -7,6 +7,7 @@
 export default function registerShippingRoutes(app, context = {}) {
   const {
     Order,
+    Product,
     adminRequired,
     calculateShipping,
     getShippingSettings,
@@ -24,13 +25,125 @@ export default function registerShippingRoutes(app, context = {}) {
     throw new Error('registerShippingRoutes: getShippingSettings não foi informado no context.');
   }
 
-app.post('/api/shipping/calculate', async (req, res) => { try { return res.json(await calculateShipping(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
-app.post('/shipping/calculate', async (req, res) => { try { return res.json(await calculateShipping(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
-app.post('/api/shipping/quote', async (req, res) => { try { return res.json(await calculateShipping(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
-app.post('/shipping/quote', async (req, res) => { try { return res.json(await calculateShipping(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
+  function cleanString(value = '') {
+    return String(value ?? '').trim();
+  }
+
+  function normalizeSource(value = '') {
+    return cleanString(value).toLowerCase();
+  }
+
+  function isDsliteProduct(product = {}) {
+    const sku = cleanString(product?.sku).toUpperCase();
+    const storefrontSource = normalizeSource(product?.storefrontSource);
+    const logisticsSource = normalizeSource(product?.logistics?.source);
+    const dropshippingProvider = normalizeSource(product?.dropshipping?.provider);
+
+    return (
+      sku.startsWith('DSLITE-') ||
+      storefrontSource === 'dslite' ||
+      logisticsSource === 'dslite' ||
+      dropshippingProvider === 'dslite'
+    );
+  }
+
+  async function resolveShippingProduct(body = {}) {
+    if (!Product) return null;
+
+    const items = Array.isArray(body?.items) ? body.items : [];
+    const idCandidates = [
+      body?.productId,
+      body?.id,
+      ...items.flatMap((item) => [item?.productId, item?.id])
+    ].map(cleanString).filter(Boolean);
+
+    for (const id of idCandidates) {
+      try {
+        const product = await Product.findById(id).lean();
+        if (product) return product;
+      } catch (_) {}
+    }
+
+    const skuCandidates = [
+      body?.sku,
+      ...items.map((item) => item?.sku)
+    ].map(cleanString).filter(Boolean);
+
+    for (const sku of skuCandidates) {
+      try {
+        const product = await Product.findOne({ sku }).lean();
+        if (product) return product;
+      } catch (_) {}
+    }
+
+    return null;
+  }
+
+  function buildDsliteFreightUnavailable(product = {}, body = {}) {
+    const destinationCep = cleanString(
+      body?.cepDestino || body?.destinationCep || body?.cep || body?.shippingAddress?.cep
+    ).replace(/\D/g, '').slice(0, 8);
+
+    const supplier = cleanString(product?.dropshipping?.supplier || 'Fornecedor DSLite');
+    const supplierId = product?.dropshipping?.supplierId || product?.logistics?.supplierId || null;
+    const sourceSku = cleanString(product?.dropshipping?.sourceSku || product?.sku || '');
+
+    const unavailable = {
+      service: 'dslite_supplier_freight_unavailable',
+      label: 'Entrega pelo fornecedor',
+      name: 'Entrega pelo fornecedor',
+      unavailable: true,
+      provider: 'dslite',
+      error: 'A cotação do frete do fornecedor está temporariamente indisponível. O frete da Ariana não será usado neste produto.',
+      metadata: {
+        rule: 'dslite_never_fallback_to_ariana',
+        supplier,
+        supplierId,
+        sourceSku,
+        destinationCep: destinationCep || null
+      }
+    };
+
+    return {
+      ok: true,
+      options: [unavailable],
+      quotes: [],
+      cheapest: null,
+      bestQuote: null,
+      montagemCost: 0,
+      context: {
+        isAriana: false,
+        isDslite: true,
+        shippingSource: 'dslite',
+        supplier,
+        supplierId,
+        sourceSku,
+        destinationCep: destinationCep || null,
+        safeFallbackBlocked: true
+      }
+    };
+  }
+
+  async function calculateShippingWithSupplierGuard(body = {}) {
+    const product = await resolveShippingProduct(body);
+
+    if (product && isDsliteProduct(product)) {
+      // Segurança comercial: produto de fornecedor DSLite nunca pode cair na
+      // tabela local da Ariana (R$ 89 / 3 dias etc.). A cotação real do
+      // fornecedor será ligada à API DSLite nesta mesma ramificação.
+      return buildDsliteFreightUnavailable(product, body);
+    }
+
+    return calculateShipping(body || {});
+  }
+
+app.post('/api/shipping/calculate', async (req, res) => { try { return res.json(await calculateShippingWithSupplierGuard(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
+app.post('/shipping/calculate', async (req, res) => { try { return res.json(await calculateShippingWithSupplierGuard(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
+app.post('/api/shipping/quote', async (req, res) => { try { return res.json(await calculateShippingWithSupplierGuard(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
+app.post('/shipping/quote', async (req, res) => { try { return res.json(await calculateShippingWithSupplierGuard(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
 app.post('/api/shipping/logistics/quote', async (req, res) => {
   try {
-    const result = await calculateShipping(req.body || {});
+    const result = await calculateShippingWithSupplierGuard(req.body || {});
     const quotes = Array.isArray(result?.options) ? result.options.filter((q) => q && !q.unavailable).map((q) => ({
       service: q.service,
       label: q.label || q.name || 'Logística',
@@ -55,7 +168,7 @@ app.post('/api/shipping/logistics/quote', async (req, res) => {
 });
 app.post('/shipping/logistics/quote', async (req, res) => {
   try {
-    const result = await calculateShipping(req.body || {});
+    const result = await calculateShippingWithSupplierGuard(req.body || {});
     const quotes = Array.isArray(result?.options) ? result.options.filter((q) => q && !q.unavailable).map((q) => ({
       service: q.service,
       label: q.label || q.name || 'Logística',
