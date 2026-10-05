@@ -52,6 +52,56 @@ export const DSLITE_BETO_APPROVED_SKUS = Object.freeze([
 
 const APPROVED_SKU_SET = new Set(DSLITE_BETO_APPROVED_SKUS);
 
+// Fallback validado contra o XLSX oficial do Beto Móveis recebido da DSLite.
+// Serve apenas para manter as famílias/variações agrupadas quando o XML não
+// expõe Produto_pai de forma consistente.
+const BETO_PARENT_BY_SKU = Object.freeze({
+  CABIDEIROVERSATILN: 'CABIDEIROVERSATIL',
+  CABIDEIROVERSATILV: 'CABIDEIROVERSATIL',
+  CABPARISB: 'CABPARIS',
+  CABPARISP: 'CABPARIS',
+  CABTOQUIOB: 'CABTOQUIO',
+  CABTOQUIOP: 'CABTOQUIO',
+  CABTOQUIOV: 'CABTOQUIO',
+  FRUT1F: 'FRUT1',
+  FRUT1N: 'FRUT1',
+  FRUT1V: 'FRUT1',
+  GLAMB: 'GLAM',
+  GLAMN: 'GLAM',
+  GLAMP: 'GLAM',
+  GLAMV: 'GLAM',
+  MB130: 'M1',
+  MB145: 'M1',
+  MF130: 'M1',
+  MF145: 'M1',
+  MF155: 'M1',
+  MM130V: 'M1',
+  MM145V: 'M1',
+  MM155V: 'M1',
+  MP130: 'M1',
+  MP145: 'M1',
+  MP155: 'M1',
+  MESAGOIASB: 'MESAGOIAS',
+  MESAGOIASF: 'MESAGOIAS',
+  MESAGOIASP: 'MESAGOIAS',
+  MESAREDB: 'MESARED',
+  MESAREDF: 'MESARED',
+  MESAREDN: 'MESARED',
+  MESAREDP: 'MESARED',
+  MESAREDV: 'MESARED',
+  MULTI2REPARCANTO30B: 'MULTI2REPARCANTO30',
+  MULTI2REPARCANTO30P: 'MULTI2REPARCANTO30',
+  PENTEADEIRAB: 'PENTEADEIRA',
+  PENTEADEIRAN: 'PENTEADEIRA',
+  PENTEADEIRAP: 'PENTEADEIRA',
+  PENTEADEIRAV: 'PENTEADEIRA',
+  SUPORTEPAPELN: 'SUPORTEPAPEL',
+  SUPORTEPAPELV: 'SUPORTEPAPEL',
+  TABUADECARNE50CM: 'TABUADECARNE',
+  TABUADECARNE60CM: 'TABUADECARNE',
+  TABUADECARNE70CM: 'TABUADECARNE'
+});
+
 function requiredToken() {
   const token = String(process.env.DSLITE_API_TOKEN || process.env.DSLITE_TOKEN || '').trim();
   if (!token) {
@@ -114,6 +164,22 @@ function splitImages(value = '') {
     .filter((item) => /^https?:\/\//i.test(item));
 }
 
+function extractImageUrlsFromBlock(block = '') {
+  const decoded = decodeXml(block);
+  const candidates = decoded.match(/https?:\/\/[^\s<>"']+/gi) || [];
+  return candidates
+    .map((url) => url.replace(/&amp;/g, '&').replace(/[),.;]+$/, '').trim())
+    .filter((url) => {
+      const lower = url.toLowerCase();
+      return (
+        /\.(?:jpg|jpeg|png|webp|gif)(?:\?|$)/i.test(url) ||
+        lower.includes('tiny-anexos') ||
+        lower.includes('/imagem') ||
+        lower.includes('/image')
+      );
+    });
+}
+
 function detectRecordBlocks(xml = '') {
   const source = String(xml || '');
   const markers = [...source.matchAll(/<prod_id(?:\s[^>]*)?>[\s\S]*?<\/prod_id>/gi)];
@@ -154,10 +220,15 @@ export function parseDsliteBetoXml(xml = '') {
       extractTag(block, 'imagem04'),
       extractTag(block, 'imagem05')
     ];
-    const imageUrls = [...new Set(imageFields.flatMap(splitImages))];
+    const imageUrls = [...new Set([
+      ...imageFields.flatMap(splitImages),
+      ...extractImageUrlsFromBlock(block)
+    ])];
 
     const rawCategory = extractTag(block, 'seg_name');
     const rawDescription = extractTag(block, 'description');
+    const feedParentSku = extractTag(block, 'Produto_pai') || extractTag(block, 'produto_pai') || extractTag(block, 'parent_sku');
+    const parentSku = String(feedParentSku || BETO_PARENT_BY_SKU[sku] || '').trim();
 
     products.push({
       sku,
@@ -175,7 +246,8 @@ export function parseDsliteBetoXml(xml = '') {
       height: toNumber(extractTag(block, 'height'), 0),
       depth: toNumber(extractTag(block, 'depth'), 0),
       imageUrls,
-      parentSku: extractTag(block, 'Produto_pai'),
+      parentSku,
+      variationGroup: parentSku || sku,
       status: extractTag(block, 'Situacao') || 'Ativo'
     });
   }
@@ -189,7 +261,7 @@ export async function fetchDsliteBetoCatalog({ timeoutMs = 30000 } = {}) {
     responseType: 'text',
     timeout: timeoutMs,
     maxContentLength: 25 * 1024 * 1024,
-    headers: { 'User-Agent': 'ArianaMoveis-DSLite/1.0' }
+    headers: { 'User-Agent': 'ArianaMoveis-DSLite/1.1' }
   });
 
   const parsed = parseDsliteBetoXml(response.data);
@@ -230,6 +302,7 @@ export async function syncDsliteBetoShadow({ Product, actor = 'system' } = {}) {
     updated: 0,
     skipped: 0,
     missingApprovedSkus: [],
+    productsWithoutImages: [],
     syncedAt: new Date()
   };
 
@@ -241,6 +314,7 @@ export async function syncDsliteBetoShadow({ Product, actor = 'system' } = {}) {
       summary.skipped += 1;
       continue;
     }
+    if (!item.imageUrls.length) summary.productsWithoutImages.push(item.sku);
 
     const externalSku = `DSLITE-BETO-${item.sku}`;
     const existing = await Product.findOne({ sku: externalSku }).lean();
@@ -289,6 +363,9 @@ export async function syncDsliteBetoShadow({ Product, actor = 'system' } = {}) {
         sourceCost: item.supplierCost,
         sourceStock: item.supplierStock,
         sourceStatus: item.status,
+        parentSku: item.parentSku || '',
+        variationGroup: item.variationGroup || item.sku,
+        imageCount: item.imageUrls.length,
         syncMode: 'shadow',
         publishApproved: false,
         pricingRequired: true,
@@ -303,7 +380,10 @@ export async function syncDsliteBetoShadow({ Product, actor = 'system' } = {}) {
           sourceEan: item.ean || '',
           sourceCategory: item.rawCategory || '',
           supplierCost: item.supplierCost,
-          supplierStock: item.supplierStock
+          supplierStock: item.supplierStock,
+          parentSku: item.parentSku || '',
+          variationGroup: item.variationGroup || item.sku,
+          imageCount: item.imageUrls.length
         }
       }
     };
