@@ -68,6 +68,28 @@ export default function createErpFinancePanelBridgeRoutes(context={}){
     ]
   });
   stage3Campaign.start();
+  const stage4Campaign=createErpMarkedCollectionCampaignService(context,{
+    campaignKey:'etapa4_x_2026_10_05',
+    label:'Etapa 4',
+    names:[
+      'Irany Micaela de Miranda',
+      'Maria Eloisa dos Santos Chaves',
+      'Elaine Aparecida da Silva',
+      'Rogerio Pereira da Silva'
+    ],
+    referenceBalances:{
+      'Irany Micaela de Miranda':2315.00,
+      'Maria Eloisa dos Santos Chaves':2289.51,
+      'Elaine Aparecida da Silva':2272.09,
+      'Rogerio Pereira da Silva':2198.25
+    },
+    strictNameKeys:[],
+    manualPhoneOverrides:{},
+    userSkippedKeys:[],
+    enableLucianoRecovery:false,
+    operatorRecoveries:[]
+  });
+  stage4Campaign.start();
   const ariadnaReceiptRecovery=createErpAriadnaReceiptRecoveryService(context);
   ariadnaReceiptRecovery.start();
   const handle=(action,status=200)=>async(req,res)=>{
@@ -84,7 +106,7 @@ export default function createErpFinancePanelBridgeRoutes(context={}){
     }
   };
 
-  // Intercepta somente respostas da campanha Etapa 2 e deixa o webhook financeiro existente continuar o processamento normal.
+  // Intercepta respostas das campanhas e deixa o webhook financeiro existente continuar o processamento normal.
   router.post('/webhooks/financeiro/whatsapp/status',async(req,res,next)=>{
     const event=String(req.body?.event||req.body?.type||req.body?.data?.event||req.body?.data?.type||'').trim().toUpperCase().replace(/[.\-\s]+/g,'_');
     if(event!=='MESSAGES_UPSERT'||!webhookAuthorized(req))return next();
@@ -93,6 +115,8 @@ export default function createErpFinancePanelBridgeRoutes(context={}){
       if(result?.handled)console.log('[erp-marked-collection][webhook]',result.action||'handled',result.taskId||'');
       const stage3Result=await stage3Campaign.handleIncomingWebhook(req.body||{});
       if(stage3Result?.handled)console.log('[erp-marked-collection][webhook][etapa3]',stage3Result.action||'handled',stage3Result.taskId||'');
+      const stage4Result=await stage4Campaign.handleIncomingWebhook(req.body||{});
+      if(stage4Result?.handled)console.log('[erp-marked-collection][webhook][etapa4]',stage4Result.action||'handled',stage4Result.taskId||'');
     }catch(error){
       console.error('[erp-marked-collection][webhook]',error?.message||error);
     }
@@ -103,6 +127,8 @@ export default function createErpFinancePanelBridgeRoutes(context={}){
   router.post('/erp/finance-panel/campanha-etapa-2/executar',context.adminRequired,handle(()=>markedCampaign.run()));
   router.get('/erp/finance-panel/campanha-etapa-3',context.adminRequired,handle(req=>stage3Campaign.list(req.query||{})));
   router.post('/erp/finance-panel/campanha-etapa-3/executar',context.adminRequired,handle(()=>stage3Campaign.run()));
+  router.get('/erp/finance-panel/campanha-etapa-4',context.adminRequired,handle(req=>stage4Campaign.list(req.query||{})));
+  router.post('/erp/finance-panel/campanha-etapa-4/executar',context.adminRequired,handle(()=>stage4Campaign.run()));
 
   router.get('/erp/finance-panel/clientes',context.adminRequired,handle(req=>bridge.clientes(req.query||{})));
   router.get('/erp/finance-panel/lancamentos',context.adminRequired,handle(req=>bridge.lancamentos(req.query||{})));
