@@ -4,6 +4,16 @@ const clean=(v='',m=500)=>String(v??'').trim().slice(0,m);
 const digits=(v='')=>String(v??'').replace(/\D/g,'');
 const stripAccents=(v='')=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 const nameKey=(v='')=>stripAccents(clean(v,220)).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+const PERMANENT_COLLECTION_EXCLUSIONS=new Set([
+  'ana clara de souza carvalho'
+]);
+
+function excludedIdentity(input={}){
+  const name=nameKey(input.customerName||input.clientName||input.name||input.personName||'');
+  return name&&PERMANENT_COLLECTION_EXCLUSIONS.has(name)
+    ? {source:'exclusao_permanente',reason:'Cliente retirado das cobranças pelo operador.',name}
+    : null;
+}
 
 function monthRange(dateKey=''){
   const m=String(dateKey||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -103,6 +113,8 @@ export async function findMonthlyFinancialContact(context={},input={}){
   const dateKey=clean(input.dateKey,10);
   const range=monthRange(dateKey);
   const identity=monthlyContactIdentity(input);
+  const excluded=excludedIdentity(input);
+  if(excluded)return{...excluded,key:'permanent:'+excluded.name,monthlyKey:'',identity};
   if(!range||!identity.canonical)return null;
 
   const monthlyKey='erp_monthly_financial_contact:'+range.monthKey+':'+identity.canonical.replace(/[^a-z0-9:_-]+/gi,'_').slice(0,180);
@@ -123,13 +135,15 @@ export async function findMonthlyFinancialContact(context={},input={}){
 }
 
 export async function claimMonthlyFinancialContact(context={},input={}){
+  const identity=monthlyContactIdentity(input);
+  const excluded=excludedIdentity(input);
+  if(excluded)return{claimed:false,prior:{...excluded,key:'permanent:'+excluded.name},identity,key:''};
   const Setting=context.Setting||mongoose.models.Setting||null;
-  if(!Setting)return{claimed:true,guardUnavailable:true,key:'',identity:monthlyContactIdentity(input)};
+  if(!Setting)return{claimed:true,guardUnavailable:true,key:'',identity};
   const prior=await findMonthlyFinancialContact({...context,Setting},input);
   if(prior)return{claimed:false,prior,identity:prior.identity,key:prior.monthlyKey||''};
 
   const range=monthRange(clean(input.dateKey,10));
-  const identity=monthlyContactIdentity(input);
   if(!range||!identity.canonical)return{claimed:true,guardUnavailable:true,key:'',identity};
   const key='erp_monthly_financial_contact:'+range.monthKey+':'+identity.canonical.replace(/[^a-z0-9:_-]+/gi,'_').slice(0,180);
   try{
