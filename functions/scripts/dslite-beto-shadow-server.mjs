@@ -9,6 +9,7 @@ const mongoDb = String(process.env.MONGODB_DB || 'ariana_moveis_db').trim();
 const SHADOW_COLLECTION = 'dslite_beto_shadow_products';
 const SHADOW_META_COLLECTION = 'dslite_beto_shadow_meta';
 const DRAFT_COLLECTION = 'dslite_beto_catalog_drafts';
+const PUBLIC_COLLECTION = 'products';
 
 const PRICING_DIVISOR = 0.70;
 const PIX_DISCOUNT_RATE = 0.17;
@@ -19,12 +20,15 @@ const BETO_CEST_REFERENCE = '28.061.00';
 const MG_INTERNAL_RATE = 0.18;
 const SP_MG_INTERSTATE_RATE_NATIONAL = 0.12;
 const SP_MG_INTERSTATE_RATE_IMPORTED = 0.04;
+const SYNC_INTERVAL_MS = 12 * 60 * 1000;
 
 app.disable('x-powered-by');
 
 let mongoReady = false;
 let lastShadowSync = null;
 let lastDraftBuild = null;
+let lastPublicSync = null;
+let periodicSyncRunning = false;
 
 function roundMoney(value = 0) {
   const n = Number(value || 0);
@@ -37,6 +41,10 @@ function normalizeOriginType(value = '') {
   if (['IMPORTED', 'IMPORTADO', 'IMPORTADA', '4'].includes(raw)) return 'IMPORTED_OR_OVER_40_IMPORT_CONTENT';
   if (['NATIONAL', 'NACIONAL', '12'].includes(raw)) return 'NATIONAL';
   return 'NATIONAL_PROVISIONAL';
+}
+
+function storefrontEnabled() {
+  return String(process.env.DSLITE_BETO_STOREFRONT_ENABLED || '').trim().toLowerCase() === 'true';
 }
 
 function calculateTaxAndPrice({ supplierCost = 0, originType = 'NATIONAL_PROVISIONAL' } = {}) {
@@ -59,7 +67,7 @@ function calculateTaxAndPrice({ supplierCost = 0, originType = 'NATIONAL_PROVISI
     taxStatus: normalizedOrigin === 'NATIONAL_PROVISIONAL' ? 'AUTO_PROVISIONAL_NATIONAL' : 'AUTO_VERIFIED_BY_ORIGIN',
     taxVerified: normalizedOrigin !== 'NATIONAL_PROVISIONAL', taxBlockPublication: false,
     taxRuleId: 'MG_RICMS23_ART3_VII_SP_MG',
-    taxReason: 'Antecipação do ICMS para optante do Simples Nacional em aquisição interestadual destinada à comercialização: diferença entre alíquota interna de MG e interestadual.',
+    taxReason: 'Antecipação de ICMS provisória para precificação; reconciliar com a NF-e e a classificação fiscal real.',
     pricingBase, pricingDivisor: PRICING_DIVISOR, calculatedSalePrice, pixPrice,
     pricingRule: '(custo + tributação de entrada aplicável) / 0,70', pricingStatus: 'CALCULATED_WITH_ICMS_ANTICIPATION',
     needsNfeReconciliation: true
@@ -107,12 +115,14 @@ const ShadowMeta = mongoose.models.DsliteBetoShadowMeta || mongoose.model('Dslit
 
 async function loadMeta() {
   if (!mongoReady) return;
-  const [syncMeta, draftMeta] = await Promise.all([
+  const [syncMeta, draftMeta, publicMeta] = await Promise.all([
     ShadowMeta.findOne({ key: 'lastShadowSync' }).lean(),
-    ShadowMeta.findOne({ key: 'lastDraftBuild' }).lean()
+    ShadowMeta.findOne({ key: 'lastDraftBuild' }).lean(),
+    ShadowMeta.findOne({ key: 'lastPublicSync' }).lean()
   ]);
   lastShadowSync = syncMeta?.value || null;
   lastDraftBuild = draftMeta?.value || null;
+  lastPublicSync = publicMeta?.value || null;
 }
 
 async function connectMongo() {
@@ -169,7 +179,7 @@ async function syncShadowCollection() {
     taxed: await ShadowProduct.countDocuments({ taxApplicable: true, taxAmount: { $gte: 0 } }),
     provisionalTax: await ShadowProduct.countDocuments({ taxStatus: 'AUTO_PROVISIONAL_NATIONAL' }),
     pricedFinal: await ShadowProduct.countDocuments({ calculatedSalePrice: { $gt: 0 } }),
-    syncedAt: now, storefrontPublishEnabled: false
+    syncedAt: now, storefrontPublishEnabled: storefrontEnabled()
   };
   await ShadowMeta.updateOne({ key: 'lastShadowSync' }, { $set: { value: lastShadowSync, updatedAt: now } }, { upsert: true });
   return lastShadowSync;
@@ -195,7 +205,7 @@ async function buildCatalogDrafts() {
       price: roundMoney(row.calculatedSalePrice), pixPrice: roundMoney(row.calculatedSalePrice * (1 - PIX_DISCOUNT_RATE)), installmentCount: 12,
       stock: 0, supplierStock: row.supplierStock,
       image: row.image, imageUrl: row.image, images, imageUrls: row.imageUrls || [],
-      active: false, storefrontStatus: 'draft', storefrontPublishEnabled: false, reviewRequired: true,
+      active: false, storefrontStatus: 'draft', storefrontPublishEnabled: storefrontEnabled(), reviewRequired: false,
       publicCollectionTouched: false,
       supplier: 'Beto Móveis', supplierId: DSLITE_BETO_SUPPLIER_ID, source: 'dslite',
       parentSku: row.parentSku || '', variationGroup: row.variationGroup || row.sku, ean: row.ean || '',
@@ -217,20 +227,118 @@ async function buildCatalogDrafts() {
   return lastDraftBuild;
 }
 
+async function syncPublicStorefront() {
+  if (!storefrontEnabled()) return { ok: true, skipped: true, reason: 'storefront_disabled' };
+  if (!mongoReady) await connectMongo();
+  const rows = await DraftProduct.find({ draftReady: true, sku: /^DSLITE-BETO-/ }).lean();
+  if (rows.length !== DSLITE_BETO_APPROVED_SKUS.length) {
+    throw new Error(`Rascunhos incompletos para vitrine: ${rows.length}/${DSLITE_BETO_APPROVED_SKUS.length}.`);
+  }
+
+  const collection = mongoose.connection.db.collection(PUBLIC_COLLECTION);
+  const now = new Date();
+  const liveSkus = [];
+  let created = 0, updated = 0;
+
+  for (const row of rows) {
+    const sku = String(row.sku || '').trim();
+    if (!sku.startsWith('DSLITE-BETO-')) continue;
+    liveSkus.push(sku);
+    const stock = Math.max(0, Number(row.supplierStock || 0));
+    const active = stock > 0;
+    const doc = {
+      name: row.name,
+      slug: row.slug,
+      description: row.description || row.name,
+      category: row.category,
+      categoryName: row.categoryName || row.category,
+      brand: row.brand || 'Beto Móveis',
+      sku,
+      price: Number(row.price || 0),
+      pixPrice: Number(row.pixPrice || 0),
+      installmentCount: 12,
+      image: row.image,
+      imageUrl: row.imageUrl || row.image,
+      imagem: row.image,
+      mainImageUrl: row.image,
+      images: row.images || [],
+      imageUrls: row.imageUrls || [],
+      stock,
+      active,
+      storefrontStatus: active ? 'published' : 'out_of_stock',
+      storefrontSource: 'dslite',
+      dropshipping: {
+        enabled: true,
+        provider: 'dslite',
+        supplier: 'Beto Móveis',
+        supplierId: DSLITE_BETO_SUPPLIER_ID,
+        sourceSku: row.sourceSku,
+        supplierStock: stock,
+        parentSku: row.parentSku || '',
+        variationGroup: row.variationGroup || row.sourceSku || '',
+        ean: row.ean || '',
+        ncm: row.ncm || BETO_NCM,
+        cestReference: row.cestReference || BETO_CEST_REFERENCE,
+        originUf: row.originUf || BETO_ORIGIN_UF,
+        destinationUf: row.destinationUf || DESTINATION_UF,
+        supplierCost: Number(row.supplierCost || 0),
+        taxAmount: Number(row.taxAmount || 0),
+        taxRate: Number(row.taxRate || 0),
+        pricingBase: Number(row.pricingBase || 0),
+        pricingDivisor: Number(row.pricingDivisor || PRICING_DIVISOR),
+        pricingRule: row.pricingRule || '(custo + tributação de entrada aplicável) / 0,70',
+        needsNfeReconciliation: row.needsNfeReconciliation !== false,
+        syncedAt: now
+      },
+      updatedAt: now
+    };
+    const result = await collection.updateOne({ sku }, { $set: doc, $setOnInsert: { createdAt: now } }, { upsert: true });
+    if (result.upsertedCount) created += 1; else if (result.matchedCount) updated += 1;
+  }
+
+  await collection.updateMany(
+    { sku: /^DSLITE-BETO-/, sku: { $nin: liveSkus } },
+    { $set: { stock: 0, active: false, storefrontStatus: 'out_of_stock', updatedAt: now } }
+  );
+  await DraftProduct.updateMany({ sku: /^DSLITE-BETO-/ }, { $set: { publicCollectionTouched: true, syncedAt: now } });
+
+  lastPublicSync = {
+    ok: true,
+    total: await collection.countDocuments({ sku: /^DSLITE-BETO-/ }),
+    active: await collection.countDocuments({ sku: /^DSLITE-BETO-/, active: true }),
+    withStock: await collection.countDocuments({ sku: /^DSLITE-BETO-/, stock: { $gt: 0 } }),
+    created, updated, syncedAt: now
+  };
+  await ShadowMeta.updateOne({ key: 'lastPublicSync' }, { $set: { value: lastPublicSync, updatedAt: now } }, { upsert: true });
+  return lastPublicSync;
+}
+
+async function runFullSync() {
+  if (periodicSyncRunning) return lastPublicSync;
+  periodicSyncRunning = true;
+  try {
+    await syncShadowCollection();
+    await buildCatalogDrafts();
+    return await syncPublicStorefront();
+  } finally {
+    periodicSyncRunning = false;
+  }
+}
+
 app.get('/', (_req, res) => res.json({
-  ok: true, service: 'Ariana DSLite Beto Shadow', mode: 'shadow_db', supplier: 'Beto Móveis', supplierId: DSLITE_BETO_SUPPLIER_ID,
-  shadowCollection: SHADOW_COLLECTION, draftCollection: DRAFT_COLLECTION,
+  ok: true, service: 'Ariana DSLite Beto', mode: storefrontEnabled() ? 'storefront_sync' : 'shadow_db', supplier: 'Beto Móveis', supplierId: DSLITE_BETO_SUPPLIER_ID,
+  shadowCollection: SHADOW_COLLECTION, draftCollection: DRAFT_COLLECTION, publicCollection: PUBLIC_COLLECTION,
   pricingRule: '(custo + tributação de entrada aplicável) / 0,70', pixDiscountRate: PIX_DISCOUNT_RATE,
-  mongoReady, storefrontPublishEnabled: false, publicCollectionTouched: false, lastShadowSync, lastDraftBuild
+  mongoReady, storefrontPublishEnabled: storefrontEnabled(), lastShadowSync, lastDraftBuild, lastPublicSync
 }));
 
-app.get('/health', (_req, res) => res.json({ ok: true, mode: 'shadow_db', mongoReady, storefrontPublishEnabled: false, publicCollectionTouched: false }));
+app.get('/health', (_req, res) => res.json({ ok: true, mongoReady, storefrontPublishEnabled: storefrontEnabled(), periodicSyncRunning }));
 
 app.get('/pricing-preview', async (_req, res) => {
   try {
     if (!mongoReady) await connectMongo();
     const products = await ShadowProduct.find({}, { _id: 0, sku: 1, name: 1, supplierCost: 1, taxAmount: 1, taxRate: 1, pricingBase: 1, calculatedSalePrice: 1, pixPrice: 1, taxStatus: 1, supplierStock: 1 }).sort({ name: 1 }).lean();
-    res.json({ ok: true, total: products.length, pricingRule: '(custo + tributação de entrada aplicável) / 0,70', pixDiscountRate: PIX_DISCOUNT_RATE, storefrontPublishEnabled: false, products });
+    res.json({ ok: true, total: products.length, pricingRule: '(custo + tributação de entrada aplicável) / 0,70', pixDiscountRate: PIX_DISCOUNT_RATE, storefrontPublishEnabled: storefrontEnabled(), products });
   } catch (error) { res.status(500).json({ ok: false, error: error?.message || 'Falha ao consultar preços shadow.' }); }
 });
 
@@ -242,16 +350,20 @@ app.get('/draft-status', async (_req, res) => {
     const withImages = await DraftProduct.countDocuments({ image: { $ne: '' } });
     const withPrice = await DraftProduct.countDocuments({ price: { $gt: 0 } });
     const publicTouched = await DraftProduct.countDocuments({ publicCollectionTouched: true });
-    res.json({ ok: true, collection: DRAFT_COLLECTION, total, ready, withImages, withPrice, activePublic: 0, publicCollectionTouched: publicTouched > 0, storefrontPublishEnabled: false, lastDraftBuild });
+    res.json({ ok: true, collection: DRAFT_COLLECTION, total, ready, withImages, withPrice, publicCollectionTouched: publicTouched > 0, storefrontPublishEnabled: storefrontEnabled(), lastDraftBuild });
   } catch (error) { res.status(500).json({ ok: false, error: error?.message || 'Falha ao consultar rascunhos.' }); }
 });
 
-app.get('/draft-preview', async (_req, res) => {
+app.get('/public-status', async (_req, res) => {
   try {
     if (!mongoReady) await connectMongo();
-    const products = await DraftProduct.find({}, { _id: 0, sourceKey: 1, sku: 1, name: 1, category: 1, price: 1, pixPrice: 1, supplierStock: 1, image: 1, draftReady: 1, storefrontStatus: 1, active: 1, publicCollectionTouched: 1 }).sort({ name: 1 }).lean();
-    res.json({ ok: true, total: products.length, collection: DRAFT_COLLECTION, publicCollectionTouched: false, products });
-  } catch (error) { res.status(500).json({ ok: false, error: error?.message || 'Falha ao consultar preview dos rascunhos.' }); }
+    const collection = mongoose.connection.db.collection(PUBLIC_COLLECTION);
+    const total = await collection.countDocuments({ sku: /^DSLITE-BETO-/ });
+    const active = await collection.countDocuments({ sku: /^DSLITE-BETO-/, active: true });
+    const withStock = await collection.countDocuments({ sku: /^DSLITE-BETO-/, stock: { $gt: 0 } });
+    const sample = await collection.find({ sku: /^DSLITE-BETO-/ }, { projection: { _id: 0, sku: 1, name: 1, price: 1, pixPrice: 1, stock: 1, active: 1, image: 1 } }).limit(5).toArray();
+    res.json({ ok: true, storefrontPublishEnabled: storefrontEnabled(), total, active, withStock, sample, lastPublicSync });
+  } catch (error) { res.status(500).json({ ok: false, error: error?.message || 'Falha ao consultar catálogo público.' }); }
 });
 
 app.get('/shadow-status', async (_req, res) => {
@@ -262,20 +374,23 @@ app.get('/shadow-status', async (_req, res) => {
     const taxed = await ShadowProduct.countDocuments({ taxApplicable: true, taxAmount: { $gte: 0 } });
     const provisionalTax = await ShadowProduct.countDocuments({ taxStatus: 'AUTO_PROVISIONAL_NATIONAL' });
     const pricedFinal = await ShadowProduct.countDocuments({ calculatedSalePrice: { $gt: 0 } });
-    const activePublic = await ShadowProduct.countDocuments({ $or: [{ active: true }, { storefrontPublishEnabled: true }] });
-    res.json({ ok: true, mongoReady, collection: SHADOW_COLLECTION, total, withImages, taxed, provisionalTax, pricedFinal, activePublic, pricingRule: '(custo + tributação de entrada aplicável) / 0,70', storefrontPublishEnabled: false, lastShadowSync });
+    res.json({ ok: true, mongoReady, collection: SHADOW_COLLECTION, total, withImages, taxed, provisionalTax, pricedFinal, storefrontPublishEnabled: storefrontEnabled(), lastShadowSync });
   } catch (error) { res.status(500).json({ ok: false, error: error?.message || 'Falha ao consultar shadow.' }); }
 });
 
 app.listen(port, '0.0.0.0', async () => {
-  console.log(`[dslite-beto-shadow] online ${port} | shadow + rascunhos isolados | sem publicação`);
+  console.log(`[dslite-beto] online ${port} | vitrine=${storefrontEnabled() ? 'habilitada' : 'desabilitada'}`);
   try {
     await connectMongo();
-    if (mongoReady) {
-      await syncShadowCollection();
-      await buildCatalogDrafts();
-    }
+    await runFullSync();
   } catch (error) {
-    console.error('[dslite-beto-shadow] preparação não executada:', error?.message || error);
+    console.error('[dslite-beto] sincronização inicial não executada:', error?.message || error);
   }
+  setInterval(async () => {
+    try {
+      await runFullSync();
+    } catch (error) {
+      console.error('[dslite-beto] sincronização periódica não executada:', error?.message || error);
+    }
+  }, SYNC_INTERVAL_MS).unref();
 });
