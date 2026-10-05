@@ -11,16 +11,19 @@ const SHADOW_COLLECTION = 'dslite_beto_shadow_products';
 const DRAFT_COLLECTION = 'dslite_beto_catalog_drafts';
 const META_COLLECTION = 'dslite_beto_shadow_meta';
 const PUBLIC_COLLECTION = 'products';
+const RECOVERY_BACKUP_COLLECTION = 'dslite_recovery_backup_20261005_173056';
 const SKU_PREFIX = 'DSLITE-BETO-';
 const PRICING_DIVISOR = 0.70;
 const PIX_DISCOUNT_RATE = 0.17;
 const MG_INTERNAL_RATE = 0.18;
 const SP_MG_INTERSTATE_RATE = 0.12;
 const SYNC_INTERVAL_MS = 12 * 60 * 1000;
+const BAD_SYNC_AT = new Date('2026-10-05T17:30:56.903Z');
 
 let db = null;
 let syncRunning = false;
 let lastPublicSync = null;
+let lastRecovery = null;
 
 function roundMoney(value = 0) {
   const n = Number(value || 0);
@@ -49,75 +52,145 @@ async function connectMongo() {
 }
 
 function nonDsliteFilter() {
-  return { $or: [{ sku: { $not: { $regex: `^${SKU_PREFIX}` } } }, { sku: { $exists: false } }, { sku: null }] };
+  return { $or: [
+    { sku: { $not: { $regex: `^${SKU_PREFIX}` } } },
+    { sku: { $exists: false } },
+    { sku: null }
+  ] };
 }
 
-async function buildRecoveryDiagnostic() {
+function affectedLegacyFilter() {
+  return {
+    $and: [
+      nonDsliteFilter(),
+      { updatedAt: BAD_SYNC_AT },
+      { active: false },
+      { stock: 0 }
+    ]
+  };
+}
+
+async function recoverLegacyCatalog() {
   await connectMongo();
   const products = db.collection(PUBLIC_COLLECTION);
-  const filter = nonDsliteFilter();
-  const candidateCollections = (await db.listCollections({}, { nameOnly: true }).toArray())
-    .map((c) => c.name)
-    .filter((name) => /product|produto|stock|estoque|invent|catalog|backup|snapshot|history/i.test(name))
-    .sort();
+  const backup = db.collection(RECOVERY_BACKUP_COLLECTION);
+  const meta = db.collection(META_COLLECTION);
 
-  const alternateStockCounts = {};
-  for (const field of ['estoque', 'quantity', 'qty', 'stockQuantity', 'availableStock']) {
-    alternateStockCounts[field] = await products.countDocuments({ $and: [filter, { [field]: { $gt: 0 } }] });
+  const previous = await meta.findOne({ key: 'legacyRecovery20261005' });
+  if (previous?.value?.completed === true) {
+    lastRecovery = previous.value;
+    return lastRecovery;
   }
 
-  const sample = await products.find(filter, {
-    projection: {
-      _id: 0, sku: 1, name: 1, active: 1, stock: 1, estoque: 1, quantity: 1, qty: 1,
-      stockQuantity: 1, availableStock: 1, inventory: 1, status: 1, enabled: 1, isActive: 1,
-      sellerId: 1, source: 1, storefrontSource: 1, updatedAt: 1, createdAt: 1
+  const affected = await products.find(affectedLegacyFilter()).toArray();
+  if (!affected.length) {
+    lastRecovery = {
+      ok: true,
+      completed: true,
+      affected: 0,
+      restoredVisible: 0,
+      restoredStockFromMovements: 0,
+      backupCollection: RECOVERY_BACKUP_COLLECTION,
+      note: 'Nenhum documento ainda corresponde ao carimbo exato do incidente.',
+      recoveredAt: new Date()
+    };
+    await meta.updateOne({ key: 'legacyRecovery20261005' }, { $set: { value: lastRecovery, updatedAt: new Date() } }, { upsert: true });
+    return lastRecovery;
+  }
+
+  // Cópia integral ANTES de qualquer restauração. A coleção de backup fica isolada.
+  if (await backup.countDocuments({}) === 0) {
+    await backup.insertMany(affected.map((doc) => ({ ...doc, recoveryBackupCreatedAt: new Date() })), { ordered: false });
+  }
+
+  // Reativa somente os documentos que receberam exatamente o timestamp do incidente.
+  // Mantemos estoque 0 por padrão para não vender mercadoria sem quantidade comprovada.
+  const restoreVisible = await products.updateMany(
+    affectedLegacyFilter(),
+    {
+      $set: {
+        active: true,
+        storefrontStatus: 'published',
+        recoveryStatus: 'VISIBILITY_RESTORED_STOCK_PENDING',
+        recoveryIncidentAt: BAD_SYNC_AT,
+        recoveryUpdatedAt: new Date()
+      }
     }
-  }).limit(8).toArray();
+  );
 
-  let stockMovementCount = 0;
-  let stockMovementSample = [];
-  let stockMovementKeys = [];
-  if (candidateCollections.includes('erpstockmovements')) {
-    const movements = db.collection('erpstockmovements');
-    stockMovementCount = await movements.countDocuments({});
-    stockMovementSample = await movements.find({}, { projection: { _id: 0 } }).sort({ _id: -1 }).limit(12).toArray();
-    stockMovementKeys = await movements.aggregate([
-      { $limit: 200 },
-      { $project: { kv: { $objectToArray: '$$ROOT' } } },
-      { $unwind: '$kv' },
-      { $group: { _id: '$kv.k', count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 40 }
-    ]).toArray();
+  // O ERP mantém movimentos confiáveis para alguns itens. Para esses, restauramos o último saldo "after".
+  const movements = db.collection('erpstockmovements');
+  const latestMovements = await movements.aggregate([
+    { $sort: { createdAt: -1, _id: -1 } },
+    { $group: { _id: '$productId', row: { $first: '$$ROOT' } } }
+  ]).toArray();
+
+  let restoredStockFromMovements = 0;
+  const restored = [];
+  for (const entry of latestMovements) {
+    const movement = entry?.row || {};
+    const after = Number(movement.after);
+    if (!Number.isFinite(after) || after < 0) continue;
+
+    let productId = null;
+    try { productId = new mongoose.Types.ObjectId(String(movement.productId || '')); } catch {}
+    const sku = String(movement.sku || '').trim();
+    const match = productId ? { _id: productId } : (sku ? { sku } : null);
+    if (!match) continue;
+
+    const current = await products.findOne({ ...match, ...nonDsliteFilter() }, { projection: { _id: 1, sku: 1, name: 1 } });
+    if (!current) continue;
+
+    await products.updateOne(
+      { _id: current._id },
+      {
+        $set: {
+          stock: after,
+          active: true,
+          storefrontStatus: after > 0 ? 'published' : 'out_of_stock',
+          recoveryStatus: 'RESTORED_FROM_ERP_STOCK_MOVEMENT',
+          recoveryStockSource: 'erpstockmovements.after',
+          recoveryStockMovementAt: movement.createdAt || null,
+          recoveryUpdatedAt: new Date()
+        }
+      }
+    );
+    restoredStockFromMovements += 1;
+    restored.push({ sku: current.sku || '', name: current.name || '', stock: after });
   }
 
-  let sandboxProductCount = 0;
-  let sandboxProductSample = [];
-  if (candidateCollections.includes('enterprise_sandbox_products')) {
-    const sandboxProducts = db.collection('enterprise_sandbox_products');
-    sandboxProductCount = await sandboxProducts.countDocuments({});
-    sandboxProductSample = await sandboxProducts.find({}, { projection: { _id: 0 } }).limit(5).toArray();
-  }
-
-  return {
-    nonDsliteTotal: await products.countDocuments(filter),
-    currentActive: await products.countDocuments({ $and: [filter, { active: true }] }),
-    currentWithStock: await products.countDocuments({ $and: [filter, { stock: { $gt: 0 } }] }),
-    alternateStockCounts,
-    candidateCollections,
-    sample,
-    stockMovementCount,
-    stockMovementKeys,
-    stockMovementSample,
-    sandboxProductCount,
-    sandboxProductSample
+  lastRecovery = {
+    ok: true,
+    completed: true,
+    incidentAt: BAD_SYNC_AT,
+    affected: affected.length,
+    backupCollection: RECOVERY_BACKUP_COLLECTION,
+    backupCount: await backup.countDocuments({}),
+    restoredVisible: restoreVisible.modifiedCount,
+    restoredStockFromMovements,
+    restored,
+    remainingStockPending: await products.countDocuments({
+      $and: [
+        nonDsliteFilter(),
+        { recoveryIncidentAt: BAD_SYNC_AT },
+        { stock: 0 },
+        { recoveryStatus: 'VISIBILITY_RESTORED_STOCK_PENDING' }
+      ]
+    }),
+    recoveredAt: new Date(),
+    storefrontPublishEnabled: false
   };
+
+  await meta.updateOne({ key: 'legacyRecovery20261005' }, { $set: { value: lastRecovery, updatedAt: new Date() } }, { upsert: true });
+  return lastRecovery;
 }
 
 async function syncSourceAndDrafts() {
   await connectMongo();
   const catalog = await fetchDsliteBetoCatalog({ timeoutMs: 30000 });
-  if (catalog.approvedCount !== DSLITE_BETO_APPROVED_SKUS.length) throw new Error(`Catálogo incompleto: ${catalog.approvedCount}/${DSLITE_BETO_APPROVED_SKUS.length}.`);
+  if (catalog.approvedCount !== DSLITE_BETO_APPROVED_SKUS.length) {
+    throw new Error(`Catálogo incompleto: ${catalog.approvedCount}/${DSLITE_BETO_APPROVED_SKUS.length}.`);
+  }
 
   const shadow = db.collection(SHADOW_COLLECTION);
   const drafts = db.collection(DRAFT_COLLECTION);
@@ -135,18 +208,42 @@ async function syncSourceAndDrafts() {
     const image = imageUrls[0] || '';
     const category = String(item.category || 'Móveis e Decoração');
     const variationGroup = item.variationGroup || item.parentSku || sourceSku;
+
     const common = {
-      sourceSku, sku, name: item.name, description: item.name, category, categoryName: category,
-      brand: item.brand || 'Beto Móveis', supplier: 'Beto Móveis', supplierId: DSLITE_BETO_SUPPLIER_ID,
-      supplierCost: pricing.supplierCost, supplierStock, ean: item.ean || '', parentSku: item.parentSku || '', variationGroup,
-      image, imageUrl: image, imageUrls, images: imageUrls.map((url, index) => ({ url, path: url, isMain: index === 0 })),
+      sourceSku, sku, name: item.name, description: item.name,
+      category, categoryName: category, brand: item.brand || 'Beto Móveis',
+      supplier: 'Beto Móveis', supplierId: DSLITE_BETO_SUPPLIER_ID,
+      supplierCost: pricing.supplierCost, supplierStock, ean: item.ean || '',
+      parentSku: item.parentSku || '', variationGroup,
+      image, imageUrl: image, imageUrls,
+      images: imageUrls.map((url, index) => ({ url, path: url, isMain: index === 0 })),
       ncm: '9403.60.00', cestReference: '28.061.00', originUf: 'SP', destinationUf: 'MG',
       taxType: 'ICMS_ANTECIPACAO_SIMPLES_NACIONAL', taxRate: pricing.taxRate, taxAmount: pricing.taxAmount,
-      pricingBase: pricing.pricingBase, pricingDivisor: PRICING_DIVISOR, pricingRule: '(custo + tributação de entrada aplicável) / 0,70',
-      price: pricing.price, pixPrice: pricing.pixPrice, installmentCount: 12, needsNfeReconciliation: true, syncedAt: now
+      pricingBase: pricing.pricingBase, pricingDivisor: PRICING_DIVISOR,
+      pricingRule: '(custo + tributação de entrada aplicável) / 0,70',
+      price: pricing.price, pixPrice: pricing.pixPrice, installmentCount: 12,
+      needsNfeReconciliation: true, syncedAt: now
     };
-    await shadow.updateOne({ sourceSku }, { $set: { ...common, rawCategory: item.rawCategory || '', shadowOnly: true, active: false }, $setOnInsert: { createdAt: now } }, { upsert: true });
-    await drafts.updateOne({ sourceKey: sku }, { $set: { ...common, sourceKey: sku, slug: `dslite-beto-${sourceSku.toLowerCase()}`, stock: 0, active: false, storefrontStatus: 'draft', storefrontPublishEnabled: storefrontEnabled(), reviewRequired: false, draftReady: Boolean(item.name && image && pricing.price > 0), publicCollectionTouched: false }, $setOnInsert: { createdAt: now } }, { upsert: true });
+
+    await shadow.updateOne(
+      { sourceSku },
+      { $set: { ...common, rawCategory: item.rawCategory || '', shadowOnly: true, active: false }, $setOnInsert: { createdAt: now } },
+      { upsert: true }
+    );
+
+    await drafts.updateOne(
+      { sourceKey: sku },
+      {
+        $set: {
+          ...common, sourceKey: sku, slug: `dslite-beto-${sourceSku.toLowerCase()}`,
+          stock: 0, active: false, storefrontStatus: 'draft',
+          storefrontPublishEnabled: storefrontEnabled(), reviewRequired: false,
+          draftReady: Boolean(item.name && image && pricing.price > 0), publicCollectionTouched: false
+        },
+        $setOnInsert: { createdAt: now }
+      },
+      { upsert: true }
+    );
   }
 
   await shadow.updateMany({ sourceSku: { $nin: seenSourceSkus } }, { $set: { supplierStock: 0, active: false, syncedAt: now } });
@@ -156,6 +253,7 @@ async function syncSourceAndDrafts() {
 async function syncPublicStorefront() {
   if (!storefrontEnabled()) return { ok: true, skipped: true, reason: 'storefront_disabled' };
   await connectMongo();
+
   const drafts = db.collection(DRAFT_COLLECTION);
   const products = db.collection(PUBLIC_COLLECTION);
   const rows = await drafts.find({ draftReady: true, sku: { $regex: `^${SKU_PREFIX}` } }).toArray();
@@ -173,25 +271,42 @@ async function syncPublicStorefront() {
     const stock = Math.max(0, Number(row.supplierStock || 0));
     const active = stock > 0;
     const doc = {
-      name: row.name, slug: row.slug, description: row.description || row.name, category: row.category,
-      categoryName: row.categoryName || row.category, brand: row.brand || 'Beto Móveis', sku,
+      name: row.name, slug: row.slug, description: row.description || row.name,
+      category: row.category, categoryName: row.categoryName || row.category,
+      brand: row.brand || 'Beto Móveis', sku,
       price: Number(row.price || 0), pixPrice: Number(row.pixPrice || 0), installmentCount: 12,
       image: row.image, imageUrl: row.imageUrl || row.image, imagem: row.image, mainImageUrl: row.image,
       images: row.images || [], imageUrls: row.imageUrls || [], stock, active,
       storefrontStatus: active ? 'published' : 'out_of_stock', storefrontSource: 'dslite',
       dropshipping: {
         enabled: true, provider: 'dslite', supplier: 'Beto Móveis', supplierId: DSLITE_BETO_SUPPLIER_ID,
-        sourceSku: row.sourceSku, supplierStock: stock, parentSku: row.parentSku || '', variationGroup: row.variationGroup || row.sourceSku || '',
-        ean: row.ean || '', ncm: row.ncm || '9403.60.00', cestReference: row.cestReference || '28.061.00', originUf: row.originUf || 'SP', destinationUf: row.destinationUf || 'MG',
-        supplierCost: Number(row.supplierCost || 0), taxAmount: Number(row.taxAmount || 0), taxRate: Number(row.taxRate || 0), pricingBase: Number(row.pricingBase || 0),
-        pricingDivisor: Number(row.pricingDivisor || PRICING_DIVISOR), pricingRule: row.pricingRule || '(custo + tributação de entrada aplicável) / 0,70', needsNfeReconciliation: row.needsNfeReconciliation !== false, syncedAt: now
-      }, updatedAt: now
+        sourceSku: row.sourceSku, supplierStock: stock, parentSku: row.parentSku || '',
+        variationGroup: row.variationGroup || row.sourceSku || '', ean: row.ean || '',
+        ncm: row.ncm || '9403.60.00', cestReference: row.cestReference || '28.061.00',
+        originUf: row.originUf || 'SP', destinationUf: row.destinationUf || 'MG',
+        supplierCost: Number(row.supplierCost || 0), taxAmount: Number(row.taxAmount || 0),
+        taxRate: Number(row.taxRate || 0), pricingBase: Number(row.pricingBase || 0),
+        pricingDivisor: Number(row.pricingDivisor || PRICING_DIVISOR),
+        pricingRule: row.pricingRule || '(custo + tributação de entrada aplicável) / 0,70',
+        needsNfeReconciliation: row.needsNfeReconciliation !== false, syncedAt: now
+      },
+      updatedAt: now
     };
+
     const result = await products.updateOne({ sku }, { $set: doc, $setOnInsert: { createdAt: now } }, { upsert: true });
-    if (result.upsertedCount) created += 1; else if (result.matchedCount) updated += 1;
+    if (result.upsertedCount) created += 1;
+    else if (result.matchedCount) updated += 1;
   }
 
-  await products.updateMany({ $and: [{ sku: { $regex: `^${SKU_PREFIX}` } }, { sku: { $nin: liveSkus } }] }, { $set: { stock: 0, active: false, storefrontStatus: 'out_of_stock', updatedAt: now } });
+  // Trava definitiva: somente SKUs do Beto podem ser zerados pela sincronização DSLite.
+  await products.updateMany(
+    { $and: [
+      { sku: { $regex: `^${SKU_PREFIX}` } },
+      { sku: { $nin: liveSkus } }
+    ] },
+    { $set: { stock: 0, active: false, storefrontStatus: 'out_of_stock', updatedAt: now } }
+  );
+
   await drafts.updateMany({ sku: { $regex: `^${SKU_PREFIX}` } }, { $set: { publicCollectionTouched: true, syncedAt: now } });
   lastPublicSync = {
     ok: true,
@@ -207,43 +322,89 @@ async function syncPublicStorefront() {
 async function runFullSync() {
   if (syncRunning) return lastPublicSync;
   syncRunning = true;
-  try { await syncSourceAndDrafts(); return await syncPublicStorefront(); }
-  finally { syncRunning = false; }
+  try {
+    await syncSourceAndDrafts();
+    return await syncPublicStorefront();
+  } finally {
+    syncRunning = false;
+  }
 }
 
 app.get('/', async (_req, res) => {
-  try { await connectMongo(); res.json({ ok: true, service: 'Ariana DSLite Beto', mode: storefrontEnabled() ? 'storefront_sync' : 'safe_hold', storefrontPublishEnabled: storefrontEnabled(), pricingRule: '(custo + tributação de entrada aplicável) / 0,70', lastPublicSync }); }
-  catch (error) { res.status(500).json({ ok: false, error: error.message }); }
+  try {
+    await connectMongo();
+    res.json({ ok: true, service: 'Ariana DSLite Beto', mode: storefrontEnabled() ? 'storefront_sync' : 'safe_hold', storefrontPublishEnabled: storefrontEnabled(), pricingRule: '(custo + tributação de entrada aplicável) / 0,70', lastPublicSync, lastRecovery });
+  } catch (error) { res.status(500).json({ ok: false, error: error.message }); }
 });
+
 app.get('/health', (_req, res) => res.json({ ok: true, storefrontPublishEnabled: storefrontEnabled(), syncRunning }));
-app.get('/draft-status', async (_req, res) => {
-  try { await connectMongo(); const drafts = db.collection(DRAFT_COLLECTION); res.json({ ok: true, total: await drafts.countDocuments({}), ready: await drafts.countDocuments({ draftReady: true }), withImages: await drafts.countDocuments({ image: { $ne: '' } }), withPrice: await drafts.countDocuments({ price: { $gt: 0 } }), publicCollectionTouched: (await drafts.countDocuments({ publicCollectionTouched: true })) > 0, storefrontPublishEnabled: storefrontEnabled() }); }
-  catch (error) { res.status(500).json({ ok: false, error: error.message }); }
+
+app.get('/recovery-status', async (_req, res) => {
+  try {
+    await connectMongo();
+    const products = db.collection(PUBLIC_COLLECTION);
+    const meta = await db.collection(META_COLLECTION).findOne({ key: 'legacyRecovery20261005' });
+    res.json({
+      ok: true,
+      storefrontPublishEnabled: storefrontEnabled(),
+      recovery: meta?.value || lastRecovery || null,
+      totalProducts: await products.countDocuments({}),
+      dsliteBetoTotal: await products.countDocuments({ sku: { $regex: `^${SKU_PREFIX}` } }),
+      nonDsliteTotal: await products.countDocuments(nonDsliteFilter()),
+      nonDsliteActive: await products.countDocuments({ $and: [nonDsliteFilter(), { active: true }] }),
+      nonDsliteWithStock: await products.countDocuments({ $and: [nonDsliteFilter(), { stock: { $gt: 0 } }] }),
+      backupCount: await db.collection(RECOVERY_BACKUP_COLLECTION).countDocuments({})
+    });
+  } catch (error) { res.status(500).json({ ok: false, error: error.message }); }
 });
-app.get('/public-status', async (_req, res) => {
-  try { await connectMongo(); const products = db.collection(PUBLIC_COLLECTION); const filter = { sku: { $regex: `^${SKU_PREFIX}` } }; const sample = await products.find(filter, { projection: { _id: 0, sku: 1, name: 1, price: 1, pixPrice: 1, stock: 1, active: 1, image: 1 } }).limit(5).toArray(); res.json({ ok: true, storefrontPublishEnabled: storefrontEnabled(), total: await products.countDocuments(filter), active: await products.countDocuments({ ...filter, active: true }), withStock: await products.countDocuments({ ...filter, stock: { $gt: 0 } }), sample, lastPublicSync }); }
-  catch (error) { res.status(500).json({ ok: false, error: error.message }); }
-});
+
 app.get('/safety-status', async (_req, res) => {
-  try { await connectMongo(); const products = db.collection(PUBLIC_COLLECTION); const filter = nonDsliteFilter(); const meta = await db.collection(META_COLLECTION).findOne({ key: 'lastPublicSync' }); res.json({ ok: true, storefrontPublishEnabled: storefrontEnabled(), totalProducts: await products.countDocuments({}), dsliteBetoTotal: await products.countDocuments({ sku: { $regex: `^${SKU_PREFIX}` } }), nonDsliteTotal: await products.countDocuments(filter), nonDsliteActive: await products.countDocuments({ $and: [filter, { active: true }] }), nonDsliteWithStock: await products.countDocuments({ $and: [filter, { stock: { $gt: 0 } }] }), lastPublicSync: meta?.value || lastPublicSync || null }); }
-  catch (error) { res.status(500).json({ ok: false, error: error.message }); }
+  try {
+    await connectMongo();
+    const products = db.collection(PUBLIC_COLLECTION);
+    res.json({
+      ok: true,
+      storefrontPublishEnabled: storefrontEnabled(),
+      totalProducts: await products.countDocuments({}),
+      dsliteBetoTotal: await products.countDocuments({ sku: { $regex: `^${SKU_PREFIX}` } }),
+      nonDsliteTotal: await products.countDocuments(nonDsliteFilter()),
+      nonDsliteActive: await products.countDocuments({ $and: [nonDsliteFilter(), { active: true }] }),
+      nonDsliteWithStock: await products.countDocuments({ $and: [nonDsliteFilter(), { stock: { $gt: 0 } }] }),
+      lastRecovery
+    });
+  } catch (error) { res.status(500).json({ ok: false, error: error.message }); }
 });
-app.get('/recovery-diagnostic', async (_req, res) => {
-  try { res.json({ ok: true, ...(await buildRecoveryDiagnostic()) }); }
-  catch (error) { res.status(500).json({ ok: false, error: error.message }); }
+
+app.get('/public-status', async (_req, res) => {
+  try {
+    await connectMongo();
+    const products = db.collection(PUBLIC_COLLECTION);
+    const filter = { sku: { $regex: `^${SKU_PREFIX}` } };
+    const sample = await products.find(filter, { projection: { _id: 0, sku: 1, name: 1, price: 1, pixPrice: 1, stock: 1, active: 1, image: 1 } }).limit(5).toArray();
+    res.json({ ok: true, storefrontPublishEnabled: storefrontEnabled(), total: await products.countDocuments(filter), active: await products.countDocuments({ ...filter, active: true }), withStock: await products.countDocuments({ ...filter, stock: { $gt: 0 } }), sample, lastPublicSync });
+  } catch (error) { res.status(500).json({ ok: false, error: error.message }); }
 });
+
 app.get('/pricing-preview', async (_req, res) => {
-  try { await connectMongo(); const rows = await db.collection(DRAFT_COLLECTION).find({}, { projection: { _id: 0, sku: 1, name: 1, supplierCost: 1, taxAmount: 1, pricingBase: 1, price: 1, pixPrice: 1, supplierStock: 1 } }).sort({ name: 1 }).toArray(); res.json({ ok: true, total: rows.length, products: rows }); }
-  catch (error) { res.status(500).json({ ok: false, error: error.message }); }
+  try {
+    await connectMongo();
+    const rows = await db.collection(DRAFT_COLLECTION).find({}, { projection: { _id: 0, sku: 1, name: 1, supplierCost: 1, taxAmount: 1, pricingBase: 1, price: 1, pixPrice: 1, supplierStock: 1 } }).sort({ name: 1 }).toArray();
+    res.json({ ok: true, total: rows.length, products: rows });
+  } catch (error) { res.status(500).json({ ok: false, error: error.message }); }
 });
 
 app.listen(port, '0.0.0.0', async () => {
   console.log(`[dslite-beto] online ${port} | vitrine=${storefrontEnabled() ? 'habilitada' : 'desabilitada'} | filtro isolado=${SKU_PREFIX}`);
   try {
     await connectMongo();
-    const diag = await buildRecoveryDiagnostic();
-    console.log('[dslite-beto][recovery-diagnostic]', JSON.stringify(diag));
+    lastRecovery = await recoverLegacyCatalog();
+    console.log('[dslite-beto][legacy-recovery]', JSON.stringify(lastRecovery));
     await runFullSync();
-  } catch (error) { console.error('[dslite-beto] inicialização/sincronização não executada:', error?.message || error); }
-  setInterval(async () => { try { await runFullSync(); } catch (error) { console.error('[dslite-beto] sincronização periódica não executada:', error?.message || error); } }, SYNC_INTERVAL_MS).unref();
+  } catch (error) {
+    console.error('[dslite-beto] inicialização/sincronização não executada:', error?.message || error);
+  }
+  setInterval(async () => {
+    try { await runFullSync(); }
+    catch (error) { console.error('[dslite-beto] sincronização periódica não executada:', error?.message || error); }
+  }, SYNC_INTERVAL_MS).unref();
 });
