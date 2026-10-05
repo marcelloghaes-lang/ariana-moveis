@@ -53,6 +53,58 @@ export function isFinancialProjectionEligible({
   );
 }
 
+// Nunca permita que um valor intermediário/diagnóstico seja apresentado como
+// "valor a receber" quando a projeção financeira está bloqueada.
+// Os números observados continuam disponíveis somente em campos de diagnóstico.
+export function buildSafeSellerAuditSettlement({
+  settlement={},
+  integrity={},
+  financialProjectionEligible=false,
+  orderTotal=0
+}={}){
+  const blocked=Boolean(
+    !financialProjectionEligible||
+    integrity?.blocked===true||
+    settlement?.integrityBlocked===true
+  );
+  const payableGross=blocked?0:money(settlement?.gross);
+  const payableCommission=blocked?0:money(settlement?.commission);
+  const payableNet=blocked?0:money(settlement?.net);
+  const reasons=[
+    ...(Array.isArray(settlement?.integrityReasons)?settlement.integrityReasons:[]),
+    ...(Array.isArray(integrity?.anomalies)?integrity.anomalies:[])
+  ];
+
+  return {
+    // Campos legados também são fail-closed para evitar que uma UI antiga
+    // confunda cálculo intermediário com recebível do seller.
+    chargedGross:blocked?0:money(settlement?.chargedGross),
+    gross:payableGross,
+    commission:payableCommission,
+    commissionPercent:blocked?0:Number(settlement?.commissionPercent||0),
+    net:payableNet,
+    payableGross,
+    payableCommission,
+    payableNet,
+    payable:false,
+    settlementMode:blocked?'blocked_audit_safety':settlement?.settlementMode,
+    integrityBlocked:blocked,
+    integrityReasons:[...new Set(reasons)],
+    orderTotal:settlement?.orderTotal??money(orderTotal),
+    // Diagnóstico interno: nunca usar estes campos para payout/extrato do seller.
+    diagnosticChargedGross:money(settlement?.chargedGross),
+    diagnosticComputedGross:money(settlement?.gross),
+    diagnosticComputedCommission:money(settlement?.commission),
+    diagnosticComputedNet:money(settlement?.net),
+    diagnosticSnapshotGross:money(integrity?.snapshotGross),
+    observedChargedGross:settlement?.observedChargedGross??null,
+    observedGross:settlement?.observedGross??null,
+    cardMarkup:blocked?0:money(settlement?.cardMarkup),
+    label:settlement?.label,
+    labelDeductedFromSeller:settlement?.labelDeductedFromSeller
+  };
+}
+
 function errorWith(code,message,statusCode=503){
   const error=new Error(message);
   error.code=code;
@@ -182,7 +234,9 @@ function safeOrderForSecurity(order={}){
   };
 }
 
-function orderProjectionStage(){
+// Exportada para testes de regressão: qualquer campo usado pelo gate de origem,
+// provedor ou método precisa sobreviver à projeção Mongo sem adicionar PII.
+export function orderProjectionStage(){
   return {
     $project:{
       _id:1,
@@ -190,6 +244,8 @@ function orderProjectionStage(){
       status:1,
       statusLabel:1,
       paymentStatus:1,
+      paymentMethod:1,
+      paymentProvider:1,
       subtotal:1,
       shippingCost:1,
       total:1,
@@ -200,6 +256,8 @@ function orderProjectionStage(){
       deliveredAt:1,
       origin:1,
       salesChannel:1,
+      channel:1,
+      arianaPay:1,
       items:{
         $map:{
           input:{$ifNull:['$items',[]]},
@@ -222,6 +280,16 @@ function orderProjectionStage(){
       },
       payment:{
         provider:'$payment.provider',
+        gateway:'$payment.gateway',
+        processor:'$payment.processor',
+        origin:'$payment.origin',
+        channel:'$payment.channel',
+        arianaPay:'$payment.arianaPay',
+        metadata:{
+          origin:'$payment.metadata.origin',
+          channel:'$payment.metadata.channel',
+          arianaPay:'$payment.metadata.arianaPay'
+        },
         status:'$payment.status',
         statusDetail:'$payment.statusDetail',
         method:'$payment.method',
@@ -336,9 +404,12 @@ function summarizeAnomalyRows(rows=[]){
         sellerId:String(seller?.sellerId||''),
         externalSeller:seller?.externalSeller===true,
         anomalies,
+        payableGross:money(seller?.settlement?.payableGross),
+        payableNet:money(seller?.settlement?.payableNet),
         chargedGross:money(seller?.integrity?.chargedGross),
         snapshotGross:money(seller?.integrity?.snapshotGross),
         computedGross:money(seller?.integrity?.computedGross),
+        diagnosticComputedGross:money(seller?.settlement?.diagnosticComputedGross),
         observedChargedGross:money(seller?.settlement?.observedChargedGross),
         observedGross:money(seller?.settlement?.observedGross)
       });
@@ -396,6 +467,10 @@ export async function auditRealProductionSample({
         : null,
       marketplaceCandidates:0,
       financiallyEligible:0,
+      rejectedNotArianaPayOrigin:0,
+      rejectedUnsupportedProvider:0,
+      efiMarketplaceCandidates:0,
+      mercadoPagoWithoutArianaOriginCandidates:0,
       externalSellerOrders:0,
       internalOnlyOrders:0,
       excludedInternalCreditOrders:0,
@@ -426,6 +501,13 @@ export async function auditRealProductionSample({
       const eligibility=assessArianaPayOrderEligibility(order);
       if(eligibility.marketplaceCandidate) summary.marketplaceCandidates+=1;
       if(eligibility.financiallyEligible) summary.financiallyEligible+=1;
+      if(eligibility.reasons.includes('not_ariana_pay_origin')) summary.rejectedNotArianaPayOrigin+=1;
+      if(eligibility.reasons.includes('unsupported_ariana_pay_provider')) summary.rejectedUnsupportedProvider+=1;
+      const providerCompact=clean(eligibility.paymentProvider).toLowerCase().replace(/[^a-z0-9]/g,'');
+      if(eligibility.marketplaceCandidate&&['efi','gerencianet'].includes(providerCompact)) summary.efiMarketplaceCandidates+=1;
+      if(eligibility.marketplaceCandidate&&providerCompact==='mercadopago'&&!eligibility.arianaPayOriginMarked){
+        summary.mercadoPagoWithoutArianaOriginCandidates+=1;
+      }
       if(eligibility.externalSellerIds.length) summary.externalSellerOrders+=1;
       if(eligibility.internalSellerIds.length&&!eligibility.externalSellerIds.length) summary.internalOnlyOrders+=1;
       if(eligibility.reasons.includes('internal_credit_method')) summary.excludedInternalCreditOrders+=1;
@@ -481,6 +563,12 @@ export async function auditRealProductionSample({
           risk,
           cardSecurity
         });
+        const safeSettlement=buildSafeSellerAuditSettlement({
+          settlement,
+          integrity,
+          financialProjectionEligible,
+          orderTotal:order.total
+        });
 
         summary.sellerProjections+=1;
         if(externalSeller) summary.externalSellerProjections+=1;
@@ -497,31 +585,16 @@ export async function auditRealProductionSample({
         if(responsibility.requiresManualReview) summary.responsibilityReview+=1;
 
         if(financialProjectionEligible){
-          summary.projectedSellerGross+=Number(settlement.gross||0);
-          summary.projectedSellerCommission+=Number(settlement.commission||0);
-          summary.projectedSellerNet+=Number(settlement.net||0);
+          summary.projectedSellerGross+=Number(safeSettlement.payableGross||0);
+          summary.projectedSellerCommission+=Number(safeSettlement.payableCommission||0);
+          summary.projectedSellerNet+=Number(safeSettlement.payableNet||0);
         }
 
         sellers.push({
           sellerId,
           externalSeller,
           financialProjectionEligible,
-          settlement:{
-            chargedGross:settlement.chargedGross,
-            gross:settlement.gross,
-            commission:settlement.commission,
-            commissionPercent:settlement.commissionPercent,
-            net:settlement.net,
-            settlementMode:settlement.settlementMode,
-            integrityBlocked:settlement.integrityBlocked===true,
-            integrityReasons:Array.isArray(settlement.integrityReasons)?settlement.integrityReasons:[],
-            orderTotal:settlement.orderTotal??money(order.total),
-            observedChargedGross:settlement.observedChargedGross??null,
-            observedGross:settlement.observedGross??null,
-            cardMarkup:settlement.cardMarkup,
-            label:settlement.label,
-            labelDeductedFromSeller:settlement.labelDeductedFromSeller
-          },
+          settlement:safeSettlement,
           integrity,
           release:{
             state:release.state,
@@ -545,6 +618,7 @@ export async function auditRealProductionSample({
         createdAt:order.createdAt||null,
         origin:clean(order.origin),
         salesChannel:clean(order.salesChannel),
+        channel:clean(order.channel),
         status:clean(order.status),
         statusLabel:clean(order.statusLabel),
         total:money(order.total),
@@ -552,9 +626,9 @@ export async function auditRealProductionSample({
         eligibility,
         sellerCount:sellerIds.length,
         payment:{
-          provider:clean(order.payment?.provider),
+          provider:clean(order.payment?.provider||order.payment?.gateway||order.payment?.processor||order.paymentProvider),
           status:clean(order.payment?.status||order.paymentStatus),
-          method:clean(order.payment?.method||order.payment?.type),
+          method:clean(order.payment?.method||order.payment?.type||order.paymentMethod),
           hasProviderReference:Boolean(
             clean(order.payment?.paymentId||order.payment?.id||order.payment?.externalId||order.payment?.raw?.id)
           )
@@ -641,5 +715,7 @@ export default {
   inspectReadOnlyPrivileges,
   normalizeAuditLimit,
   isFinancialProjectionEligible,
+  buildSafeSellerAuditSettlement,
+  orderProjectionStage,
   auditRealProductionSample
 };
