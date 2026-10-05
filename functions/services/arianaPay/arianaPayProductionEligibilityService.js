@@ -96,6 +96,16 @@ const PLATFORM_SELLER_ALIASES=new Set([
   'ariana'
 ]);
 
+const ARIANA_PAY_PROVIDER_ALIASES=new Set([
+  'mercadopago',
+  'mercado_pago',
+  'mercado pago',
+  'mp',
+  'ariana_pay',
+  'arianapay',
+  'ariana pay'
+]);
+
 export function isPlatformSellerId(value=''){
   const id=fold(value).replace(/\s+/g,' ');
   if(!id) return false;
@@ -124,6 +134,54 @@ function paymentStatus(order={}){
   return fold(order?.payment?.status||order?.paymentStatus||'');
 }
 
+function paymentProvider(order={}){
+  return fold(
+    order?.payment?.provider||
+    order?.payment?.gateway||
+    order?.payment?.processor||
+    order?.paymentProvider||
+    ''
+  );
+}
+
+function explicitArianaPayOrigin(order={}){
+  if(order?.arianaPay===true||order?.payment?.arianaPay===true||order?.payment?.metadata?.arianaPay===true) return true;
+  const values=[
+    order?.origin,
+    order?.salesChannel,
+    order?.channel,
+    order?.payment?.origin,
+    order?.payment?.channel,
+    order?.payment?.metadata?.origin,
+    order?.payment?.metadata?.channel
+  ];
+  return values.some(value=>{
+    const normalized=fold(value).replace(/[-_\s]+/g,'');
+    return normalized==='arianapay'||normalized.startsWith('arianapay');
+  });
+}
+
+function supportedArianaPayProvider(provider=''){
+  const normalized=fold(provider).replace(/\s+/g,' ');
+  if(!normalized) return false;
+  if(ARIANA_PAY_PROVIDER_ALIASES.has(normalized)) return true;
+  const compact=normalized.replace(/[^a-z0-9]/g,'');
+  return compact==='mercadopago'||compact==='arianapay';
+}
+
+export function assessArianaPayPaymentApplicability(order={}){
+  const provider=paymentProvider(order);
+  const providerIsArianaPay=fold(provider).replace(/[^a-z0-9]/g,'')==='arianapay';
+  const originMarked=providerIsArianaPay||explicitArianaPayOrigin(order);
+  const providerSupported=supportedArianaPayProvider(provider);
+  return {
+    applicable:originMarked&&providerSupported,
+    originMarked,
+    providerSupported,
+    provider
+  };
+}
+
 function isInternalCreditMethod(method=''){
   const value=fold(method);
   return value.includes('crediario')||value.includes('crediario_ariana');
@@ -141,18 +199,25 @@ export function assessArianaPayOrderEligibility(order={}){
   const status=paymentStatus(order);
   const internalCredit=isInternalCreditMethod(method);
   const approved=approvedPaymentStatus(status);
+  const paymentApplicability=assessArianaPayPaymentApplicability(order);
   const reasons=[];
 
   if(!externalSellerIds.length) reasons.push('no_external_marketplace_seller');
   if(internalCredit) reasons.push('internal_credit_method');
+  if(!paymentApplicability.originMarked) reasons.push('not_ariana_pay_origin');
+  if(!paymentApplicability.providerSupported) reasons.push('unsupported_ariana_pay_provider');
   if(!approved) reasons.push('payment_not_approved');
 
-  const marketplaceCandidate=externalSellerIds.length>0&&!internalCredit;
+  const marketplaceCandidate=externalSellerIds.length>0&&!internalCredit&&paymentApplicability.applicable;
   const financiallyEligible=marketplaceCandidate&&approved;
 
   return {
     marketplaceCandidate,
     financiallyEligible,
+    arianaPayApplicable:paymentApplicability.applicable,
+    arianaPayOriginMarked:paymentApplicability.originMarked,
+    paymentProviderSupported:paymentApplicability.providerSupported,
+    paymentProvider:paymentApplicability.provider,
     externalSellerIds,
     internalSellerIds,
     paymentMethod:method,
@@ -300,6 +365,7 @@ export default {
   getHistoricalSellerBaseSnapshot,
   isPlatformSellerId,
   collectSellerIds,
+  assessArianaPayPaymentApplicability,
   assessArianaPayOrderEligibility,
   buildHistoricalSnapshotProductMap,
   assessSellerSettlementIntegrity,
