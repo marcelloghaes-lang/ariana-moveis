@@ -5,7 +5,9 @@ import {
   assertReadOnlyProductionAuditConfigured,
   inspectReadOnlyPrivileges,
   normalizeAuditLimit,
-  isFinancialProjectionEligible
+  isFinancialProjectionEligible,
+  buildSafeSellerAuditSettlement,
+  orderProjectionStage
 } from '../services/arianaPay/arianaPayReadOnlyProductionAuditService.js';
 import { assessSellerSettlementIntegrity } from '../services/arianaPay/arianaPayProductionEligibilityService.js';
 
@@ -75,6 +77,33 @@ test('limite da auditoria permite varrer a coleção inteira sem ultrapassar 500
   assert.equal(normalizeAuditLimit('invalido'),25);
 });
 
+test('projeção Mongo preserva todos os sinais não-PII usados pelo gate Ariana Pay',()=>{
+  const projection=orderProjectionStage().$project;
+  assert.equal(projection.channel,1);
+  assert.equal(projection.arianaPay,1);
+  assert.equal(projection.paymentProvider,1);
+  assert.equal(projection.paymentMethod,1);
+  assert.equal(projection.payment.origin,'$payment.origin');
+  assert.equal(projection.payment.channel,'$payment.channel');
+  assert.equal(projection.payment.arianaPay,'$payment.arianaPay');
+  assert.equal(projection.payment.gateway,'$payment.gateway');
+  assert.equal(projection.payment.processor,'$payment.processor');
+  assert.equal(projection.payment.metadata.origin,'$payment.metadata.origin');
+  assert.equal(projection.payment.metadata.channel,'$payment.metadata.channel');
+  assert.equal(projection.payment.metadata.arianaPay,'$payment.metadata.arianaPay');
+});
+
+test('projeção Mongo não adiciona PII bruto à auditoria',()=>{
+  const projection=JSON.stringify(orderProjectionStage().$project);
+  for(const forbidden of [
+    'customerName','customerCpf:', 'customerEmail:', 'customerPhone:',
+    'shippingAddress.cep:', 'shippingAddress.logradouro:', 'shippingAddress.numero:'
+  ]){
+    assert.equal(projection.includes(forbidden),false,`PII bruto não pode ser projetado: ${forbidden}`);
+  }
+  assert.ok(projection.includes('contactPresence'));
+});
+
 test('crediário interno de seller externo não entra nos totais projetados de payout',()=>{
   const eligible=isFinancialProjectionEligible({
     externalSeller:true,
@@ -128,6 +157,63 @@ test('integridade bloqueia seller quando itens cobrados superam o total do pedid
   assert.equal(integrity.orderTotal,58.32);
   assert.equal(integrity.blocked,true);
   assert.ok(integrity.anomalies.includes('seller_charged_gross_exceeds_order_total'));
+});
+
+test('anomalia histórica R$ 58,32 x R$ 2.198 jamais aparece como valor a receber do seller',()=>{
+  const order={
+    total:58.32,
+    items:[{
+      sellerId:'seller_externo',
+      quantity:1,
+      totalPrice:58.32,
+      sellerBaseTotal:2198
+    }]
+  };
+  const rawSettlement={
+    chargedGross:58.32,
+    gross:58.32,
+    commission:7,
+    net:51.32,
+    commissionPercent:12,
+    settlementMode:'manual_marketplace',
+    orderTotal:58.32
+  };
+  const integrity=assessSellerSettlementIntegrity({
+    order,
+    sellerId:'seller_externo',
+    settlement:rawSettlement
+  });
+  assert.equal(integrity.blocked,true);
+  assert.ok(integrity.anomalies.includes('snapshot_base_exceeds_charged_item'));
+  assert.equal(integrity.snapshotGross,2198);
+
+  const safe=buildSafeSellerAuditSettlement({
+    settlement:rawSettlement,
+    integrity,
+    financialProjectionEligible:false,
+    orderTotal:58.32
+  });
+  assert.equal(safe.gross,0);
+  assert.equal(safe.net,0);
+  assert.equal(safe.payableGross,0);
+  assert.equal(safe.payableNet,0);
+  assert.equal(safe.payable,false);
+  assert.equal(safe.diagnosticSnapshotGross,2198);
+  assert.equal(safe.integrityBlocked,true);
+});
+
+test('settlement válido mantém valor projetado somente quando financeiramente elegível',()=>{
+  const safe=buildSafeSellerAuditSettlement({
+    settlement:{chargedGross:100,gross:88,commission:10.56,net:77.44,commissionPercent:12},
+    integrity:{blocked:false,anomalies:[],snapshotGross:88},
+    financialProjectionEligible:true,
+    orderTotal:100
+  });
+  assert.equal(safe.gross,88);
+  assert.equal(safe.net,77.44);
+  assert.equal(safe.payableGross,88);
+  assert.equal(safe.payableNet,77.44);
+  assert.equal(safe.integrityBlocked,false);
 });
 
 test('integridade mantém seller válido quando base cobrada cabe no total do pedido',()=>{
