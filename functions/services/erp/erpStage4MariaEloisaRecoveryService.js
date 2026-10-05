@@ -46,7 +46,7 @@ export function createErpStage4MariaEloisaRecoveryService(context={}){
     const Task=db.collection('erp_marked_collection_tasks');
     const task=await Task.findOne({campaignKey:CAMPAIGN_KEY,nameKey:NAME_KEY});
     if(!task)return{skipped:true,reason:'task_not_seeded'};
-    if(task.initialSentAt)return{ok:true,alreadySent:true};
+    if(task.initialSentAt)return{ok:true,alreadySent:true,status:'SENT'};
 
     const queue=await collections.fila({from:'2000-01-01',to:localDateKey(),filter:'all'});
     const matches=(queue.clients||[]).filter(c=>digits(c.document)===DOCUMENT);
@@ -57,7 +57,7 @@ export function createErpStage4MariaEloisaRecoveryService(context={}){
     const targetId=clean(client.entries?.[0]?.id||'',260);
     const details={matchedName:clean(client.name,220),resolution:'document_override',document:DOCUMENT,phone,phoneSource:contact.source||'',targetId,overduePrincipal:money(client.totalOverdue),overdueUpdated:money(client.totalUpdated),overdueInstallments:Number(client.entries?.length||0),maxDaysLate:Number(client.maxDaysLate||0),lastError:''};
     await Task.updateOne({_id:task._id},{$set:details});
-    if(!phone){await Task.updateOne({_id:task._id},{$set:{status:'NO_PHONE',lastError:'Cliente sem WhatsApp válido no cadastro atual do ERP.'}});return{ok:false,status:'NO_PHONE'}}
+    if(!phone){await Task.updateOne({_id:task._id},{$set:{status:'NO_PHONE',lastError:'Cliente sem WhatsApp válido no cadastro atual do ERP.'}});return{ok:false,status:'NO_PHONE',document:DOCUMENT}}
     if(!targetId||Number(client.totalUpdated||0)<=0){await Task.updateOne({_id:task._id},{$set:{status:'NO_DEBT',lastError:'Nenhum saldo vencido disponível para cobrança.'}});return{ok:false,status:'NO_DEBT'}}
 
     const monthlyClaim=await claimMonthlyFinancialContact(context,{dateKey:localDateKey(),source:'campanha_'+CAMPAIGN_KEY,customerName:client.name,customerDocument:DOCUMENT,phone,customerKey:client.key||NAME_KEY,rows:client.entries||[],updatedBy:'erp-stage4-maria-recovery'});
@@ -80,7 +80,18 @@ export function createErpStage4MariaEloisaRecoveryService(context={}){
     if(globalThis.__erpStage4MariaEloisaRecoveryStarted)return;
     globalThis.__erpStage4MariaEloisaRecoveryStarted=true;
     let attempts=0;
-    const tick=async()=>{attempts+=1;try{const result=await run();if(!result?.skipped||attempts>=20)return}catch(error){if(attempts>=20)return}const timer=setTimeout(tick,3000);timer.unref?.()};
+    const tick=async()=>{
+      attempts+=1;
+      try{
+        const result=await run();
+        if(!result?.skipped){console.log('[erp-stage4-maria-recovery][result]',result);return}
+        if(attempts>=20){console.warn('[erp-stage4-maria-recovery] não executado',result);return}
+      }catch(error){
+        console.error('[erp-stage4-maria-recovery][tick]',error?.message||error);
+        if(attempts>=20)return;
+      }
+      const timer=setTimeout(tick,3000);timer.unref?.();
+    };
     const timer=setTimeout(tick,2500);timer.unref?.();
   }
   return{run,start};
