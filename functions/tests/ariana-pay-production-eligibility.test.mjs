@@ -47,6 +47,36 @@ test('seller externo com pagamento Ariana Pay aprovado vira candidato financeiro
   assert.equal(result.financiallyEligible,true);
 });
 
+test('todos os marcadores explícitos de origem Ariana Pay são reconhecidos isoladamente',()=>{
+  const cases=[
+    {name:'channel',order:{channel:'ariana_pay'}},
+    {name:'payment.origin',order:{payment:{origin:'ariana_pay'}}},
+    {name:'payment.channel',order:{payment:{channel:'ariana_pay'}}},
+    {name:'payment.metadata.origin',order:{payment:{metadata:{origin:'ariana_pay'}}}},
+    {name:'payment.metadata.channel',order:{payment:{metadata:{channel:'ariana_pay'}}}},
+    {name:'arianaPay top-level',order:{arianaPay:true}},
+    {name:'payment.arianaPay',order:{payment:{arianaPay:true}}},
+    {name:'payment.metadata.arianaPay',order:{payment:{metadata:{arianaPay:true}}}}
+  ];
+
+  for(const entry of cases){
+    const payment={
+      method:'pix',
+      status:'approved',
+      provider:'mercadopago',
+      ...(entry.order.payment||{})
+    };
+    const result=assessArianaPayOrderEligibility({
+      sellerIds:['seller_123'],
+      ...entry.order,
+      payment
+    });
+    assert.equal(result.arianaPayOriginMarked,true,`${entry.name} precisa marcar origem Ariana Pay`);
+    assert.equal(result.marketplaceCandidate,true,`${entry.name} precisa sobreviver ao gate`);
+    assert.equal(result.financiallyEligible,true,`${entry.name} precisa permanecer elegível`);
+  }
+});
+
 test('Mercado Pago genérico sem origem Ariana Pay não entra no Ariana Pay',()=>{
   const applicability=assessArianaPayPaymentApplicability({
     sellerIds:['seller_123'],
@@ -59,6 +89,16 @@ test('Mercado Pago genérico sem origem Ariana Pay não entra no Ariana Pay',()=
   assert.equal(applicability.providerSupported,true);
   assert.equal(applicability.originMarked,false);
   assert.equal(result.marketplaceCandidate,false);
+  assert.ok(result.reasons.includes('not_ariana_pay_origin'));
+});
+
+test('Pix comum sem origem Ariana Pay continua fora mesmo com seller externo',()=>{
+  const result=assessArianaPayOrderEligibility({
+    sellerIds:['seller_123'],
+    payment:{method:'pix',status:'approved',provider:'mercadopago'}
+  });
+  assert.equal(result.marketplaceCandidate,false);
+  assert.equal(result.financiallyEligible,false);
   assert.ok(result.reasons.includes('not_ariana_pay_origin'));
 });
 
@@ -131,6 +171,26 @@ test('base do seller acima do valor cobrado é anomalia bloqueante',()=>{
   assert.equal(integrity.blocked,true);
   assert.ok(integrity.anomalies.includes('snapshot_base_exceeds_charged_item'));
   assert.ok(integrity.anomalies.includes('computed_seller_gross_exceeds_charged_gross'));
+});
+
+test('snapshot do seller 20x acima da venda fica bloqueado mesmo quando o item cobrado é correto',()=>{
+  const order={
+    total:58.32,
+    items:[{
+      sellerId:'seller_123',qty:1,unitPrice:58.32,totalPrice:58.32,
+      sellerBaseTotal:2198
+    }]
+  };
+  const integrity=assessSellerSettlementIntegrity({
+    order,
+    sellerId:'seller_123',
+    settlement:{gross:58.32}
+  });
+  assert.equal(integrity.orderTotal,58.32);
+  assert.equal(integrity.snapshotGross,2198);
+  assert.equal(integrity.blocked,true);
+  assert.ok(integrity.anomalies.includes('snapshot_base_exceeds_charged_item'));
+  assert.ok(integrity.anomalies.includes('computed_gross_differs_from_sale_snapshot'));
 });
 
 test('total dos itens do seller acima do total do pedido é bloqueado fail-closed',()=>{
