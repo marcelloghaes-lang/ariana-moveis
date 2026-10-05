@@ -50,10 +50,7 @@ function normalizeFeedPayload(payload) {
     let text = payload.trim();
     if (!text) return '';
     if ((text.startsWith('"') && text.endsWith('"')) || text.startsWith('{') || text.startsWith('[')) {
-      try {
-        const parsed = JSON.parse(text);
-        return normalizeFeedPayload(parsed);
-      } catch (_e) {}
+      try { return normalizeFeedPayload(JSON.parse(text)); } catch (_e) {}
     }
     if (!/<prod_id\b/i.test(text) && /&lt;prod_id\b/i.test(text)) text = decodeXml(text);
     return text;
@@ -79,6 +76,14 @@ function normalizeFeedPayload(payload) {
     return JSON.stringify(payload);
   }
   return String(payload);
+}
+
+function sanitizeDiagnosticText(text = '') {
+  const token = String(process.env.DSLITE_API_TOKEN || process.env.DSLITE_TOKEN || '').trim();
+  let out = String(text || '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  if (token) out = out.split(token).join('[TOKEN_REDACTED]');
+  out = out.replace(/https?:\/\/[^\s"'<>]+/gi, '[URL_REDACTED]');
+  return out.slice(0, 240);
 }
 
 function plainText(value = '') {
@@ -168,6 +173,7 @@ async function requestFeedOnce({ timeoutMs=30000 }={}) {
     rawLength:raw.length,
     containsProdId:/<prod_id\b/i.test(raw),
     looksHtml:/<!doctype\s+html|<html\b/i.test(raw),
+    bodyPreview:sanitizeDiagnosticText(raw),
     parsed
   };
 }
@@ -185,7 +191,7 @@ export async function fetchDsliteBetoCatalog({ timeoutMs=30000 }={}) {
   return {
     supplierId:DSLITE_BETO_SUPPLIER_ID, supplier:'Beto Móveis', fetchedAt:new Date(), totalParsed:attempt.parsed.length, approvedCount:approved.length,
     expectedApprovedCount:DSLITE_BETO_APPROVED_SKUS.length,
-    diagnostics:{ responseStatus:attempt.responseStatus, contentType:attempt.contentType, rawLength:attempt.rawLength, containsProdId:attempt.containsProdId, looksHtml:attempt.looksHtml },
+    diagnostics:{ responseStatus:attempt.responseStatus, contentType:attempt.contentType, rawLength:attempt.rawLength, containsProdId:attempt.containsProdId, looksHtml:attempt.looksHtml, bodyPreview:attempt.bodyPreview },
     products:approved
   };
 }
