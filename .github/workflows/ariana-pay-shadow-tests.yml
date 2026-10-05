@@ -6,6 +6,7 @@ on:
       - feature/ariana-pay-phase1
     paths:
       - 'functions/arianaPaySandboxServer.js'
+      - 'functions/arianaPayAppServer.js'
       - 'functions/services/arianaPay/**'
       - 'functions/models/arianaPayModels.js'
       - 'functions/routes/arianaPayShadowRoutes.js'
@@ -38,6 +39,7 @@ jobs:
       - name: Syntax checks for Ariana Pay isolated code
         run: |
           node --check arianaPaySandboxServer.js
+          node --check arianaPayAppServer.js
           node --check routes/arianaPayShadowRoutes.js
 
       - name: Ariana Pay isolated tests
