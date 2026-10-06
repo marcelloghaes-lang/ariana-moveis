@@ -22,16 +22,18 @@ async function buildPlan(Product){
 
 async function auditSources(Product){
   try{
-    const db=Product.db;
-    const collections=(await db.listCollections({}, {nameOnly:true}).toArray()).map(x=>x.name);
+    const conn=Product.db;
+    const nativeDb=conn.db;
+    const collections=nativeDb?(await nativeDb.listCollections({}, {nameOnly:true}).toArray()).map(x=>x.name):[];
     const movementCollection=collections.find(n=>/erpstockmovement/i.test(n))||'erpstockmovements';
-    const maps=await db.collection('erpmigrationmaps').countDocuments({source:'sige',entityType:'product'});
-    const mapsPositive=await db.collection('erpmigrationmaps').countDocuments({source:'sige',entityType:'product','details.stock':{$gt:0}});
-    const movements=collections.includes(movementCollection)?await db.collection(movementCollection).countDocuments({}):0;
-    const movementPositive=collections.includes(movementCollection)?await db.collection(movementCollection).countDocuments({after:{$gt:0}}):0;
-    const tanquinho=await Product.find({name:/tanquinho/i}).select('_id name sku stock sellerName sellerId storefrontSource').limit(20).lean();
-    const latestMovement=collections.includes(movementCollection)?await db.collection(movementCollection).find({after:{$gt:0}}).sort({createdAt:-1}).limit(10).project({productId:1,productName:1,sku:1,before:1,after:1,quantity:1,createdAt:1}).toArray():[];
-    console.log('[stock-recovery-audit]',JSON.stringify({total:await Product.countDocuments({}),zero:await Product.countDocuments({stock:{$lte:0}}),positive:await Product.countDocuments({stock:{$gt:0}}),maps,mapsPositive,movements,movementPositive,movementCollection,tanquinho,latestMovement}));
+    const maps=await conn.collection('erpmigrationmaps').countDocuments({source:'sige',entityType:'product'});
+    const mapsPositive=await conn.collection('erpmigrationmaps').countDocuments({source:'sige',entityType:'product','details.stock':{$gt:0}});
+    const movements=collections.includes(movementCollection)?await conn.collection(movementCollection).countDocuments({}):0;
+    const movementPositive=collections.includes(movementCollection)?await conn.collection(movementCollection).countDocuments({after:{$gt:0}}):0;
+    const movementProductsPositive=collections.includes(movementCollection)?(await conn.collection(movementCollection).distinct('productId',{after:{$gt:0}})).length:0;
+    const tanquinho=await Product.find({name:/tanquinho/i}).select('_id name sku stock sellerName sellerId storefrontSource updatedAt').limit(20).lean();
+    const latestMovement=collections.includes(movementCollection)?await conn.collection(movementCollection).find({after:{$gt:0}}).sort({createdAt:-1}).limit(20).project({productId:1,productName:1,sku:1,before:1,after:1,quantity:1,createdAt:1}).toArray():[];
+    console.log('[stock-recovery-audit]',JSON.stringify({total:await Product.countDocuments({}),zero:await Product.countDocuments({stock:{$lte:0}}),positive:await Product.countDocuments({stock:{$gt:0}}),maps,mapsPositive,movements,movementPositive,movementProductsPositive,movementCollection,tanquinho,latestMovement,collections:collections.filter(n=>/stock|product|migration/i.test(n))}));
   }catch(error){console.error('[stock-recovery-audit] failed',error?.message||error);}
 }
 
