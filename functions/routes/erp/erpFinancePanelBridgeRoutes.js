@@ -5,12 +5,12 @@ import { createErpCarneCoraService } from '../../services/erp/erpCarneCoraServic
 import { createErpMarkedCollectionCampaignService } from '../../services/erp/erpMarkedCollectionCampaignService.js';
 import { createErpAriadnaReceiptRecoveryService } from '../../services/erp/erpAriadnaReceiptRecoveryService.js';
 import { createErpStage4MariaEloisaRecoveryService } from '../../services/erp/erpStage4MariaEloisaRecoveryService.js';
+import { isFinancialContactPaused } from '../../services/erp/erpMonthlyCollectionGuardService.js';
 
 const actor=req=>req.adminUser||req.admin||req.auth||req.user||{};
-const normalizeName=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
-const withoutAnaClara=result=>{
+const withoutPausedFinancialContacts=result=>{
   if(!result||!Array.isArray(result.clients))return result;
-  const clients=result.clients.filter(client=>normalizeName(client?.name)!=='ana clara de souza carvalho');
+  const clients=result.clients.filter(client=>!isFinancialContactPaused({name:client?.name}));
   if(clients.length===result.clients.length)return result;
   const entries=clients.flatMap(client=>Array.isArray(client.entries)?client.entries:[]);
   return{
@@ -159,7 +159,7 @@ export default function createErpFinancePanelBridgeRoutes(context={}){
   router.get('/erp/finance-panel/lancamentos',context.adminRequired,handle(req=>bridge.lancamentos(req.query||{})));
   router.get('/erp/finance-panel/inadimplentes',context.adminRequired,handle(async req=>{
     const view=String(req.query?.view||'').trim().toLowerCase();
-    if(view==='fila'||view==='fila-do-dia')return withoutAnaClara(await collections.fila(req.query||{}));
+    if(view==='fila'||view==='fila-do-dia')return withoutPausedFinancialContacts(await collections.fila(req.query||{}));
     if(view==='promessas')return collections.promessas(req.query||{});
     if(view==='recuperacao')return collections.recuperacao(req.query||{});
     return bridge.inadimplentes(req.query||{});
