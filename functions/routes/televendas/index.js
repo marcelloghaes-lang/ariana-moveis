@@ -9,6 +9,7 @@ import createErpSigeHistoryRoutes from '../erp/erpSigeHistoryRoutes.js';
 import createErpParityAnalyticsRoutes from '../erp/erpParityAnalyticsRoutes.js';
 import createErpSigeFiscalHistoryRoutes from '../erp/erpSigeFiscalHistoryRoutes.js';
 import createErpSigeSaleParityRoutes from '../erp/erpSigeSaleParityRoutes.js';
+import createErpPdvProductVisibilityRoutes from '../erp/erpPdvProductVisibilityRoutes.js';
 import createErpProductLookupRoutes from '../erp/erpProductLookupRoutes.js';
 import createErpDelinquencyReportRoutes from '../erp/erpDelinquencyReportRoutes.js';
 import createErpStockRecoveryRoutes from '../erp/erpStockRecoveryRoutes.js';
@@ -61,7 +62,11 @@ export default function createTelevendasRoutes(context={}){
   // Isso impede que uma tela antiga contorne revisão fiscal, inadimplência ou caixa obrigatório.
   router.use(createErpPdvRulesMiddleware(context,operationalRequired));
 
-  // Busca assistida vem antes da rota genérica para melhorar nome/SKU/EAN sem alterar o contrato /erp/products.
+  // Correção de visibilidade do PDV: a busca não pode cortar produtos próprios da Ariana
+  // só porque produtos de sellers externos aparecem antes no cursor do banco.
+  router.use(createErpPdvProductVisibilityRoutes(operationalContext));
+
+  // Busca assistida e matriz fiscal existentes permanecem intactas para as demais rotas.
   router.use(createErpProductLookupRoutes(operationalContext));
 
   // Recuperação de incidente protegida por autenticação administrativa e confirmação explícita.
