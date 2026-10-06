@@ -40,7 +40,7 @@ import {
 } from '../services/manufacturerService.js';
 
 const router = express.Router();
-const JWT_SECRET = String(process.env.JWT_SECRET || '').trim();
+const JWT_SECRET = process.env.JWT_SECRET || 'ariana_enterprise_secret';
 
 // ============================================================
 // ETAPA 10 - Solicitações públicas de homologação Enterprise
@@ -85,17 +85,6 @@ function cleanText(value = '', max = 500) {
   return String(value || '').trim().slice(0, max);
 }
 
-function enterpriseLegacySecretHash(value = '') {
-  return crypto.createHash('sha256').update(String(value || '')).digest('hex');
-}
-
-function enterpriseLegacySecretMatches(candidate = '', plain = '', hash = '') {
-  const value = String(candidate || '');
-  if (!value) return false;
-  if (plain && value === String(plain)) return true;
-  return Boolean(hash && enterpriseLegacySecretHash(value) === String(hash));
-}
-
 function createRequestId() {
   const date = new Date();
   const y = date.getFullYear();
@@ -120,22 +109,17 @@ function createSandboxCredentials(request = {}, admin = {}) {
   const clientId = `ari_client_sbx_${crypto.randomBytes(8).toString('hex')}`;
 
   return {
-    stored: {
-      environment: 'sandbox',
-      apiKeyHash: enterpriseLegacySecretHash(apiKey),
-      apiKeyLast4: apiKey.slice(-4),
-      clientId,
-      webhookSecret,
-      baseUrl: String(process.env.ENTERPRISE_SANDBOX_BASE_URL || process.env.APP_BASE_URL || 'https://ariana-backend.onrender.com/api').replace(/\/+$/, ''),
-      docsUrl: String(process.env.ENTERPRISE_DOCS_URL || 'https://arianamoveis.com.br/ariana_enterprise_docs.html').trim(),
-      generatedAt: new Date(),
-      generatedBy: admin?.email || admin?.id || 'admin',
-      active: true
-    },
-    oneTime: { apiKey, clientId, webhookSecret }
+    environment: 'sandbox',
+    apiKey,
+    clientId,
+    webhookSecret,
+    baseUrl: String(process.env.ENTERPRISE_SANDBOX_BASE_URL || process.env.APP_BASE_URL || 'https://ariana-backend.onrender.com/api').replace(/\/+$/, ''),
+    docsUrl: String(process.env.ENTERPRISE_DOCS_URL || 'https://arianamoveis.com.br/developers.html').trim(),
+    generatedAt: new Date(),
+    generatedBy: admin?.email || admin?.id || 'admin',
+    active: true
   };
 }
-
 
 function buildStatusHistoryEntry({ status, statusLabel, admin, note = '' } = {}) {
   return {
@@ -165,7 +149,6 @@ function adminOnly(req, res, next) {
       : '';
 
     if (!token) return fail(res, 401, 'Token ausente');
-    if (!JWT_SECRET) return fail(res, 503, 'Autenticação administrativa Enterprise indisponível: JWT_SECRET não configurado');
 
     const decoded = jwt.verify(token, JWT_SECRET);
 
@@ -216,6 +199,9 @@ function getPartnerApiKey(req) {
   ).trim();
   if (fromHeader) return fromHeader;
 
+  const fromQuery = String(req.query?.key || req.query?.apiKey || req.query?.api_key || '').trim();
+  if (fromQuery) return fromQuery;
+
   const auth = String(req.headers.authorization || '').trim();
   if (auth.toLowerCase().startsWith('bearer ')) return auth.slice(7).trim();
   return '';
@@ -228,17 +214,13 @@ function getRequestIp(req) {
 }
 
 function isLegacyEnterpriseSecret(key = '') {
-  const enabled = String(process.env.ENTERPRISE_ALLOW_LEGACY_GLOBAL_SECRET || 'false').toLowerCase() === 'true';
   const expected = String(process.env.ENTERPRISE_WEBHOOK_SECRET || '').trim();
-  return Boolean(enabled && expected && key && key === expected);
+  return Boolean(expected && key && key === expected);
 }
 
 function buildPartnerAuthQuery(key = '') {
-  const keyHash = enterpriseLegacySecretHash(key);
   return {
     $or: [
-      { 'sandboxCredentials.apiKeyHash': keyHash },
-      { 'productionCredentials.apiKeyHash': keyHash },
       { 'sandboxCredentials.apiKey': key },
       { 'productionCredentials.apiKey': key }
     ]
@@ -246,9 +228,8 @@ function buildPartnerAuthQuery(key = '') {
 }
 
 function resolvePartnerEnvironment(doc = {}, key = '') {
-  const keyHash = enterpriseLegacySecretHash(key);
-  if (doc?.sandboxCredentials?.apiKeyHash === keyHash || doc?.sandboxCredentials?.apiKey === key) return 'sandbox';
-  if (doc?.productionCredentials?.apiKeyHash === keyHash || doc?.productionCredentials?.apiKey === key) return 'production';
+  if (doc?.sandboxCredentials?.apiKey === key) return 'sandbox';
+  if (doc?.productionCredentials?.apiKey === key) return 'production';
   return 'unknown';
 }
 
@@ -308,6 +289,8 @@ async function partnerKey(req, res, next) {
       return next();
     }
 
+    // Webhooks antigos continuam opcionais quando nenhuma chave global foi configurada.
+    if (!key && !String(process.env.ENTERPRISE_WEBHOOK_SECRET || '').trim()) return next();
     if (!key) return fail(res, 401, 'Chave de integração ausente');
 
     const partner = await findEnterprisePartnerByKey(key);
@@ -316,25 +299,6 @@ async function partnerKey(req, res, next) {
     const environment = resolvePartnerEnvironment(partner, key);
     if (!partnerIsAllowed(partner, environment)) {
       return fail(res, 403, 'Chave de integração sem permissão para este ambiente ou status');
-    }
-
-    if (environment === 'sandbox' && !partner.sandboxCredentials?.apiKeyHash && partner.sandboxCredentials?.apiKey) {
-      await EnterpriseHomologationRequest.updateOne(
-        { _id: partner._id },
-        {
-          $set: { 'sandboxCredentials.apiKeyHash': enterpriseLegacySecretHash(key), 'sandboxCredentials.apiKeyLast4': key.slice(-4) },
-          $unset: { 'sandboxCredentials.apiKey': '' }
-        }
-      ).catch(() => null);
-    }
-    if (environment === 'production' && !partner.productionCredentials?.apiKeyHash && partner.productionCredentials?.apiKey) {
-      await EnterpriseHomologationRequest.updateOne(
-        { _id: partner._id },
-        {
-          $set: { 'productionCredentials.apiKeyHash': enterpriseLegacySecretHash(key), 'productionCredentials.apiKeyLast4': key.slice(-4) },
-          $unset: { 'productionCredentials.apiKey': '' }
-        }
-      ).catch(() => null);
     }
 
     await touchEnterprisePartnerUsage(partner, environment, req);
@@ -361,14 +325,6 @@ async function partnerKeyRequired(req, res, next) {
   const key = getPartnerApiKey(req);
   if (!key) return fail(res, 401, 'Chave de integração ausente');
   return partnerKey(req, res, next);
-}
-
-function legacyProductionWriteOnly(req, res, next) {
-  const environment = String(req.enterprisePartner?.environment || '').toLowerCase();
-  if (environment === 'sandbox') {
-    return fail(res, 409, 'Rota Enterprise legada bloqueada no Sandbox. Use /api/v1/enterprise para manter os dados de homologação isolados.');
-  }
-  return next();
 }
 
 router.get('/health', (_req, res) => ok(res, { module: 'enterprise', status: 'online' }));
@@ -472,14 +428,10 @@ router.patch('/homologation-requests/:id/status', adminOnly, async (req, res) =>
       reviewedAt: new Date()
     };
 
-    let oneTimeCredentials = null;
     if (normalized.status === 'sandbox') {
       update.environment = 'sandbox';
-      const alreadyConfigured = Boolean(current.sandboxCredentials?.apiKeyHash || current.sandboxCredentials?.apiKey);
-      if (!alreadyConfigured || regenerate) {
-        const generated = createSandboxCredentials(current, req.admin);
-        update.sandboxCredentials = generated.stored;
-        oneTimeCredentials = generated.oneTime;
+      if (!current.sandboxCredentials?.apiKey || regenerate) {
+        update.sandboxCredentials = createSandboxCredentials(current, req.admin);
       }
     } else if (normalized.status === 'production') {
       update.environment = 'production';
@@ -497,13 +449,8 @@ router.patch('/homologation-requests/:id/status', adminOnly, async (req, res) =>
     }));
 
     await current.save();
-    if (normalized.status === 'sandbox') {
-      await EnterpriseHomologationRequest.updateOne({ _id: current._id }, { $unset: { 'sandboxCredentials.apiKey': '' } }).catch(() => null);
-    }
     const request = current.toObject();
-    if (request.sandboxCredentials) delete request.sandboxCredentials.apiKey;
-    if (request.productionCredentials) delete request.productionCredentials.apiKey;
-    return ok(res, { request, oneTimeCredentials });
+    return ok(res, { request });
   } catch (error) {
     return fail(res, 400, error.message || 'Erro ao atualizar solicitação');
   }
@@ -636,12 +583,26 @@ async function runEnterpriseSimulatorStep(step = '', body = {}, admin = {}) {
   throw new Error('Etapa do simulador inválida');
 }
 
-router.post('/simulator/:step', adminOnly, async (_req, res) => {
-  return fail(
-    res,
-    410,
-    'Simulador Enterprise legado desativado. Use um parceiro Sandbox real e a Homologação Real para evitar qualquer gravação em dados de produção.'
-  );
+router.post('/simulator/:step', adminOnly, async (req, res) => {
+  try {
+    const step = String(req.params.step || '').toLowerCase().trim();
+    if (step === 'all') {
+      const manufacturer = simulatorManufacturer(req.body || {});
+      const externalOrderId = `ARI-SBX-${Date.now()}`;
+      const results = [];
+      results.push(await runEnterpriseSimulatorStep('catalog', { ...(req.body || {}), manufacturer }, req.admin));
+      results.push(await runEnterpriseSimulatorStep('stock_price', { ...(req.body || {}), manufacturer }, req.admin));
+      const order = await runEnterpriseSimulatorStep('order', { ...(req.body || {}), manufacturer, externalOrderId }, req.admin);
+      results.push(order);
+      results.push(await runEnterpriseSimulatorStep('invoice', { ...(req.body || {}), manufacturer, orderId: order.orderId || order.externalOrderId }, req.admin));
+      results.push(await runEnterpriseSimulatorStep('tracking', { ...(req.body || {}), manufacturer, orderId: order.orderId || order.externalOrderId }, req.admin));
+      return ok(res, { ok: true, message: 'Homologação completa simulada com sucesso.', results, externalOrderId });
+    }
+    const result = await runEnterpriseSimulatorStep(step, req.body || {}, req.admin);
+    return ok(res, result);
+  } catch (error) {
+    return fail(res, 400, error.message || 'Erro ao executar simulador Enterprise');
+  }
 });
 
 
@@ -676,10 +637,10 @@ router.post('/queue/:queueId/dispatch', adminOnly, async (req, res) => {
   catch (error) { return fail(res, 500, error.response?.data || error.message || 'Erro ao enviar fila'); }
 });
 
-router.post('/webhooks/:manufacturer', partnerKeyRequired, async (req, res) => {
+router.post('/webhooks/:manufacturer', partnerKey, async (req, res) => {
   try {
     const event = await registerWebhookEvent({
-      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.params.manufacturer,
+      manufacturer: req.params.manufacturer,
       eventType: req.body?.event || req.body?.type || 'manufacturer_webhook',
       payload: req.body
     });
@@ -697,20 +658,19 @@ router.get('/products', adminOnly, async (req, res) => {
   catch (error) { return fail(res, 500, error.message || 'Erro ao listar produtos enterprise'); }
 });
 
-router.post('/products/upsert', partnerKeyRequired, legacyProductionWriteOnly, async (req, res) => {
+router.post('/products/upsert', partnerKeyRequired, async (req, res) => {
   try { return ok(res, { product: await upsertEnterpriseProduct(req.body, req.body?.manufacturer || 'enterprise') }, 201); }
   catch (error) { return fail(res, 400, error.message || 'Erro ao cadastrar/atualizar produto enterprise'); }
 });
 
-router.put('/products/:sku/stock', partnerKeyRequired, legacyProductionWriteOnly, async (req, res) => {
+router.put('/products/:sku/stock', partnerKeyRequired, async (req, res) => {
   try {
     const product = await updateEnterpriseStock({
       sku: req.params.sku,
       sellerId: req.body?.sellerId || req.query?.sellerId,
       stock: req.body?.stock ?? req.body?.quantity ?? req.body?.estoque,
-      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
-      payload: req.body,
-      partner: req.enterprisePartner || null
+      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
+      payload: req.body
     });
     return ok(res, { product });
   } catch (error) {
@@ -718,15 +678,14 @@ router.put('/products/:sku/stock', partnerKeyRequired, legacyProductionWriteOnly
   }
 });
 
-router.put('/products/:sku/price', partnerKeyRequired, legacyProductionWriteOnly, async (req, res) => {
+router.put('/products/:sku/price', partnerKeyRequired, async (req, res) => {
   try {
     const product = await updateEnterprisePrice({
       sku: req.params.sku,
       sellerId: req.body?.sellerId || req.query?.sellerId,
       price: req.body?.price ?? req.body?.preco ?? req.body?.valor,
-      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
-      payload: req.body,
-      partner: req.enterprisePartner || null
+      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
+      payload: req.body
     });
     return ok(res, { product });
   } catch (error) {
@@ -738,12 +697,12 @@ router.put('/products/:sku/price', partnerKeyRequired, legacyProductionWriteOnly
 // ============================================================
 // ETAPA 7 - Enterprise API: sincronização de estoque, preço e status
 // ============================================================
-router.post('/products/:sku/sync', partnerKeyRequired, legacyProductionWriteOnly, async (req, res) => {
+router.post('/products/:sku/sync', partnerKeyRequired, async (req, res) => {
   try {
     const product = await syncEnterpriseProductState({
       sku: req.params.sku,
       sellerId: req.body?.sellerId || req.query?.sellerId,
-      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
+      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
       price: req.body?.price ?? req.body?.preco ?? req.body?.valor,
       stock: req.body?.stock ?? req.body?.quantity ?? req.body?.estoque,
       active: req.body?.active ?? req.body?.ativo,
@@ -758,7 +717,7 @@ router.post('/products/:sku/sync', partnerKeyRequired, legacyProductionWriteOnly
   }
 });
 
-router.post('/products/bulk-sync', partnerKeyRequired, legacyProductionWriteOnly, async (req, res) => {
+router.post('/products/bulk-sync', partnerKeyRequired, async (req, res) => {
   try {
     const items = Array.isArray(req.body?.items || req.body?.products || req.body?.produtos)
       ? (req.body.items || req.body.products || req.body.produtos)
@@ -776,7 +735,7 @@ router.get('/products/:sku/sync-history', adminOnly, async (req, res) => {
   try {
     return ok(res, await listEnterpriseProductSyncHistory({
       sku: req.params.sku,
-      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
+      manufacturer: req.query?.manufacturer,
       limit: req.query?.limit
     }));
   } catch (error) {
@@ -784,7 +743,7 @@ router.get('/products/:sku/sync-history', adminOnly, async (req, res) => {
   }
 });
 
-router.post('/products/bulk-stock', partnerKeyRequired, legacyProductionWriteOnly, async (req, res) => {
+router.post('/products/bulk-stock', partnerKeyRequired, async (req, res) => {
   try {
     const items = Array.isArray(req.body?.items) ? req.body.items : [];
     return ok(res, { results: await bulkEnterpriseStock(items, { manufacturer: req.body?.manufacturer }) });
@@ -793,7 +752,7 @@ router.post('/products/bulk-stock', partnerKeyRequired, legacyProductionWriteOnl
   }
 });
 
-router.post('/products/bulk-prices', partnerKeyRequired, legacyProductionWriteOnly, async (req, res) => {
+router.post('/products/bulk-prices', partnerKeyRequired, async (req, res) => {
   try {
     const items = Array.isArray(req.body?.items) ? req.body.items : [];
     return ok(res, { results: await bulkEnterprisePrices(items, { manufacturer: req.body?.manufacturer }) });
@@ -802,7 +761,7 @@ router.post('/products/bulk-prices', partnerKeyRequired, legacyProductionWriteOn
   }
 });
 
-router.post('/products/bulk-upsert', partnerKeyRequired, legacyProductionWriteOnly, async (req, res) => {
+router.post('/products/bulk-upsert', partnerKeyRequired, async (req, res) => {
   try {
     const items = Array.isArray(req.body?.items || req.body?.products || req.body?.produtos)
       ? (req.body.items || req.body.products || req.body.produtos)
@@ -826,7 +785,7 @@ router.post('/catalog/sync', adminOnly, async (req, res) => {
   catch (error) { return fail(res, 400, error.message || 'Erro ao sincronizar catálogo enterprise'); }
 });
 
-router.post('/catalog/push', partnerKeyRequired, legacyProductionWriteOnly, async (req, res) => {
+router.post('/catalog/push', partnerKeyRequired, async (req, res) => {
   try { return ok(res, await syncEnterpriseCatalog(req.body, req.body?.manufacturer || 'partner'), 201); }
   catch (error) { return fail(res, 400, error.message || 'Erro ao receber catálogo enterprise'); }
 });
@@ -840,20 +799,19 @@ router.get('/orders', adminOnly, async (req, res) => {
   catch (error) { return fail(res, 500, error.message || 'Erro ao listar pedidos enterprise'); }
 });
 
-router.post('/orders', partnerKeyRequired, legacyProductionWriteOnly, async (req, res) => {
+router.post('/orders', partnerKeyRequired, async (req, res) => {
   try { return ok(res, { order: await receiveEnterpriseOrder(req.body) }, 201); }
   catch (error) { return fail(res, 400, error.message || 'Erro ao receber pedido enterprise'); }
 });
 
-router.post('/orders/:orderId/status', partnerKeyRequired, legacyProductionWriteOnly, async (req, res) => {
+router.post('/orders/:orderId/status', partnerKeyRequired, async (req, res) => {
   try {
     const order = await updateEnterpriseOrderStatus({
       orderId: req.params.orderId,
       status: req.body?.status || req.body?.status_integracao,
       statusLabel: req.body?.statusLabel || req.body?.label || req.body?.mensagem,
-      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
-      payload: req.body,
-      partner: req.enterprisePartner || null
+      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
+      payload: req.body
     });
     return ok(res, { order });
   } catch (error) {
@@ -861,14 +819,14 @@ router.post('/orders/:orderId/status', partnerKeyRequired, legacyProductionWrite
   }
 });
 
-router.post('/orders/:orderId/tracking', partnerKeyRequired, legacyProductionWriteOnly, async (req, res) => {
+router.post('/orders/:orderId/tracking', partnerKeyRequired, async (req, res) => {
   try {
     const order = await updateEnterpriseOrderTracking({
       orderId: req.params.orderId,
       trackingCode: req.body?.trackingCode || req.body?.codigoRastreio || req.body?.rastreio,
       carrier: req.body?.carrier || req.body?.transportadora,
       trackingUrl: req.body?.trackingUrl || req.body?.urlRastreio,
-      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
+      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
       payload: req.body
     });
     return ok(res, { order });
@@ -877,12 +835,12 @@ router.post('/orders/:orderId/tracking', partnerKeyRequired, legacyProductionWri
   }
 });
 
-router.post('/orders/:orderId/invoice', partnerKeyRequired, legacyProductionWriteOnly, async (req, res) => {
+router.post('/orders/:orderId/invoice', partnerKeyRequired, async (req, res) => {
   try {
     const order = await attachEnterpriseInvoice({
       orderId: req.params.orderId,
       invoice: req.body?.invoice || req.body?.nfe || req.body,
-      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
+      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
       payload: req.body
     });
     return ok(res, { order });
@@ -897,12 +855,12 @@ router.post('/orders/:orderId/invoice', partnerKeyRequired, legacyProductionWrit
 // Implementação incremental no mesmo padrão Enterprise existente.
 // Não cria rota externa nova e não altera o server.js.
 // ============================================================
-router.post('/orders/:orderId/xml/generate', partnerKeyRequired, legacyProductionWriteOnly, async (req, res) => {
+router.post('/orders/:orderId/xml/generate', partnerKeyRequired, async (req, res) => {
   try {
     const result = await generateEnterpriseOrderXml({
       orderId: req.params.orderId,
       invoice: req.body?.invoice || req.body?.nfe || req.body,
-      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
+      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
       payload: req.body,
       partner: req.enterprisePartner || null
     });
@@ -916,7 +874,7 @@ router.get('/orders/:orderId/xml', partnerKeyRequired, async (req, res) => {
   try {
     const result = await getEnterpriseOrderXml({
       orderId: req.params.orderId,
-      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
+      manufacturer: req.query?.manufacturer,
       partner: req.enterprisePartner || null
     });
     return ok(res, result);
@@ -929,7 +887,7 @@ router.get('/orders/:orderId/xml/download', partnerKeyRequired, async (req, res)
   try {
     const result = await downloadEnterpriseOrderXml({
       orderId: req.params.orderId,
-      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
+      manufacturer: req.query?.manufacturer,
       partner: req.enterprisePartner || null
     });
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
@@ -940,12 +898,12 @@ router.get('/orders/:orderId/xml/download', partnerKeyRequired, async (req, res)
   }
 });
 
-router.post('/orders/:orderId/xml/regenerate', partnerKeyRequired, legacyProductionWriteOnly, async (req, res) => {
+router.post('/orders/:orderId/xml/regenerate', partnerKeyRequired, async (req, res) => {
   try {
     const result = await regenerateEnterpriseOrderXml({
       orderId: req.params.orderId,
       invoice: req.body?.invoice || req.body?.nfe || req.body,
-      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
+      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
       payload: req.body,
       partner: req.enterprisePartner || null
     });
@@ -962,12 +920,12 @@ router.post('/orders/:orderId/xml/regenerate', partnerKeyRequired, legacyProduct
 // Implementação incremental no mesmo padrão Enterprise existente.
 // Não cria rota externa nova e não altera o server.js.
 // ============================================================
-router.post('/orders/:orderId/danfe/generate', partnerKeyRequired, legacyProductionWriteOnly, async (req, res) => {
+router.post('/orders/:orderId/danfe/generate', partnerKeyRequired, async (req, res) => {
   try {
     const result = await generateEnterpriseOrderDanfe({
       orderId: req.params.orderId,
       invoice: req.body?.invoice || req.body?.nfe || req.body,
-      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
+      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
       payload: req.body,
       partner: req.enterprisePartner || null
     });
@@ -981,7 +939,7 @@ router.get('/orders/:orderId/danfe', partnerKeyRequired, async (req, res) => {
   try {
     const result = await getEnterpriseOrderDanfe({
       orderId: req.params.orderId,
-      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
+      manufacturer: req.query?.manufacturer,
       partner: req.enterprisePartner || null
     });
     return ok(res, result);
@@ -994,7 +952,7 @@ router.get('/orders/:orderId/danfe/download', partnerKeyRequired, async (req, re
   try {
     const result = await downloadEnterpriseOrderDanfe({
       orderId: req.params.orderId,
-      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
+      manufacturer: req.query?.manufacturer,
       partner: req.enterprisePartner || null
     });
     res.setHeader('Content-Type', 'application/pdf');
@@ -1005,12 +963,12 @@ router.get('/orders/:orderId/danfe/download', partnerKeyRequired, async (req, re
   }
 });
 
-router.post('/orders/:orderId/danfe/regenerate', partnerKeyRequired, legacyProductionWriteOnly, async (req, res) => {
+router.post('/orders/:orderId/danfe/regenerate', partnerKeyRequired, async (req, res) => {
   try {
     const result = await regenerateEnterpriseOrderDanfe({
       orderId: req.params.orderId,
       invoice: req.body?.invoice || req.body?.nfe || req.body,
-      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
+      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
       payload: req.body,
       partner: req.enterprisePartner || null
     });

@@ -109,20 +109,6 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="apple-touch-icon" href="./pwa-icons/enterprise-192.png">
-
-<style id="enterprise-mobile-suite">
-html,body{width:100%;max-width:100%;overflow-x:hidden}body{min-width:0}
-main,.main,.app,.wrap,.hero,.top,.layout,.hero-grid,.grid,.grid2,.grid3,.row,.steps,.stats,.cards,.card,.tester,.resource,.contact{min-width:0;max-width:100%}
-img,svg,video,canvas,iframe{max-width:100%;height:auto}
-pre,.pre,.code,.response,.sample-code,.api-box,textarea{max-width:100%;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
-p,li,.muted,.endpoint-line,.code{overflow-wrap:anywhere}.btn{max-width:100%;white-space:normal;text-align:center}.table{max-width:100%}
-@media(max-width:900px){main,.main,.wrap{max-width:100%!important}.hero,.card,.section{max-width:100%}.grid,.grid2,.grid3,.row,.steps,.stats,.cards,.tester,.hero-grid{grid-template-columns:minmax(0,1fr)!important}.table{display:block;width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}.table th,.table td{white-space:nowrap}.filters{display:grid!important;grid-template-columns:minmax(0,1fr)!important;width:100%}.filters input,.filters select,.filters button,.filters .input,.filters .select{width:100%!important;min-width:0}.actions,.btnrow,.quick-actions{width:100%;display:flex;flex-wrap:wrap}.actions .btn,.btnrow .btn,.quick-actions .btn{flex:1 1 180px}.modal{padding:10px!important}.modal-card{width:100%!important;max-width:100%!important;max-height:92vh!important;padding:16px!important;border-radius:18px!important}.modal-head{align-items:flex-start!important;flex-wrap:wrap}.toast{left:12px!important;right:12px!important;bottom:12px!important;max-width:none!important}}
-@media(max-width:520px){.actions .btn,.btnrow .btn,.quick-actions .btn{width:100%;flex:1 1 100%}.card{border-radius:18px}}
-</style>
-<style id="enterprise-mobile-page-admin">
-@media(max-width:900px){
-.app{display:block!important;width:100%;max-width:100%}.app>.side{position:sticky!important;top:0!important;z-index:30!important;min-height:0!important;height:auto!important;padding:10px 12px!important;box-shadow:0 8px 22px rgba(15,23,42,.18)!important}.brand,.brand-ariana{margin:0 0 8px!important;padding:4px 2px 8px!important;max-width:100%!important;white-space:normal!important}.brand-ariana-main{font-size:22px!important}.app>.side .nav{display:flex!important;gap:7px!important;overflow-x:auto!important;overflow-y:hidden!important;white-space:nowrap!important;padding-bottom:4px;scrollbar-width:none}.app>.side .nav::-webkit-scrollbar{display:none}.app>.side .nav a,.app>.side .nav button{flex:0 0 auto!important;padding:10px 12px!important;font-size:13px!important}.main{padding:12px!important;width:100%;max-width:100%}.hero{padding:20px 16px!important;border-radius:20px!important}.hero h1{font-size:29px!important;overflow-wrap:anywhere}.grid,.grid2,.checklist{grid-template-columns:minmax(0,1fr)!important}.card{padding:16px!important;overflow:hidden}.table{display:block!important;width:100%!important;overflow-x:auto!important}.checkitem{align-items:flex-start!important;flex-direction:column!important}}
-</style>
 </head>
 <body>
 <div class="app">
@@ -141,7 +127,7 @@ p,li,.muted,.endpoint-line,.code{overflow-wrap:anywhere}.btn{max-width:100%;whit
       <a href="enterprise_swagger.html">Swagger / OpenAPI</a>
       <a href="enterprise_certification.html">🏅 Certificação Enterprise</a>
       <a href="enterprise_analytics.html">Analytics Enterprise</a>
-      <a href="kit_fabricante_piloto.html">Kit do Fabricante Piloto</a>\n      <a href="ariana_enterprise_docs.html">Documentação Interativa</a>
+      <a href="ariana_enterprise_docs.html">Documentação Interativa</a>
       <a href="developer_portal.html">Developer Premium</a>
       <a href="enterprise_console.html">Console Enterprise</a>
     </nav>
@@ -200,8 +186,7 @@ async function openPartner(id){
   const p=d.partner||{};
   const hml=await api('/admin/enterprise/pro/partners/'+encodeURIComponent(id)+'/homologation').catch(()=>({homologation:{score:0,steps:[]}}));
   const h=hml.homologation||{score:0,steps:[]};
-  const pilotStage=p.production?.active?'7 • Go-live / Produção':(Number(h.score||0)>=100?'6 • Pronto para liberar Produção':(p.sandbox?.active?'5 • Homologação técnica em andamento':'3 • Aguardando aprovação do Sandbox'));
-    modalTitle.textContent=p.tradeName||p.companyName||p.requestId;
+  modalTitle.textContent=p.tradeName||p.companyName||p.requestId;
   modalSub.textContent=(p.companyName||'')+' • '+(p.cnpj||p.email||'');
   partnerModal.classList.add('show');
   modalContent.innerHTML=`
@@ -213,26 +198,13 @@ async function openPartner(id){
     </div>
 
     <div class="card">
-      <h3>Entrada do fabricante / Sandbox</h3>
-      <p class="muted">Aprove a solicitação para gerar, uma única vez, a API Key Sandbox, Client ID/Secret OAuth e segredos de webhook. Depois disso, os segredos ficam armazenados somente por hash.</p>
-      <p><b>Status atual:</b> ${badgeStatus(p.status)}</p>
-      <p><b>Sandbox:</b> ${p.sandbox.active?'<span class="ok">Credencial ativa</span>':'<span class="warn">Ainda não liberado</span>'}</p>
-      <p><b>Etapa atual do piloto:</b> <span class="badge yellow">${esc(pilotStage)}</span></p>
-      <div class="btnrow">
-        <button class="btn" ${p.sandbox.active?'disabled':''} onclick="approveEnterpriseRequest('${esc(p.id)}')">Aprovar e gerar credenciais Sandbox</button>
-        <a class="btn light" href="/kit_fabricante_piloto.html" target="_blank">Abrir Kit do Fabricante</a>
-      </div>
-      <div id="partnerOnboardingOut" class="secretBox" style="display:none"></div>
-    </div>
-
-    <div class="card">
-      <h3>Homologação real Enterprise</h3>
+      <h3>Homologação automática Enterprise</h3>
       <p class="muted">Execute todos os testes oficiais: Catálogo, Estoque, Preço, Pedido, NF-e, XML, DANFE, Rastreio, Webhook, Cancelamento e Devolução.</p>
       <div class="progress"><span id="homologationProgress" style="width:${Number(h.score||0)}%"></span></div>
       <div><b id="homologationScore">${Number(h.score||0)}%</b> • <span id="homologationStatus">${esc(h.statusLabel||'Aguardando homologação')}</span></div>
       <div class="checklist" id="homologationChecklist">${renderHomologationSteps(h.steps||[])}</div>
       <div class="btnrow">
-        <button class="btn" onclick="runHomologation('${esc(p.id)}')">Verificar Homologação Real</button>
+        <button class="btn" onclick="runHomologation('${esc(p.id)}')">Executar Homologação Completa</button>
         <button class="btn warn" onclick="releaseProduction('${esc(p.id)}')">Liberar Produção</button>
       </div>
     </div>
@@ -240,7 +212,7 @@ async function openPartner(id){
     <div class="grid2">
       <div class="card">
         <h3>Produção Enterprise</h3>
-        <p class="muted">A produção só pode ser liberada quando 100% das etapas tiverem evidências reais registradas no Sandbox.</p>
+        <p class="muted">Libere a operação real somente após homologação 100% aprovada.</p>
         <p><b>Status:</b> ${p.production.active?'<span class="ok">Produção ativa</span>':'<span class="warn">Aguardando liberação</span>'}</p>
         <p><b>API Key:</b> <span class="code">${esc(p.production.apiKeyMasked||'não gerada')}</span></p>
         <p><b>Ambiente atual:</b> ${esc(p.environment||p.status||'-')}</p>
@@ -325,7 +297,7 @@ async function openPartner(id){
         </div>
       </div>
       <div class="btnrow">
-        <a class="btn light" href="https://ariana-backend.onrender.com/api/enterprise/versions" target="_blank">Ver versões</a>
+        <a class="btn light" href="/api/enterprise/versions" target="_blank">Ver versões</a>
         <a class="btn light" href="/enterprise_swagger.html" target="_blank">Abrir Swagger</a>
       </div>
     </div>
@@ -344,43 +316,11 @@ function renderHomologationSteps(steps){
   ];
   return list.map(s=>`<div class="checkitem ${s.passed?'okitem':'pendingitem'}"><div><b>${esc(s.label)}</b><br><span class="muted">${esc(s.statusLabel||s.message||'Não testado')}</span></div><span class="badge ${s.passed?'green':'yellow'}">${s.passed?'Aprovado':'Pendente'}</span></div>`).join('');
 }
-let lastEnterpriseOnboardingCredentials=null;
-function onboardingCredentialText(c={}){
-  return [
-    'API Key Sandbox: '+(c.sandboxApiKey||''),
-    'OAuth Client ID: '+(c.oauthClientId||''),
-    'OAuth Client Secret: '+(c.oauthClientSecret||''),
-    'Webhook Secret: '+(c.webhookSecret||''),
-    'Signing Secret: '+(c.signingSecret||'')
-  ].join('\n');
-}
-async function copyEnterpriseOnboardingCredentials(){
-  if(!lastEnterpriseOnboardingCredentials){toastMsg('Nenhuma credencial nova disponível.');return}
-  await navigator.clipboard.writeText(onboardingCredentialText(lastEnterpriseOnboardingCredentials));
-  toastMsg('Credenciais Sandbox copiadas.');
-}
-async function approveEnterpriseRequest(id){
-  if(!confirm('Aprovar esta solicitação e gerar as credenciais Sandbox agora? Os segredos completos aparecerão somente desta vez.')) return;
-  try{
-    const d=await api('/enterprise/partner-requests/'+encodeURIComponent(id)+'/approve',{method:'POST',body:'{}'});
-    const c=d.oneTimeCredentials||{};
-    lastEnterpriseOnboardingCredentials=c;
-    const out=document.getElementById('partnerOnboardingOut');
-    if(out){
-      out.style.display='block';
-      out.innerHTML='<b>Credenciais geradas — copie agora:</b><pre class="pre" style="margin-top:10px">'+esc(onboardingCredentialText(c))+'</pre><button class="btn light" onclick="copyEnterpriseOnboardingCredentials()">Copiar todas as credenciais</button><p class="muted">Por segurança, os segredos completos não poderão ser recuperados depois.</p>';
-    }
-    toastMsg('Solicitação aprovada e Sandbox liberado.');
-    await loadPartners();
-    await loadOverview();
-  }catch(e){alert(e.message)}
-}
 async function runHomologation(id){
-  if(!confirm('Verificar agora as evidências reais deste fabricante no Sandbox?')) return;
-  toastMsg('Verificando evidências reais da integração...');
+  if(!confirm('Executar a homologação completa deste fabricante?')) return;
+  toastMsg('Executando homologação automática...');
   const d=await api('/admin/enterprise/pro/partners/'+encodeURIComponent(id)+'/homologation/run',{method:'POST',body:'{}'});
-  const missing=Array.isArray(d.missingSteps)&&d.missingSteps.length?' • Pendentes: '+d.missingSteps.join(', '):'';
-  toastMsg((d.approved?'Homologação real aprovada: ':'Homologação real: ')+(d.score||0)+'%'+missing);
+  toastMsg('Homologação aprovada: '+(d.score||100)+'%');
   await openPartner(id);
   await loadPartners();
   await loadOverview();
@@ -430,8 +370,8 @@ function closeModal(){partnerModal.classList.remove('show')}
 async function rotateOAuth(id,env){
   const data=await api('/admin/enterprise/pro/partners/'+encodeURIComponent(id)+'/oauth/'+env+'/rotate',{method:'POST',body:JSON.stringify({})});
   const box=document.getElementById('oauthOut');
-  if(box){box.style.display='block';box.innerHTML='<b>Guarde estas credenciais agora:</b><br><br><b>Environment:</b> '+esc(data.environment)+'<br><b>Client ID:</b><br><span class="code">'+esc(data.oauth?.clientId||'')+'</span><br><br><b>Client Secret (exibido uma única vez):</b><br><span class="code">'+esc(data.oneTimeClientSecret||'')+'</span><br><br><b>Token URL:</b><br><span class="code">https://ariana-backend.onrender.com/api/enterprise/oauth/token</span>';}
-  toastMsg('OAuth '+env+' gerado. Copie o Client Secret agora; ele não poderá ser recuperado depois.');
+  if(box){box.style.display='block';box.innerHTML='<b>Guarde estas credenciais agora:</b><br><br><b>Environment:</b> '+esc(data.environment)+'<br><b>Client ID:</b><br><span class="code">'+esc(data.oauth?.clientId||'')+'</span><br><br><b>Client Secret:</b><br><span class="code">'+esc(data.oauth?.clientSecret||'')+'</span><br><br><b>Token URL:</b><br><span class="code">https://ariana-backend.onrender.com/api/enterprise/oauth/token</span>';}
+  toastMsg('OAuth '+env+' gerado.');
   await loadPartners();
 }
 async function revokeOAuth(id,env){

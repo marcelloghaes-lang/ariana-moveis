@@ -11,8 +11,7 @@ export default function registerEnterpriseAdminAnalyticsRoutes(app, context = {}
     IntegrationAuditLog,
     ManufacturerDispatchQueue,
     ensureArray,
-    enterpriseVersionHeaders,
-    adminRequired
+    enterpriseVersionHeaders
   } = context;
 
 // ============================================================
@@ -155,35 +154,35 @@ async function buildEnterpriseAnalytics(period = '30d') {
   };
 }
 
-app.get('/api/enterprise/analytics/overview', adminRequired, async (req, res) => {
+app.get('/api/enterprise/analytics/overview', async (req, res) => {
   try { return res.json(await buildEnterpriseAnalytics(req.query.period || '30d')); }
   catch (error) { console.error('analytics overview error', error); return res.status(500).json({ ok:false, error:'Erro ao gerar Analytics Enterprise' }); }
 });
-app.get('/api/v1/enterprise/analytics/overview', enterpriseVersionHeaders('v1'), adminRequired, async (req, res) => {
+app.get('/api/v1/enterprise/analytics/overview', enterpriseVersionHeaders('v1'), async (req, res) => {
   try { return res.json({ ...(await buildEnterpriseAnalytics(req.query.period || '30d')), requestedVersion:'v1' }); }
   catch (error) { return res.status(500).json({ ok:false, error:'Erro ao gerar Analytics Enterprise' }); }
 });
-app.get('/api/v2/enterprise/analytics/overview', enterpriseVersionHeaders('v2', true), adminRequired, async (req, res) => {
+app.get('/api/v2/enterprise/analytics/overview', enterpriseVersionHeaders('v2', true), async (req, res) => {
   try { return res.json({ ...(await buildEnterpriseAnalytics(req.query.period || '30d')), requestedVersion:'v2', warning:'v2 preview' }); }
   catch (error) { return res.status(500).json({ ok:false, error:'Erro ao gerar Analytics Enterprise' }); }
 });
-app.get('/api/enterprise/analytics/revenue', adminRequired, async (req, res) => {
+app.get('/api/enterprise/analytics/revenue', async (req, res) => {
   const data = await buildEnterpriseAnalytics(req.query.period || '30d');
   return res.json({ ok:true, generatedAt:data.generatedAt, period:data.period, revenue:data.summary.revenue, byDay:data.charts.revenueByDay });
 });
-app.get('/api/enterprise/analytics/products', adminRequired, async (req, res) => {
+app.get('/api/enterprise/analytics/products', async (req, res) => {
   const data = await buildEnterpriseAnalytics(req.query.period || '30d');
   return res.json({ ok:true, generatedAt:data.generatedAt, total:data.summary.products, synced:data.summary.syncedProducts, topProducts:data.charts.topProducts });
 });
-app.get('/api/enterprise/analytics/orders', adminRequired, async (req, res) => {
+app.get('/api/enterprise/analytics/orders', async (req, res) => {
   const data = await buildEnterpriseAnalytics(req.query.period || '30d');
   return res.json({ ok:true, generatedAt:data.generatedAt, total:data.summary.orders, recent:data.recent.orders, byDay:data.charts.revenueByDay });
 });
-app.get('/api/enterprise/analytics/history', adminRequired, async (req, res) => {
+app.get('/api/enterprise/analytics/history', async (req, res) => {
   const data = await buildEnterpriseAnalytics(req.query.period || '90d');
   return res.json({ ok:true, generatedAt:data.generatedAt, period:data.period, history:data.charts.revenueByDay, partners:data.charts.partnersRanking });
 });
-app.get('/api/enterprise/analytics/export', adminRequired, async (req, res) => {
+app.get('/api/enterprise/analytics/export', async (req, res) => {
   const format = String(req.query.format || 'json').toLowerCase();
   const data = await buildEnterpriseAnalytics(req.query.period || '30d');
   if (format === 'csv') {

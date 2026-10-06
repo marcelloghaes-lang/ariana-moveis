@@ -29,26 +29,15 @@ export default function registerCatalogHomeProductBannerRoutes(app, context = {}
     writeAuditLog
   } = context;
 
-  // The public catalog only needs the fields rendered on product cards. Some
-  // product documents contain large integration/media payloads; loading whole
-  // documents made the public endpoints time out as the catalog grew.
-  const PRODUCT_CARD_FIELDS = [
-    '_id', 'name', 'slug', 'category', 'categoryId', 'categoryName', 'brand', 'sku',
-    'price', 'oldPrice', 'pixPrice', 'installmentCount', 'image', 'imageUrl', 'imagem',
-    'mainImageUrl', 'mainImagePath', 'images', 'imageUrls', 'imagePaths', 'stock', 'active',
-    'isOffer', 'isHighlight', 'isBestSeller', 'isNewArrival', 'isRecommended', 'createdAt', 'updatedAt'
-  ].join(' ');
-
 app.get('/api/home/index-data', async (_req, res) => {
   try {
     const [categories, products, banners, paymentSettings] = await Promise.all([
-      Category.find({ active: true }).select('_id name slug parentId active sortOrder image updatedAt').sort({ sortOrder: 1, name: 1 }).lean(),
-      Product.find({ active: true }).select(PRODUCT_CARD_FIELDS).slice('images', 1).slice('imageUrls', 1).slice('imagePaths', 1).sort({ createdAt: -1 }).limit(200).lean(),
-      Banner.find({ active: true }).select('_id slot targetSlot title subtitle image mobileImage href alt mobileAlt active status source sortOrder device createdAt updatedAt').sort({ sortOrder: 1, createdAt: -1 }).lean(),
+      Category.find({ active: true }).sort({ sortOrder: 1, name: 1 }),
+      Product.find({ active: true }).sort({ createdAt: -1 }).limit(200),
+      Banner.find({ active: true }).sort({ sortOrder: 1, createdAt: -1 }),
       getPaymentsSettings()
     ]);
 
-    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
     return res.json({
       ok: true,
       categories: categories.map(toJSON),
@@ -326,20 +315,7 @@ app.get('/api/products', async (req, res) => {
       query.$and.push({ $or: searchOr });
     }
 
-    const requestedLimit = Number(req.query.limit || 500);
-    const limit = Math.max(1, Math.min(Number.isFinite(requestedLimit) ? requestedLimit : 500, 500));
-    const requestedPage = Number(req.query.page || 1);
-    const page = Math.max(1, Number.isFinite(requestedPage) ? requestedPage : 1);
-    const rows = await Product.find(query)
-      .select(PRODUCT_CARD_FIELDS)
-      .slice('images', 1)
-      .slice('imageUrls', 1)
-      .slice('imagePaths', 1)
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .lean();
-    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+    const rows = await Product.find(query).sort({ createdAt: -1 }).limit(Math.min(Number(req.query.limit || 500), 1000));
     return res.json(rows.map(normalizeProductForResponse));
   } catch (error) {
     console.error('[products] erro ao listar:', error);
@@ -531,72 +507,7 @@ app.post('/api/admin/banners', adminRequired, async (req, res) => {
   }
 });
 app.get('/api/addresses', authRequired, async (req, res) => res.json((await Address.find({ userId: req.user._id }).sort({ isDefault: -1, createdAt: -1 })).map(toJSON)));
-app.post('/api/addresses', authRequired, async (req, res) => { const body = req.body || {}; if (body.isDefault) await Address.updateMany({ userId: req.user._id }, { $set: { isDefault: false } }); const areaTypeRaw = String(body.areaType || body.tipoArea || '').trim().toLowerCase(); const areaType = areaTypeRaw === 'rural' ? 'rural' : (areaTypeRaw === 'urban' ? 'urban' : ''); const doc = await Address.create({ userId: req.user._id, name: body.name || '', phone: body.phone || '', cep: body.cep || '', logradouro: body.logradouro || '', numero: body.numero || '', bairro: body.bairro || '', cidade: body.cidade || '', uf: body.uf || '', complemento: body.complemento || '', reference: body.reference || '', areaType, isRural: areaType === 'rural', isDefault: body.isDefault === true }); return res.json({ ok: true, address: toJSON(doc) }); });
-app.patch('/api/addresses/:id', authRequired, async (req, res) => {
-  try {
-    const oid = normalizeObjectId(req.params.id);
-    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
-
-    const body = req.body || {};
-    const allowedFields = ['name', 'phone', 'cep', 'logradouro', 'numero', 'bairro', 'cidade', 'uf', 'complemento', 'reference', 'areaType', 'isRural'];
-    const patch = {};
-    for (const key of allowedFields) {
-      if (body[key] !== undefined) patch[key] = body[key];
-    }
-    if (body.areaType !== undefined || body.tipoArea !== undefined || body.isRural !== undefined) {
-      const areaRaw = String(body.areaType ?? body.tipoArea ?? (body.isRural === true ? 'rural' : body.isRural === false ? 'urban' : '')).trim().toLowerCase();
-      patch.areaType = areaRaw === 'rural' ? 'rural' : (areaRaw === 'urban' ? 'urban' : '');
-      patch.isRural = patch.areaType === 'rural';
-    }
-
-    const wantsDefault =
-      body.isDefault === true ||
-      body.default === true ||
-      body.principal === true ||
-      body.main === true ||
-      body.isPrimary === true;
-
-    if (wantsDefault) {
-      await Address.updateMany(
-        { userId: req.user._id, _id: { $ne: oid } },
-        { $set: { isDefault: false } }
-      );
-      patch.isDefault = true;
-    } else if (body.isDefault === false) {
-      patch.isDefault = false;
-    }
-
-    const doc = await Address.findOneAndUpdate(
-      { _id: oid, userId: req.user._id },
-      { $set: patch },
-      { new: true, runValidators: true }
-    );
-
-    if (!doc) return res.status(404).json({ ok: false, error: 'Endereço não encontrado' });
-    return res.json({ ok: true, address: toJSON(doc) });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar endereço' });
-  }
-});
-app.post('/api/addresses/:id/set-default', authRequired, async (req, res) => {
-  req.body = { ...(req.body || {}), isDefault: true };
-  const oid = normalizeObjectId(req.params.id);
-  if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
-
-  await Address.updateMany(
-    { userId: req.user._id, _id: { $ne: oid } },
-    { $set: { isDefault: false } }
-  );
-
-  const doc = await Address.findOneAndUpdate(
-    { _id: oid, userId: req.user._id },
-    { $set: { isDefault: true } },
-    { new: true, runValidators: true }
-  );
-
-  if (!doc) return res.status(404).json({ ok: false, error: 'Endereço não encontrado' });
-  return res.json({ ok: true, address: toJSON(doc) });
-});
+app.post('/api/addresses', authRequired, async (req, res) => { const body = req.body || {}; if (body.isDefault) await Address.updateMany({ userId: req.user._id }, { $set: { isDefault: false } }); const doc = await Address.create({ userId: req.user._id, name: body.name || '', phone: body.phone || '', cep: body.cep || '', logradouro: body.logradouro || '', numero: body.numero || '', bairro: body.bairro || '', cidade: body.cidade || '', uf: body.uf || '', complemento: body.complemento || '', reference: body.reference || '', isDefault: body.isDefault === true }); return res.json({ ok: true, address: toJSON(doc) }); });
 app.delete('/api/addresses/:id', authRequired, async (req, res) => { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' }); await Address.deleteOne({ _id: oid, userId: req.user._id }); return res.json({ ok: true }); });
 
 }

@@ -393,30 +393,6 @@
       return Number.isFinite(parsed) ? parsed : NaN;
     }
 
-    function publicShippingLabel(value, fallback = 'Ariana Móveis') {
-      const text = String(value || '').trim();
-      if (!text) return fallback;
-
-      const normalized = text.toLowerCase().replace(/[\s_-]+/g, ' ');
-      if (['configured', 'configurado', 'manual', 'internal', 'interno'].includes(normalized)) {
-        return fallback;
-      }
-      if (/^ariana( moveis| móveis)?$/.test(normalized)) return 'Ariana Móveis';
-      if (normalized === 'own delivery') return 'Entrega Ariana Móveis';
-      if (normalized === 'correios') return 'Correios';
-      if (normalized === 'rodocap') return 'Rodocap';
-      return text.slice(0, 120);
-    }
-
-    function escapeShippingHtml(value) {
-      return String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-    }
-
     function normalizeShippingOption(q, fallbackRaw = null) {
       if (!q || typeof q !== 'object' || q.unavailable === true || q.available === false) return null;
 
@@ -431,22 +407,13 @@
       // mesmo sem uma flag específica. O checkout já aceita esse retorno.
       const explicitFree = price === 0 || isExplicitFreeShipping(q);
 
-      const publicName = publicShippingLabel(
-        q.name || q.label || q.carrier || q.provider || q.service,
-        'Entrega'
-      );
-      const publicCarrier = publicShippingLabel(
-        q.carrier || q.provider || q.transportadora,
-        publicName === 'Entrega' ? 'Ariana Móveis' : publicName
-      );
-
       return {
         price,
         effectivePrice: price,
         explicitFree,
-        name: publicName,
+        name: q.name || q.label || q.carrier || q.provider || q.service || 'Frete',
         service: q.service || q.code || q.codigo || q.name || q.label || 'Frete',
-        carrier: publicCarrier,
+        carrier: q.carrier || q.provider || q.transportadora || q.name || 'Transportadora',
         deadline: q.deadline || q.prazo || q.deliveryDays || q.days || q.estimatedDays || null,
         raw: q,
         responseRaw: fallbackRaw || q
@@ -516,10 +483,10 @@
         return `
           <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid ${checked ? '#2E6DA4' : '#d7dee8'};padding:12px 14px;background:${checked ? '#eef5ff' : '#fff'};cursor:pointer">
             <span style="display:flex;align-items:flex-start;gap:10px;min-width:0">
-              <input type="radio" name="shipping-option" value="${escapeShippingHtml(option.service)}" ${checked ? 'checked' : ''} style="margin-top:3px">
+              <input type="radio" name="shipping-option" value="${String(option.service).replace(/"/g, '&quot;')}" ${checked ? 'checked' : ''} style="margin-top:3px">
               <span>
-                <strong style="display:block;color:#172033">${escapeShippingHtml(option.name)}</strong>
-                <small style="color:#667085">${escapeShippingHtml(`${option.carrier || ''}${formatShippingDeadline(option)}`)}</small>
+                <strong style="display:block;color:#172033">${option.name}</strong>
+                <small style="color:#667085">${option.carrier || ''}${formatShippingDeadline(option)}</small>
               </span>
             </span>
             <strong style="white-space:nowrap;color:#2E6DA4">${priceLabel}</strong>
@@ -824,11 +791,6 @@
     }
 
     window.checkOutOrLogin = function() {
-      try {
-        localStorage.removeItem('ariana_extended_warranty');
-        localStorage.removeItem('ariana_warranty_reviewed_cart_sig');
-      } catch (_) {}
-
       if (cartItems.length === 0) {
         window.displayMessage('Seu carrinho está vazio. Adicione itens antes de finalizar a compra.', 'error', 'message-box');
         return;
@@ -901,20 +863,10 @@
         cartItems = [];
       }
 
+      // Se o item antigo não trouxe a foto no localStorage, recupera a imagem pelo cadastro do produto.
+      await hydrateCartProductImages();
+
       if (container) container.innerHTML = '';
-
-      // Exibe o carrinho imediatamente com os dados já salvos no dispositivo.
-      renderCart();
-
-      // Imagens faltantes e padrões de frete são enriquecidos em segundo plano.
-      // Eles não precisam bloquear a abertura do carrinho.
-      Promise.allSettled([
-        hydrateCartProductImages().then(() => renderCart()),
-        enrichCartWithShippingDefaults()
-      ]).then(() => {
-        try { recalculateTotals(); } catch (_) {}
-      });
-
       const couponInput = document.getElementById('coupon-code');
       const couponButton = document.getElementById('btn-aplicar-cupom');
       try { if (couponInput) couponInput.value = normalizeCouponCode(localStorage.getItem('ariana_applied_coupon') || ''); } catch (_) {}
@@ -939,6 +891,8 @@
       if (couponButton) couponButton.addEventListener('click', applyCoupon);
       if (couponInput) couponInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon(); } });
 
+      renderCart();
+      try { await enrichCartWithShippingDefaults(); } catch (_) {}
     }
 
     function saveCartItems(updateHeader = true) {
@@ -1084,18 +1038,9 @@
       };
 
       try {
-        const couponToken =
-          localStorage.getItem('token') ||
-          localStorage.getItem('authToken') ||
-          localStorage.getItem('userToken') ||
-          '';
         const res = await fetch(`${String(API_BASE).replace(/\/+$/, '')}/coupons/validate`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-            ...(couponToken ? { Authorization: `Bearer ${couponToken}` } : {})
-          },
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
           body: JSON.stringify(payload)
         });
         const data = await res.json().catch(() => ({}));

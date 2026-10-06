@@ -12,15 +12,6 @@
   let savedPosterUrl = '';
   let deferredInstallPrompt = null;
 
-  const OUTPUT_FORMATS = Object.freeze({
-    poster_4x5: { label: 'PRÉVIA • CARTAZ 4:5', size: '1080 × 1350 pixels', banner: false },
-    site_hero_desktop: { label: 'PRÉVIA • HERO DESKTOP', size: '1920 × 480 pixels', banner: true },
-    site_hero_mobile: { label: 'PRÉVIA • HERO CELULAR', size: '1080 × 1080 pixels', banner: true },
-    site_secondary_desktop: { label: 'PRÉVIA • SECUNDÁRIO DESKTOP', size: '1600 × 400 pixels', banner: true },
-    site_secondary_mobile: { label: 'PRÉVIA • SECUNDÁRIO CELULAR', size: '1080 × 720 pixels', banner: true },
-    site_card_square: { label: 'PRÉVIA • CARD QUADRADO', size: '1080 × 1080 pixels', banner: true }
-  });
-
   function byId(id) { return document.getElementById(id); }
   function token() {
     for (const key of ['adminToken', 'admin_token', 'authToken', 'token']) {
@@ -98,34 +89,7 @@
   function setBusy(busy) {
     els.previewButton.disabled = busy;
     els.previewLoading.classList.toggle('hidden', !busy);
-    if (busy) status('Ajustando produto, marca, preços, formato e acabamento...', '');
-  }
-
-  function outputFormatValue() {
-    return document.querySelector('input[name="output-format"]:checked')?.value || 'poster_4x5';
-  }
-
-  function outputFormatMeta() {
-    return OUTPUT_FORMATS[outputFormatValue()] || OUTPUT_FORMATS.poster_4x5;
-  }
-
-  function isBannerOutput() {
-    return outputFormatMeta().banner === true;
-  }
-
-  function updateOutputFormatSelection() {
-    document.querySelectorAll('.format-card').forEach(card => {
-      card.classList.toggle('selected', card.querySelector('input')?.checked);
-    });
-    const meta = outputFormatMeta();
-    if (els.previewLabel) els.previewLabel.textContent = meta.label;
-    if (els.previewSize) els.previewSize.textContent = meta.size;
-    if (els.posterStage) els.posterStage.dataset.format = outputFormatValue();
-
-    const banner = isBannerOutput();
-    if (banner) {
-      status('Formato de banner selecionado. A composição será refeita para esta proporção, sem esticar o cartaz.', 'ok');
-    }
+    if (busy) status('Ajustando produto, marca, preços e acabamento...', '');
   }
 
   function templateValue() {
@@ -148,14 +112,8 @@
     document.querySelectorAll('.palette-card').forEach(card => card.classList.toggle('selected', card.querySelector('input')?.checked));
   }
 
-  function updateLayoutSelection(applyPreset = false) {
+  function updateLayoutSelection() {
     document.querySelectorAll('.layout-card').forEach(card => card.classList.toggle('selected', card.querySelector('input')?.checked));
-    if (!applyPreset) return;
-    if (layoutVariantValue() === 'azul_lateral_exato') {
-      els.headline.value = 'Ofertas Para Melhorar Seu Dia a Dia';
-      els.subtitle.value = 'Tudo que Sua Casa Precisa Você Encontra Aqui';
-      status('Layout Azul lateral exato selecionado. A mascote continua sendo a mesma do painel e só aparece quando você ativar.', 'ok');
-    }
   }
 
   function updateSceneSelection() {
@@ -191,14 +149,13 @@
     const cash = parseMoney(els.cashPrice.value);
     const full = parseMoney(els.fullPrice.value);
     const installments = Number(els.installments.value || 12);
-    const installmentPrice = parseMoney(els.installmentPrice.value) || (full / installments);
     if (!cash || !full) {
       els.pricingSummary.textContent = 'Informe o preço à vista para calcular o parcelamento.';
       els.pricingSummary.classList.remove('ready');
       return;
     }
-    const cardTotal = installmentPrice * installments;
-    els.pricingSummary.innerHTML = `<b>${money(cash)}</b> à vista no dinheiro ou Pix • ou <b>${installments}x de ${money(installmentPrice)}</b> no cartão de crédito • valor parcelado: <b>${money(cardTotal)}</b> • consulte condições de pagamento no crediário próprio.`;
+    const discount = Math.max(0, Math.round((1 - cash / full) * 100));
+    els.pricingSummary.innerHTML = `<b>${money(full)}</b> no cartão • <b>${installments}x de ${money(full / installments)}</b> sem juros • <b>${money(cash)}</b> à vista • desconto aproximado de <b>${discount}%</b>.`;
     els.pricingSummary.classList.add('ready');
   }
 
@@ -209,14 +166,9 @@
       els.cashPrice.focus();
       return;
     }
-    const installments = Number(els.installments.value || 12);
-    const calculatedFull = cash / 0.8272;
-    const installmentPrice = Math.round((calculatedFull / installments) * 100) / 100;
-    const exactCardTotal = installmentPrice * installments;
-    els.fullPrice.value = moneyInput(exactCardTotal);
-    els.installmentPrice.value = moneyInput(installmentPrice);
+    els.fullPrice.value = moneyInput(cash / 0.8272);
     updatePricingSummary();
-    status('Regra ÷ 0,8272 aplicada ao preço a prazo e às parcelas.', 'ok');
+    status('Total no cartão calculado pela regra oficial.', 'ok');
   }
 
   function renderProductResults(query = '') {
@@ -256,7 +208,6 @@
     els.imageUrl.value = imageOf(selectedProduct);
     if (cash) els.cashPrice.value = moneyInput(cash);
     if (full) els.fullPrice.value = moneyInput(full);
-    if (full) els.installmentPrice.value = moneyInput(full / Number(els.installments.value || 12));
     els.productSearch.value = selectedProduct.name || '';
     els.productResults.classList.add('hidden');
     els.selectedProduct.innerHTML = `<img src="${escapeHtml(imageOf(selectedProduct))}" alt=""><div><b>${escapeHtml(selectedProduct.name || 'Produto selecionado')}</b><span>${escapeHtml(selectedProduct.sku || selectedProduct.brand || 'Produto do catálogo')}</span></div><button id="clear-product" type="button">Trocar</button>`;
@@ -323,12 +274,10 @@
     const imageUrl = els.imageUrl.value.trim();
     const cashPrice = parseMoney(els.cashPrice.value);
     const fullPrice = parseMoney(els.fullPrice.value);
-    const installmentPrice = parseMoney(els.installmentPrice.value);
     if (!name) throw new Error('Informe o nome do produto.');
     if (!imageUrl) throw new Error('Selecione ou envie a imagem real do produto.');
-    if (!cashPrice || !fullPrice) throw new Error('Informe o preço anterior e o preço à vista.');
-    if (!installmentPrice) throw new Error('Informe o valor de cada parcela.');
-    if (fullPrice < cashPrice) throw new Error('O preço total no cartão não pode ser menor que o preço à vista.');
+    if (!cashPrice || !fullPrice) throw new Error('Informe os preços à vista e no cartão.');
+    if (fullPrice < cashPrice) throw new Error('O total no cartão não pode ser menor que o preço à vista.');
     return {
       productId: String(selectedProduct?.id || selectedProduct?._id || ''),
       product: {
@@ -339,11 +288,9 @@
         category: selectedProduct?.category || selectedProduct?.categoryName || '',
         cashPrice,
         fullPrice,
-        installmentCount: Number(els.installments.value || 12),
-        installmentPrice
+        installmentCount: Number(els.installments.value || 12)
       },
       options: {
-        outputFormat: outputFormatValue(),
         template: templateValue(),
         colorTheme: colorThemeValue(),
         layoutVariant: layoutVariantValue() || undefined,
@@ -355,7 +302,6 @@
         cashPrice,
         fullPrice,
         installmentCount: Number(els.installments.value || 12),
-        installmentPrice,
         removeLightBackground: els.removeBackground.checked,
         showMascot: els.showMascot.checked,
         productOffsetX: Number(els.offsetX.value || 0),
@@ -384,13 +330,10 @@
     try { payload = buildPayload(); } catch (error) { status(error.message, 'error'); return; }
     setBusy(true);
     try {
-      const endpoint = isBannerOutput() ? '/admin/posters/preview-banner' : '/admin/posters/preview';
-      const blob = await api(endpoint, { method: 'POST', body: JSON.stringify(payload) }, 'blob');
+      const blob = await api('/admin/posters/preview', { method: 'POST', body: JSON.stringify(payload) }, 'blob');
       showPreview(blob);
       savedPosterUrl = '';
-      status(isBannerOutput()
-        ? 'Prévia do banner concluída no tamanho real selecionado. Confira antes de salvar.'
-        : 'Prévia do cartaz concluída. Confira todos os dados antes de salvar.', 'ok');
+      status('Prévia concluída. Confira todos os dados antes de salvar.', 'ok');
     } catch (error) {
       status(`Não foi possível gerar a prévia: ${error.message}`, 'error');
     } finally {
@@ -410,35 +353,22 @@
 
   function renderHistory() {
     const rows = readHistory();
-    els.historyList.innerHTML = rows.length ? rows.map(row => row.url
-      ? `<article class="history-card"><img src="${escapeHtml(row.url)}" alt=""><div><b>${escapeHtml(row.name || 'Cartaz Ariana')}</b><small>${new Date(row.createdAt).toLocaleString('pt-BR')}</small><a href="${escapeHtml(row.url)}" target="_blank" rel="noopener">Abrir arte antiga</a></div></article>`
-      : `<article class="history-card"><div><b>${escapeHtml(row.name || 'Cartaz Ariana')}</b><small>${new Date(row.createdAt).toLocaleString('pt-BR')}</small><small>Salvo somente no dispositivo</small></div></article>`
-    ).join('') : '<div class="history-empty">Nenhuma arte salva neste navegador.</div>';
+    els.historyList.innerHTML = rows.length ? rows.map(row => `<article class="history-card"><img src="${escapeHtml(row.url)}" alt=""><div><b>${escapeHtml(row.name || 'Cartaz Ariana')}</b><small>${new Date(row.createdAt).toLocaleString('pt-BR')}</small><a href="${escapeHtml(row.url)}" target="_blank" rel="noopener">Abrir cartaz</a></div></article>`).join('') : '<div class="history-empty">Nenhum cartaz salvo neste navegador.</div>';
   }
 
   async function savePoster() {
     let payload;
     try { payload = buildPayload(); } catch (error) { status(error.message, 'error'); return; }
     els.saveButton.disabled = true;
-    els.saveButton.textContent = 'Salvando no dispositivo...';
-    status('Gerando o PNG em alta resolução sem armazenar cópia no servidor...', '');
+    els.saveButton.textContent = 'Salvando...';
+    status('Salvando a arte em alta resolução...', '');
     try {
-      const endpoint = isBannerOutput() ? '/admin/posters/professional-banner' : '/admin/posters/professional';
-      const blob = await api(endpoint, { method: 'POST', body: JSON.stringify(payload) }, 'blob');
-      if (!blob || !blob.size) throw new Error('O arquivo final não retornou.');
-      previewBlob = blob;
-      savedPosterUrl = '';
-      saveHistory({
-        name: payload.product.name,
-        createdAt: new Date().toISOString(),
-        template: payload.options.template,
-        layout: payload.options.layoutVariant || 'automatico',
-        outputFormat: payload.options.outputFormat
-      });
-      downloadPoster();
-      status(isBannerOutput()
-        ? 'Banner salvo no seu dispositivo no formato selecionado. Nenhuma cópia foi armazenada no Cloudinary.'
-        : 'Cartaz salvo no seu dispositivo. Nenhuma cópia foi armazenada no Cloudinary.', 'ok');
+      const data = await api('/admin/posters/professional', { method: 'POST', body: JSON.stringify(payload) });
+      if (!data.url) throw new Error('O endereço final não retornou.');
+      savedPosterUrl = data.url;
+      saveHistory({ url: data.url, name: payload.product.name, createdAt: new Date().toISOString(), template: payload.options.template });
+      status('Cartaz salvo em alta resolução. Agora você pode baixar ou compartilhar.', 'ok');
+      window.open(data.url, '_blank', 'noopener');
     } catch (error) {
       status(`Erro ao salvar: ${error.message}`, 'error');
     } finally {
@@ -449,9 +379,8 @@
 
   function posterFile() {
     if (!previewBlob) return null;
-    const safeName = String(els.productName.value || 'arte-ariana').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
-    const suffix = outputFormatValue();
-    return new File([previewBlob], `${safeName || 'arte-ariana'}-${suffix}.png`, { type: 'image/png' });
+    const safeName = String(els.productName.value || 'cartaz-ariana').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
+    return new File([previewBlob], `${safeName || 'cartaz-ariana'}.png`, { type: 'image/png' });
   }
 
   function downloadPoster() {
@@ -488,18 +417,16 @@
   function bind() {
     Object.assign(els, {
       headline: byId('headline'), subtitle: byId('subtitle'), productSearch: byId('product-search'), productResults: byId('product-results'), selectedProduct: byId('selected-product'),
-      productName: byId('product-name'), imageUrl: byId('image-url'), imageFile: byId('image-file'), uploadStatus: byId('upload-status'), cashPrice: byId('cash-price'), fullPrice: byId('full-price'), installmentPrice: byId('installment-price'),
+      productName: byId('product-name'), imageUrl: byId('image-url'), imageFile: byId('image-file'), uploadStatus: byId('upload-status'), cashPrice: byId('cash-price'), fullPrice: byId('full-price'),
       installments: byId('installments'), calculateCard: byId('calculate-card'), pricingSummary: byId('pricing-summary'), removeBackground: byId('remove-background'), showMascot: byId('show-mascot'),
       offsetX: byId('offset-x'), offsetY: byId('offset-y'), offsetXValue: byId('offset-x-value'), offsetYValue: byId('offset-y-value'), previewButton: byId('preview-button'), saveButton: byId('save-button'),
       downloadButton: byId('download-button'), shareButton: byId('share-button'), globalStatus: byId('global-status'), previewEmpty: byId('preview-empty'), previewLoading: byId('preview-loading'),
-      posterPreview: byId('poster-preview'), posterStage: byId('poster-stage'), previewLabel: byId('preview-label'), previewSize: byId('preview-size'),
-      historyList: byId('history-list'), clearHistory: byId('clear-history'), installApp: byId('install-app')
+      posterPreview: byId('poster-preview'), historyList: byId('history-list'), clearHistory: byId('clear-history'), installApp: byId('install-app')
     });
 
-    document.querySelectorAll('input[name="output-format"]').forEach(input => input.addEventListener('change', updateOutputFormatSelection));
     document.querySelectorAll('input[name="template"]').forEach(input => input.addEventListener('change', () => updateTemplateSelection(true)));
     document.querySelectorAll('input[name="color-theme"]').forEach(input => input.addEventListener('change', updateColorSelection));
-    document.querySelectorAll('input[name="layout-variant"]').forEach(input => input.addEventListener('change', () => updateLayoutSelection(true)));
+    document.querySelectorAll('input[name="layout-variant"]').forEach(input => input.addEventListener('change', updateLayoutSelection));
     document.querySelectorAll('input[name="scene-theme"]').forEach(input => input.addEventListener('change', updateSceneSelection));
     els.productSearch.addEventListener('input', () => renderProductResults(els.productSearch.value));
     els.productResults.addEventListener('click', event => {
@@ -513,7 +440,6 @@
     els.calculateCard.addEventListener('click', calculateCardPrice);
     els.cashPrice.addEventListener('input', updatePricingSummary);
     els.fullPrice.addEventListener('input', updatePricingSummary);
-    els.installmentPrice.addEventListener('input', updatePricingSummary);
     els.installments.addEventListener('change', updatePricingSummary);
     els.offsetX.addEventListener('input', () => { els.offsetXValue.textContent = `${els.offsetX.value} px`; });
     els.offsetY.addEventListener('input', () => { els.offsetYValue.textContent = `${els.offsetY.value} px`; });
@@ -539,7 +465,6 @@
 
   async function start() {
     bind();
-    updateOutputFormatSelection();
     updateTemplateSelection(false);
     updateColorSelection();
     updateLayoutSelection();

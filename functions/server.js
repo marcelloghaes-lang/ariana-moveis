@@ -34,10 +34,6 @@ import registerCrediarioConversationRoutes from './routes/crediarioConversationR
 import registerAdminUserRoutes from './routes/adminUserRoutes.js';
 import createTelevendasRoutes from './routes/televendas/index.js';
 import registerCieloRoutes from './routes/cieloRoutes.js';
-import registerEfiRoutes from './routes/efiRoutes.js';
-import { releaseExpiredStockReservations } from './services/stockReservationService.js';
-import { startAdminWhatsappReminderWorker } from './services/adminWhatsappAlertService.js';
-import { startErpDailyDueWhatsappWorker, startErpFifteenDayOverdueWhatsappWorker, listErpFifteenDayOverdueAudit } from './services/erp/erpDailyDueWhatsappService.js';
 import initModels from './models/index.js';
 
 
@@ -46,26 +42,9 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-app.disable('x-powered-by');
-app.use((req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-  const forwardedProtocol = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
-  if (req.secure || forwardedProtocol === 'https') {
-    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-  }
-  next();
-});
-
 
 const PORT = Number(process.env.PORT || 3000);
-const CONFIGURED_JWT_SECRET = String(process.env.JWT_SECRET || '').trim();
-const JWT_SECRET = CONFIGURED_JWT_SECRET || crypto.randomBytes(48).toString('hex');
-if (!CONFIGURED_JWT_SECRET) {
-  console.warn('[SECURITY] JWT_SECRET não configurado: usando segredo aleatório temporário. Configure JWT_SECRET no Render para manter sessões após reinícios.');
-}
+const JWT_SECRET = process.env.JWT_SECRET || 'ariana_enterprise_secret';
 const MONGODB_URI = process.env.MONGODB_URI || '';
 const MONGODB_DB = process.env.MONGODB_DB || 'ariana_moveis_db';
 const APP_BASE_URL = (process.env.APP_BASE_URL || '').replace(/\/+$/, '');
@@ -194,7 +173,9 @@ function isAllowedOrigin(origin = '') {
   // Domínios oficiais da Ariana Móveis.
   if (/^https:\/\/(www\.)?arianamoveis\.(com\.br|site)$/i.test(normalized)) return true;
 
-  // Ambientes Render somente quando cadastrados explicitamente em allowedOrigins/FRONTEND_URLS.
+  // Ambientes de homologação publicados na Render.
+  if (/^https:\/\/[a-z0-9-]+\.onrender\.com$/i.test(normalized)) return true;
+
   // Desenvolvimento local em qualquer porta.
   if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(normalized)) return true;
 
@@ -292,13 +273,9 @@ function now() { return new Date(); }
 function uid(prefix = 'id') { return `${prefix}_${crypto.randomBytes(8).toString('hex')}`; }
 function cleanPhone(value = '') { return String(value).replace(/\D/g, ''); }
 function normalizePhone(value = '', defaultCountryCode = '55') {
-  const raw = String(value ?? '').trim();
-  let digits = cleanPhone(raw);
+  let digits = cleanPhone(value);
   if (!digits) return '';
-  // Número informado explicitamente em formato internacional (+DDI ou 00DDI)
-  // deve manter o DDI original. Isso evita transformar +1 (...) em 55+1 (...).
-  if (raw.startsWith('+')) return digits;
-  if (digits.startsWith('00')) return digits.slice(2);
+  if (digits.startsWith('00')) digits = digits.slice(2);
   if ((digits.length === 10 || digits.length === 11) && defaultCountryCode) digits = `${defaultCountryCode}${digits}`;
   return digits;
 }
@@ -399,15 +376,6 @@ function normalizeProductForResponse(doc) {
 function signToken(user) {
   return jwt.sign({ id: String(user._id), email: user.email, role: user.role || 'customer', sellerId: user.sellerId || null, admin: user.role === 'admin' }, JWT_SECRET, { expiresIn: '7d' });
 }
-
-function getClientIp(req = {}) {
-  const forwarded = String(req?.headers?.['x-forwarded-for'] || '')
-    .split(',')[0]
-    .trim();
-
-  return forwarded || String(req?.ip || req?.socket?.remoteAddress || '').trim();
-}
-
 async function authRequired(req, res, next) {
   try {
     const header = req.headers.authorization || '';
@@ -1326,38 +1294,6 @@ const {
   CrediarioCobrancaLog
 } = initModels({ mongoose, DEFAULT_CURRENCY, MAX_DISPATCH_ATTEMPTS, now });
 
-const STOCK_RESERVATION_SWEEP_INTERVAL_MS = Math.max(
-  60 * 1000,
-  Number(process.env.STOCK_RESERVATION_SWEEP_INTERVAL_MS || 5 * 60 * 1000) || 5 * 60 * 1000
-);
-
-async function runStockReservationSweep() {
-  if (mongoose.connection.readyState !== 1) return;
-  try {
-    const result = await releaseExpiredStockReservations({
-      Order,
-      Product,
-      limit: Number(process.env.STOCK_RESERVATION_SWEEP_BATCH || 100) || 100,
-      logger: console
-    });
-
-    if (result?.checked > 0 || result?.failed > 0) {
-      console.log('[stock-reservation] Varredura concluída:', result);
-    }
-  } catch (error) {
-    console.error('[stock-reservation] Falha na varredura:', error?.message || error);
-  }
-}
-
-const stockReservationInitialTimer = setTimeout(runStockReservationSweep, 30 * 1000);
-stockReservationInitialTimer.unref?.();
-
-const stockReservationInterval = setInterval(
-  runStockReservationSweep,
-  STOCK_RESERVATION_SWEEP_INTERVAL_MS
-);
-stockReservationInterval.unref?.();
-
 
 async function createAdminNotification(data = {}) {
   try {
@@ -1959,11 +1895,9 @@ function normalizeBannerPayload(input = {}, fallback = {}) {
     targetSlot: String(source.targetSlot || source.slot || '').trim(),
     title: String(source.title || '').trim(),
     subtitle: String(source.subtitle || '').trim(),
-    image: String(source.image || source.imageUrl || source.desktopImageUrl || '').trim(),
-    mobileImage: String(source.mobileImage || source.mobileImageUrl || source.imageMobile || source.mobileUrl || '').trim(),
+    image: String(source.image || source.imageUrl || '').trim(),
     href: String(source.href || source.linkUrl || '').trim(),
     alt: String(source.alt || '').trim(),
-    mobileAlt: String(source.mobileAlt || source.altMobile || source.alt || '').trim(),
     active: source.active === true || String(source.active).toLowerCase() == 'true',
     status: String(source.status || (source.active === false ? 'draft' : 'published')).trim(),
     source: String(source.source || 'manual').trim(),
@@ -1981,9 +1915,6 @@ function normalizeBannerForResponse(doc) {
     id: String(obj.slot || obj.id || obj._id || ''),
     slot: String(obj.slot || obj.id || ''),
     imageUrl: String(obj.image || obj.imageUrl || '').trim(),
-    desktopImageUrl: String(obj.image || obj.imageUrl || '').trim(),
-    mobileImageUrl: String(obj.mobileImage || obj.mobileImageUrl || '').trim(),
-    mobileImage: String(obj.mobileImage || obj.mobileImageUrl || '').trim(),
     linkUrl: String(obj.href || obj.linkUrl || '').trim(),
     targetSlot: String(obj.targetSlot || obj.slot || '').trim(),
     status: String(obj.status || (obj.active === false ? 'draft' : 'published')).trim(),
@@ -1991,7 +1922,6 @@ function normalizeBannerForResponse(doc) {
     draftType: String(obj.draftType || '').trim(),
     products: Array.isArray(obj.products) ? obj.products : [],
     alt: String(obj.alt || '').trim(),
-    mobileAlt: String(obj.mobileAlt || obj.alt || '').trim(),
   };
 }
 
@@ -2045,7 +1975,7 @@ const DEFAULT_PAYMENTS_SETTINGS = {
   }
 };
 const RODOCAP_ALLOWED_CITIES = ['AGUA BOA', 'AGUANIL', 'ANGELANDIA', 'ARAUJOS', 'ARCOS', 'ARICANDUVA', 'BAMBUI', 'BELO HORIZONTE', 'BETIM', 'BOCAIUVA', 'BORDA DA MATA', 'BRASILIA DE MINAS', 'CACHOEIRA DE MINAS', 'CAETABOPOLIS', 'CAMANDUCAIA', 'CAMBUI', 'CAMBUQUIRA', 'CAMPANHA', 'CAMPO BELO', 'CANDEIAS', 'CANTAGALO', 'CAPELINHA', 'CAPIM BRANCO', 'CAPITAO ENEAS', 'CAPITOLIO', 'CARBONITA', 'CAREACU', 'CARMO DO CAJURU', 'CHAPADA DO NORTE', 'CLAUDIO', 'CONCEICAO DO PARA', 'CONCEICAO DOS OUROS', 'CONFINS', 'CONGONHAL', 'CONTAGEM', 'CORINTO', 'CORREGO FUNDO', 'COUTO DE MAGALHAES DE MINAS', 'CRISTAIS', 'CURVELO', 'DATAS', 'DIAMANTINA', 'DIVINOLANDIA DE MINAS', 'DIVINOPOLIS', 'DORES DE GUANHAES', 'ESTIVA', 'FELIXLANDIA', 'FERROS', 'FORMIGA', 'FRANCISCO SA', 'GOUVEIA', 'GUANHAES', 'IBIRITE', 'IGARATINGA', 'IGUATAMA', 'INIMUTABA', 'ITABIRA', 'ITAMARANDIBA', 'ITAUNA', 'JANAUBA', 'JANUARIA', 'JAPONVAR', 'JOSE RAYDAN', 'LAGOA DA PRATA', 'LAGOA SANTA', 'LAVRAS', 'LONTRA', 'MATERLANDIA', 'MATOZINHOS', 'MINAS NOVAS', 'MIRABELA', 'MONTES CLAROS', 'NOVA LIMA', 'NOVA PORTEIRINHA', 'NOVA SERRANA', 'OLIVEIRA', 'PAINS', 'PARA DE MINAS', 'PARAOPEBA', 'PECANHA', 'PERDIGAO', 'PERDOES', 'PIMENTA', 'PITANGUI', 'PIUMHI', 'PORTEIRINHA', 'POUSO ALEGRE', 'PRUDENTE DE MORAIS', 'RIBEIRAO DAS NEVES', 'RIO VERMELHO', 'SABARA', 'SABINOPOLIS', 'SALINAS', 'SANTA LUZIA', 'SANTA MARIA DE ITABIRA', 'SANTA MARIA DO SUACUI', 'SANTA RITA DO SAPUCAI', 'SANTANA DO JACARE', 'SAO BENTO ABADE', 'SAO GONCALO DO PARA', 'SAO JOAO EVANGELISTA', 'SAO JOSE DA LAPA', 'SAO JOSE DO JACURI', 'SAO PEDRO DO SUACUI', 'SAO SEBASTIAO DA BELA VISTA', 'SAO SEBASTIAO DO OESTE', 'SAO SEBASTIAO DO SAPUCAI', 'SARZEDO', 'SENHORA DO PORTO', 'SERRO', 'SETE LAGOAS', 'SILVIANOPOLIS', 'TAIOBEIRAS', 'TRES CORACOES', 'TURMALINA', 'VARGINHA', 'VEREDINHA', 'VESPASIANO', 'VIRGINOPOLIS', 'ARUJA', 'BARUERI', 'CAJAMAR', 'CAMPINAS', 'CARAPICUIBA', 'COTIA', 'DIADEMA', 'EMBU DAS ARTES', 'FERRAZ DE VASCONCELOS', 'GUARULHOS', 'HORTOLANDIA', 'INDAIATUBA', 'ITAPECERICA DA SERRA', 'ITAQUAQUECETUBA', 'ITUPEVA', 'JANDIRA', 'JUNDIAI', 'LOUVEIRA', 'MAUA', 'MOGI DAS CRUZES', 'OSASCO', 'POA', 'RIBEIRAO PIRES', 'SANTANA DE PARNAIBA', 'SANTO ANDRE', 'SAO BERNARDO DO CAMPO', 'SAO CAETANO DO SUL', 'SAO PAULO', 'SUZANO', 'TABOAO DA SERRA', 'VALINHOS', 'VARGEM GRANDE PAULISTA', 'VARZEA PAULISTA', 'VINHEDO'];
-const DEFAULT_SHIPPING_SETTINGS = { montagemPercent: 0.12, correios: { enabled: true, origemCep: process.env.LOJA_ORIGEM_CEP || '', servicos: String(process.env.CORREIOS_SERVICOS || '03298,03328').split(',').map(s => String(s).trim()).filter(Boolean), pesoKgPadrao: 1, alturaCmPadrao: 10, larguraCmPadrao: 15, comprimentoCmPadrao: 20, valorDeclaradoPadrao: 0, maxWeightKg: 30, maxDimensionCm: 100 }, businessRules: { arianaMoveis: { enabled: true, sellerNames: ['ARIANA MOVEIS', 'ARIANA MÓVEIS'], freeLocalEnabled: false, freeCepStart: '39740-000', freeCepEnd: '39740-000', localOriginCep: '39740-000', freeCity: 'Guanhães', localMaxKmTier1: 50, localPriceTier1: 89, localMaxKmTier2: 120, localPriceTier2: 159, localMaxKmTier3: 200, localPriceTier3: 211, localMaxKmTier4: 260, localPriceTier4: 259, tiers: [{ maxKm: 50, price: 89 }, { maxKm: 120, price: 159 }, { maxKm: 200, price: 211 }, { maxKm: 260, price: 259 }], phoneFlatPrice: 19.90, phoneFlatEnabled: true, label: 'Ariana Entrega', prazo: '1 a 3 dias úteis' }, snDigital: { enabled: false, appliesToArianaLogistics: false, maxKmTier1: 30, priceTier1: 80, maxKmTier2: 70, priceTier2: 120, label: 'Ariana Entrega', prazo: '1 a 3 dias úteis' }, rodocap: { enabled: true, appliesToArianaLogistics: true, minKmExclusive: 70, percentOfInvoice: 0.12, label: 'Rodocap', prazoPadrao: 'sob consulta', allowedCities: RODOCAP_ALLOWED_CITIES, onlyUrbanArea: true } }, carriers: { correios: { enabled: true, maxWeightKg: 30, maxDimensionCm: 100 }, frenet: { enabled: String(process.env.FRENET_ENABLED || '').toLowerCase() === 'true' || !!process.env.FRENET_TOKEN || !!process.env.FRENET_API_TOKEN, token: process.env.FRENET_TOKEN || process.env.FRENET_API_TOKEN || '', apiUrl: process.env.FRENET_API_URL || 'https://api.frenet.com.br', origemCep: process.env.FRENET_ORIGIN_CEP || process.env.LOJA_ORIGEM_CEP || '', maxWeightKg: Number(process.env.FRENET_MAX_WEIGHT_KG || 100), maxDimensionCm: Number(process.env.FRENET_MAX_DIMENSION_CM || 200) }, totalExpress: { enabled: false, maxWeightKg: 30, maxDimensionCm: 110 }, ownDelivery: { enabled: true, tiers: [{ maxKm: 50, price: 89 }, { maxKm: 120, price: 159 }, { maxKm: 200, price: 211 }, { maxKm: 260, price: 259 }] } } };
+const DEFAULT_SHIPPING_SETTINGS = { montagemPercent: 0.12, correios: { enabled: true, origemCep: process.env.LOJA_ORIGEM_CEP || '', servicos: String(process.env.CORREIOS_SERVICOS || '03298,03328').split(',').map(s => String(s).trim()).filter(Boolean), pesoKgPadrao: 1, alturaCmPadrao: 10, larguraCmPadrao: 15, comprimentoCmPadrao: 20, valorDeclaradoPadrao: 0, maxWeightKg: 30, maxDimensionCm: 100 }, businessRules: { arianaMoveis: { enabled: true, sellerNames: ['ARIANA MOVEIS', 'ARIANA MÓVEIS'], freeCepStart: '39740-000', freeCepEnd: '39740-000', localOriginCep: '39740-000', localMaxKmTier1: 30, localPriceTier1: 80, localMaxKmTier2: 70, localPriceTier2: 120, phoneFlatPrice: 19.90, phoneFlatEnabled: true, label: 'Ariana Entrega', prazo: '1 a 3 dias úteis' }, snDigital: { enabled: false, appliesToArianaLogistics: false, maxKmTier1: 30, priceTier1: 80, maxKmTier2: 70, priceTier2: 120, label: 'Ariana Entrega', prazo: '1 a 3 dias úteis' }, rodocap: { enabled: true, appliesToArianaLogistics: true, minKmExclusive: 70, percentOfInvoice: 0.12, label: 'Rodocap', prazoPadrao: 'sob consulta', allowedCities: RODOCAP_ALLOWED_CITIES, onlyUrbanArea: true } }, carriers: { correios: { enabled: true, maxWeightKg: 30, maxDimensionCm: 100 }, frenet: { enabled: String(process.env.FRENET_ENABLED || '').toLowerCase() === 'true' || !!process.env.FRENET_TOKEN || !!process.env.FRENET_API_TOKEN, token: process.env.FRENET_TOKEN || process.env.FRENET_API_TOKEN || '', apiUrl: process.env.FRENET_API_URL || 'https://api.frenet.com.br', origemCep: process.env.FRENET_ORIGIN_CEP || process.env.LOJA_ORIGEM_CEP || '', maxWeightKg: Number(process.env.FRENET_MAX_WEIGHT_KG || 100), maxDimensionCm: Number(process.env.FRENET_MAX_DIMENSION_CM || 200) }, totalExpress: { enabled: false, maxWeightKg: 30, maxDimensionCm: 110 }, ownDelivery: { enabled: true, tiers: [{ maxKm: 30, price: 80 }, { maxKm: 70, price: 120 }] } } };
 
 async function getSetting(key, fallback = null) { const doc = await Setting.findOne({ key }); return doc ? doc.value : fallback; }
 async function setSetting(key, value, updatedBy = 'system') { const doc = await Setting.findOneAndUpdate({ key }, { $set: { value, updatedBy } }, { upsert: true, new: true }); return doc.value; }
@@ -2071,14 +2001,14 @@ async function getWhatsappSettings() {
 }
 async function saveWhatsappSettings(data, updatedBy = 'system') { const current = await getWhatsappSettings(); const merged = { ...current, ...(data || {}) }; merged.instanceName = String(process.env.EVOLUTION_NOTIFY_INSTANCE || process.env.EVOLUTION_INSTANCE_NOTIFICACOES || 'Ariana_Notificacoes').trim(); await setSetting('whatsapp_evolution', merged, updatedBy); return merged; }
 
-async function waSendTextMessage({ number = '', text = '', delay = 0, instanceName: requestedInstanceName = '' } = {}) {
+async function waSendTextMessage({ number = '', text = '', delay = 0 } = {}) {
   const settings = await getWhatsappSettings();
   if (settings.enabled === false) {
     throw new Error('WhatsApp desativado nas configurações.');
   }
 
   const apiUrl = String(settings.apiUrl || WHATSAPP_EVOLUTION_DEFAULT_API_URL || '').replace(/\/+$/, '');
-  const instanceName = String(requestedInstanceName || settings.instanceName || WHATSAPP_EVOLUTION_DEFAULT_INSTANCE || '').trim();
+  const instanceName = String(settings.instanceName || WHATSAPP_EVOLUTION_DEFAULT_INSTANCE || '').trim();
   const apiKey = String(settings.apiKey || process.env.EVOLUTION_API_KEY || '').trim();
   const to = normalizePhone(number || '', settings.defaultCountryCode || '55');
   const message = String(text || '').trim();
@@ -2431,9 +2361,7 @@ async function sendCrediarioCobrancaWhatsapp({
   contrato = '',
   tipo = 'normal'
 } = {}) {
-  const rawPhone = String(telefone || '').trim();
-  const normalized = normalizePhone(rawPhone, '55');
-  const number = rawPhone.startsWith('+') && normalized ? `+${normalized}` : normalized;
+  const number = normalizePhone(telefone || '', '55');
   if (!number) throw new Error('Telefone do cliente inválido para envio da cobrança.');
   const text = buildCrediarioCobrancaMessage({
     clienteNome,
@@ -2456,11 +2384,7 @@ async function sendCrediarioCobrancaWhatsapp({
 
 async function sendCrediarioReceiptWhatsapp(reciboDoc = {}) {
   const recibo = normalizeCrediarioRecibo(reciboDoc);
-  const rawPhone = String(recibo.telefone || '').trim();
-  const normalized = normalizePhone(rawPhone, '55');
-  // Preserve o "+" até waSendTextMessage fazer a normalização final.
-  // Sem isso, +1 vira 11 dígitos e recebe 55 numa segunda normalização.
-  const number = rawPhone.startsWith('+') && normalized ? `+${normalized}` : normalized;
+  const number = normalizePhone(recibo.telefone || '', '55');
   if (!number) throw new Error('Telefone do cliente inválido para envio do recibo.');
   const text = buildCrediarioReceiptMessage(reciboDoc);
   return waSendTextMessage({ number, text });
@@ -2876,7 +2800,8 @@ app.post('/api/coupons/validate', async (req, res, next) => {
       } catch (_) {}
     }
 
-    if (!authenticatedUser) {
+    const identities = couponCustomerQuery(req, req.body || {});
+    if (!identities.length) {
       return res.status(401).json({
         ok: false,
         valid: false,
@@ -2886,27 +2811,30 @@ app.post('/api/coupons/validate', async (req, res, next) => {
       });
     }
 
-    const identities = couponCustomerQuery(req, req.body || {});
-    const alreadyPurchased = await Order.exists({
+    const alreadyUsed = await Order.exists({
       $and: [
         { $or: identities },
         {
           $or: [
-            { paymentStatus: { $in: ['approved', 'paid', 'pago', 'captured', 'authorized', 'payment_approved'] } },
-            { 'payment.status': { $in: ['approved', 'paid', 'pago', 'captured', 'authorized', 'payment_approved'] } },
-            { status: { $in: ['approved', 'paid', 'pago', 'payment_approved', 'processing', 'preparing', 'shipped', 'delivered', 'concluido', 'concluído'] } }
+            { 'totals.couponCode': code },
+            { couponCode: code },
+            { coupon: code },
+            { 'coupon.code': code }
           ]
+        },
+        {
+          status: { $nin: ['cancelled', 'canceled', 'cancelado', 'failed', 'rejected'] }
         }
       ]
     });
 
-    if (alreadyPurchased) {
+    if (alreadyUsed) {
       return res.status(409).json({
         ok: false,
         valid: false,
         code,
         discountValue: 0,
-        message: 'Este cupom é exclusivo para a primeira compra.'
+        message: 'Este cupom já foi utilizado nesta conta.'
       });
     }
 
@@ -2949,62 +2877,8 @@ app.post('/api/coupons/validate', async (req, res, next) => {
   }
 });
 
-registerCoraRoutes(app, { adminRequired, authRequired, mongoose, Order, Product });
-registerCrediarioAnalysisRoutes(app, { adminRequired, authRequired, mongoose, Order, Product, waSendTextMessage });
-startAdminWhatsappReminderWorker({ Order, mongoose, waSendTextMessage });
-startErpDailyDueWhatsappWorker({
-  Order,
-  Setting,
-  IntegrationAuditLog,
-  mongoose,
-  waSendTextMessage,
-  toJSON,
-  redact
-});
-startErpFifteenDayOverdueWhatsappWorker({
-  Order,
-  Setting,
-  IntegrationAuditLog,
-  mongoose,
-  waSendTextMessage,
-  toJSON,
-  redact
-});
-app.get('/api/erp/finance-panel/cobrancas-15-dias/auditoria', adminRequired, async (req, res) => {
-  try {
-    const result = await listErpFifteenDayOverdueAudit({
-      Order,
-      Setting,
-      IntegrationAuditLog,
-      mongoose,
-      toJSON,
-      redact,
-      now: new Date()
-    });
-    return res.json(result);
-  } catch (error) {
-    console.error('[erp-15-day-collection-audit]', error?.message || error);
-    return res.status(500).json({
-      ok: false,
-      error: error?.message || 'Não foi possível carregar a auditoria de cobrança de 15 dias.'
-    });
-  }
-});
-setTimeout(async()=>{
-  try{
-    const Entry=mongoose.models.ErpFinancialEntry;
-    if(!Entry||mongoose.connection.readyState!==1)return;
-    const filter={direction:'payable',origin:'sige_import',$or:[{value:{$gte:10000000}},{value:{$lte:-10000000}}]};
-    const rows=await Entry.collection.find(filter).project({_id:1,value:1,paidValue:1,payments:1}).toArray();
-    const unsafe=rows.filter(r=>Number(r.paidValue||0)>0||(Array.isArray(r.payments)&&r.payments.length));
-    if(unsafe.length){console.error('[erp-cleanup] LIMPEZA BLOQUEADA: anomalia histórica a pagar possui pagamento vinculado.',{count:unsafe.length});return}
-    if(!rows.length)return;
-    const ids=rows.map(r=>r._id),totalValue=rows.reduce((s,r)=>s+Number(r.value||0),0);
-    const result=await Entry.collection.deleteMany({_id:{$in:ids},direction:'payable',origin:'sige_import'});
-    await IntegrationAuditLog.create({scope:'erp_ariana',eventType:'erp.finance.historical_payable_anomalies_deleted',status:'success',message:'Anomalias históricas importadas de contas a pagar removidas por autorização administrativa.',metadata:{count:Number(result.deletedCount||0),totalValue,threshold:10000000}});
-    console.log('[erp-cleanup] anomalias históricas a pagar removidas',{count:result.deletedCount,totalValue});
-  }catch(error){console.error('[erp-cleanup] falha segura; nenhum filtro amplo executado',error?.message||error)}
-},45000).unref?.();
+registerCoraRoutes(app, { adminRequired, authRequired, mongoose, Order });
+registerCrediarioAnalysisRoutes(app, { adminRequired, authRequired, mongoose, Order });
 registerCrediarioConversationRoutes(app, { mongoose, adminRequired });
 registerAdminUserRoutes(app, { User, AdminAuditLog, AdminSession, AdminLoginEvent, adminRequired, bcrypt, mongoose, isSuperAdminEmail });
 
@@ -3072,13 +2946,6 @@ async function televendasSigeRequest(
 app.use('/api', createTelevendasRoutes({
   Order,
   Product,
-  CrediarioCliente,
-  CrediarioRecibo,
-  mongoose,
-  normalizePhone,
-  makeReciboNumber,
-  sendCrediarioReceiptWhatsapp,
-  now,
   sigeRequest: televendasSigeRequest,
   User,
   PaymentEvent,
@@ -3093,7 +2960,6 @@ app.use('/api', createTelevendasRoutes({
   redact,
   createAdminNotification,
   createSellerOrderNotifications,
-  getWhatsappSettings,
   FRONTEND_URL,
   onTelevendasPaymentApproved: async (order) => {
     const orderId = String(order?._id || order?.id || '').trim();
@@ -3461,20 +3327,12 @@ app.get('/api/settings/shipping', async (_req, res) => {
 
 registerCieloRoutes(app, {
   Order,
-  Product,
   axios,
   adminRequired,
-  authRequired,
   writeAuditLog: async () => null,
   redact,
   toJSON,
   now
-});
-
-registerEfiRoutes(app, {
-  adminRequired,
-  IntegrationAuditLog,
-  Seller
 });
 
 registerLegacyRoutes(app, {
@@ -3688,23 +3546,6 @@ app.listen(PORT, () => {
         );
       });
   }, 5000);
-
-  // Auditoria de integridade das compras históricas importadas.
-  // A correção é idempotente e, por segurança, só restaura automaticamente
-  // a série específica já conferida no Financeiro (8x de R$ 299,00).
-  setTimeout(() => {
-    import('./services/erp/erpHistoricalInstallmentIntegrityService.js')
-      .then(({ repairHistoricalInstallmentIntegrity }) =>
-        repairHistoricalInstallmentIntegrity({ mongoose, logger: console })
-      )
-      .catch((error) => {
-        console.error(
-          '[erp-historical-integrity] falha na auditoria/correção:',
-          error?.message || error
-        );
-      });
-  }, 12000);
-
   if (typeof startSigeAutoCobrancaScheduler === 'function') {
     startSigeAutoCobrancaScheduler();
   }

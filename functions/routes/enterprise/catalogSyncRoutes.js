@@ -13,8 +13,6 @@ export default function registerEnterpriseCatalogSyncRoutes(app, context = {}) {
     enterpriseCompatNumber,
     enterpriseCompatProductPayload,
     Product,
-    EnterpriseSandboxProduct,
-    enterpriseProductModelForEnvironment,
     IntegrationAuditLog,
     redact,
     escapeRegex,
@@ -45,7 +43,6 @@ const enterpriseCatalogSyncJobSchema = new mongoose.Schema({
   payload: mongoose.Schema.Types.Mixed,
   options: mongoose.Schema.Types.Mixed,
   startedAt: Date,
-  heartbeatAt: Date,
   finishedAt: Date,
   durationMs: { type: Number, default: 0 },
   attempts: { type: Number, default: 0 },
@@ -53,7 +50,7 @@ const enterpriseCatalogSyncJobSchema = new mongoose.Schema({
   nextAttemptAt: { type: Date, default: now, index: true },
   lastError: String,
   metadata: mongoose.Schema.Types.Mixed
-}, { ...baseOptions, suppressReservedKeysWarning: true });
+}, baseOptions);
 
 const EnterpriseCatalogSyncJob = mongoose.models.EnterpriseCatalogSyncJob || mongoose.model('EnterpriseCatalogSyncJob', enterpriseCatalogSyncJobSchema);
 
@@ -90,13 +87,11 @@ async function processEnterpriseCatalogSyncJob(jobId = '') {
   job.status = 'processing';
   job.statusLabel = 'Processando';
   job.startedAt = startedAt;
-  job.heartbeatAt = startedAt;
   job.attempts = Number(job.attempts || 0) + 1;
   await job.save();
 
   const items = normalizeEnterpriseCatalogSyncItems(job.payload || {});
   const partner = job.metadata?.partner || {};
-  const ProductModel = enterpriseProductModelForEnvironment(job.environment || 'sandbox');
   const parent = { ...(job.payload || {}), manufacturer: job.manufacturer };
   const results = [];
   const errors = [];
@@ -105,74 +100,36 @@ async function processEnterpriseCatalogSyncJob(jobId = '') {
   let skippedProducts = 0;
 
   try {
-    const concurrency = Math.min(25, Math.max(4, Number(process.env.ENTERPRISE_CATALOG_SYNC_CONCURRENCY || 16)));
-
-    for (let offset = 0; offset < items.length; offset += concurrency) {
-      const batch = items.slice(offset, offset + concurrency);
-      const batchResults = await Promise.all(batch.map(async (item, localIndex) => {
-        const i = offset + localIndex;
-        const validation = validateEnterpriseCatalogItem(item, i);
-        if (!validation.ok) {
-          return { ok: false, skipped: true, error: { index: i, sku: validation.sku || '', errors: validation.errors } };
-        }
-
-        try {
-          const payload = enterpriseCompatProductPayload(item, parent, partner);
-          payload.sellerId = String(payload.sellerId || job.partnerId || job.manufacturer || 'enterprise').trim();
-          payload.sellerName = String(payload.sellerName || job.manufacturer || partner.tradeName || partner.companyName || 'Enterprise').trim();
-          payload.metadata = { ...(payload.metadata || {}), enterpriseSyncJobId: job.jobId, enterprisePartnerId: job.partnerId, enterpriseEnvironment: job.environment };
-
-          const filter = { sku: payload.sku, sellerId: payload.sellerId };
-          const before = await ProductModel.findOne(filter).select('_id').lean();
-          const product = await ProductModel.findOneAndUpdate(
-            filter,
-            { $set: payload, $setOnInsert: { createdAt: new Date() } },
-            { upsert: true, new: true }
-          );
-
-          return {
-            ok: true,
-            created: !before,
-            result: {
-              ok: true,
-              action: before ? 'updated' : 'created',
-              sku: payload.sku,
-              id: String(product._id),
-              price: product.price,
-              stock: product.stock
-            }
-          };
-        } catch (itemError) {
-          return {
-            ok: false,
-            skipped: true,
-            error: { index: i, sku: String(item.sku || item.codigo || ''), error: itemError.message || 'item_sync_failed' }
-          };
-        }
-      }));
-
-      for (const row of batchResults) {
-        if (row.ok) {
-          if (row.created) createdProducts += 1;
-          else updatedProducts += 1;
-          results.push(row.result);
-        } else {
-          skippedProducts += 1;
-          errors.push(row.error);
-        }
+    for (let i = 0; i < items.length; i += 1) {
+      const item = items[i];
+      const validation = validateEnterpriseCatalogItem(item, i);
+      if (!validation.ok) {
+        skippedProducts += 1;
+        errors.push({ index: i, sku: validation.sku || '', errors: validation.errors });
+        continue;
       }
 
-      const processed = Math.min(items.length, offset + batch.length);
-      job.heartbeatAt = new Date();
-      job.statusLabel = `Processando ${processed}/${items.length}`;
-      job.createdProducts = createdProducts;
-      job.updatedProducts = updatedProducts;
-      job.skippedProducts = skippedProducts;
-      job.errorCount = errors.length;
-      await job.save();
+      try {
+        const payload = enterpriseCompatProductPayload(item, parent, partner);
+        payload.sellerId = String(payload.sellerId || job.partnerId || job.manufacturer || 'enterprise').trim();
+        payload.sellerName = String(payload.sellerName || job.manufacturer || partner.tradeName || partner.companyName || 'Enterprise').trim();
+        payload.metadata = { ...(payload.metadata || {}), enterpriseSyncJobId: job.jobId, enterprisePartnerId: job.partnerId, enterpriseEnvironment: job.environment };
 
-      if (processed === items.length || processed % Math.max(concurrency * 10, 100) === 0) {
-        console.log(`[ENTERPRISE CATALOG SYNC] ${job.jobId}: ${processed}/${items.length}`);
+        const filter = { sku: payload.sku, sellerId: payload.sellerId };
+        const before = await Product.findOne(filter).lean();
+        const product = await Product.findOneAndUpdate(
+          filter,
+          { $set: payload, $setOnInsert: { createdAt: new Date() } },
+          { upsert: true, new: true }
+        );
+
+        if (before) updatedProducts += 1;
+        else createdProducts += 1;
+
+        results.push({ ok: true, action: before ? 'updated' : 'created', sku: payload.sku, id: String(product._id), price: product.price, stock: product.stock });
+      } catch (itemError) {
+        skippedProducts += 1;
+        errors.push({ index: i, sku: String(item.sku || item.codigo || ''), error: itemError.message || 'item_sync_failed' });
       }
     }
 
@@ -219,37 +176,10 @@ async function processEnterpriseCatalogSyncJob(jobId = '') {
 }
 
 async function processPendingEnterpriseCatalogSyncJobs(limit = 3) {
-  const staleMs = Math.max(120000, Number(process.env.ENTERPRISE_CATALOG_SYNC_STALE_MS || 300000));
-  const staleBefore = new Date(Date.now() - staleMs);
-
-  const recovered = await EnterpriseCatalogSyncJob.updateMany(
-    {
-      status: 'processing',
-      $or: [
-        { heartbeatAt: { $lt: staleBefore } },
-        { heartbeatAt: { $exists: false }, startedAt: { $lt: staleBefore } },
-        { heartbeatAt: null, startedAt: { $lt: staleBefore } }
-      ]
-    },
-    {
-      $set: {
-        status: 'queued',
-        statusLabel: 'Recuperado após interrupção',
-        nextAttemptAt: new Date(),
-        lastError: 'Processamento interrompido; retomado automaticamente'
-      }
-    }
-  ).catch(() => null);
-
-  if (Number(recovered?.modifiedCount || 0) > 0) {
-    console.log(`[ENTERPRISE CATALOG SYNC] ${recovered.modifiedCount} job(s) recuperado(s)`);
-  }
-
   const rows = await EnterpriseCatalogSyncJob.find({
     status: { $in: ['queued', 'retry'] },
     nextAttemptAt: { $lte: new Date() }
   }).sort({ createdAt: 1 }).limit(Math.max(1, Number(limit || 3)));
-
   for (const row of rows) {
     await processEnterpriseCatalogSyncJob(row.jobId);
   }
@@ -470,36 +400,6 @@ app.post('/api/admin/enterprise/catalog/sync-jobs/:jobId/retry', adminRequired, 
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao retentar sincronização' });
   }
 });
-
-
-function startEnterpriseCatalogSyncWorker() {
-  const enabled = String(process.env.ENTERPRISE_CATALOG_SYNC_WORKER_ENABLED || 'true').toLowerCase() !== 'false';
-  if (!enabled) {
-    console.log('🏭 Enterprise catalog sync worker desativado por ENTERPRISE_CATALOG_SYNC_WORKER_ENABLED=false');
-    return;
-  }
-
-  // Proteção contra registro duplicado do intervalo no mesmo processo.
-  if (globalThis.__arianaEnterpriseCatalogSyncWorkerStarted) return;
-  globalThis.__arianaEnterpriseCatalogSyncWorkerStarted = true;
-
-  const intervalMs = Math.max(15000, Number(process.env.ENTERPRISE_CATALOG_SYNC_WORKER_INTERVAL_MS || 45000));
-  const limit = Math.max(1, Number(process.env.ENTERPRISE_CATALOG_SYNC_WORKER_LIMIT || 3));
-
-  console.log(`🏭 Enterprise catalog sync worker ativo: a cada ${intervalMs}ms, limite ${limit}`);
-
-  const timer = setInterval(() => {
-    processPendingEnterpriseCatalogSyncJobs(limit).catch((error) => {
-      console.error('[ENTERPRISE CATALOG SYNC WORKER] ERRO', error.message || error);
-    });
-  }, intervalMs);
-
-  if (typeof timer.unref === 'function') timer.unref();
-}
-
-// O worker precisa nascer no mesmo módulo que possui o processador da fila.
-// Assim cargas grandes (> limite inline) não ficam presas em "queued".
-startEnterpriseCatalogSyncWorker();
 
 
 }

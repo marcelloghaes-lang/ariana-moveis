@@ -212,7 +212,6 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
         <nav class="flex flex-col space-y-2">
     <a href="seller_dashboard.html" class="sidebar-link"><i class="fas fa-home"></i><span>Dashboard</span></a>
     <a href="seller_produtos.html" class="sidebar-link active"><i class="fas fa-box"></i><span>Meus Produtos</span></a>
-    <a href="seller_catalogo_importar.html" class="sidebar-link"><i class="fas fa-file-import"></i><span>Importar catálogo</span></a>
     <a href="seller_produto_novo.html" class="sidebar-link"><i class="fas fa-plus-circle"></i><span>Cadastrar Produto</span></a>
     <a href="seller_pedidos.html" class="sidebar-link"><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
     <a href="seller_vendas.html" class="sidebar-link"><i class="fas fa-chart-line"></i><span>Vendas</span></a>
@@ -243,7 +242,7 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
         <h2 class="page-title">Gestão de estoque</h2>
         <p class="page-subtitle">Cadastre, edite e acompanhe os produtos publicados na sua loja.</p>
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap"><a href="seller_catalogo_importar.html" class="btn btn-light"><i class="fas fa-file-import"></i>Importar catálogo</a><a href="seller_produto_novo.html" class="btn btn-primary"><i class="fas fa-plus"></i>Novo produto</a></div>
+      <a href="seller_produto_novo.html" class="btn btn-primary"><i class="fas fa-plus"></i>Novo produto</a>
     </div>
 
     <div class="card desktop-table overflow-hidden">
@@ -302,43 +301,7 @@ function productIdOf(p){ return p.id || p._id || p.sku || ''; }
 function getSellerDebugId(sellerMe = {}){
   return String(sellerMe.sellerId || sellerMe.seller_id || sellerMe.id || sellerMe._id || getSellerProfile().sellerId || getSellerProfile().id || getSellerProfile()._id || '').trim();
 }
-async function fetchWithTimeout(url, options = {}, timeoutMs = 12000){
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } catch (error) {
-    if (error?.name === 'AbortError') throw new Error('O servidor demorou para responder. Tente novamente.');
-    throw error;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-async function fetchJson(url){
-  const response = await fetchWithTimeout(url, { headers: authHeaders() });
-  const data = await response.json().catch(() => null);
-  return { response, data };
-}
-async function refreshSellerIdentity(){
-  try{
-    const meRes = await fetchWithTimeout(`${API_BASE}/seller/auth/me`, { headers: authHeaders() }, 8000);
-    if (meRes.status === 401 || meRes.status === 403) {
-      clearSellerSession();
-      window.location.href = 'seller_login.html';
-      return null;
-    }
-    const meData = await meRes.json().catch(() => ({}));
-    const sellerMe = meData?.seller || meData?.user || meData || {};
-    if (sellerMe && (sellerMe._id || sellerMe.id || sellerMe.email || sellerMe.sellerId)) {
-      localStorage.setItem('seller_profile', JSON.stringify(sellerMe));
-      applySellerHeaderName();
-    }
-    return sellerMe;
-  } catch (error) {
-    console.warn('Não foi possível atualizar o perfil do seller agora:', error);
-    return null;
-  }
-}
+async function fetchJson(url){ const response = await fetch(url, { headers: authHeaders() }); const data = await response.json().catch(() => null); return { response, data }; }
 function emptyHtml(sellerId='', lastError=''){
   return `<div class="card p-8 text-center text-gray-400 font-bold">Nenhum produto encontrado ainda para este seller.<br><span style="font-size:12px;font-weight:600;color:#64748b">Seller detectado: ${escapeHtml(sellerId || 'não identificado')}${lastError ? ' — ' + escapeHtml(lastError) : ''}</span></div>`;
 }
@@ -351,7 +314,7 @@ function renderDesktop(products){
       <td><span class="sku-pill">${escapeHtml(p.sku || '-')}</span></td>
       <td><span class="font-black">${escapeHtml(p.stock ?? p.estoque ?? 0)}</span></td>
       <td class="price-main">${money(price)}</td>
-      <td><div class="actions-wrap"><a href="seller_produto_editar.html?id=${encodeURIComponent(id)}&v=20260919-3" class="action-btn edit"><i class="fas fa-pen"></i><span>Editar</span></a><button onclick="deleteProduct('${String(id).replace(/'/g, "\\'")}')" class="action-btn delete"><i class="fas fa-trash"></i><span>Excluir</span></button></div></td>
+      <td><div class="actions-wrap"><a href="seller_produto_editar.html?id=${encodeURIComponent(id)}" class="action-btn edit"><i class="fas fa-pen"></i><span>Editar</span></a><button onclick="deleteProduct('${String(id).replace(/'/g, "\\'")}')" class="action-btn delete"><i class="fas fa-trash"></i><span>Excluir</span></button></div></td>
     </tr>`;
   }).join('');
 }
@@ -362,63 +325,59 @@ function renderMobile(products){
     return `<article class="mobile-product-card">
       <div class="mobile-card-top"><div class="mobile-thumb">${img ? `<img src="${escapeHtml(img)}" alt="">` : `<i class="fas fa-image text-gray-300"></i>`}</div><div class="min-w-0"><div class="mobile-product-name">${escapeHtml(p.name || p.nome || '-')}</div><div class="mobile-product-cat">${escapeHtml(p.category || p.categoryName || p.categoria || 'Produto')}</div></div></div>
       <div class="mobile-meta"><div class="meta-box"><div class="meta-label">SKU</div><div class="meta-value">${escapeHtml(p.sku || '-')}</div></div><div class="meta-box"><div class="meta-label">Estoque</div><div class="meta-value">${escapeHtml(p.stock ?? p.estoque ?? 0)}</div></div><div class="meta-box" style="grid-column:1/-1"><div class="meta-label">Preço base seller</div><div class="meta-value">${money(price)}</div></div></div>
-      <div class="mobile-actions"><a href="seller_produto_editar.html?id=${encodeURIComponent(id)}&v=20260919-3" class="action-btn edit"><i class="fas fa-pen"></i>Editar</a><button onclick="deleteProduct('${String(id).replace(/'/g, "\\'")}')" class="action-btn delete"><i class="fas fa-trash"></i>Excluir</button></div>
+      <div class="mobile-actions"><a href="seller_produto_editar.html?id=${encodeURIComponent(id)}" class="action-btn edit"><i class="fas fa-pen"></i>Editar</a><button onclick="deleteProduct('${String(id).replace(/'/g, "\\'")}')" class="action-btn delete"><i class="fas fa-trash"></i>Excluir</button></div>
     </article>`;
   }).join('');
 }
 async function loadProducts(){
-  if (!ensureSellerSession()) return;
-  applySellerHeaderName();
-  const tbody = $('lista-produtos-corpo');
-  const mobile = $('mobile-products-list');
-  tbody.innerHTML = '<tr><td colspan="5" class="text-center muted py-10">Carregando seus produtos...</td></tr>';
-  mobile.innerHTML = '<div class="card p-8 text-center muted font-bold">Carregando seus produtos...</div>';
-
-  // O catálogo é a informação principal desta página. Não bloquear a listagem
-  // esperando /auth/me, fontes, ícones ou qualquer recurso auxiliar.
-  const profileAtStart = getSellerProfile();
-  const sellerIdAtStart = getSellerDebugId(profileAtStart);
-  refreshSellerIdentity();
-
+  if (!ensureSellerSession()) return; applySellerHeaderName();
+  const tbody = $('lista-produtos-corpo'); const mobile = $('mobile-products-list');
+  tbody.innerHTML = '<tr><td colspan="5" class="text-center muted py-10">Sincronizando com MongoDB...</td></tr>'; mobile.innerHTML = '<div class="card p-8 text-center muted font-bold">Sincronizando com MongoDB...</div>';
   try{
-    const { response, data } = await fetchJson(`${API_BASE}/seller/products`);
-    if (response.status === 401 || response.status === 403){
-      clearSellerSession();
-      window.location.href = 'seller_login.html';
-      return;
-    }
-    if (!response.ok) throw new Error(data?.error || data?.message || `Erro ${response.status}`);
-
-    const products = Array.isArray(data)
-      ? data
-      : (Array.isArray(data?.products) ? data.products : (Array.isArray(data?.items) ? data.items : (data?.docs || [])));
-
-    if (!products.length){
-      const html = emptyHtml(sellerIdAtStart,'');
-      tbody.innerHTML = `<tr><td colspan="5">${html}</td></tr>`;
-      mobile.innerHTML = html;
-      return;
+    const meRes = await fetch(`${API_BASE}/seller/auth/me`, { headers: authHeaders() });
+    if (meRes.status === 401 || meRes.status === 403) { clearSellerSession(); window.location.href = 'seller_login.html'; return; }
+    const meData = await meRes.json().catch(() => ({})); const sellerMe = meData?.seller || meData?.user || meData || {};
+    if (sellerMe && (sellerMe._id || sellerMe.id || sellerMe.email || sellerMe.sellerId)) { localStorage.setItem('seller_profile', JSON.stringify(sellerMe)); applySellerHeaderName(); }
+    const sellerId = getSellerDebugId(sellerMe);
+    const attempts = [`${API_BASE}/seller/products`, sellerId ? `${API_BASE}/products?sellerId=${encodeURIComponent(sellerId)}` : '', sellerId ? `${API_BASE}/products/seller/${encodeURIComponent(sellerId)}` : '', sellerId ? `${API_BASE}/seller/${encodeURIComponent(sellerId)}/products` : '', sellerId ? `${API_BASE}/sellers/${encodeURIComponent(sellerId)}/products` : ''].filter(Boolean);
+    let products = [], lastError = '';
+    for (const url of attempts){
+      const { response, data } = await fetchJson(url);
+      if (response.status === 401 || response.status === 403){ clearSellerSession(); window.location.href = 'seller_login.html'; return; }
+      if (!response.ok){ lastError = data?.error || data?.message || `Erro ${response.status}`; continue; }
+      const list = Array.isArray(data) ? data : (Array.isArray(data?.products) ? data.products : (data?.items || data?.docs || []));
+      if (list.length){ products = list; break; }
     }
 
-    renderDesktop(products);
-    renderMobile(products);
-  } catch(e){
-    console.error(e);
-    const message = escapeHtml(e?.message || 'Erro ao carregar seus produtos.');
-    tbody.innerHTML = `<tr><td colspan="5" class="py-12 text-center text-red-600 font-bold">Não foi possível carregar seus produtos.<br><span style="font-size:12px;font-weight:600">${message}</span><br><button type="button" onclick="loadProducts()" style="margin-top:12px;padding:10px 16px;border-radius:12px;background:#0047AB;color:#fff;font-weight:900">Tentar novamente</button></td></tr>`;
-    mobile.innerHTML = `<div class="card p-8 text-center text-red-600 font-bold">Não foi possível carregar seus produtos.<br><span style="font-size:12px;font-weight:600">${message}</span><br><button type="button" onclick="loadProducts()" style="margin-top:12px;padding:10px 16px;border-radius:12px;background:#0047AB;color:#fff;font-weight:900">Tentar novamente</button></div>`;
-  }
+    // Compatibilidade com produtos antigos que foram gravados com outro identificador do seller.
+    if (!products.length && sellerId) {
+      try {
+        const candidates = new Set([
+          sellerId,
+          sellerMe.sellerId,
+          sellerMe.id,
+          sellerMe._id,
+          sellerMe.email,
+          sellerMe.storeName,
+          sellerMe.displayName,
+          sellerMe.name
+        ].map(v => String(v || '').trim()).filter(Boolean));
+        const pub = await fetchJson(`${API_BASE}/products?limit=1000`);
+        const pubList = Array.isArray(pub.data) ? pub.data : (pub.data?.products || pub.data?.items || pub.data?.docs || []);
+        products = pubList.filter(p => [p.sellerId, p.seller_id, p.seller, p.sellerName, p.sellerEmail, p.manufacturer].some(v => candidates.has(String(v || '').trim())));
+      } catch(_e) {}
+    }
+
+    if (!products.length){ const html = emptyHtml(sellerId,lastError); tbody.innerHTML = `<tr><td colspan="5">${html}</td></tr>`; mobile.innerHTML = html; return; }
+    renderDesktop(products); renderMobile(products);
+  } catch(e){ console.error(e); tbody.innerHTML = '<tr><td colspan="5" class="py-12 text-center text-red-500 font-bold">Erro ao conectar com o servidor Render.</td></tr>'; mobile.innerHTML = '<div class="card p-8 text-center text-red-500 font-bold">Erro ao conectar com o servidor Render.</div>'; }
 }
 async function deleteProduct(id){
   if (!id) return alert('Produto sem ID.'); if (!confirm('Deseja excluir este produto?')) return;
   try { const res = await fetch(`${API_BASE}/seller/products/${encodeURIComponent(id)}`, { method:'DELETE', headers:authHeaders() }); const data = await res.json().catch(() => ({})); if (!res.ok) throw new Error(data?.error || data?.message || 'Erro ao excluir produto.'); await loadProducts(); }
   catch(error){ alert(error.message || 'Erro ao excluir produto.'); }
 }
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', loadProducts, { once: true });
-} else {
-  loadProducts();
-}
+window.onload = loadProducts;
 $('sidebar-toggle')?.addEventListener('click', () => $('sidebar').classList.toggle('-translate-x-full'));
 $('btn-sair')?.addEventListener('click', (e) => { e.preventDefault(); clearSellerSession(); window.location.href = 'seller_login.html'; });
 </script>

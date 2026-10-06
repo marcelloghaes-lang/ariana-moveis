@@ -121,7 +121,7 @@
 
       <button class="btn-choice" data-method="crediario_ariana" type="button">
         <div class="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">🏦</div>
-        <div class="flex-1"><div class="font-bold">Crediário Ariana</div><div class="text-xs text-slate-500">Crediário próprio Ariana Móveis em até 15 parcelas</div></div>
+        <div class="flex-1"><div class="font-bold">Crediário Ariana</div><div class="text-xs text-slate-500">Carnê Cora em até 15 parcelas</div></div>
         <div class="radio-indicator w-5 h-5 border-2 rounded-full border-slate-300"></div>
       </button>
 
@@ -832,21 +832,10 @@
         if (installmentsEl && !installmentsEl.options.length) {
           const amount = Number(getTotalForSelectedMethod("card") || 0);
           const fmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-          const amountCents = Math.round(amount * 100);
           for (let i = 1; i <= 12; i++) {
             const opt = document.createElement("option");
             opt.value = String(i);
-
-            const lowCents = Math.floor(amountCents / i);
-            const remainder = amountCents - (lowCents * i);
-            const highCents = lowCents + (remainder > 0 ? 1 : 0);
-
-            if (remainder === 0) {
-              opt.textContent = `${i}x de ${fmt.format(lowCents / 100)} sem juros`;
-            } else {
-              opt.textContent = `${i}x sem juros • parcelas de ${fmt.format(lowCents / 100)} a ${fmt.format(highCents / 100)} • total ${fmt.format(amountCents / 100)}`;
-            }
-
+            opt.textContent = `${i}x de ${fmt.format(amount / i)} sem juros`;
             installmentsEl.appendChild(opt);
           }
         }
@@ -1196,17 +1185,18 @@
       try {
         const data = await apiFetch("/me");
         currentUser = normalizeProfile(data);
-        customerProfile = currentUser || {};
       } catch (_) {
         currentUser = null;
-        customerProfile = {};
       }
     }
 
     async function loadProfile() {
-      if (customerProfile && Object.keys(customerProfile).length) return customerProfile;
-      await loadCurrentUser();
-      return customerProfile;
+      try {
+        const data = await apiFetch("/me");
+        customerProfile = normalizeProfile(data);
+      } catch (_) {
+        customerProfile = {};
+      }
     }
 
     async function loadOrder() {
@@ -1309,9 +1299,14 @@
       if (normalized === "crediario_ariana") return getCrediarioPurchaseAmount();
 
       const totals = orderData?.totals || {};
-      const grand = Number(totals.grandTotal || orderData?.total || 0) || 0;
-      // O pedido já foi fechado pelo backend para uma forma de pagamento específica.
-      // A tela nunca reconstrói o valor a cobrar; mostra exatamente o total autoritativo salvo.
+      const grand = Number(totals.grandTotal || 0) || 0;
+      const original = Number(totals.grandTotalOriginal || totals.totalOriginal || 0) || 0;
+      const discount = Number(totals.discountValue || 0) || 0;
+
+      if (normalized === "card") {
+        if (original > 0 && (discount > 0 || original > grand)) return original;
+        return grand;
+      }
       return grand;
     }
 
@@ -1356,18 +1351,13 @@
         : (grand > 0 ? grand + Math.max(0, discount) : total);
       if (originalEl) originalEl.innerText = fmt.format(original);
 
-      const couponDiscount = Number(orderData?.totals?.couponDiscount || 0) || 0;
-      const paymentDiscount = Number(orderData?.totals?.paymentDiscountValue || 0) || 0;
-      const visibleDiscount = normalized === "card"
-        ? couponDiscount
-        : Math.max(0, couponDiscount + paymentDiscount);
+      const applied = String(orderData?.totals?.discountApplied || "");
       const box = document.getElementById("order-summary");
-      if (box && visibleDiscount > 0 && original > 0) {
+      if (box && normalized !== "card" && discount > 0 && original > 0) {
         const info = document.createElement("div");
         info.id = "summary-discount-info";
         info.className = "mt-3 text-sm text-green-600 font-bold text-right";
-        const label = normalized === "card" && couponDiscount > 0 ? "Cupom aplicado" : "Desconto aplicado";
-        info.innerHTML = `${label}: - ${fmt.format(visibleDiscount)}<br><span class="text-slate-400 font-medium">De ${fmt.format(original)} por</span>`;
+        info.innerHTML = `Desconto aplicado ${applied ? `(${applied})` : ``}: - ${fmt.format(discount)}<br><span class="text-slate-400 font-medium">De ${fmt.format(original)} por</span>`;
         box.insertBefore(info, totalEl?.parentElement || null);
       }
     }
@@ -1598,11 +1588,9 @@
           }
         });
 
-        // Pedido e perfil são independentes: carregam juntos.
-        await Promise.all([
-          loadCurrentUser(),
-          loadOrder()
-        ]);
+        await loadCurrentUser();
+        await loadProfile();
+        await loadOrder();
         const openedByMethod = await tryAutoOpenMethod();
         if (!openedByMethod) {
           setAlert("error", "A forma de pagamento não foi recebida. Voltando ao checkout para você selecionar novamente...");

@@ -4,7 +4,6 @@ import { getCoraAccessToken, getCoraTokenCacheStatus } from '../integrations/cor
 import { buildCoraInstallmentPayload, issueCoraInstallmentBook } from '../integrations/cora/coraInstallmentService.js';
 import { getCoraAuditModel, getCoraChargeModel } from '../integrations/cora/coraChargeModel.js';
 import { calculateCrediarioPlan, moneyToCents, centsToMoney, CREDIARIO_DIVISORS } from '../services/crediarioEngine.js';
-import { commitStockReservation, ensureStockReservationForPaymentAttempt } from '../services/stockReservationService.js';
 
 function safeError(error) {
   return {
@@ -22,7 +21,6 @@ function buildDirectInput(body = {}) {
   return {
     code: body.code || body.internalReference || body.reference,
     totalAmount: body.totalAmount ?? body.amount ?? body.total,
-    totalAmountCents: body.totalAmountCents ?? body.amountCents ?? body.totalCents,
     installments: body.installments ?? body.parcelas,
     firstDueDate: body.firstDueDate ?? body.primeiroVencimento,
     dueDates: body.dueDates ?? body.vencimentos,
@@ -83,7 +81,7 @@ function buildDueDates(firstDueDate, count) {
   });
 }
 
-export default function registerCoraRoutes(app, { adminRequired, authRequired, mongoose, Order, Product } = {}) {
+export default function registerCoraRoutes(app, { adminRequired, authRequired, mongoose, Order } = {}) {
   if (!app) throw new Error('registerCoraRoutes: app é obrigatório.');
   if (typeof adminRequired !== 'function') throw new Error('registerCoraRoutes: adminRequired é obrigatório.');
   const paymentRequired = typeof authRequired === 'function' ? authRequired : adminRequired;
@@ -341,14 +339,6 @@ export default function registerCoraRoutes(app, { adminRequired, authRequired, m
       if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado.' });
       if (!customerCanAccessOrder(order, req)) return res.status(403).json({ ok: false, error: 'Este pedido não pertence ao usuário autenticado.' });
 
-      await ensureStockReservationForPaymentAttempt({
-        Order,
-        Product,
-        orderId,
-        paymentMethod: 'crediario_ariana',
-        reason: 'cora_carne_emission_attempt'
-      });
-
       const installmentCount = Number(req.body?.installments ?? req.body?.parcelas ?? order.crediario?.installments ?? 1);
       const baseAmountCents = resolveCrediarioBaseCents(order, req.body || {});
       const plan = calculateCrediarioPlan({ baseAmountCents, installmentCount });
@@ -380,16 +370,6 @@ export default function registerCoraRoutes(app, { adminRequired, authRequired, m
 
       if (duplicate && req.body?.forceNew !== true) {
         await updateOrderCora(orderId, duplicate);
-        const duplicateStatus = String(duplicate.status || '').trim().toUpperCase();
-        if (['OPEN', 'PARTIALLY_PAID', 'PAID'].includes(duplicateStatus)) {
-          await commitStockReservation({
-            Order,
-            orderId,
-            reason: 'cora_existing_carne_reused'
-          }).catch((error) => {
-            console.error('[stock-reservation] Cora carnê reutilizado:', error?.message || error);
-          });
-        }
         return res.status(200).json({ ok: true, reused: true, carne: duplicate, charge: duplicate });
       }
 
@@ -426,13 +406,6 @@ export default function registerCoraRoutes(app, { adminRequired, authRequired, m
       });
       const result = await executeEmission(charge, input, 'CHECKOUT_ISSUE_INSTALLMENT_BOOK');
       const updatedOrder = await updateOrderCora(orderId, result.charge);
-      await commitStockReservation({
-        Order,
-        orderId,
-        reason: 'cora_carne_issued'
-      }).catch((error) => {
-        console.error('[stock-reservation] Cora carnê emitido:', error?.message || error);
-      });
       return res.status(201).json({ ok: true, carne: result.charge, charge: result.charge, order: updatedOrder });
     } catch (error) {
       const uncertain = Number(error?.providerStatus || 0) === 504 || error?.code === 'CORA_NETWORK_ERROR';
@@ -505,7 +478,7 @@ export default function registerCoraRoutes(app, { adminRequired, authRequired, m
       return res.status(409).json({ ok: false, error: `O carnê está com status ${charge.status} e não precisa de nova tentativa.`, charge });
     }
     try {
-      const input = buildDirectInput({ ...json(charge.requestPayload), customer: charge.requestPayload?.customer, totalAmountCents: charge.totalAmountCents, installments: charge.installments, code: charge.code, dueDates: charge.requestPayload?.installment?.due_date?.dates, dayOfMonth: charge.requestPayload?.installment?.due_date?.day_of_month, serviceName: charge.requestPayload?.service?.name, description: charge.requestPayload?.service?.description, paymentTerms: charge.requestPayload?.payment_terms });
+      const input = buildDirectInput({ ...json(charge.requestPayload), customer: charge.requestPayload?.customer, totalAmount: charge.totalAmountCents, installments: charge.installments, code: charge.code, dueDates: charge.requestPayload?.installment?.due_date?.dates, dayOfMonth: charge.requestPayload?.installment?.due_date?.day_of_month, serviceName: charge.requestPayload?.service?.name, description: charge.requestPayload?.service?.description, paymentTerms: charge.requestPayload?.payment_terms });
       const result = await executeEmission(charge, input, 'RETRY_SAME_IDEMPOTENCY_KEY');
       return res.json(result);
     } catch (error) {

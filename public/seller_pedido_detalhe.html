@@ -222,7 +222,7 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
             <a href="seller_pedidos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
             <a href="seller_vendas.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-chart-line"></i><span>Vendas</span></a>
             <a href="seller_notificacoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-bell"></i><span>Notificações</span></a>
-            <a href="seller_mercadopago.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-credit-card"></i><span>Recebimentos</span></a>
+            <a href="seller_mercadopago.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-credit-card"></i><span>Mercado Pago</span></a>
             <a href="seller_configuracoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-cog"></i><span>Configurações</span></a>
             <a href="seller_devolucoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-exchange-alt"></i><span>Devoluções</span></a>
             <a href="seller_extrato.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-receipt"></i><span>Extrato</span></a>
@@ -267,11 +267,8 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
     
     <div id="seller-nfe-upload-card" class="border-t border-soft pt-4">
       <div class="muted text-xs font-black uppercase mb-2">Nota fiscal do seller</div>
-      <p id="seller-nfe-help" class="text-xs text-gray-500 mb-3">Depois de emitir a NF-e no seu sistema, envie o XML e o DANFE para a Ariana vincular ao pedido.</p>
+      <p class="text-xs text-gray-500 mb-3">Depois de emitir a NF-e no seu sistema, envie o XML e o DANFE para a Ariana vincular ao pedido do cliente.</p>
       <div class="grid grid-cols-1 gap-2">
-        <select id="seller-nfe-type" class="input">
-          <option value="marketplace_customer_sale">NF-e de venda ao cliente</option>
-        </select>
         <input id="seller-nfe-numero" class="input" placeholder="Número da NF-e">
         <input id="seller-nfe-serie" class="input" placeholder="Série" value="1">
         <input id="seller-nfe-chave" class="input" placeholder="Chave de acesso">
@@ -288,8 +285,11 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
     <div class="border-t border-soft pt-4">
       <label class="block text-xs font-black mb-2 uppercase muted">Atualizar status</label>
       <select id="status-select" class="input">
+        <option value="pending_payment">Aguardando Pagamento</option>
         <option value="processing">Em Preparação</option>
         <option value="shipped">Enviado</option>
+        <option value="delivered">Entregue</option>
+        <option value="cancelled">Cancelado</option>
       </select>
       <button id="btn-save-status" class="btn btn-primary w-full mt-3">Salvar status</button>
     </div>
@@ -363,7 +363,7 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
     }
 
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data?.error || data?.message || `Erro HTTP ${response.status}`);
+    if (!response.ok) throw new Error(data?.message || `Erro HTTP ${response.status}`);
     return data;
   }
 </script>
@@ -393,46 +393,26 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
     return data.invoice || data.nfe || data.sigeInvoice || data.manufacturerDispatch?.invoice || data || {};
   }
 
-  function safeRemoteDocumentUrl(value = '') {
-    try {
-      const url = new URL(String(value || '').trim(), window.location.origin);
-      if (!['http:', 'https:'].includes(url.protocol)) return '';
-      return url.href;
-    } catch (_) {
-      return '';
-    }
-  }
-
-  function escapeSellerHtml(value = '') {
-    return String(value ?? '').replace(/[&<>"']/g, (char) => ({
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;'
-    }[char]));
-  }
-
   async function loadSellerOrderNfe(orderId) {
     const card = $('seller-nfe-card');
     const box = $('seller-nfe-content');
     if (!card || !box || !orderId) return;
     try {
-      const data = await apiFetch(`/seller/orders/${encodeURIComponent(orderId)}/nfe`);
+      let data;
+      try { data = await apiFetch(`/seller/orders/${encodeURIComponent(orderId)}/nfe`); }
+      catch (_) { data = await apiFetch(`/orders/${encodeURIComponent(orderId)}/nfe`); }
       const inv = sellerInvoicePayload(data);
       const number = inv.number || inv.numero || inv.invoiceNumber || data.number || '';
       const key = inv.accessKey || inv.chave || inv.chaveAcesso || inv.invoiceKey || '';
-      const danfeUrl = safeRemoteDocumentUrl(inv.danfeUrl);
-      const xmlUrl = safeRemoteDocumentUrl(inv.xmlUrl);
-      if (!number && !key && !danfeUrl && !xmlUrl) return;
+      if (!number && !key && !inv.danfeUrl && !inv.xmlUrl) return;
       card.classList.remove('hidden');
       box.innerHTML = `
         <div class="space-y-2">
-          <div><span class="muted">NF-e:</span> <b>${escapeSellerHtml(number || 'Disponível')}</b></div>
-          ${key ? `<div class="break-all"><span class="muted">Chave:</span> <b>${escapeSellerHtml(key)}</b></div>` : ''}
+          <div><span class="muted">NF-e:</span> <b>${number || 'Disponível'}</b></div>
+          ${key ? `<div class="break-all"><span class="muted">Chave:</span> <b>${key}</b></div>` : ''}
           <div class="grid grid-cols-1 gap-2 pt-2">
-            ${danfeUrl ? `<a href="${escapeSellerHtml(danfeUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-primary w-full"><i class="fas fa-file-pdf"></i>DANFE</a>` : ''}
-            ${xmlUrl ? `<a href="${escapeSellerHtml(xmlUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-dark w-full"><i class="fas fa-file-code"></i>XML</a>` : ''}
+            <button type="button" onclick="downloadSellerProtectedFile('/seller/orders/${encodeURIComponent(orderId)}/danfe','danfe-${number || orderId}.pdf')" class="btn btn-primary w-full"><i class="fas fa-file-pdf"></i>DANFE</button>
+            <button type="button" onclick="downloadSellerProtectedFile('/seller/orders/${encodeURIComponent(orderId)}/xml','nfe-${number || orderId}.xml')" class="btn btn-dark w-full"><i class="fas fa-file-code"></i>XML</button>
           </div>
         </div>`;
     } catch (e) {
@@ -474,25 +454,12 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
         </div>
       </div>`).join('');
 
-    // O seller não recebe detalhes internos do gateway/cartão da Ariana.
-    // Exibe somente a forma de pagamento pública quando ela vier sanitizada pela API.
-    $('payment').textContent = data.paymentMethod || data.paymentMethodLabel || 'Pagamento processado pela Ariana';
+    $('payment').textContent = data.paymentMethod || data.payment?.method || data.payment?.provider || '—';
     $('tracking-view').textContent = data.trackingCode || data.shipping?.trackingCode || '—';
     $('buyer').textContent = data.customerName || 'Cliente';
     const a = data.shippingAddress || data.address || {};
     $('address').textContent = typeof a === 'string' ? a : [a.logradouro || a.street, a.numero || a.number, a.bairro || a.neighborhood, a.cidade || a.city, a.uf || a.state, a.cep || a.zip].filter(Boolean).join(', ') || 'Endereço não informado';
     $('status-select').value = data.status || 'processing';
-
-    const fiscalModel = String(seller?.metadata?.fiscalOperationModel || 'marketplace_intermediation').toLowerCase();
-    const typeSelect = $('seller-nfe-type');
-    const help = $('seller-nfe-help');
-    if (fiscalModel === 'sale_order') {
-      if (typeSelect) typeSelect.innerHTML = '<option value="sale_order_remittance">Remessa por conta e ordem ao cliente</option><option value="sale_order_symbolic_sale">Remessa simbólica / venda à ordem para Ariana</option>';
-      if (help) help.textContent = 'Venda à ordem: aguarde a NF-e da Ariana ser autorizada. Depois emita e envie separadamente (1) a remessa por conta e ordem ao cliente e (2) a remessa simbólica/venda à ordem para a Ariana.';
-    } else {
-      if (typeSelect) typeSelect.innerHTML = '<option value="marketplace_customer_sale">NF-e de venda ao cliente</option>';
-      if (help) help.textContent = 'Marketplace/intermediação: sua empresa é a vendedora da mercadoria. Emita a NF-e ao cliente no seu sistema e envie XML/DANFE para a Ariana.';
-    }
   }
 
   async function loadOrder() {
@@ -519,7 +486,7 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
       await apiFetch(`/seller/orders/${state.orderId}/status`, { method: 'PUT', body: JSON.stringify({ status }) });
       toast('Status atualizado!', 'success');
       loadOrder();
-    } catch (e) { toast(e.message || 'Erro ao salvar status.', 'error'); }
+    } catch (e) { toast('Erro ao salvar status.', 'error'); }
   });
 
   $('btn-sair')?.addEventListener('click', (e) => {
@@ -533,73 +500,35 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
   window.onload = loadOrder;
 
   async function sendSellerNfe() {
+    const btn = $('btn-send-seller-nfe');
     const status = $('seller-nfe-status');
-    const button = $('btn-send-seller-nfe');
-    const xml = $('seller-nfe-xml')?.files?.[0] || null;
-    const danfe = $('seller-nfe-danfe')?.files?.[0] || null;
-
-    if (!state.orderId) {
-      toast('Pedido não identificado.', 'error');
-      return;
-    }
-
-    if (!xml && !danfe) {
-      toast('Selecione o XML da NF-e ou o DANFE em PDF.', 'error');
-      return;
-    }
-
-    const form = new FormData();
-    form.append('number', $('seller-nfe-numero')?.value?.trim() || '');
-    form.append('serie', $('seller-nfe-serie')?.value?.trim() || '');
-    form.append('accessKey', $('seller-nfe-chave')?.value?.trim() || '');
-    form.append('issuerDocument', $('seller-nfe-cnpj')?.value?.trim() || '');
-    form.append('documentType', $('seller-nfe-type')?.value || 'marketplace_customer_sale');
-    if (xml) form.append('xml', xml);
-    if (danfe) form.append('danfe', danfe);
-
-    if (button) {
-      button.disabled = true;
-      button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>Enviando...';
-    }
-    if (status) status.textContent = 'Enviando documentos fiscais...';
-
+    const orderId = new URLSearchParams(window.location.search).get('id') || window.currentOrderId || $('order-id')?.textContent?.replace('#','').trim();
+    if (!orderId) { showToast('Pedido não identificado para envio da NF-e.', 'error'); return; }
+    const fd = new FormData();
+    fd.append('numero', $('seller-nfe-numero')?.value || '');
+    fd.append('serie', $('seller-nfe-serie')?.value || '1');
+    fd.append('chave', $('seller-nfe-chave')?.value || '');
+    fd.append('cnpjEmitente', $('seller-nfe-cnpj')?.value || '');
+    const xml = $('seller-nfe-xml')?.files?.[0];
+    const danfe = $('seller-nfe-danfe')?.files?.[0];
+    if (xml) fd.append('xml', xml);
+    if (danfe) fd.append('danfe', danfe);
+    const old = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...'; }
     try {
-      const response = await fetch(
-        `${API_BASE}/seller/orders/${encodeURIComponent(state.orderId)}/nfe`,
-        {
-          method: 'POST',
-          headers: authHeaders(),
-          body: form
-        }
-      );
-
-      if (response.status === 401 || response.status === 403) {
-        clearSellerSession();
-        window.location.href = 'seller_login.html';
-        return;
-      }
-
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data?.error || data?.message || `Erro HTTP ${response.status}`);
-      }
-
-      if ($('seller-nfe-xml')) $('seller-nfe-xml').value = '';
-      if ($('seller-nfe-danfe')) $('seller-nfe-danfe').value = '';
-      if (status) status.textContent = 'NF-e enviada e vinculada ao pedido com sucesso.';
-      toast('NF-e enviada com sucesso!', 'success');
-      await loadSellerOrderNfe(state.orderId);
-    } catch (error) {
-      if (status) status.textContent = error?.message || 'Não foi possível enviar a NF-e.';
-      toast(error?.message || 'Erro ao enviar a NF-e.', 'error');
+      const res = await fetch(`${API_BASE}/seller/orders/${encodeURIComponent(orderId)}/nfe`, { method: 'POST', headers: authHeaders(), body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      if (status) status.textContent = 'NF-e enviada para conferência da Ariana.';
+      showToast('NF-e enviada com sucesso!', 'success');
+    } catch (e) {
+      if (status) status.textContent = e.message || 'Erro ao enviar NF-e.';
+      showToast(e.message || 'Erro ao enviar NF-e.', 'error');
     } finally {
-      if (button) {
-        button.disabled = false;
-        button.innerHTML = '<i class="fas fa-file-upload"></i>Enviar NF-e para a Ariana';
-      }
+      if (btn) { btn.disabled = false; btn.innerHTML = old || '<i class="fas fa-file-upload"></i>Enviar NF-e para a Ariana'; }
     }
   }
-    document.addEventListener('click', (ev) => {
+  document.addEventListener('click', (ev) => {
     if (ev.target && (ev.target.id === 'btn-send-seller-nfe' || ev.target.closest('#btn-send-seller-nfe'))) sendSellerNfe();
   });
 

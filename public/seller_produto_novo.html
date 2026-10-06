@@ -271,29 +271,11 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
 <input class="w-full p-4 border rounded-xl bg-gray-50 text-gray-600" id="p-categorySlug" placeholder="Slug da categoria" readonly="" type="text"/>
 <input class="w-full p-4 border rounded-xl bg-gray-50 text-gray-600" id="p-subcategorySlug" placeholder="Slug da subcategoria" readonly="" type="text"/>
 </div>
-<section class="product-section">
-<h2 class="text-xl font-black text-slate-900 mb-2">Preço e estoque</h2>
-<p class="text-gray-600 mb-4">Informe o preço de venda do seller e a quantidade disponível para venda.</p>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-<div>
-<label class="block text-sm font-bold text-slate-800 mb-2" for="p-stock">Estoque disponível</label>
-<input class="w-full p-4 border rounded-xl" id="p-stock" min="0" step="1" placeholder="Ex: 10" required="" type="number"/>
-<p class="text-xs text-gray-500 mt-2">Produto com estoque 0 fica indisponível para novas compras.</p>
+<input class="w-full p-4 border rounded-xl" id="p-stock" min="0" placeholder="Estoque" required="" type="number"/>
+<input class="w-full p-4 border rounded-xl" id="p-price" inputmode="decimal" placeholder="Preço. Ex: 10,99" required="" type="text"/>
 </div>
-<div>
-<label class="block text-sm font-bold text-slate-800 mb-2" for="p-price">Preço à vista (Pix/boleto)</label>
-<input class="w-full p-4 border rounded-xl" id="p-price" inputmode="decimal" placeholder="Ex: 100,00" required="" type="text"/>
-<p class="text-xs text-gray-500 mt-2">Este é o preço à vista do produto. Não há acréscimo de tarifa de Pix ou boleto sobre esse valor.</p>
-<div id="seller-price-preview" class="mt-3 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-700">
-  <div class="font-black text-slate-900 mb-2">Resumo da venda</div>
-  <div>Preço à vista: <b id="seller-preview-cash">R$ 0,00</b></div>
-  <div>Comissão Ariana (12%): <b id="seller-preview-commission">R$ 0,00</b></div>
-  <div class="mt-1 text-green-700">Você receberá: <b id="seller-preview-net">R$ 0,00</b></div>
-  <div class="mt-1 text-slate-500">Preço estimado no cartão: <b id="seller-preview-card">R$ 0,00</b> (à vista ÷ 0,8270)</div>
-</div>
-</div>
-</div>
-</section>
+<p class="text-xs text-gray-500 -mt-4">Use vírgula normalmente. Exemplo: 10,99 será salvo como R$ 10,99.</p>
 <section class="product-section">
 <h2 class="text-xl font-black text-slate-900 mb-2">Dimensões e Peso para Frete</h2>
 <p class="text-gray-600 mb-4">Informe as medidas da embalagem de envio (em cm) e o peso real (em kg).</p>
@@ -304,38 +286,22 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
 <div><label class="block text-sm font-semibold text-gray-700 mb-1" for="p-height">Altura (cm)</label><input class="w-full p-4 border rounded-xl" id="p-height" min="1" step="1" type="number" value="10"/></div>
 </div>
 </section>
-<section class="product-section">
-<h2 class="text-xl font-black text-slate-900 mb-2">Descrição do produto</h2>
-<p class="text-gray-600 mb-4">Apresente os principais benefícios e informações comerciais do produto.</p>
-<textarea class="w-full p-4 border rounded-xl min-h-[120px]" id="p-desc" placeholder="Descrição comercial do produto" required=""></textarea>
-</section>
-<section class="product-section">
-<h2 class="text-xl font-black text-slate-900 mb-2">Especificação técnica</h2>
-<p class="text-gray-600 mb-4">Informe os dados técnicos em linhas separadas. Ex.: Marca: Samsung, Voltagem: 127V, Garantia: 12 meses.</p>
-<textarea class="w-full p-4 border rounded-xl min-h-[160px]" id="p-specs" placeholder="Marca:&#10;Modelo:&#10;Cor:&#10;Voltagem:&#10;Material:&#10;Garantia:"></textarea>
-</section>
+<textarea class="w-full p-4 border rounded-xl min-h-[120px]" id="p-desc" placeholder="Descrição" required=""></textarea>
 <button class="bg-primary-blue text-white py-4 rounded-xl font-black w-full" id="btn-submit" type="submit">Publicar produto</button>
 </form>
 </main>
 </div>
 <script>
-const editProductId = new URLSearchParams(window.location.search).get("id");
-if (editProductId) {
-  window.location.replace("seller_produto_editar.html?id=" + encodeURIComponent(editProductId) + "&v=20260919-3");
-}
+const API_BASE =
+  window.API_BASE ||
+  localStorage.getItem("API_BASE") ||
+  "https://ariana-backend.onrender.com/api";
 
-const IS_LOCAL_HOST = ["127.0.0.1", "localhost"].includes(window.location.hostname);
-const PRODUCTION_API_BASE = "https://ariana-backend.onrender.com/api";
-const LOCAL_API_OVERRIDE = IS_LOCAL_HOST ? String(localStorage.getItem("API_BASE") || "").trim() : "";
-const API_BASE = IS_LOCAL_HOST && LOCAL_API_OVERRIDE ? LOCAL_API_OVERRIDE : PRODUCTION_API_BASE;
-
-// Em produção, nunca reutilizar um endereço de API salvo durante testes locais.
-try {
-  if (!IS_LOCAL_HOST) {
-    localStorage.removeItem("API_BASE");
-    localStorage.removeItem("API_BASE_URL");
-  }
-} catch(_e) {}
+// IMPORTANTE:
+// Antes esta tela forçava http://localhost:3000/api quando era aberta em 127.0.0.1:5500.
+// Se o backend local não estivesse rodando, o produto nunca era salvo.
+// Agora ela usa o backend de produção por padrão. Para testar local, rode no Console:
+// localStorage.setItem("API_BASE", "http://localhost:3000/api")
 const $ = (id) => document.getElementById(id);
 
 function getSellerToken() { return localStorage.getItem("seller_token") || localStorage.getItem("sellerToken") || localStorage.getItem("token") || localStorage.getItem("authToken") || localStorage.getItem("jwt") || ""; }
@@ -360,20 +326,6 @@ function parseMoneyBR(value) {
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
 }
 function parseInteger(value) { const n = parseInt(String(value || "0").replace(/\D/g, ""), 10); return Number.isFinite(n) ? n : 0; }
-function formatMoneyBR(value = 0) {
-  return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-function updateSellerPricePreview() {
-  const cash = parseMoneyBR($("p-price")?.value);
-  const commission = Math.round((cash * 0.12 + Number.EPSILON) * 100) / 100;
-  const net = Math.round((Math.max(0, cash - commission) + Number.EPSILON) * 100) / 100;
-  const card = cash > 0 ? Math.round(((cash / 0.8270) + Number.EPSILON) * 100) / 100 : 0;
-  if ($("seller-preview-cash")) $("seller-preview-cash").textContent = formatMoneyBR(cash);
-  if ($("seller-preview-commission")) $("seller-preview-commission").textContent = formatMoneyBR(commission);
-  if ($("seller-preview-net")) $("seller-preview-net").textContent = formatMoneyBR(net);
-  if ($("seller-preview-card")) $("seller-preview-card").textContent = formatMoneyBR(card);
-}
-
 function slugify(value) { return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
 function showToast(message, type = "info") { const box = $("toast-container"); if (!box) return alert(message); const el = document.createElement("div"); el.className = `toast px-4 py-3 rounded-xl text-white font-bold ${type === "error" ? "bg-error-red" : type === "success" ? "bg-success-green" : "bg-primary-blue"}`; el.textContent = message; box.appendChild(el); setTimeout(() => { el.style.opacity = "0"; setTimeout(() => el.remove(), 250); }, 5200); }
 
@@ -459,23 +411,6 @@ function escAttr(value) {
   return escHtml(value).replace(/`/g, '&#96;');
 }
 function syncCategoryFields() { const categorySelect = $("p-category"); const subcategorySelect = $("p-subcategory"); const selectedCategory = categorySelect?.selectedOptions?.[0]; const selectedSubcategory = subcategorySelect?.selectedOptions?.[0]; if ($("p-categorySlug")) $("p-categorySlug").value = selectedCategory?.dataset?.slug || slugify(categorySelect?.value || ""); if ($("p-subcategorySlug")) $("p-subcategorySlug").value = selectedSubcategory?.dataset?.slug || slugify(subcategorySelect?.value || ""); }
-function specsTextToObject(text = "") {
-  const raw = String(text || "").trim();
-  if (!raw) return {};
-  const out = { texto: raw };
-  raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).forEach((line, index) => {
-    const parts = line.split(/[:：]/);
-    if (parts.length >= 2) {
-      const key = parts.shift().trim();
-      const value = parts.join(":").trim();
-      if (key) out[key] = value;
-    } else {
-      out[`item_${index + 1}`] = line;
-    }
-  });
-  return out;
-}
-
 function generateSku() { const base = slugify($("p-name")?.value || "produto").replace(/-/g, "").slice(0, 8).toUpperCase() || "PRODUTO"; $("p-sku").value = `${base}-${Date.now().toString().slice(-6)}`; }
 
 function extractUploadedImageUrl(data = {}) {
@@ -486,7 +421,7 @@ async function uploadSellerImageFile(file, index = 0) {
   if (!file || !file.type || !file.type.startsWith('image/')) throw new Error('Selecione apenas arquivos de imagem.');
   if (file.size > 20 * 1024 * 1024) throw new Error(`A imagem ${file.name} passou de 20MB.`);
 
-  const endpoints = ['/seller/uploads', '/seller/products/upload'];
+  const endpoints = ['/seller/uploads', '/seller/upload', '/seller/products/upload', '/upload', '/admin/upload', '/admin/uploads'];
   let lastError = null;
 
   for (const endpoint of endpoints) {
@@ -526,9 +461,6 @@ async function uploadSellerImageFile(file, index = 0) {
   throw lastError || new Error('Não foi possível enviar a imagem para o backend.');
 }
 
-function escapeSellerPreview(value = '') {
-  return String(value ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-}
 function renderPreview(files) {
   let box = $('image-preview-box');
   if (!box) {
@@ -542,7 +474,7 @@ function renderPreview(files) {
     const url = URL.createObjectURL(file);
     const card = document.createElement('div');
     card.className = 'border rounded-xl overflow-hidden bg-slate-50';
-    card.innerHTML = `<img src="${url}" alt="Prévia da imagem"><div class="p-2">${index === 0 ? 'Principal • ' : ''}${escapeSellerPreview(file.name)}</div>`;
+    card.innerHTML = `<img src="${url}" alt="Prévia da imagem"><div class="p-2">${index === 0 ? 'Principal • ' : ''}${file.name}</div>`;
     box.appendChild(card);
   });
 }
@@ -550,7 +482,6 @@ function renderPreview(files) {
 $('file-input')?.addEventListener('change', (e) => renderPreview(e.target.files));
 $("btn-generate-sku")?.addEventListener("click", generateSku);
 $("p-name")?.addEventListener("blur", () => { if (!$("p-sku").value.trim()) generateSku(); });
-$("p-price")?.addEventListener("input", updateSellerPricePreview);
 $("p-category")?.addEventListener("change", syncCategoryFields);
 $("p-subcategory")?.addEventListener("change", syncCategoryFields);
 $("sidebar-toggle")?.addEventListener("click", () => $("sidebar")?.classList.toggle("-translate-x-full"));
@@ -575,7 +506,6 @@ $("product-form")?.addEventListener("submit", async (e) => {
     const height = parseInteger($("p-height").value) || 10;
     const category = $("p-category").value.trim();
     const description = $("p-desc").value.trim();
-    const specsText = $("p-specs")?.value?.trim() || "";
 
     if (!name) throw new Error("Informe o nome do produto.");
     if (price <= 0) throw new Error("Informe um preço válido. Exemplo: 10,99");
@@ -621,11 +551,6 @@ $("product-form")?.addEventListener("submit", async (e) => {
       subcategorySlug: $("p-subcategorySlug").value || slugify($("p-subcategory").value),
       description,
       descricao: description,
-      specs: specsTextToObject(specsText),
-      technicalSpecs: specsText,
-      especificacaoTecnica: specsText,
-      specsText,
-      especificacoes: specsText,
       imageUrl: mainImageUrl,
       mainImageUrl,
       image: mainImageUrl,
@@ -642,11 +567,11 @@ $("product-form")?.addEventListener("submit", async (e) => {
       largura: width,
       height,
       altura: height,
-      active: false,
-      status: 'pending_review'
+      active: true,
+      status: 'active'
     };
 
-    const saveEndpoints = ['/seller/products'];
+    const saveEndpoints = ['/seller/products', '/seller/products/new', '/seller/product'];
     let saved = false;
     let lastSaveError = null;
 
@@ -683,7 +608,6 @@ window.onload = async () => {
   applySellerHeaderName();
   await loadCategories();
   syncCategoryFields();
-  updateSellerPricePreview();
 };
 
 </script>

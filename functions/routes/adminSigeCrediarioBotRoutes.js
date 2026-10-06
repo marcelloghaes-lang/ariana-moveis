@@ -1,8 +1,3 @@
-import { createErpParityAnalyticsService } from '../services/erp/erpParityAnalyticsService.js';
-import { createErpFinanceService } from '../services/erp/erpFinanceService.js';
-import { createErpLedgerService } from '../services/erp/erpLedgerService.js';
-import { createErpFinanceCustomerContactService } from '../services/erp/erpFinanceCustomerContactService.js';
-
 // ============================================================
 // ROTAS ADMIN SIGE / CREDIÁRIO / BOTS - ARIANA MÓVEIS
 // Extraído de legacyRoutes.js sem alterar endpoints, regras ou respostas.
@@ -195,530 +190,17 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: DEFAULT_CURRENCY }).format(Number(value || 0));
   }
 
-  const erpParityFinance = createErpParityAnalyticsService(context);
-  const erpFinanceOperations = createErpFinanceService(context);
-  const erpLedgerOperations = createErpLedgerService(context);
-  const erpFinanceCustomerContact = createErpFinanceCustomerContactService(context);
 
-  function botFinanceDaysLate(dueAt) {
-    if (!dueAt) return 0;
-    const due = new Date(dueAt);
-    if (Number.isNaN(due.getTime())) return 0;
-    due.setHours(0, 0, 0, 0);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return due < today ? Math.max(0, Math.floor((today - due) / 86400000)) : 0;
-  }
-
-  function normalizeErpBotReceivable(row = {}) {
-    const outstanding = Math.max(0, Number(row.outstanding ?? row.remaining ?? row.value ?? 0));
-    const paid = String(row.status || '').toLowerCase() === 'paid' || outstanding <= 0.009;
-    const installmentNumber = Number(row.installmentNumber || row.number || 0);
-    const installments = Number(row.installments || 0);
-    const parcelLabel = installmentNumber > 0
-      ? (installments > 0 ? `${installmentNumber}/${installments}` : `Parcela ${installmentNumber}`)
-      : String(row.documentNumber || row.boletoNumber || row.description || 'Parcela').trim();
-
-    const parcela = {
-      compraId: String(row.orderId || row?.migration?.sourceSaleId || row.documentNumber || row.boletoNumber || row.description || row.id || ''),
-      compraDescricao: String(row.description || row.documentNumber || row.boletoNumber || row.categoryName || 'Compra'),
-      orderId: String(row.orderId || ''),
-      sourceSaleId: String(row?.migration?.sourceSaleId || ''),
-      documento: String(row.documentNumber || row.boletoNumber || row.id || ''),
-      descricao: String(row.description || row.categoryName || 'Conta a receber'),
-      parcelaNumero: installmentNumber,
-      parcelaLabel: parcelLabel,
-      dataVencimento: row.dueAt || null,
-      status: paid ? 'pago' : (row.partial ? 'parcial' : 'pendente'),
-      quitado: paid,
-      vencida: !paid && botFinanceDaysLate(row.dueAt) > 0,
-      emAberto: !paid && outstanding > 0.009,
-      valorParcela: Number(row.value || 0),
-      valorPago: Number(row.principalPaid || 0),
-      saldoParcela: outstanding
-    };
-    parcela.atualizacaoFinanceira = calcularParcelaAtualizadaBackend(parcela, new Date());
-    return parcela;
-  }
-
-  function buildBotFinancePurchases(rows = []) {
-    const groups = new Map();
-
-    for (const row of Array.isArray(rows) ? rows : []) {
-      const parcela = normalizeErpBotReceivable(row);
-      if (!parcela.emAberto) continue;
-
-      const key = parcela.compraId || String(parcela.documento || parcela.descricao || 'compra');
-      if (!groups.has(key)) {
-        groups.set(key, {
-          id: key,
-          descricao: parcela.compraDescricao || 'Compra',
-          orderId: parcela.orderId || '',
-          sourceSaleId: parcela.sourceSaleId || '',
-          parcelasAbertas: [],
-          parcelasVencidas: []
-        });
-      }
-
-      const group = groups.get(key);
-      group.parcelasAbertas.push(parcela);
-      if (parcela.vencida || Number(parcela?.atualizacaoFinanceira?.diasAtraso || 0) > 0) {
-        group.parcelasVencidas.push(parcela);
-      }
-    }
-
-    return [...groups.values()].map((group) => {
-      group.parcelasAbertas.sort((a, b) => new Date(a.dataVencimento || 0) - new Date(b.dataVencimento || 0));
-      group.parcelasVencidas.sort((a, b) => new Date(a.dataVencimento || 0) - new Date(b.dataVencimento || 0));
-
-      const firstOverdue = group.parcelasVencidas[0] || null;
-      const totalOverdueUpdated = Number(group.parcelasVencidas.reduce((sum, parcela) =>
-        sum + Number(parcela?.atualizacaoFinanceira?.valorAtualizado ?? parcela?.saldoParcela ?? 0), 0
-      ).toFixed(2));
-      const totalOpenUpdated = Number(group.parcelasAbertas.reduce((sum, parcela) =>
-        sum + Number(parcela?.atualizacaoFinanceira?.valorAtualizado ?? parcela?.saldoParcela ?? 0), 0
-      ).toFixed(2));
-
-      return {
-        id: group.id,
-        descricao: group.descricao,
-        orderId: group.orderId,
-        sourceSaleId: group.sourceSaleId,
-        parcelasAbertas: group.parcelasAbertas.length,
-        parcelasVencidas: group.parcelasVencidas.length,
-        primeiraVencida: firstOverdue ? {
-          parcelaLabel: firstOverdue.parcelaLabel || '',
-          dataVencimento: firstOverdue.dataVencimento || null,
-          saldoOriginal: Number(firstOverdue?.atualizacaoFinanceira?.saldoOriginal ?? firstOverdue.saldoParcela ?? 0),
-          multa: Number(firstOverdue?.atualizacaoFinanceira?.multa || 0),
-          juros: Number(firstOverdue?.atualizacaoFinanceira?.juros || 0),
-          diasAtraso: Number(firstOverdue?.atualizacaoFinanceira?.diasAtraso || 0),
-          valorAtualizado: Number(firstOverdue?.atualizacaoFinanceira?.valorAtualizado ?? firstOverdue.saldoParcela ?? 0)
-        } : null,
-        totalVencidoAtualizado: totalOverdueUpdated,
-        totalEmAbertoAtualizado: totalOpenUpdated
-      };
-    }).sort((a, b) => {
-      if (a.parcelasVencidas !== b.parcelasVencidas) return b.parcelasVencidas - a.parcelasVencidas;
-      return String(a.descricao || '').localeCompare(String(b.descricao || ''), 'pt-BR');
-    });
-  }
-
-  function exactErpReceivableIdentity(row = {}, { cpf = '', phone = '', sourcePersonId = '' } = {}) {
-    const requestedCpf = onlyDigits(cpf);
-    if (requestedCpf && onlyDigits(row.personDocument || '') === requestedCpf) return true;
-    if (phone && botPhoneMatches(phone, row.personPhone || '')) return true;
-    if (sourcePersonId && String(row?.migration?.sourcePersonId || '') === String(sourcePersonId)) return true;
-    return false;
-  }
-
-  function mergeErpReceivableRows(...groups) {
-    const seen = new Set();
-    const rows = [];
-    for (const group of groups) {
-      for (const row of Array.isArray(group) ? group : []) {
-        const key = String(
-          row?.id ||
-          row?._id ||
-          [row?.source, row?.orderId, row?.installmentNumber, row?.migration?.sourcePersonId, row?.dueAt, row?.value].join('|')
-        );
-        if (seen.has(key)) continue;
-        seen.add(key);
-        rows.push(row);
-      }
-    }
-    return rows;
-  }
-
-  async function findErpPersonForBot({ cpf = '', phone = '' } = {}) {
-    const Person = mongoose.models.ErpPerson;
-    if (!Person) return null;
-
-    const requestedCpf = onlyDigits(cpf);
-    if (requestedCpf) {
-      return Person.findOne({
-        document: requestedCpf,
-        active: { $ne: false }
-      }).select('_id source sourceId name companyName document phone email active').lean();
-    }
-
-    const requestedPhone = onlyDigits(phone);
-    if (!requestedPhone) return null;
-
-    const phoneTail = requestedPhone.slice(-10);
-    const rows = await Person.find({
-      active: { $ne: false },
-      phone: { $exists: true, $ne: '' }
-    }).select('_id source sourceId name companyName document phone email active').limit(5000).lean();
-
-    const matches = rows.filter((person) => {
-      const personPhone = onlyDigits(person?.phone || '');
-      if (!personPhone) return false;
-      return personPhone === requestedPhone || personPhone.slice(-10) === phoneTail;
-    });
-
-    return matches.length === 1 ? matches[0] : null;
-  }
-
-  async function financeRowsByPersonIdentity({ cpf = '', phone = '', person = null } = {}) {
-    const groups = [];
-    const requestedCpf = onlyDigits(cpf || person?.document || '');
-    const requestedPhone = onlyDigits(phone || person?.phone || '');
-    const sourcePersonId = String(person?.sourceId || '').trim();
-
-    if (requestedCpf) {
-      const byDocument = await erpParityFinance.finance({
-        direction: 'receivable',
-        q: requestedCpf
-      });
-      groups.push(
-        (Array.isArray(byDocument?.entries) ? byDocument.entries : [])
-          .filter((row) => exactErpReceivableIdentity(row, { cpf: requestedCpf }))
-      );
-    }
-
-    if (requestedPhone) {
-      const byPhone = await erpParityFinance.finance({
-        direction: 'receivable',
-        q: requestedPhone
-      });
-      groups.push(
-        (Array.isArray(byPhone?.entries) ? byPhone.entries : [])
-          .filter((row) => exactErpReceivableIdentity(row, { phone: requestedPhone }))
-      );
-    }
-
-    if (sourcePersonId) {
-      const bySourcePerson = await erpParityFinance.finance({
-        direction: 'receivable',
-        personSourceId: sourcePersonId
-      });
-      groups.push(
-        (Array.isArray(bySourcePerson?.entries) ? bySourcePerson.entries : [])
-          .filter((row) => exactErpReceivableIdentity(row, { sourcePersonId }))
-      );
-    }
-
-    return mergeErpReceivableRows(...groups);
-  }
-
-  async function erpReceivablesForBot({ cpf = '', phone = '' } = {}) {
-    const requestedCpf = onlyDigits(cpf);
-    const requestedPhone = onlyDigits(phone);
-
-    if (requestedCpf) {
-      const person = await findErpPersonForBot({ cpf: requestedCpf });
-      const rows = await financeRowsByPersonIdentity({
-        cpf: requestedCpf,
-        phone: person?.phone || '',
-        person
-      });
-      return {
-        rows,
-        person,
-        verifiedBy: person?.sourceId ? 'cpf_and_erp_person' : 'cpf',
-        requestedCpf
-      };
-    }
-
-    if (!requestedPhone) return { rows: [], verifiedBy: '' };
-
-    const person = await findErpPersonForBot({ phone: requestedPhone });
-    const rows = await financeRowsByPersonIdentity({
-      phone: requestedPhone,
-      cpf: person?.document || '',
-      person
-    });
-
-    if (!rows.length && !person) {
-      return { rows: [], verifiedBy: 'phone_not_found', identityRequired: true };
-    }
-
-    const documents = [...new Set(
-      rows
-        .map((row) => onlyDigits(row.personDocument || ''))
-        .filter((value) => value.length === 11 || value.length === 14)
-    )];
-
-    if (!person && documents.length !== 1) {
-      return { rows: [], verifiedBy: 'phone_ambiguous', identityRequired: true };
-    }
-
-    return {
-      rows,
-      person,
-      verifiedBy: person?.sourceId ? 'phone_and_erp_person' : 'phone',
-      requestedCpf: onlyDigits(person?.document || documents[0] || '')
-    };
-  }
-
-
-
-function financeiroErpReference(row = {}) {
-    if (row.source === 'ariana_sale' && row.orderId) {
-      return `ERP_${String(row.orderId)}_${Math.max(1, Number(row.installmentNumber || 1))}`;
-    }
-    return `LEDGER_${String(row.id || row._id || '')}`;
-  }
-
-  function parseFinanceiroErpReference(value = '') {
-    const raw = String(value || '').trim();
-    let match = raw.match(/^ERP_([a-f0-9]{24})_(\d+)$/i);
-    if (match) return { type: 'order', orderId: match[1], number: Number(match[2]) };
-    match = raw.match(/^LEDGER_([a-f0-9]{24})$/i);
-    if (match) return { type: 'ledger', entryId: match[1] };
-    return null;
-  }
-
-  async function findErpPersonForFinanceQuery(value = '') {
-    const Person = mongoose.models.ErpPerson;
-    if (!Person) return null;
-    const raw = String(value || '').trim();
-    const numeric = onlyDigits(raw);
-
-    if (mongoose.Types.ObjectId.isValid(raw)) {
-      const byId = await Person.findOne({ _id: raw, active: { $ne: false } }).lean();
-      if (byId) return byId;
-    }
-
-    if ([11, 14].includes(numeric.length)) {
-      const byDocument = await Person.findOne({
-        document: numeric,
-        active: { $ne: false }
-      }).lean();
-      if (byDocument) return byDocument;
-    }
-
-    if (numeric.length >= 10) {
-      const rows = await Person.find({
-        active: { $ne: false },
-        phone: { $exists: true, $ne: '' }
-      }).limit(5000).lean();
-      const matches = rows.filter((person) => botPhoneMatches(numeric, person.phone || ''));
-      if (matches.length === 1) return matches[0];
-    }
-
-    if (raw.length >= 2) {
-      const rx = new RegExp(escapeRegex(raw), 'i');
-      const rows = await Person.find({
-        active: { $ne: false },
-        $or: [{ name: rx }, { companyName: rx }, { email: rx }, { phone: rx }, { document: rx }]
-      }).limit(40).lean();
-      const wanted = normalizeSearch(raw);
-      const exact = rows.find((person) =>
-        normalizeSearch(person.name || person.companyName || '') === wanted
-      );
-      if (exact) return exact;
-      if (rows.length === 1) return rows[0];
-    }
-    return null;
-  }
-
-  async function getErpFinanceRowsForQuery(query = '') {
-    const person = await findErpPersonForFinanceQuery(query);
-    const groups = [];
-    const cpf = onlyDigits(person?.document || query);
-    const phone = onlyDigits(person?.phone || '');
-    const sourcePersonId = String(person?.sourceId || '').trim();
-
-    if ([11, 14].includes(cpf.length)) {
-      const byDocument = await erpParityFinance.finance({ direction: 'receivable', q: cpf });
-      groups.push((byDocument.entries || []).filter((row) => onlyDigits(row.personDocument || '') === cpf));
-    }
-
-    if (phone) {
-      const byPhone = await erpParityFinance.finance({ direction: 'receivable', q: phone });
-      groups.push((byPhone.entries || []).filter((row) => botPhoneMatches(phone, row.personPhone || '')));
-    }
-
-    if (sourcePersonId) {
-      const bySource = await erpParityFinance.finance({
-        direction: 'receivable',
-        personSourceId: sourcePersonId
-      });
-      groups.push((bySource.entries || []).filter((row) =>
-        String(row?.migration?.sourcePersonId || '') === sourcePersonId
-      ));
-    }
-
-    if (!groups.some((rows) => rows.length)) {
-      const raw = String(person?.name || person?.companyName || query || '').trim();
-      if (raw) {
-        const byName = await erpParityFinance.finance({ direction: 'receivable', q: raw });
-        const wanted = normalizeSearch(raw);
-        groups.push((byName.entries || []).filter((row) =>
-          normalizeSearch(row.personName || '') === wanted
-        ));
-      }
-    }
-
-    const seen = new Set();
-    const rows = [];
-    for (const group of groups) {
-      for (const row of group) {
-        const key = String(
-          row.id ||
-          row._id ||
-          [row.source, row.orderId, row.installmentNumber, row.dueAt, row.value].join('|')
-        );
-        if (seen.has(key)) continue;
-        seen.add(key);
-        rows.push(row);
-      }
-    }
-
-    return { person, rows };
-  }
-
-  function buildArianaErpCarneFromRows(rows = [], person = null) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const groups = new Map();
-    const customerName = String(person?.name || person?.companyName || rows[0]?.personName || 'Cliente').trim();
-    const customerCpf = onlyDigits(person?.document || rows[0]?.personDocument || '');
-    const customerPhone = String(person?.phone || rows[0]?.personPhone || '').trim();
-
-    for (const row of rows) {
-      const normalized = normalizeErpBotReceivable(row);
-      const paid = normalized.quitado === true;
-      const due = normalized.dataVencimento ? new Date(normalized.dataVencimento) : null;
-      const late = !paid && due && !Number.isNaN(due.getTime()) && due < today;
-      const reference = financeiroErpReference(row);
-      const groupKey = row.source === 'ariana_sale'
-        ? String(row.description || row.orderId || 'Venda Ariana')
-        : String(row?.migration?.sourceSaleId
-          ? `Venda histórica ${row.migration.sourceSaleId}`
-          : (row.documentNumber || row.boletoNumber || row.description || row.id || 'Lançamento'));
-
-      const parcel = {
-        ...normalized,
-        codigo: reference,
-        sourceRef: reference,
-        sourceType: row.source === 'ariana_sale' ? 'ariana_erp_venda' : 'ariana_erp_historico',
-        orderId: row.orderId || '',
-        ledgerEntryId: row.source === 'ariana_sale' ? '' : String(row.id || row._id || ''),
-        cliente: customerName,
-        documento: String(row.documentNumber || row.boletoNumber || groupKey),
-        descricao: String(row.description || row.categoryName || groupKey),
-        formaPagamento: String(row.paymentMethod || ''),
-        dataPagamento: row.paidAt || null,
-        status: paid ? 'paga' : (late ? 'atrasada' : (row.partial ? 'parcial' : 'aberta')),
-        vencida: Boolean(late),
-        emAberto: !paid
-      };
-      parcel.atualizacaoFinanceira = calcularParcelaAtualizadaBackend(parcel, today);
-
-      if (!groups.has(groupKey)) {
-        groups.set(groupKey, {
-          documento: groupKey,
-          descricao: String(row.description || groupKey),
-          orderId: row.orderId || '',
-          sourceType: parcel.sourceType,
-          parcelas: [],
-          total: 0,
-          pago: 0,
-          saldo: 0,
-          multa: 0,
-          juros: 0,
-          valorAtualizado: 0,
-          pagas: 0,
-          abertas: 0,
-          atrasadas: 0
-        });
-      }
-
-      const group = groups.get(groupKey);
-      group.parcelas.push(parcel);
-      group.total += Number(parcel.valorParcela || 0);
-      group.pago += Number(parcel.valorPago || 0);
-      group.saldo += Number(parcel.saldoParcela || 0);
-      group.multa += Number(parcel.atualizacaoFinanceira?.multa || 0);
-      group.juros += Number(parcel.atualizacaoFinanceira?.juros || 0);
-      group.valorAtualizado += Number(parcel.atualizacaoFinanceira?.valorAtualizado || 0);
-      if (parcel.status === 'paga') group.pagas += 1;
-      else if (parcel.status === 'atrasada') group.atrasadas += 1;
-      else group.abertas += 1;
-    }
-
-    const grupos = [...groups.values()].map((group) => {
-      group.parcelas.sort((a, b) =>
-        new Date(a.dataVencimento || 0).getTime() - new Date(b.dataVencimento || 0).getTime()
-      );
-      const total = group.parcelas.length || 1;
-      group.parcelas = group.parcelas.map((parcel, index) => ({
-        ...parcel,
-        parcelaNumero: Number(parcel.parcelaNumero || index + 1),
-        parcelaLabel: `${String(parcel.parcelaNumero || index + 1).padStart(2, '0')}/${String(parcel.parcelas || total).padStart(2, '0')}`
-      }));
-      for (const key of ['total', 'pago', 'saldo', 'multa', 'juros', 'valorAtualizado']) {
-        group[key] = Number(Number(group[key] || 0).toFixed(2));
-      }
-      return group;
-    });
-
-    const resumo = grupos.reduce((acc, group) => {
-      acc.total += group.total;
-      acc.pago += group.pago;
-      acc.saldo += group.saldo;
-      acc.multa += group.multa;
-      acc.juros += group.juros;
-      acc.valorAtualizado += group.valorAtualizado;
-      acc.parcelas += group.parcelas.length;
-      acc.pagas += group.pagas;
-      acc.abertas += group.abertas;
-      acc.atrasadas += group.atrasadas;
-      return acc;
-    }, { total: 0, pago: 0, saldo: 0, multa: 0, juros: 0, valorAtualizado: 0, parcelas: 0, pagas: 0, abertas: 0, atrasadas: 0 });
-
-    for (const key of ['total', 'pago', 'saldo', 'multa', 'juros', 'valorAtualizado']) {
-      resumo[key] = Number(Number(resumo[key] || 0).toFixed(2));
-    }
-    resumo.calculoFinanceiro = getFinanceiroCalculationConfig();
-
-    const address = person?.address || {};
-    return {
-      cliente: customerName,
-      telefone: customerPhone,
-      cpf: customerCpf,
-      cidade: String(address.city || address.municipio || '').trim(),
-      uf: String(address.stateCode || address.uf || address.state || '').trim().toUpperCase(),
-      resumo,
-      grupos,
-      parcelas: normalizarIdentificacaoParcelas(
-        grupos.flatMap((group) => Array.isArray(group.parcelas) ? group.parcelas : [])
-      )
-    };
-  }
-
-  async function getArianaErpFinancialData(query = '') {
-    const term = String(query || '').trim();
-    if (term.length < 2) {
-      const error = new Error('Informe pelo menos 2 caracteres para consultar o financeiro.');
-      error.statusCode = 400;
-      throw error;
-    }
-    const { person, rows } = await getErpFinanceRowsForQuery(term);
-    const carne = buildArianaErpCarneFromRows(rows, person);
-    return {
-      ok: true,
-      ...carne,
-      total: rows.length,
-      fonte: 'ariana_erp',
-      fonteFinanceira: 'ariana_erp',
-      estadoFinanceiroSomenteLeitura: false,
-      mongoResponsabilidade: 'ariana_erp_financeiro_operacional'
-    };
-  }
 
   // ============================================================
-  // FINANCEIRO ARIANA ERP - carteira local e operacional
-  // Um único registro permanente por cliente. O Ariana ERP é a fonte operacional.
-  // O histórico migrado permanece local no MongoDB, sem novas consultas ao SIGE.
+  // FASE 1 - GESTÃO ÚNICA DO CARNÊ DIGITAL SIGE
+  // Um único registro permanente por cliente. O SIGE continua
+  // sendo a fonte oficial; o MongoDB guarda o snapshot e auditoria.
   // ============================================================
   const financeiroCarneDigitalSchema = new mongoose.Schema({
     codigo: { type: String, required: true, unique: true, index: true },
     uniqueKey: { type: String, required: true, unique: true, index: true },
-    fonte: { type: String, default: 'ariana_erp', index: true },
+    fonte: { type: String, default: 'sige', index: true },
     status: { type: String, default: 'ATIVO', index: true },
     cliente: {
       nome: { type: String, default: '', index: true },
@@ -757,7 +239,7 @@ function financeiroErpReference(row = {}) {
 
 
   const financeiroSincronizacaoLogSchema = new mongoose.Schema({
-    origem: { type: String, default: 'ariana_erp', index: true },
+    origem: { type: String, default: 'sige', index: true },
     tipo: { type: String, default: 'MANUAL', index: true },
     status: { type: String, default: 'PROCESSANDO', index: true },
     iniciadoEm: { type: Date, default: Date.now, index: true },
@@ -1117,11 +599,11 @@ function financeiroErpReference(row = {}) {
 
   function buildCarneUniqueKey(carne = {}) {
     const cpf = cleanPhone(carne.cpf || '');
-    if (cpf) return `ariana_erp:cpf:${cpf}`;
+    if (cpf) return `sige:cpf:${cpf}`;
     const nome = normalizeCarneIdentity(carne.cliente || '');
     const telefone = cleanPhone(carne.telefone || '');
-    if (telefone) return `ariana_erp:telefone:${telefone}`;
-    return `ariana_erp:nome:${nome}`;
+    if (telefone) return `sige:telefone:${telefone}`;
+    return `sige:nome:${nome}`;
   }
 
   function createCarneCode() {
@@ -1221,7 +703,7 @@ function financeiroErpReference(row = {}) {
         ? interestMonthlyPercent
         : 1,
       formula: 'juros simples proporcionais aos dias: saldo × taxa mensal × dias ÷ 30',
-      fonteSaldoOriginal: 'Ariana ERP',
+      fonteSaldoOriginal: 'SIGE',
       calculadoNoBackend: true
     };
   }
@@ -2522,7 +2004,7 @@ function financeiroErpReference(row = {}) {
       id: String(row._id || row.id || ''),
       codigo: row.codigo || '',
       uniqueKey: row.uniqueKey || '',
-      fonte: row.fonte || 'ariana_erp',
+      fonte: row.fonte || 'sige',
       status: row.status || 'ATIVO',
       cliente: row.cliente || {},
       resumo: row.resumo || {},
@@ -3271,7 +2753,7 @@ function financeiroErpReference(row = {}) {
   }
 
   async function getUnifiedFinancialData(q = '', options = {}) {
-    const carne = await getArianaErpFinancialData(q, options);
+    const carne = await getSigeCarneData(q, options);
     let auditoriaMongo = null;
     try {
       auditoriaMongo = await getCrediarioAuditForSigeCarne(carne);
@@ -3288,17 +2770,17 @@ function financeiroErpReference(row = {}) {
       ...carne,
       auditoriaMongo,
       arquitetura: {
-        fonteOficialParcelas: 'ARIANA_ERP',
-        fonteOficialSaldo: 'ARIANA_ERP',
-        fonteOficialPagamentos: 'ARIANA_ERP',
-        historicoMigrado: 'MongoDB Ariana',
-        mongoDb: ['Ariana ERP', 'histórico migrado', 'recibos', 'WhatsApp', 'logs', 'auditoria']
+        fonteOficialParcelas: 'SIGE',
+        fonteOficialSaldo: 'SIGE',
+        fonteOficialPagamentos: 'SIGE',
+        mongoDb: ['clientes complementares', 'recibos emitidos', 'WhatsApp', 'logs', 'auditoria']
       }
     };
   }
 
 
-  async function sincronizarCarneDigitalErp(q = '', req = {}, options = {}) {
+
+  async function sincronizarCarneDigitalSige(q = '', req = {}, options = {}) {
     const existenteInformado = options.existingCarne || null;
     const termos = [
       q,
@@ -3306,165 +2788,234 @@ function financeiroErpReference(row = {}) {
       existenteInformado?.cliente?.cpf,
       existenteInformado?.cliente?.nome,
       existenteInformado?.cliente?.telefone
-    ].map((value) => String(value || '').trim()).filter(Boolean);
+    ];
 
-    let data = null;
-    let lastError = null;
-    for (const termo of [...new Set(termos)]) {
-      try {
-        const candidate = await getArianaErpFinancialData(termo);
-        if (!data) data = candidate;
-        if (Array.isArray(candidate?.grupos) && candidate.grupos.length) {
-          data = candidate;
-          break;
-        }
-      } catch (error) {
-        lastError = error;
+    const carneSige = await getSigeCarneDataComFallback(termos, options);
+    let auditoriaMongo = null;
+    try {
+      auditoriaMongo = await getCrediarioAuditForSigeCarne(carneSige);
+    } catch (auditError) {
+      auditoriaMongo = {
+        clienteLocal: null,
+        recibos: { quantidade: 0, valorRegistrado: 0, ultimo: null },
+        erro: auditError.message || String(auditError)
+      };
+    }
+
+    const data = {
+      ...carneSige,
+      auditoriaMongo,
+      arquitetura: {
+        fonteOficialParcelas: 'SIGE',
+        fonteOficialSaldo: 'SIGE',
+        fonteOficialPagamentos: 'SIGE',
+        mongoDb: ['clientes complementares', 'recibos emitidos', 'WhatsApp', 'logs', 'auditoria']
       }
-    }
-
-    if (!data) {
-      if (lastError) throw lastError;
-      data = await getArianaErpFinancialData(String(q || '').trim());
-    }
+    };
 
     if (!Array.isArray(data.grupos) || !data.grupos.length) {
-      const cpfBusca = cleanPhone(data.cpf || q || existenteInformado?.cliente?.cpf || '');
-      const nomeBusca = String(data.cliente || q || existenteInformado?.cliente?.nome || '').trim();
-      const or = [];
-      if (cpfBusca) or.push({ 'cliente.cpf': cpfBusca });
-      if (nomeBusca) or.push({ 'cliente.nome': new RegExp('^' + escapeRegex(nomeBusca) + '$', 'i') });
-      const existente = existenteInformado || (or.length ? await FinanceiroCarneDigital.findOne({ $or: or }) : null);
+      const existente = existenteInformado ||
+        await FinanceiroCarneDigital.findOne({
+          $or: [
+            ...(cleanPhone(q) ? [{ 'cliente.cpf': cleanPhone(q) }] : []),
+            ...(String(q || '').trim() ? [{ 'cliente.nome': new RegExp(`^${escapeRegex(String(q).trim())}$`, 'i') }] : [])
+          ]
+        });
 
       if (existente && Array.isArray(existente.parcelas) && existente.parcelas.length) {
-        existente.fonte = existente.fonte === 'sige' ? 'legado_local' : (existente.fonte || 'legado_local');
+        existente.parcelas = normalizarIdentificacaoParcelas(existente.parcelas);
+        existente.grupos = Array.isArray(existente.grupos) ? existente.grupos.map((grupo) => ({
+          ...grupo,
+          parcelas: normalizarIdentificacaoParcelas(grupo.parcelas || [])
+        })) : [];
         existente.snapshot = {
           ...(existente.snapshot || {}),
-          fonteFinanceira: 'ariana_erp',
           ultimaTentativaSincronizacaoEm: new Date(),
           ultimaTentativaSincronizacaoOk: false,
-          ultimaTentativaSincronizacaoErro: 'Ariana ERP sem parcelas vinculadas; snapshot local preservado.'
+          ultimaTentativaSincronizacaoErro: 'SIGE não retornou parcelas; dados existentes foram preservados.',
+          diagnosticoConsulta: data.diagnosticoConsulta || null
         };
         existente.historico = Array.isArray(existente.historico) ? existente.historico : [];
         existente.historico.push({
-          tipo: 'SINCRONIZACAO_ERP_PRESERVADA',
+          tipo: 'SINCRONIZACAO_PRESERVADA',
           em: new Date(),
           por: getFinanceiroActor(req),
-          motivo: 'Ariana ERP sem parcelas vinculadas; histórico local preservado.'
+          motivo: 'SIGE não retornou parcelas; snapshot anterior preservado.',
+          diagnosticoConsulta: data.diagnosticoConsulta || null
         });
         if (existente.historico.length > 100) existente.historico = existente.historico.slice(-100);
         await existente.save();
+
+        await registrarAuditoriaFinanceira({
+          req,
+          acao: 'CARNE_SINCRONIZACAO_PRESERVADA',
+          entidade: 'FinanceiroCarneDigital',
+          entidadeId: String(existente._id),
+          codigo: existente.codigo,
+          depois: existente.resumo || {},
+          metadata: {
+            motivo: 'SIGE_SEM_PARCELAS',
+            diagnosticoConsulta: data.diagnosticoConsulta || null
+          },
+          sucesso: true
+        });
+
         return {
           ok: true,
           preservado: true,
           atualizado: false,
-          warning: 'O Ariana ERP não encontrou parcelas vinculadas. O histórico local foi preservado sem consultar o SIGE.',
+          warning: 'O SIGE não retornou parcelas nesta tentativa. As parcelas já salvas foram preservadas.',
+          diagnosticoConsulta: data.diagnosticoConsulta || null,
           carne: normalizeCarneDigital(existente)
         };
       }
 
-      const error = new Error('Nenhuma parcela foi encontrada no Ariana ERP para este cliente.');
+      const error = new Error('Nenhuma parcela foi encontrada no SIGE para este cliente.');
       error.statusCode = 404;
+      error.diagnosticoConsulta = data.diagnosticoConsulta || null;
       throw error;
     }
 
     data.parcelas = normalizarIdentificacaoParcelas(data.parcelas || []);
-    data.grupos = data.grupos.map((grupo) => ({
+    data.grupos = (Array.isArray(data.grupos) ? data.grupos : []).map((grupo) => ({
       ...grupo,
       parcelas: normalizarIdentificacaoParcelas(grupo.parcelas || [])
     }));
 
     const uniqueKey = buildCarneUniqueKey(data);
     if (!uniqueKey || uniqueKey.endsWith(':')) {
-      const error = new Error('Não foi possível identificar o cliente do Ariana ERP.');
+      const error = new Error('Não foi possível identificar o cliente para salvar o carnê.');
       error.statusCode = 422;
       throw error;
     }
 
     const agora = new Date();
-    const usuario = getFinanceiroActor(req);
-    const cpf = cleanPhone(data.cpf || '');
-    const telefone = normalizePhone(data.telefone || '', '55');
-    const nome = String(data.cliente || '').trim();
-
-    let existente = existenteInformado || await FinanceiroCarneDigital.findOne({ uniqueKey });
-    if (!existente && cpf) existente = await FinanceiroCarneDigital.findOne({ 'cliente.cpf': cpf }).sort({ updatedAt: -1 });
-    if (!existente && telefone) existente = await FinanceiroCarneDigital.findOne({ 'cliente.telefone': telefone }).sort({ updatedAt: -1 });
-    if (!existente && nome) existente = await FinanceiroCarneDigital.findOne({ 'cliente.nome': new RegExp('^' + escapeRegex(nome) + '$', 'i') }).sort({ updatedAt: -1 });
-
+    const usuario = String(req.admin?.email || req.auth?.email || req.user?.email || 'admin');
+    let existente = await FinanceiroCarneDigital.findOne({ uniqueKey });
     let criadoAgora = !existente;
+
     if (!existente) {
       let codigo = createCarneCode();
       while (await FinanceiroCarneDigital.exists({ codigo })) codigo = createCarneCode();
+
       existente = new FinanceiroCarneDigital({
         codigo,
         uniqueKey,
-        fonte: 'ariana_erp',
+        fonte: 'sige',
         status: 'ATIVO',
         criadoPor: usuario,
         historico: []
       });
     }
 
-    const conflito = await FinanceiroCarneDigital.findOne({ uniqueKey, _id: { $ne: existente._id } });
-    if (conflito) {
-      existente = conflito;
-      criadoAgora = false;
-    }
-
-    const resumoAnterior = existente.resumo || {};
-    existente.uniqueKey = uniqueKey;
-    existente.fonte = 'ariana_erp';
-    existente.status = 'ATIVO';
+    let resumoAnterior = existente.resumo || {};
     existente.cliente = {
-      nome,
-      nomeNormalizado: normalizeCarneIdentity(nome),
-      cpf,
-      telefone,
+      nome: String(data.cliente || ''),
+      nomeNormalizado: normalizeCarneIdentity(data.cliente || ''),
+      cpf: cleanPhone(data.cpf || ''),
+      telefone: normalizePhone(data.telefone || '', '55'),
       cidade: String(data.cidade || ''),
       uf: String(data.uf || '')
     };
     existente.resumo = data.resumo || {};
-    existente.grupos = data.grupos || [];
-    existente.parcelas = data.parcelas || [];
+    existente.grupos = Array.isArray(data.grupos) ? data.grupos : [];
+    existente.parcelas = Array.isArray(data.parcelas) ? data.parcelas : [];
     existente.snapshot = {
-      ...(existente.snapshot || {}),
-      fonteFinanceira: 'ariana_erp',
-      fonte: 'ariana_erp',
-      total: Number(data.total || data.parcelas?.length || 0),
-      ultimaTentativaSincronizacaoEm: agora,
-      ultimaTentativaSincronizacaoOk: true,
-      ultimaTentativaSincronizacaoErro: ''
+      fonteFinanceira: data.fonteFinanceira || 'sige',
+      fonte: data.fonte || 'lancamentos_sige',
+      total: Number(data.total || 0),
+      arquitetura: data.arquitetura || {},
+      auditoriaMongo: data.auditoriaMongo || null
     };
     existente.ultimaSincronizacaoEm = agora;
     existente.ultimaSincronizacaoPor = usuario;
     existente.historico = Array.isArray(existente.historico) ? existente.historico : [];
     existente.historico.push({
-      tipo: criadoAgora ? 'CRIADO_ERP' : 'SINCRONIZADO_ERP',
+      tipo: criadoAgora ? 'CRIADO' : 'SINCRONIZADO',
       em: agora,
       por: usuario,
       resumoAnterior,
       resumoAtual: data.resumo || {}
     });
-    if (existente.historico.length > 100) existente.historico = existente.historico.slice(-100);
-    await existente.save();
+    if (existente.historico.length > 100) {
+      existente.historico = existente.historico.slice(-100);
+    }
+
+    try {
+      await existente.save();
+    } catch (saveError) {
+      const duplicateUniqueKey =
+        Number(saveError?.code || 0) === 11000 &&
+        (
+          String(saveError?.message || '').includes('uniqueKey_1') ||
+          saveError?.keyPattern?.uniqueKey ||
+          saveError?.keyValue?.uniqueKey
+        );
+
+      if (!duplicateUniqueKey) throw saveError;
+
+      // Duas sincronizações podem chegar quase ao mesmo tempo.
+      // O índice uniqueKey protege contra duplicidade; neste caso,
+      // recuperamos o registro que venceu a corrida e o atualizamos.
+      existente = await FinanceiroCarneDigital.findOne({ uniqueKey });
+      if (!existente) throw saveError;
+
+      criadoAgora = false;
+      resumoAnterior = existente.resumo || {};
+
+      existente.cliente = {
+        nome: String(data.cliente || ''),
+        nomeNormalizado: normalizeCarneIdentity(data.cliente || ''),
+        cpf: cleanPhone(data.cpf || ''),
+        telefone: normalizePhone(data.telefone || '', '55'),
+        cidade: String(data.cidade || ''),
+        uf: String(data.uf || '')
+      };
+      existente.resumo = data.resumo || {};
+      existente.grupos = Array.isArray(data.grupos) ? data.grupos : [];
+      existente.parcelas = Array.isArray(data.parcelas) ? data.parcelas : [];
+      existente.snapshot = {
+        fonteFinanceira: data.fonteFinanceira || 'sige',
+        fonte: data.fonte || 'lancamentos_sige',
+        total: Number(data.total || 0),
+        arquitetura: data.arquitetura || {},
+        auditoriaMongo: data.auditoriaMongo || null
+      };
+      existente.ultimaSincronizacaoEm = agora;
+      existente.ultimaSincronizacaoPor = usuario;
+      existente.historico = Array.isArray(existente.historico) ? existente.historico : [];
+      existente.historico.push({
+        tipo: 'SINCRONIZADO',
+        em: agora,
+        por: usuario,
+        resumoAnterior,
+        resumoAtual: data.resumo || {},
+        recuperadoDeConcorrencia: true
+      });
+      if (existente.historico.length > 100) {
+        existente.historico = existente.historico.slice(-100);
+      }
+
+      await existente.save();
+    }
 
     await registrarAuditoriaFinanceira({
       req,
-      acao: criadoAgora ? 'CARNE_ERP_CRIADO' : 'CARNE_ERP_SINCRONIZADO',
+      acao: criadoAgora ? 'CARNE_CRIADO' : 'CARNE_SINCRONIZADO',
       entidade: 'FinanceiroCarneDigital',
       entidadeId: String(existente._id),
       codigo: existente.codigo,
       antes: resumoAnterior,
       depois: existente.resumo,
-      metadata: { fonte: 'ariana_erp', uniqueKey }
+      metadata: { fonte: 'sige', uniqueKey }
     });
-
     return {
       ok: true,
       criadoAgora,
       atualizado: !criadoAgora,
-      message: criadoAgora ? 'Carnê criado a partir do Ariana ERP.' : 'Carnê atualizado a partir do Ariana ERP.',
+      message: criadoAgora
+        ? 'Carnê digital criado e salvo com sucesso.'
+        : 'O mesmo carnê foi atualizado com os valores atuais do SIGE.',
       carne: normalizeCarneDigital(existente)
     };
   }
@@ -3483,13 +3034,13 @@ function financeiroErpReference(row = {}) {
     }
   });
 
-  // Endpoint financeiro canônico.
-  // O Ariana ERP é a fonte operacional de clientes, vendas, parcelas, saldo e pagamentos.
-  // Dados antigos importados permanecem no MongoDB apenas como histórico local.
+  // FASE A - Endpoint financeiro canônico.
+  // O SIGE é a única fonte de parcelas, saldo, vencimentos e situação de pagamento.
+  // O MongoDB é consultado somente para enriquecer a resposta com histórico/auditoria.
   app.get('/api/admin/financeiro/carne', adminRequired, async (req, res) => {
     try {
       const q = String(req.query.cliente || req.query.q || '').trim();
-      const data = await getArianaErpFinancialData(q, {
+      const data = await getUnifiedFinancialData(q, {
         limit: req.query.limit || 5000,
         maxRecords: req.query.maxRecords || 20000
       });
@@ -3498,8 +3049,8 @@ function financeiroErpReference(row = {}) {
       console.error('Erro financeiro unificado:', error.message || error);
       return res.status(error.statusCode || 500).json({
         ok: false,
-        error: error.message || 'Erro ao consultar dados financeiros no Ariana ERP',
-        fonteFinanceira: 'ariana_erp'
+        error: error.message || 'Erro ao consultar dados financeiros oficiais no SIGE',
+        fonteFinanceira: 'sige'
       });
     }
   });
@@ -3510,7 +3061,7 @@ function financeiroErpReference(row = {}) {
   app.post('/api/admin/financeiro/carnes/sincronizar', adminRequired, async (req, res) => {
     try {
       const q = String(req.body?.cliente || req.body?.q || '').trim();
-      const result = await sincronizarCarneDigitalErp(q, req, {
+      const result = await sincronizarCarneDigitalSige(q, req, {
         limit: req.body?.limit || 5000,
         maxRecords: req.body?.maxRecords || 20000
       });
@@ -3692,7 +3243,7 @@ function financeiroErpReference(row = {}) {
         ''
       ).trim();
 
-      const result = await sincronizarCarneDigitalErp(termo, req, {
+      const result = await sincronizarCarneDigitalSige(termo, req, {
         limit: req.body?.limit || 5000,
         maxRecords: req.body?.maxRecords || 20000,
         existingCarne: existente,
@@ -3716,33 +3267,22 @@ function financeiroErpReference(row = {}) {
     try {
       const q = String(req.query.q || req.query.nome || '').trim();
       const limit = Math.max(1, Math.min(Number(req.query.limit || 50), 200));
-      const Person = mongoose.models.ErpPerson;
-      if (!Person) return res.json({ ok: true, clientes: [], total: 0, fonte: 'ariana_erp', fonteFinanceira: 'ariana_erp' });
-      const filter = { active: { $ne: false } };
-      if (q) {
-        const rx = new RegExp(escapeRegex(q), 'i');
-        const qDigits = onlyDigits(q);
-        filter.$or = [{ name: rx }, { companyName: rx }, { email: rx }, { phone: rx }, { document: rx }];
-        if (qDigits) filter.$or.push({ document: new RegExp(escapeRegex(qDigits), 'i') }, { phone: new RegExp(escapeRegex(qDigits), 'i') });
-      }
-      const pessoas = await Person.find(filter).sort({ name: 1 }).limit(limit).lean();
-      const clientes = pessoas.map((p) => ({
-        id: String(p._id),
-        codigo: String(p._id),
-        nome: String(p.name || p.companyName || ''),
-        nomeFantasia: String(p.companyName || ''),
-        cpf: onlyDigits(p.document || ''),
-        documento: onlyDigits(p.document || ''),
-        telefone: String(p.phone || ''),
-        email: String(p.email || ''),
-        cidade: String(p.address?.city || ''),
-        uf: String(p.address?.stateCode || ''),
-        fonte: 'ariana_erp'
-      }));
-      return res.json({ ok: true, clientes, total: clientes.length, fonte: 'ariana_erp', fonteFinanceira: 'ariana_erp', estadoFinanceiroSomenteLeitura: false });
+      const pessoas = await getSigePessoasByQuery(q, limit);
+      return res.json({
+        ok: true,
+        clientes: pessoas,
+        total: pessoas.length,
+        fonte: 'sige',
+        fonteFinanceira: 'sige',
+        estadoFinanceiroSomenteLeitura: true
+      });
     } catch (error) {
-      console.error('Erro financeiro clientes Ariana ERP:', error.message || error);
-      return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao consultar clientes financeiros no Ariana ERP', fonteFinanceira: 'ariana_erp' });
+      console.error('Erro financeiro clientes SIGE:', error.message || error);
+      return res.status(error.statusCode || 500).json({
+        ok: false,
+        error: error.message || 'Erro ao consultar clientes financeiros no SIGE',
+        fonteFinanceira: 'sige'
+      });
     }
   });
 
@@ -3751,7 +3291,7 @@ function financeiroErpReference(row = {}) {
     return String(req.admin?.email || req.auth?.email || req.user?.email || 'admin');
   }
 
-  async function executarSincronizacaoCarnesErp({
+  async function executarSincronizacaoCarnesSige({
     req,
     somenteDesatualizados = true,
     minutosDesatualizado = 60,
@@ -3759,103 +3299,34 @@ function financeiroErpReference(row = {}) {
     ids = []
   } = {}) {
     const agora = new Date();
-    const max = Math.max(1, Math.min(Number(limite || 100), 1000));
     const cutoff = new Date(agora.getTime() - Math.max(1, Number(minutosDesatualizado || 60)) * 60000);
-    const candidates = new Map();
-
-    const addCandidate = (query = '', existingCarne = null, metadata = {}) => {
-      const value = String(query || '').trim();
-      if (!value) return;
-      const key = existingCarne?._id
-        ? `carne:${existingCarne._id}`
-        : (onlyDigits(value) ? `digits:${onlyDigits(value)}` : `text:${normalizeSearch(value)}`);
-      if (!candidates.has(key)) candidates.set(key, { query: value, existingCarne, metadata });
-    };
+    const filter = { status: 'ATIVO' };
 
     if (Array.isArray(ids) && ids.length) {
       const objectIds = ids
         .filter((id) => mongoose.Types.ObjectId.isValid(String(id)))
         .map((id) => new mongoose.Types.ObjectId(String(id)));
-      const rows = await FinanceiroCarneDigital.find({ _id: { $in: objectIds } }).limit(max);
-      for (const row of rows) {
-        addCandidate(row.cliente?.cpf || row.cliente?.telefone || row.cliente?.nome, row, { origem: 'carne_existente' });
-      }
-    } else {
-      const existingFilter = somenteDesatualizados
-        ? {
-            status: 'ATIVO',
-            $or: [
-              { ultimaSincronizacaoEm: { $lt: cutoff } },
-              { ultimaSincronizacaoEm: null },
-              { ultimaSincronizacaoEm: { $exists: false } },
-              { fonte: 'sige' },
-              { fonte: 'legado_local' }
-            ]
-          }
-        : { status: 'ATIVO' };
-
-      const existingRows = await FinanceiroCarneDigital.find(existingFilter)
-        .sort({ ultimaSincronizacaoEm: 1, updatedAt: 1 })
-        .limit(max);
-
-      for (const row of existingRows) {
-        addCandidate(row.cliente?.cpf || row.cliente?.telefone || row.cliente?.nome, row, { origem: 'carne_existente' });
-      }
-
-      if (candidates.size < max) {
-        const orders = await Order.find({
-          origin: 'erp_ariana',
-          status: { $in: ['pedido', 'venda', 'faturado'] }
-        })
-          .select('_id customerName customerCpf customerPhone updatedAt')
-          .sort({ updatedAt: -1 })
-          .limit(max * 2)
-          .lean();
-
-        for (const order of orders) {
-          addCandidate(
-            order.customerCpf || order.customerPhone || order.customerName,
-            null,
-            { origem: 'venda_ariana', orderId: String(order._id) }
-          );
-          if (candidates.size >= max) break;
-        }
-      }
-
-      if (candidates.size < max) {
-        const Entry = mongoose.models.ErpFinancialEntry;
-        if (Entry) {
-          const entries = await Entry.collection.find({
-            direction: 'receivable',
-            status: { $ne: 'cancelled' }
-          }).project({
-            personName: 1,
-            personDocument: 1,
-            personPhone: 1,
-            dueAt: 1
-          }).sort({ dueAt: -1 }).limit(max * 2).toArray();
-
-          for (const entry of entries) {
-            addCandidate(
-              entry.personDocument || entry.personPhone || entry.personName,
-              null,
-              { origem: 'historico_local', entryId: String(entry._id) }
-            );
-            if (candidates.size >= max) break;
-          }
-        }
-      }
+      filter._id = { $in: objectIds };
+    } else if (somenteDesatualizados) {
+      filter.$or = [
+        { ultimaSincronizacaoEm: { $lt: cutoff } },
+        { ultimaSincronizacaoEm: null },
+        { ultimaSincronizacaoEm: { $exists: false } }
+      ];
     }
 
-    const selected = [...candidates.values()].slice(0, max);
+    const rows = await FinanceiroCarneDigital.find(filter)
+      .sort({ ultimaSincronizacaoEm: 1, updatedAt: 1 })
+      .limit(Math.max(1, Math.min(Number(limite || 100), 500)));
+
     const log = await FinanceiroSincronizacaoLog.create({
-      origem: 'ariana_erp',
-      tipo: ids?.length ? 'SELECIONADOS' : (somenteDesatualizados ? 'DESATUALIZADOS_E_NOVOS' : 'TODOS'),
+      origem: 'sige',
+      tipo: ids?.length ? 'SELECIONADOS' : (somenteDesatualizados ? 'DESATUALIZADOS' : 'TODOS'),
       status: 'PROCESSANDO',
       iniciadoEm: agora,
       solicitadoPor: getSyncUser(req),
-      totalSelecionado: selected.length,
-      parametros: { somenteDesatualizados, minutosDesatualizado, limite: max, ids: ids || [], fonte: 'ariana_erp' }
+      totalSelecionado: rows.length,
+      parametros: { somenteDesatualizados, minutosDesatualizado, limite, ids: ids || [] }
     });
 
     const resultados = [];
@@ -3863,60 +3334,65 @@ function financeiroErpReference(row = {}) {
     let erros = 0;
     let ignorados = 0;
 
-    for (const candidate of selected) {
+    for (const row of rows) {
       try {
-        const result = await sincronizarCarneDigitalErp(candidate.query, req, {
-          existingCarne: candidate.existingCarne,
-          termos: candidate.existingCarne
-            ? [
-                candidate.existingCarne.cliente?.cpf,
-                candidate.existingCarne.cliente?.nome,
-                candidate.existingCarne.cliente?.telefone
-              ]
-            : []
+        const termo = String(
+          row.cliente?.nome ||
+          row.cliente?.cpf ||
+          row.cliente?.telefone ||
+          ''
+        ).trim();
+
+        if (!termo) {
+          ignorados += 1;
+          resultados.push({
+            id: String(row._id),
+            codigo: row.codigo,
+            ok: false,
+            ignorado: true,
+            motivo: 'Carnê sem CPF, nome ou telefone para consultar o SIGE.'
+          });
+          continue;
+        }
+
+        const result = await sincronizarCarneDigitalSige(termo, req, {
+          limit: 5000,
+          maxRecords: 20000,
+          existingCarne: row,
+          termos: [
+            row.cliente?.cpf,
+            row.cliente?.nome,
+            row.cliente?.telefone
+          ]
         });
 
         if (result.preservado) ignorados += 1;
         else atualizados += 1;
 
         resultados.push({
+          id: String(row._id),
+          codigo: row.codigo,
+          cliente: row.cliente?.nome || '',
           ok: true,
-          query: candidate.query,
-          origem: candidate.metadata?.origem || '',
-          carneId: result.carne?.id || '',
-          codigo: result.carne?.codigo || '',
-          cliente: result.carne?.cliente?.nome || '',
-          criadoAgora: Boolean(result.criadoAgora),
-          preservado: Boolean(result.preservado),
-          saldo: Number(result.carne?.resumo?.saldo || 0),
-          atrasadas: Number(result.carne?.resumo?.atrasadas || 0)
+          preservado: result.preservado === true,
+          warning: result.warning || '',
+          saldo: result.carne?.resumo?.saldo || 0,
+          atrasadas: result.carne?.resumo?.atrasadas || 0,
+          diagnosticoConsulta: result.diagnosticoConsulta || null
         });
       } catch (error) {
-        if (Number(error?.statusCode || 0) === 404) {
-          ignorados += 1;
-          resultados.push({
-            ok: true,
-            ignorado: true,
-            query: candidate.query,
-            origem: candidate.metadata?.origem || '',
-            motivo: error.message || 'Nenhuma parcela localizada.'
-          });
-          continue;
-        }
-
         erros += 1;
         resultados.push({
+          id: String(row._id),
+          codigo: row.codigo,
+          cliente: row.cliente?.nome || '',
           ok: false,
-          query: candidate.query,
-          origem: candidate.metadata?.origem || '',
           error: error.message || String(error)
         });
       }
     }
 
-    log.status = erros > 0 && atualizados === 0
-      ? 'FALHOU'
-      : (erros > 0 ? 'CONCLUIDO_COM_ERROS' : 'CONCLUIDO');
+    log.status = erros > 0 && atualizados === 0 ? 'FALHOU' : (erros > 0 ? 'CONCLUIDO_COM_ERROS' : 'CONCLUIDO');
     log.concluidoEm = new Date();
     log.processados = resultados.length;
     log.atualizados = atualizados;
@@ -3927,10 +3403,9 @@ function financeiroErpReference(row = {}) {
 
     return {
       ok: true,
-      fonte: 'ariana_erp',
       sincronizacaoId: String(log._id),
       status: log.status,
-      totalSelecionado: selected.length,
+      totalSelecionado: rows.length,
       processados: resultados.length,
       atualizados,
       ignorados,
@@ -3938,6 +3413,7 @@ function financeiroErpReference(row = {}) {
       resultados
     };
   }
+
 
 
   function extrairTelefoneFinanceiro(value = null, depth = 0) {
@@ -3993,28 +3469,42 @@ function financeiroErpReference(row = {}) {
     };
   }
 
+  async function buscarTelefoneNoSigeFinanceiro({ cpf = '', nome = '' } = {}) {
+    if (typeof getSigePessoasByQuery !== 'function') {
+      return { telefone: '', fonte: '', detalhes: 'getSigePessoasByQuery_indisponivel' };
+    }
 
+    const tentativas = [cpf, nome].map((value) => String(value || '').trim()).filter(Boolean);
+
+    for (const query of tentativas) {
+      try {
+        const response = await getSigePessoasByQuery(query);
+        const rows = Array.isArray(response)
+          ? response
+          : (Array.isArray(response?.data) ? response.data
+            : (Array.isArray(response?.rows) ? response.rows
+              : (Array.isArray(response?.items) ? response.items : [])));
+
+        for (const row of rows) {
+          const phone = extrairTelefoneFinanceiro(row);
+          if (phone) {
+            return {
+              telefone: phone,
+              fonte: 'sige_pessoas',
+              detalhes: { query, pessoa: redact(row) }
+            };
+          }
+        }
+      } catch (error) {
+        console.warn('[financeiro telefone SIGE]', query, error.message || error);
+      }
+    }
+
+    return { telefone: '', fonte: '', detalhes: 'nao_encontrado_no_sige' };
+  }
 
   async function buscarTelefoneLocalFinanceiro({ cpf = '', nome = '' } = {}) {
     const candidates = [];
-
-    const Person = mongoose.models.ErpPerson;
-    if (Person) {
-      const filter = { active: { $ne: false }, $or: [] };
-      if (cpf) filter.$or.push({ document: cleanPhone(cpf) });
-      if (nome) filter.$or.push(
-        { name: new RegExp('^' + escapeRegex(nome) + '$', 'i') },
-        { companyName: new RegExp('^' + escapeRegex(nome) + '$', 'i') }
-      );
-      if (filter.$or.length) {
-        try {
-          const row = await Person.findOne(filter).lean();
-          if (row) candidates.push({ fonte: 'erp_people', row });
-        } catch (error) {
-          console.warn('[financeiro telefone ERP cliente]', error.message || error);
-        }
-      }
-    }
 
     if (CrediarioCliente) {
       const filter = { $or: [] };
@@ -4171,7 +3661,16 @@ function financeiroErpReference(row = {}) {
       return { ok: true, encontrado: true, ...propagated };
     }
 
-
+    const sige = await buscarTelefoneNoSigeFinanceiro(dados);
+    if (sige.telefone) {
+      const propagated = await propagarTelefoneFinanceiro({
+        carne,
+        telefone: sige.telefone,
+        fonte: sige.fonte,
+        req
+      });
+      return { ok: true, encontrado: true, ...propagated };
+    }
 
     return {
       ok: true,
@@ -4179,7 +3678,7 @@ function financeiroErpReference(row = {}) {
       atualizado: false,
       telefone: '',
       reason: 'telefone_nao_encontrado',
-      fontesConsultadas: ['carne_digital', 'erp_people', 'crediario_clientes', 'pedidos']
+      fontesConsultadas: ['carne_digital', 'crediario_clientes', 'pedidos', 'sige_pessoas']
     };
   }
 
@@ -6189,8 +5688,8 @@ function financeiroErpReference(row = {}) {
     };
 
     try {
-      const sincronizacao = await executarEtapa('SINCRONIZAR_ARIANA_ERP', () =>
-        executarSincronizacaoCarnesErp({
+      const sincronizacao = await executarEtapa('SINCRONIZAR_SIGE', () =>
+        executarSincronizacaoCarnesSige({
           req,
           somenteDesatualizados: false,
           minutosDesatualizado: 1,
@@ -6436,7 +5935,7 @@ function financeiroErpReference(row = {}) {
           comTelefone,
           semTelefone,
           coberturaPercentual: totalAtivos > 0 ? Number(((comTelefone / totalAtivos) * 100).toFixed(2)) : 0,
-          fontes: ['carne_digital', 'erp_people', 'crediario_clientes', 'pedidos']
+          fontes: ['carne_digital', 'crediario_clientes', 'pedidos', 'sige_pessoas']
         });
       } catch (error) {
         return res.status(500).json({ ok: false, error: error.message || 'Erro ao consultar a cobertura de telefones.' });
@@ -7151,7 +6650,7 @@ function financeiroErpReference(row = {}) {
   app.get('/api/admin/financeiro/sincronizacao/status', adminRequired, async (_req, res) => {
     try {
       const [ultimo, pendentes, total] = await Promise.all([
-        FinanceiroSincronizacaoLog.findOne({ origem: 'ariana_erp' }).sort({ iniciadoEm: -1 }).lean(),
+        FinanceiroSincronizacaoLog.findOne({ origem: 'sige' }).sort({ iniciadoEm: -1 }).lean(),
         FinanceiroCarneDigital.countDocuments({
           status: 'ATIVO',
           $or: [
@@ -7165,7 +6664,7 @@ function financeiroErpReference(row = {}) {
 
       return res.json({
         ok: true,
-        fonte: 'ariana_erp',
+        fonte: 'sige',
         totalCarnesAtivos: total,
         desatualizadosMaisDe60Min: pendentes,
         ultimaSincronizacao: ultimo || null,
@@ -7181,7 +6680,7 @@ function financeiroErpReference(row = {}) {
   app.post('/api/admin/financeiro/sincronizacao/executar', adminRequired, async (req, res) => {
     try {
       const body = req.body || {};
-      const result = await executarSincronizacaoCarnesErp({
+      const result = await executarSincronizacaoCarnesSige({
         req,
         somenteDesatualizados: body.somenteDesatualizados !== false,
         minutosDesatualizado: body.minutosDesatualizado || 60,
@@ -7190,7 +6689,7 @@ function financeiroErpReference(row = {}) {
       });
       return res.json(result);
     } catch (error) {
-      console.error('[financeiro sincronização Ariana ERP]', error.message || error);
+      console.error('[financeiro sincronização SIGE]', error.message || error);
       return res.status(error.statusCode || 500).json({
         ok: false,
         error: error.message || 'Erro ao executar a sincronização financeira.'
@@ -7201,7 +6700,7 @@ function financeiroErpReference(row = {}) {
   app.get('/api/admin/financeiro/sincronizacao/historico', adminRequired, async (req, res) => {
     try {
       const limit = Math.max(1, Math.min(Number(req.query.limit || 30), 100));
-      const rows = await FinanceiroSincronizacaoLog.find({ origem: 'ariana_erp' })
+      const rows = await FinanceiroSincronizacaoLog.find({ origem: 'sige' })
         .sort({ iniciadoEm: -1 })
         .limit(limit)
         .lean();
@@ -8033,7 +7532,7 @@ function financeiroErpReference(row = {}) {
   );
 
   app.post(
-    ['/api/admin/financeiro/fila-cobranca/adicionar-erp','/api/admin/financeiro/fila-cobranca/adicionar-sige'],
+    '/api/admin/financeiro/fila-cobranca/adicionar-sige',
     adminRequired,
     financeiroPermissionRequired('financeiro.cobranca'),
     async (req, res) => {
@@ -8041,7 +7540,7 @@ function financeiroErpReference(row = {}) {
         const clientes = Array.isArray(req.body?.clientes) ? req.body.clientes.slice(0, 50) : [];
         const dataReferencia = req.body?.dataReferencia || new Date();
         if (!clientes.length) {
-          return res.status(400).json({ ok: false, error: 'Selecione ao menos um cliente do Ariana ERP.' });
+          return res.status(400).json({ ok: false, error: 'Selecione ao menos um cliente do SIGE.' });
         }
 
         const resultados = [];
@@ -8060,7 +7559,7 @@ function financeiroErpReference(row = {}) {
           }
 
           try {
-            const sincronizacao = await sincronizarCarneDigitalErp(termo, req, {
+            const sincronizacao = await sincronizarCarneDigitalSige(termo, req, {
               limit: 5000,
               maxRecords: 20000,
               termos: [cliente?.nome, cliente?.cpf, cliente?.telefone]
@@ -8090,7 +7589,7 @@ function financeiroErpReference(row = {}) {
 
         await registrarAuditoriaFinanceira({
           req,
-          acao: 'FILA_COBRANCA_IMPORTADA_ARIANA_ERP',
+          acao: 'FILA_COBRANCA_IMPORTADA_SIGE',
           entidade: 'FinanceiroFilaCobranca',
           codigo: dateKey(dataReferencia),
           depois: {
@@ -8106,7 +7605,7 @@ function financeiroErpReference(row = {}) {
         return res.status(clientesAdicionados > 0 ? 200 : 422).json({
           ok: clientesAdicionados > 0,
           message: clientesAdicionados > 0
-            ? `${clientesAdicionados} cliente(s) do Ariana ERP incluído(s) na Fila do Dia.`
+            ? `${clientesAdicionados} cliente(s) do SIGE incluído(s) na Fila do Dia.`
             : 'Nenhum cliente pôde ser incluído na Fila do Dia.',
           selecionados: clientes.length,
           clientesAdicionados,
@@ -8119,7 +7618,7 @@ function financeiroErpReference(row = {}) {
       } catch (error) {
         return res.status(error.statusCode || 500).json({
           ok: false,
-          error: error.message || 'Erro ao adicionar clientes do Ariana ERP à Fila do Dia.'
+          error: error.message || 'Erro ao adicionar clientes do SIGE à Fila do Dia.'
         });
       }
     }
@@ -8907,8 +8406,7 @@ function financeiroErpReference(row = {}) {
                 'CARNE_WHATSAPP_FALHOU',
                 'PROMESSA_PAGAMENTO_CRIADA',
                 'TRATATIVA_FINANCEIRA_CRIADA',
-                'PAGAMENTO_CONFIRMADO_SIGE',
-                'PAGAMENTO_CONFIRMADO_ARIANA_ERP'
+                'PAGAMENTO_CONFIRMADO_SIGE'
               ]
             }
           }).sort({ createdAt: -1 }).limit(20).lean()
@@ -9295,12 +8793,12 @@ function financeiroErpReference(row = {}) {
           }),
           FinanceiroAuditoria.countDocuments({
             ...auditoriaFilter,
-            acao: { $in: ['PAGAMENTO_CONFIRMADO_SIGE', 'PAGAMENTO_CONFIRMADO_ARIANA_ERP'] },
+            acao: 'PAGAMENTO_CONFIRMADO_SIGE',
             sucesso: true
           }),
           FinanceiroAuditoria.countDocuments({
             ...auditoriaFilter,
-            acao: { $in: ['PROMESSA_PAGAMENTO_CUMPRIDA', 'PAGAMENTO_CONFIRMADO_SIGE', 'PAGAMENTO_CONFIRMADO_ARIANA_ERP'] },
+            acao: { $in: ['PROMESSA_PAGAMENTO_CUMPRIDA', 'PAGAMENTO_CONFIRMADO_SIGE'] },
             sucesso: true
           }),
           FinanceiroPromessaPagamento.aggregate([
@@ -10327,14 +9825,10 @@ function financeiroErpReference(row = {}) {
             readyState: Number(mongoose.connection?.readyState || 0),
             database: mongoose.connection?.name || MONGODB_DB || ''
           },
-          arianaErp: {
-            operacional: true,
-            bancoLocal: mongoose.connection?.readyState === 1,
-            fonteFinanceira: 'ariana_erp'
-          },
-          sigeLegado: {
-            operacional: false,
-            finalidade: 'Somente compatibilidade e importação histórica; não é fonte do Ariana Financeiro.'
+          sige: {
+            configured: Boolean(isSigeConfigured()),
+            apiUrlConfigured: Boolean(SIGE_API_URL),
+            tokenConfigured: Boolean(SIGE_TOKEN)
           },
           whatsapp: {
             configured: whatsappConfigured
@@ -10385,8 +9879,8 @@ function financeiroErpReference(row = {}) {
       prevencaoRiscoFase10: true,
       avaliacaoNovaVendaFase10: true,
       correcaoFusoDataFila: true,
-      sincronizacaoArianaErp: true,
-      preservacaoHistoricoLocal: true,
+      sincronizacaoSigeComFallback: true,
+      preservacaoParcelasEmFalhaSige: true,
       identificacaoParcelasNormalizada: true,
       diagnosticoOperacional: true,
       dashboardFinanceiroUnificado: true,
@@ -10412,21 +9906,23 @@ function financeiroErpReference(row = {}) {
       prevencaoDuplicidadeTratativas: true,
       segundaViaSemDuplicidade: true,
       renegociacaoPreservaOriginal: true,
-      fonteOficial: 'ariana_erp',
-      parcelas: 'ariana_erp',
-      saldo: 'ariana_erp',
-      pagamentos: 'ariana_erp',
-      baixaArianaErpBackend: true,
+      fonteOficial: 'sige',
+      parcelas: 'sige',
+      saldo: 'sige',
+      pagamentos: 'sige',
+      baixaSigeBackend: true,
       reciboAutomatico: true,
       whatsappAutomatico: true,
-      mongoDb: 'ariana_erp_financeiro_historico_recibos_whatsapp_auditoria',
+      mongoDb: 'historico_recibos_whatsapp_auditoria',
       rotasLegadasPreservadas: true
     });
   });
 
   // ============================================================
-  // LEGADO SIGE - auxiliares abaixo preservados somente para rotas /api/admin/sige
-  // e importação histórica. O fluxo /api/admin/financeiro usa Ariana ERP.
+  // FASE C.3 - BAIXA NO SIGE + RECIBO + WHATSAPP
+  // O SIGE permanece como fonte financeira oficial.
+  // Somente após a confirmação da baixa, o MongoDB recebe o recibo/auditoria
+  // e o WhatsApp é enviado ao cliente.
   // ============================================================
   function getSigeRequestHeaders() {
     const headers = typeof sigeAuthHeaders === 'function'
@@ -10662,35 +10158,38 @@ function financeiroErpReference(row = {}) {
 
   app.post('/api/admin/financeiro/lancamentos/:codigo/pagamentos', adminRequired, async (req, res) => {
     try {
-      const referenceRaw = String(req.params.codigo || '').trim();
-      const reference = parseFinanceiroErpReference(referenceRaw);
+      if (!isSigeConfigured()) {
+        return res.status(503).json({
+          ok: false,
+          error: 'Integração com o SIGE não está configurada.'
+        });
+      }
+
+      const codigo = Number(String(req.params.codigo || '').trim());
       const body = req.body || {};
-      const valor = Number(body.valor ?? body.Valor ?? body.valorPago ?? 0);
+      const valor = parseSigeMoney(body.valor ?? body.Valor ?? body.valorPago ?? 0);
       const formaPagamento = String(body.formaPagamento || body.FormaPagamento || 'PIX').trim();
-      const contaBancaria = String(body.contaBancaria || body.ContaBancaria || 'Ariana Móveis').trim();
+      const contaBancaria = String(body.contaBancaria || body.ContaBancaria || 'ariana moveis').trim();
+      const conciliado = body.conciliado !== false && body.Conciliado !== false;
       const dataInformada = body.data || body.Data || body.dataPagamento || null;
       const dataPagamento = dataInformada ? new Date(dataInformada) : new Date();
       const numeroDocumento = String(
         body.numeroDocumento ||
         body.NumeroDocumento ||
-        `ARIANA-${Date.now()}`
+        `ARIANA-${codigo}-${Date.now()}`
       ).trim();
-      const multa = Math.max(0, Number(body.multa || body.fine || 0));
-      const juros = Math.max(0, Number(body.juros || body.interest || 0));
-      const desconto = Math.max(0, Number(body.desconto || body.discount || 0));
 
-      if (!reference) {
-        return res.status(400).json({
-          ok: false,
-          error: 'Referência financeira antiga ou inválida. Atualize o carnê pelo Ariana ERP antes de registrar a baixa.',
-          fonteFinanceira: 'ariana_erp'
-        });
+      if (!Number.isInteger(codigo) || codigo <= 0) {
+        return res.status(400).json({ ok: false, error: 'Código do lançamento SIGE inválido.' });
       }
       if (!Number.isFinite(valor) || valor <= 0) {
         return res.status(400).json({ ok: false, error: 'Informe um valor de pagamento válido.' });
       }
       if (!formaPagamento) {
         return res.status(400).json({ ok: false, error: 'Informe a forma de pagamento.' });
+      }
+      if (!contaBancaria) {
+        return res.status(400).json({ ok: false, error: 'Informe a conta bancária.' });
       }
       if (!numeroDocumento) {
         return res.status(400).json({ ok: false, error: 'Informe o número do documento do pagamento.' });
@@ -10699,251 +10198,192 @@ function financeiroErpReference(row = {}) {
         return res.status(400).json({ ok: false, error: 'Data do pagamento inválida.' });
       }
 
-      const actor = {
-        name: req.admin?.name || req.auth?.name || req.user?.name || '',
-        email: req.admin?.email || req.auth?.email || req.user?.email || 'admin'
+      const lancamentoAntes = await getSigeLancamentoByCodigo(codigo);
+      if (!lancamentoAntes || !Number(lancamentoAntes.Codigo ?? lancamentoAntes.codigo)) {
+        return res.status(404).json({ ok: false, error: 'Lançamento não encontrado no SIGE.' });
+      }
+
+      const quitadoAntes = lancamentoAntes.Quitado === true || lancamentoAntes.quitado === true;
+      const saldoAntes = getSigeLancamentoSaldo(lancamentoAntes);
+
+      if (hasSigePagamentoDocumento(lancamentoAntes, numeroDocumento)) {
+        return res.status(409).json({
+          ok: false,
+          error: 'Este pagamento já foi registrado no SIGE.',
+          codigo,
+          numeroDocumento
+        });
+      }
+
+      if (quitadoAntes || saldoAntes <= 0) {
+        return res.status(409).json({
+          ok: false,
+          error: 'Esta parcela já está quitada no SIGE.',
+          codigo,
+          saldo: saldoAntes
+        });
+      }
+
+      if (valor > saldoAntes + 0.009) {
+        return res.status(422).json({
+          ok: false,
+          error: `O pagamento não pode ultrapassar o saldo de ${formatMoneyBRL(saldoAntes)}.`,
+          codigo,
+          valor,
+          saldo: saldoAntes
+        });
+      }
+
+      const payload = {
+        Codigo: codigo,
+        Pagamentos: [
+          {
+            Data: dataPagamento.toISOString(),
+            FormaPagamento: formaPagamento,
+            NumeroDocumento: numeroDocumento,
+            ContaBancaria: contaBancaria,
+            Conciliado: conciliado,
+            Valor: Number(valor.toFixed(2))
+          }
+        ]
       };
 
-      let sourceResult = null;
-      let clienteNome = String(body.clienteNome || body.nome || '').trim();
-      let clienteCpf = cleanPhone(body.cpf || body.clienteCpf || '');
-      let telefone = normalizePhone(body.telefone || body.whatsapp || '', '55');
-      let produto = String(body.produto || body.descricao || 'Pagamento de parcela').trim();
-      let parcelaLabel = formatCrediarioParcela(String(body.parcela || body.parcelaLabel || '').trim());
-      let saldoDepois = 0;
-      let quitado = false;
+      const response = await axios.post(
+        getSigeRequestUrl('Lancamentos/AdicionarPagamentos'),
+        payload,
+        {
+          headers: getSigeRequestHeaders(),
+          timeout: Number(SIGE_TIMEOUT_MS || 30000),
+          validateStatus: () => true
+        }
+      );
 
-      if (reference.type === 'order') {
-        const orderAntes = await Order.findById(reference.orderId).lean();
-        if (!orderAntes || orderAntes.origin !== 'erp_ariana') {
-          return res.status(404).json({ ok: false, error: 'Venda do Ariana ERP não encontrada.' });
-        }
-        const receivableAntes = (orderAntes.televendas?.erp?.receivables || [])
-          .find((row) => Number(row.number) === Number(reference.number));
-        if (!receivableAntes) {
-          return res.status(404).json({ ok: false, error: 'Parcela da venda não encontrada.' });
-        }
-        if ((receivableAntes.payments || []).some((p) => String(p.document || '').trim() === numeroDocumento)) {
-          return res.status(409).json({ ok: false, error: 'Este pagamento já foi registrado no Ariana ERP.', numeroDocumento });
-        }
-
-        sourceResult = await erpFinanceOperations.receive(
-          reference.orderId,
-          reference.number,
-          {
-            amount: valor,
-            method: formaPagamento,
-            paidAt: dataPagamento,
-            document: numeroDocumento,
-            note: String(body.observacao || body.note || '').trim(),
-            bankAccountName: contaBancaria,
-            fine: multa,
-            interest: juros,
-            discount: desconto
-          },
-          actor
-        );
-
-        const order = sourceResult.order || {};
-        const receivable = sourceResult.receivable || {};
-        clienteNome = clienteNome || order.customerName || 'Cliente';
-        clienteCpf = clienteCpf || cleanPhone(order.customerCpf || '');
-        telefone = telefone || normalizePhone(order.customerPhone || '', '55');
-        produto = produto || order.televendas?.erp?.code || 'Venda Ariana';
-        parcelaLabel = parcelaLabel || `${reference.number}/${Number(receivable.installments || order.payment?.installments || 1)}`;
-        saldoDepois = Number(receivable.remaining || 0);
-        quitado = String(receivable.status || '').toLowerCase() === 'recebido' || saldoDepois <= 0.009;
-      } else {
-        const Entry = mongoose.models.ErpFinancialEntry;
-        const entryAntes = Entry ? await Entry.findById(reference.entryId).lean() : null;
-        if (!entryAntes) {
-          return res.status(404).json({ ok: false, error: 'Lançamento financeiro local não encontrado.' });
-        }
-        if ((entryAntes.payments || []).some((p) => String(p.document || '').trim() === numeroDocumento)) {
-          return res.status(409).json({ ok: false, error: 'Este pagamento já foi registrado no Ariana ERP.', numeroDocumento });
-        }
-
-        const entry = await erpLedgerOperations.pay(
-          reference.entryId,
-          {
-            principal: valor,
-            paymentMethod: formaPagamento,
-            paidAt: dataPagamento,
-            document: numeroDocumento,
-            note: String(body.observacao || body.note || '').trim(),
-            fine: multa,
-            interest: juros,
-            discount: desconto
-          },
-          actor
-        );
-        sourceResult = { entry };
-        clienteNome = clienteNome || entry.personName || 'Cliente';
-        clienteCpf = clienteCpf || cleanPhone(entry.personDocument || '');
-        produto = produto || entry.description || 'Conta a receber Ariana';
-        parcelaLabel = parcelaLabel || entry.documentNumber || entry.boletoNumber || 'Parcela';
-        saldoDepois = Number(entry.remaining || 0);
-        quitado = String(entry.status || '').toLowerCase() === 'paid' || saldoDepois <= 0.009;
+      if (response.status < 200 || response.status >= 300) {
+        const providerMessage = typeof response.data === 'string'
+          ? response.data
+          : (response.data?.message || response.data?.error || response.data?.Mensagem);
+        const error = new Error(providerMessage || `SIGE retornou HTTP ${response.status} ao registrar o pagamento.`);
+        error.statusCode = response.status >= 400 && response.status < 500 ? response.status : 502;
+        error.responseData = response.data;
+        throw error;
       }
 
-      const resolvedContact = await erpFinanceCustomerContact.resolveContact({
-        cpf: clienteCpf,
-        name: clienteNome,
-        referenceRaw
-      });
-      clienteNome = clienteNome || resolvedContact.customerName || 'Cliente';
-      clienteCpf = clienteCpf || resolvedContact.customerCpf || '';
-      telefone = telefone || resolvedContact.customerPhone || '';
-
-      let contactSaved = null;
-      if (telefone) {
-        try {
-          contactSaved = await erpFinanceCustomerContact.savePhone({
-            phone: telefone,
-            cpf: clienteCpf,
-            name: clienteNome,
-            referenceRaw,
-            actor
-          });
-          telefone = contactSaved.phone || telefone;
-        } catch (contactError) {
-          console.warn('[financeiro baixa ERP] telefone localizado, mas não foi possível sincronizar cadastro:', contactError.message || contactError);
-        }
+      const lancamentoDepois = await getSigeLancamentoByCodigo(codigo);
+      if (!lancamentoDepois) {
+        const error = new Error('O SIGE recebeu a solicitação, mas não foi possível confirmar o lançamento atualizado.');
+        error.statusCode = 502;
+        throw error;
       }
 
-      const importHash = crypto
-        .createHash('sha256')
-        .update(`ariana-erp-baixa|${referenceRaw}|${numeroDocumento}`)
-        .digest('hex');
+      const pagamentoConfirmado = hasSigePagamentoDocumento(lancamentoDepois, numeroDocumento);
+      const saldoDepois = getSigeLancamentoSaldo(lancamentoDepois);
+      const totalAntes = parseSigeMoney(lancamentoAntes.TotalRecebido ?? lancamentoAntes.totalRecebido ?? 0);
+      const totalDepois = parseSigeMoney(lancamentoDepois.TotalRecebido ?? lancamentoDepois.totalRecebido ?? 0);
+      const aumentoRecebido = Number((totalDepois - totalAntes).toFixed(2));
 
-      let recibo = await CrediarioRecibo.findOne({ importHash });
-      let criadoAgora = false;
-      if (!recibo) {
-        let reciboNumber = makeReciboNumber();
-        while (await CrediarioRecibo.exists({ recibo: reciboNumber })) {
-          reciboNumber = makeReciboNumber();
-        }
-
-        recibo = await CrediarioRecibo.create({
-          recibo: reciboNumber,
-          clienteId: contactSaved?.clientId && mongoose.Types.ObjectId.isValid(contactSaved.clientId)
-            ? new mongoose.Types.ObjectId(contactSaved.clientId)
-            : null,
-          clienteNome,
-          clienteCpf,
-          telefone,
-          contrato: reference.type === 'order' ? reference.orderId : '',
-          produto,
-          parcela: parcelaLabel,
-          valorPago: Number(valor.toFixed(2)),
-          formaPagamento,
-          dataPagamento,
-          observacao: [
-            `Pagamento registrado no Ariana ERP (${referenceRaw}).`,
-            `Documento do pagamento: ${numeroDocumento}.`,
-            String(body.observacao || '').trim()
-          ].filter(Boolean).join(' '),
-          criadoPor: actor.email,
-          status: 'confirmado_ariana_erp',
-          origem: 'ariana_erp_baixa',
-          documento: numeroDocumento,
-          importHash
-        });
-        criadoAgora = true;
-      }
-
-      const enviarWhatsapp = body.enviarWhatsapp !== false;
-      let whatsapp = { skipped: true, reason: 'envio_desativado' };
-      if (enviarWhatsapp && recibo.telefone && !recibo.enviadoWhatsapp) {
-        try {
-          whatsapp = await sendCrediarioReceiptWhatsapp(recibo);
-          recibo.enviadoWhatsapp = true;
-          recibo.enviadoWhatsappEm = now();
-          recibo.whatsappResultado = redact(whatsapp || null);
-          await recibo.save();
-        } catch (error) {
-          whatsapp = { ok: false, error: error.message || String(error) };
-          recibo.whatsappResultado = whatsapp;
-          await recibo.save();
-        }
-      } else if (recibo.enviadoWhatsapp) {
-        whatsapp = { ok: true, alreadySent: true };
-      } else if (enviarWhatsapp && !recibo.telefone) {
-        whatsapp = {
-          ok: false,
-          skipped: true,
-          reason: 'cliente_sem_whatsapp',
-          requiresPhone: true
+      if (!pagamentoConfirmado || aumentoRecebido + 0.009 < valor) {
+        const error = new Error('O SIGE não confirmou completamente o pagamento após a gravação.');
+        error.statusCode = 502;
+        error.responseData = {
+          pagamentoConfirmado,
+          totalAntes,
+          totalDepois,
+          aumentoRecebido,
+          valorEsperado: valor
         };
-        recibo.whatsappResultado = whatsapp;
-        await recibo.save();
+        throw error;
       }
 
-      const termoSync = clienteCpf || telefone || clienteNome;
-      let carneAtualizado = null;
-      if (termoSync) {
-        try {
-          const sync = await sincronizarCarneDigitalErp(termoSync, req, {
-            termos: [clienteCpf, telefone, clienteNome]
-          });
-          carneAtualizado = sync.carne || null;
-        } catch (syncError) {
-          console.warn('[financeiro baixa ERP] pagamento salvo; falha ao atualizar snapshot:', syncError.message || syncError);
-        }
+      let posPagamento = null;
+      try {
+        posPagamento = await createReceiptAfterSigePayment({
+          req,
+          codigo,
+          lancamento: lancamentoDepois,
+          valor,
+          formaPagamento,
+          numeroDocumento,
+          dataPagamento,
+          body
+        });
+      } catch (receiptError) {
+        console.error('[financeiro SIGE C.3 pós-pagamento]', receiptError.message || receiptError);
+        return res.json({
+          ok: true,
+          fase: 'C.3',
+          message: 'Pagamento confirmado no SIGE, mas houve falha ao criar o recibo.',
+          warning: true,
+          fonteFinanceira: 'sige',
+          codigo,
+          pagamento: {
+            valor: Number(valor.toFixed(2)),
+            formaPagamento,
+            numeroDocumento,
+            contaBancaria,
+            conciliado,
+            data: dataPagamento.toISOString()
+          },
+          saldoAntes,
+          saldoDepois,
+          quitado: lancamentoDepois.Quitado === true || lancamentoDepois.quitado === true,
+          lancamento: lancamentoDepois,
+          reciboCriado: false,
+          whatsappEnviado: false,
+          erroPosPagamento: receiptError.message || 'Falha ao criar recibo após confirmação no SIGE.'
+        });
       }
+
+      const reciboNormalizado = posPagamento?.recibo
+        ? normalizeCrediarioRecibo(posPagamento.recibo)
+        : null;
+      const whatsapp = posPagamento?.whatsapp || { skipped: true };
+      const whatsappEnviado = whatsapp?.ok === true || posPagamento?.recibo?.enviadoWhatsapp === true;
 
       await registrarAuditoriaFinanceira({
         req,
-        acao: 'PAGAMENTO_CONFIRMADO_ARIANA_ERP',
-        entidade: reference.type === 'order' ? 'ErpOrderReceivable' : 'ErpFinancialEntry',
-        entidadeId: reference.type === 'order' ? reference.orderId : reference.entryId,
-        codigo: numeroDocumento,
-        depois: { valorPago: Number(valor.toFixed(2)), saldo: saldoDepois, quitado },
-        metadata: { referencia: referenceRaw, formaPagamento, contaBancaria, recibo: recibo.recibo || '' }
+        acao: 'PAGAMENTO_CONFIRMADO_SIGE',
+        entidade: 'LancamentoSige',
+        entidadeId: String(codigo),
+        codigo: String(numeroDocumento),
+        antes: { saldo: saldoAntes },
+        depois: { saldo: saldoDepois, valorPago: Number(valor.toFixed(2)), quitado: lancamentoDepois.Quitado === true || lancamentoDepois.quitado === true },
+        metadata: { formaPagamento, contaBancaria, recibo: reciboNormalizado?.recibo || '', whatsappEnviado }
       });
 
       return res.json({
         ok: true,
-        fase: 'ARIANA_ERP',
-        message: recibo.enviadoWhatsapp
-          ? 'Pagamento registrado no Ariana ERP, recibo criado e enviado pelo WhatsApp.'
-          : 'Pagamento registrado no Ariana ERP e recibo criado.',
-        fonteFinanceira: 'ariana_erp',
-        codigo: referenceRaw,
+        fase: 'C.3',
+        message: whatsappEnviado
+          ? 'Pagamento confirmado no SIGE, recibo criado e enviado pelo WhatsApp.'
+          : 'Pagamento confirmado no SIGE e recibo criado. O WhatsApp não foi enviado.',
+        warning: !whatsappEnviado,
+        fonteFinanceira: 'sige',
+        codigo,
         pagamento: {
           valor: Number(valor.toFixed(2)),
           formaPagamento,
           numeroDocumento,
           contaBancaria,
-          data: dataPagamento.toISOString(),
-          multa,
-          juros,
-          desconto
+          conciliado,
+          data: dataPagamento.toISOString()
         },
+        saldoAntes,
         saldoDepois,
-        quitado,
-        lancamento: sourceResult,
-        carne: carneAtualizado,
-        reciboCriado: Boolean(recibo),
-        reciboNovo: criadoAgora,
-        recibo: normalizeCrediarioRecibo(recibo),
-        whatsappEnviado: recibo.enviadoWhatsapp === true,
-        requiresPhone: Boolean(enviarWhatsapp && !recibo.enviadoWhatsapp && !recibo.telefone),
-        phonePrompt: enviarWhatsapp && !recibo.enviadoWhatsapp && !recibo.telefone ? {
-          reference: referenceRaw,
-          receiptId: String(recibo._id),
-          customerName: recibo.clienteNome || clienteNome,
-          customerDocument: recibo.clienteCpf || clienteCpf
-        } : null,
+        quitado: lancamentoDepois.Quitado === true || lancamentoDepois.quitado === true,
+        lancamento: lancamentoDepois,
+        reciboCriado: Boolean(reciboNormalizado),
+        reciboNovo: posPagamento?.criadoAgora === true,
+        recibo: reciboNormalizado,
+        whatsappEnviado,
         whatsapp
       });
     } catch (error) {
-      console.error('[financeiro Ariana ERP pagamento]', error.message || error);
+      console.error('[financeiro SIGE pagamento C.3]', error.responseData || error.message || error);
       return res.status(error.statusCode || 500).json({
         ok: false,
-        fase: 'ARIANA_ERP',
-        error: error.message || 'Erro ao registrar pagamento no Ariana ERP',
-        fonteFinanceira: 'ariana_erp'
+        fase: 'C.3',
+        error: error.message || 'Erro ao registrar pagamento no SIGE',
+        detalhes: error.responseData || undefined
       });
     }
   });
@@ -11791,20 +11231,7 @@ function financeiroErpReference(row = {}) {
 
       const telefoneEnvio = normalizePhone(req.body?.telefone || recibo.telefone || '', '55');
       if (!telefoneEnvio) return res.status(400).json({ ok: false, error: 'Cliente sem WhatsApp cadastrado' });
-
-      const actor = {
-        name: req.admin?.name || req.auth?.name || req.user?.name || '',
-        email: req.admin?.email || req.auth?.email || req.user?.email || 'admin'
-      };
-
-      await erpFinanceCustomerContact.savePhone({
-        phone: telefoneEnvio,
-        cpf: recibo.clienteCpf || '',
-        name: recibo.clienteNome || '',
-        referenceRaw: String(req.body?.reference || req.body?.referencia || ''),
-        receipt: recibo,
-        actor
-      });
+      if (telefoneEnvio !== recibo.telefone) recibo.telefone = telefoneEnvio;
 
       const whatsapp = await sendCrediarioReceiptWhatsapp(recibo);
       if (!whatsapp || whatsapp.ok === false) {
@@ -11900,31 +11327,6 @@ function financeiroErpReference(row = {}) {
       return res.status(401).json({ ok: false, error: 'Token do bot inválido' });
     }
 
-    return next();
-  }
-
-  const LOJA_BOT_API_TOKEN = String(process.env.LOJA_BOT_API_TOKEN || '').trim();
-  const LOJA_BOT_API_TOKEN_HASH = String(
-    process.env.LOJA_BOT_API_TOKEN_HASH || 'b606566f79a4e7545ccc413029ad8136decb159de2de5ef5fe471d2503b2044b'
-  ).trim().toLowerCase();
-
-  function lojaBotAccessRequired(req, res, next) {
-    const incomingToken = String(
-      req.headers['x-loja-bot-token'] ||
-      req.headers['x-bot-token'] ||
-      req.headers['x-api-key'] ||
-      ''
-    ).trim();
-
-    const validBySecret = Boolean(LOJA_BOT_API_TOKEN) && incomingToken === LOJA_BOT_API_TOKEN;
-    const incomingHash = incomingToken
-      ? crypto.createHash('sha256').update(incomingToken).digest('hex')
-      : '';
-    const validByHash = Boolean(LOJA_BOT_API_TOKEN_HASH) && incomingHash === LOJA_BOT_API_TOKEN_HASH;
-
-    if (!validBySecret && !validByHash) {
-      return res.status(401).json({ ok: false, error: 'Token da loja inválido.' });
-    }
     return next();
   }
 
@@ -12162,273 +11564,6 @@ function financeiroErpReference(row = {}) {
       return res.status(500).json({ ok: false, error: error.message || 'Erro ao consultar pedidos' });
     }
   }
-
-  function botPhoneMatches(requested = '', found = '') {
-    const a = onlyDigits(requested);
-    const b = onlyDigits(found);
-    if (!a || !b) return false;
-    const localA = a.startsWith('55') ? a.slice(2) : a;
-    const localB = b.startsWith('55') ? b.slice(2) : b;
-    if (localA === localB) return true;
-    return localA.slice(-10) === localB.slice(-10);
-  }
-
-  async function botFinanceiroContasReceberHandler(req, res) {
-    try {
-      const cpf = String(req.query.cpf || req.body?.cpf || '').trim();
-      const phone = String(
-        req.query.phone ||
-        req.query.telefone ||
-        req.body?.phone ||
-        req.body?.telefone ||
-        ''
-      ).trim();
-
-      if (!onlyDigits(cpf) && !onlyDigits(phone)) {
-        return res.status(400).json({
-          ok: false,
-          error: 'Informe telefone ou CPF para consultar as parcelas em aberto.'
-        });
-      }
-
-      const found = await erpReceivablesForBot({ cpf, phone });
-      if (found.identityRequired) {
-        return res.status(409).json({
-          ok: false,
-          identityRequired: true,
-          error: 'Para proteger os dados do cliente, confirme o CPF do titular.'
-        });
-      }
-
-      const allRows = Array.isArray(found.rows) ? found.rows : [];
-      const openRows = allRows
-        .filter((row) => String(row.status || '').toLowerCase() !== 'cancelled')
-        .filter((row) => {
-          const outstanding = Math.max(0, Number(row.outstanding ?? row.remaining ?? row.value ?? 0));
-          return String(row.status || '').toLowerCase() !== 'paid' && outstanding > 0.009;
-        })
-        .sort((a, b) => new Date(a.dueAt || 0) - new Date(b.dueAt || 0));
-
-      const customerName = String(
-        found?.person?.name ||
-        found?.person?.companyName ||
-        allRows.find((row) => String(row.personName || '').trim())?.personName ||
-        ''
-      ).trim();
-
-      const parcelas = openRows.map(normalizeErpBotReceivable);
-      const compras = buildBotFinancePurchases(openRows);
-      const saldo = Number(
-        parcelas.reduce((sum, parcela) => sum + Number(
-          parcela?.atualizacaoFinanceira?.valorAtualizado ??
-          parcela.saldoParcela ??
-          0
-        ), 0).toFixed(2)
-      );
-      const atrasadas = parcelas.filter((parcela) => parcela.vencida).length;
-
-      return res.json({
-        ok: true,
-        channel: 'loja',
-        fonteFinanceira: 'ariana_erp_financeiro_cobrancas',
-        sourceSystem: 'ariana_erp',
-        origemOperacional: 'Financeiro > Contas a Receber + Central de Cobranças',
-        cliente: {
-          nome: customerName,
-          nomeCompleto: customerName,
-          telefoneConfirmado: Boolean(phone && found.verifiedBy?.startsWith('phone')),
-          identidadeConfirmadaPor: found.verifiedBy || ''
-        },
-        resumo: {
-          comprasAbertas: compras.length,
-          parcelasAbertas: parcelas.length,
-          atrasadas,
-          saldo
-        },
-        compras,
-        parcelas
-      });
-    } catch (error) {
-      console.error('[bot:loja] erro ao consultar Contas a Receber do ERP:', error);
-      return res.status(error.statusCode || 500).json({
-        ok: false,
-        error: error.message || 'Erro ao consultar as parcelas em aberto no Ariana ERP.',
-        fonteFinanceira: 'ariana_erp_contas_receber'
-      });
-    }
-  }
-
-  async function botFinanceiroCarneHandler(req, res) {
-    try {
-      const cpf = String(req.query.cpf || req.body?.cpf || '').trim();
-      const phone = String(
-        req.query.phone ||
-        req.query.telefone ||
-        req.body?.phone ||
-        req.body?.telefone ||
-        ''
-      ).trim();
-      const identifier = String(
-        req.query.identifier ||
-        req.query.q ||
-        req.body?.identifier ||
-        req.body?.q ||
-        cpf ||
-        phone ||
-        ''
-      ).trim();
-
-      if (!identifier) {
-        return res.status(400).json({
-          ok: false,
-          error: 'Informe telefone ou CPF para consultar o carnê.'
-        });
-      }
-
-      const data = await getArianaErpFinancialData(identifier, {
-        limit: Math.max(100, Math.min(Number(req.query.limit || req.body?.limit || 5000), 10000)),
-        maxRecords: Math.max(1000, Math.min(Number(req.query.maxRecords || req.body?.maxRecords || 20000), 30000))
-      });
-
-      const requestedCpf = onlyDigits(cpf);
-      const returnedCpf = onlyDigits(data?.cpf || '');
-      if (requestedCpf && returnedCpf && requestedCpf !== returnedCpf) {
-        return res.status(403).json({
-          ok: false,
-          identityRequired: true,
-          error: 'Os dados informados não correspondem ao titular localizado.'
-        });
-      }
-
-      if (phone && !requestedCpf) {
-        const returnedPhone = String(data?.telefone || '').trim();
-        if (!returnedPhone || !botPhoneMatches(phone, returnedPhone)) {
-          return res.status(409).json({
-            ok: false,
-            identityRequired: true,
-            error: 'Para proteger os dados do cliente, confirme o CPF do titular.'
-          });
-        }
-      }
-
-      const parcelas = (Array.isArray(data?.parcelas) ? data.parcelas : []).map((parcela) => ({
-        documento: String(parcela?.documento || parcela?.chave || ''),
-        descricao: String(parcela?.descricao || ''),
-        parcelaNumero: Number(parcela?.parcelaNumero || 0),
-        parcelaLabel: String(parcela?.parcelaLabel || ''),
-        dataVencimento: parcela?.dataVencimento || null,
-        status: String(parcela?.status || ''),
-        quitado: parcela?.quitado === true,
-        vencida: parcela?.vencida === true,
-        emAberto: parcela?.emAberto === true,
-        valorParcela: Number(parcela?.valorParcela ?? parcela?.valor ?? 0),
-        valorPago: Number(parcela?.valorPago ?? parcela?.totalRecebido ?? 0),
-        saldoParcela: Number(parcela?.saldoParcela ?? parcela?.saldo ?? 0),
-        atualizacaoFinanceira: {
-          diasAtraso: Number(parcela?.atualizacaoFinanceira?.diasAtraso || 0),
-          multa: Number(parcela?.atualizacaoFinanceira?.multa || 0),
-          juros: Number(parcela?.atualizacaoFinanceira?.juros || 0),
-          valorAtualizado: Number(
-            parcela?.atualizacaoFinanceira?.valorAtualizado ??
-            parcela?.saldoParcela ??
-            parcela?.valorParcela ??
-            parcela?.valor ??
-            0
-          )
-        }
-      }));
-
-      return res.json({
-        ok: true,
-        channel: 'loja',
-        fonteFinanceira: 'ariana_erp',
-        cliente: {
-          nome: String(data?.cliente || ''),
-          telefoneConfirmado: Boolean(phone)
-        },
-        resumo: data?.resumo || {},
-        parcelas
-      });
-    } catch (error) {
-      console.error('[bot:loja] erro ao consultar carnê:', error);
-      return res.status(error.statusCode || 500).json({
-        ok: false,
-        error: error.message || 'Erro ao consultar o carnê no Ariana ERP.',
-        fonteFinanceira: 'ariana_erp'
-      });
-    }
-  }
-
-  function botSaoPauloDateKey(date = new Date()) {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/Sao_Paulo',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    }).formatToParts(date);
-    const pick = (type) => parts.find((part) => part.type === type)?.value || '';
-    return `${pick('year')}-${pick('month')}-${pick('day')}`;
-  }
-
-  function botBrazilWhatsappPhoneAliases(value = '') {
-    const phone = String(value || '').replace(/\D/g, '');
-    if (!phone) return [];
-
-    const aliases = new Set([phone]);
-
-    if (phone.startsWith('55')) {
-      if (phone.length === 13 && phone[4] === '9') {
-        aliases.add(phone.slice(0, 4) + phone.slice(5));
-      } else if (phone.length === 12 && /[6-9]/.test(phone[4] || '')) {
-        aliases.add(phone.slice(0, 4) + '9' + phone.slice(4));
-      }
-    }
-
-    return [...aliases];
-  }
-
-  app.post('/api/bot/financeiro/vencimento-hoje/contexto', lojaBotAccessRequired, async (req, res) => {
-    try {
-      const phone = normalizePhone(
-        req.body?.phone || req.body?.telefone || req.body?.number || '',
-        '55'
-      );
-
-      if (!phone) {
-        return res.status(400).json({ ok: false, error: 'Telefone inválido.' });
-      }
-
-      const date = botSaoPauloDateKey(new Date());
-      const aliases = botBrazilWhatsappPhoneAliases(phone);
-      const keys = aliases.map((alias) => `erp_daily_due_whatsapp:${date}:${alias}`);
-      const settings = await Setting.find({ key: { $in: keys } }).lean().catch(() => []);
-      const setting = settings.find((item) =>
-        ['sending', 'sent'].includes(String(item?.value?.status || '').trim().toLowerCase())
-      ) || settings[0] || null;
-      const status = String(setting?.value?.status || '').trim().toLowerCase();
-      const active = ['sending', 'sent'].includes(status);
-
-      return res.json({
-        ok: true,
-        active,
-        date,
-        status: active ? status : '',
-        sentAt: active ? (setting?.value?.sentAt || setting?.value?.attemptedAt || null) : null
-      });
-    } catch (error) {
-      console.error('[bot:loja] erro ao verificar contexto de vencimento do dia:', error);
-      return res.status(500).json({
-        ok: false,
-        error: error.message || 'Erro ao verificar contexto do vencimento do dia.'
-      });
-    }
-  });
-
-  app.get('/api/bot/financeiro/contas-receber', lojaBotAccessRequired, botFinanceiroContasReceberHandler);
-  app.post('/api/bot/financeiro/contas-receber', lojaBotAccessRequired, botFinanceiroContasReceberHandler);
-
-  app.get('/api/bot/financeiro/carne', lojaBotAccessRequired, botFinanceiroCarneHandler);
-  app.post('/api/bot/financeiro/carne', lojaBotAccessRequired, botFinanceiroCarneHandler);
 
   app.get('/api/bot/financeiro/consulta', botAccessRequired, (req, res) => botConsultaHandler(req, res, 'financeiro'));
   app.post('/api/bot/financeiro/consulta', botAccessRequired, (req, res) => botConsultaHandler(req, res, 'financeiro'));

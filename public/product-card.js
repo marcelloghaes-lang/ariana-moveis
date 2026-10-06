@@ -101,7 +101,6 @@
       .product-card-body,.am-pro-card__body{padding:0;flex-grow:1;display:flex;flex-direction:column;justify-content:flex-start;}
       .product-name,.am-pro-card__title{font-size:.85rem;font-weight:400;color:#444;min-height:3em;max-height:3em;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin-bottom:10px;line-height:1.45;}
       .product-old-price,.am-pro-card__old-price{font-size:.80rem;color:#999;text-decoration:line-through;font-weight:400;line-height:1.2;margin-bottom:5px;min-height:15px;}
-      .am-card-card-price,.am-pro-card__card-price{font-size:.78rem;color:#667085;text-decoration:none;font-weight:600;line-height:1.3;margin-bottom:5px;min-height:15px;}
       .product-price,.am-pro-card__main-price{font-size:1.30rem;font-weight:800;color:#333;margin-top:0;display:flex;align-items:center;gap:6px;line-height:1.08;flex-wrap:wrap;}
       .am-card-discount,.am-pro-card__discount-tag{font-size:.72rem;color:#00a650;font-weight:800;white-space:nowrap;}
       .am-card-pix,.am-pro-card__pix-info{font-size:.75rem;color:#555;font-weight:600;margin-top:5px;line-height:1.25;}
@@ -117,6 +116,10 @@
     ensureCardStyles();
     const id = getProductId(product);
     const name = getProductName(product);
+    // PADRÃO OFICIAL ARIANA MARKETPLACE:
+    // - product.price = preço base do seller / PIX / boleto
+    // - marketplacePrice/cardPrice/fullPrice = preço de cartão/parcelado com acréscimo embutido
+    // - a taxa de cartão fica invisível para o seller
     const pixPercent = getPixPercent(product);
     const sellerBasePrice = toNumberBR(product?.sellerBasePrice ?? product?.pixPrice ?? product?.price ?? product?.preco ?? 0, 0);
     const explicitCard = toNumberBR(product?.marketplacePrice ?? product?.cardPrice ?? product?.fullPrice ?? product?.precoPrazo ?? 0, 0);
@@ -128,9 +131,9 @@
     const installmentValue = fullPrice > 0 ? +(fullPrice / installmentCount).toFixed(2) : 0;
     const imageUrl = getImageUrl(product);
     const href = `produto.html?id=${encodeURIComponent(id)}`;
-    const cardPriceHtml = fullPrice > 0
-      ? `<div class="am-card-card-price am-pro-card__card-price">Preço no cartão: ${formatCurrency(fullPrice)}</div>`
-      : `<div class="am-card-card-price am-pro-card__card-price" style="min-height:15px"></div>`;
+    const oldHtml = oldPrice > 0
+      ? `<div class="product-old-price am-pro-card__old-price">${formatCurrency(oldPrice)}</div>`
+      : `<div class="product-old-price am-pro-card__old-price" style="min-height:15px"></div>`;
 
     return `
       <a class="product-card am-pro-card" href="${escapeHtml(href)}">
@@ -140,7 +143,7 @@
         </div>
         <div class="product-card-body am-pro-card__body">
           <div class="product-name am-pro-card__title">${escapeHtml(name)}</div>
-          ${cardPriceHtml}
+          ${oldHtml}
           <div class="product-price am-pro-card__main-price">
             <span>${formatCurrency(pixPrice)}</span>
             <span class="am-card-discount am-pro-card__discount-tag">${Math.round(pixPercent)}% OFF</span>
@@ -151,76 +154,4 @@
         </div>
       </a>`;
   };
-
-  window.__ARIANA_PRODUCT_CARD_VERSION__ = "16";
-
-  // Home: as duas primeiras seções comerciais devem priorizar exclusivamente
-  // produtos próprios da Ariana. Itens DSLite/dropshipping continuam no catálogo,
-  // mas não ocupam Produtos em Destaque nem Mais opções para sua casa.
-  function installArianaHomePriority() {
-    if (!/(^|\/)index\.html$/i.test(location.pathname) && location.pathname !== '/' && location.pathname !== '') return;
-
-    const isExternal = (p = {}) => {
-      const sku = String(p.sku || p.codigo || p.code || '').trim().toUpperCase();
-      const storefrontSource = String(p.storefrontSource || p.source || '').trim().toLowerCase();
-      const provider = String(p?.dropshipping?.provider || p?.dropshippingProvider || '').trim().toLowerCase();
-      const supplier = String(p?.dropshipping?.supplier || p?.supplier || p?.supplierName || '').trim().toLowerCase();
-      return sku.startsWith('DSLITE-') || storefrontSource === 'dslite' || provider === 'dslite' || p?.dropshipping?.enabled === true || supplier.includes('beto moveis') || supplier.includes('beto móveis');
-    };
-
-    const productKey = (p = {}) => String(p.id || p._id || p.slug || p.sku || p.codigo || p.code || p.name || '').trim();
-    const stockValue = (p = {}) => Number(p.stock ?? p.estoque ?? p.quantity ?? p.qty ?? 0) || 0;
-
-    const run = (attempt = 0) => {
-      try {
-        if (typeof allProducts === 'undefined' || !Array.isArray(allProducts) || !allProducts.length || typeof renderProductCards !== 'function') {
-          if (attempt < 50) setTimeout(() => run(attempt + 1), 200);
-          return;
-        }
-
-        const ownActive = allProducts.filter((p) => !isExternal(p) && p?.active !== false);
-        if (!ownActive.length) return;
-
-        const ownOrdered = [...ownActive].sort((a, b) => {
-          const stockDiff = Number(stockValue(b) > 0) - Number(stockValue(a) > 0);
-          if (stockDiff !== 0) return stockDiff;
-          const bt = Number(b?._ts || 0), at = Number(a?._ts || 0);
-          return bt - at;
-        });
-
-        const furnitureOwn = typeof __homeIsFurniture === 'function'
-          ? ownOrdered.filter(__homeIsFurniture)
-          : ownOrdered;
-        const featured = (typeof __homeTakeUnique === 'function'
-          ? __homeTakeUnique(furnitureOwn.length ? furnitureOwn : ownOrdered, 10)
-          : (furnitureOwn.length ? furnitureOwn : ownOrdered).slice(0, 10));
-
-        if (featured.length) {
-          if (typeof __homeSaveSelection === 'function') __homeSaveSelection('featured', featured);
-          renderProductCards(featured, 'featured-product-grid');
-        }
-
-        const used = new Set(featured.map(productKey).filter(Boolean));
-        let second = [];
-        if (typeof __homeTakeCategoryBalanced === 'function') {
-          second = __homeTakeCategoryBalanced(ownOrdered, 5, used, 2);
-        } else {
-          second = ownOrdered.filter((p) => !used.has(productKey(p))).slice(0, 5);
-        }
-
-        if (second.length) {
-          if (typeof __homeSaveSelection === 'function') __homeSaveSelection('homeCardsProducts', second);
-          renderProductCards(second, 'home-cards-products-grid');
-          document.getElementById('home-cards-products-section')?.classList.remove('hidden');
-        }
-      } catch (error) {
-        console.error('[home-prioridade-ariana]', error);
-      }
-    };
-
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => run());
-    else run();
-  }
-
-  installArianaHomePriority();
 })();

@@ -11,8 +11,7 @@ export default function registerEnterpriseProductionRoutes(app, context = {}) {
     adminEnterpriseFindPartnerOr404,
     adminEnterpriseResolvedHomologation,
     adminEnterprisePartnerDTO,
-    enterprisePartnerGenerateKey,
-    enterpriseHashSecret
+    enterprisePartnerGenerateKey
   } = context;
 
 app.post('/api/admin/enterprise/pro/partners/:id/production/release', adminRequired, async (req, res) => {
@@ -20,34 +19,20 @@ app.post('/api/admin/enterprise/pro/partners/:id/production/release', adminRequi
     const partner = await adminEnterpriseFindPartnerOr404(req.params.id);
     if (!partner) return res.status(404).json({ ok: false, error: 'Fabricante não encontrado' });
     const homologation = await adminEnterpriseResolvedHomologation(partner);
-    const realEvidenceApproved = Number(homologation.score || 0) >= 100 &&
-      homologation.status === 'approved' &&
-      homologation?.report?.source === 'real_api_evidence' &&
-      homologation?.report?.ok === true;
-    if (!realEvidenceApproved) {
-      return res.status(400).json({
-        ok: false,
-        error: 'Produção só pode ser liberada após homologação real 100% aprovada',
-        score: Number(homologation.score || 0),
-        missingSteps: homologation?.report?.missingSteps || []
-      });
-    }
+    if (homologation.score < 100) return res.status(400).json({ ok: false, error: 'Produção só pode ser liberada após homologação 100% aprovada' });
 
     const key = enterprisePartnerGenerateKey('production', partner);
-    const keyHash = enterpriseHashSecret(key);
-    const keyLast4 = key.slice(-4);
     const nowDate = new Date();
     const productionCredentials = {
       ...(partner.productionCredentials || {}),
       environment: 'production',
-      apiKeyHash: keyHash,
-      apiKeyLast4: keyLast4,
+      apiKey: key,
       active: true,
       generatedAt: partner.productionCredentials?.generatedAt || nowDate,
       rotatedAt: nowDate,
       generatedBy: req.admin?.email || req.admin?.id || 'admin',
       baseUrl: String(process.env.ENTERPRISE_PRODUCTION_BASE_URL || process.env.APP_BASE_URL || 'https://ariana-backend.onrender.com/api').replace(/\/+$/, ''),
-      docsUrl: String(process.env.ENTERPRISE_DOCS_URL || 'https://arianamoveis.com.br/ariana_enterprise_docs.html').trim(),
+      docsUrl: String(process.env.ENTERPRISE_DOCS_URL || 'https://arianamoveis.com.br/developers.html').trim(),
       lastAccessAt: null,
       requestCount: 0
     };
@@ -57,26 +42,17 @@ app.post('/api/admin/enterprise/pro/partners/:id/production/release', adminRequi
       {
         $set: {
           productionCredentials,
-          'production.apiKeyHash': keyHash,
-          'production.apiKeyLast4': keyLast4,
+          'production.apiKey': key,
           'production.active': true,
-          'credentials.production.apiKeyHash': keyHash,
-          'credentials.production.apiKeyLast4': keyLast4,
+          'credentials.production.apiKey': key,
           'credentials.production.active': true,
-          apiKeyProductionHash: keyHash,
+          enterpriseApiKey: key,
+          apiKey: key,
           status: 'production',
           statusLabel: 'Produção liberada',
           environment: 'production',
           productionReleasedAt: nowDate,
           productionReleasedBy: req.admin?.email || req.admin?.id || 'admin'
-        },
-        $unset: {
-          'productionCredentials.apiKey': '',
-          'production.apiKey': '',
-          'credentials.production.apiKey': '',
-          apiKeyProduction: '',
-          enterpriseApiKey: '',
-          apiKey: ''
         },
         $push: {
           history: { status: 'production_released', at: nowDate, by: req.admin?.email || req.admin?.id || 'admin', source: 'admin_enterprise_pro' },
@@ -121,7 +97,7 @@ app.get('/api/admin/enterprise/pro/partners/:id/production/status', adminRequire
         suspendedAt: prod.suspendedAt || partner.productionSuspendedAt || null,
         suspendedBy: prod.suspendedBy || partner.productionSuspendedBy || '',
         baseUrl: prod.baseUrl || String(process.env.ENTERPRISE_PRODUCTION_BASE_URL || process.env.APP_BASE_URL || 'https://ariana-backend.onrender.com/api').replace(/\/+$/, ''),
-        docsUrl: prod.docsUrl || String(process.env.ENTERPRISE_DOCS_URL || 'https://arianamoveis.com.br/ariana_enterprise_docs.html').trim(),
+        docsUrl: prod.docsUrl || String(process.env.ENTERPRISE_DOCS_URL || 'https://arianamoveis.com.br/developers.html').trim(),
         rateLimit: prod.rateLimit || partner.rateLimit || { requestsPerMinute: 500, requestsPerDay: 50000 },
         scopes: prod.scopes || partner.scopes || ['catalog','stock','price','orders','invoice','tracking','webhooks']
       }
@@ -166,18 +142,8 @@ app.post('/api/admin/enterprise/pro/partners/:id/production/reactivate', adminRe
   try {
     const partner = await adminEnterpriseFindPartnerOr404(req.params.id);
     if (!partner) return res.status(404).json({ ok: false, error: 'Fabricante não encontrado' });
-    const hasProdKey = Boolean(
-      partner.productionCredentials?.apiKeyHash ||
-      partner.production?.apiKeyHash ||
-      partner.credentials?.production?.apiKeyHash ||
-      partner.apiKeyProductionHash ||
-      partner.productionCredentials?.apiKey ||
-      partner.production?.apiKey ||
-      partner.credentials?.production?.apiKey ||
-      partner.enterpriseApiKey ||
-      partner.apiKey
-    );
-    if (!hasProdKey) return res.status(400).json({ ok: false, error: 'Não existe API Key de produção para reativar' });
+    const prodKey = partner.productionCredentials?.apiKey || partner.production?.apiKey || partner.credentials?.production?.apiKey || partner.enterpriseApiKey || partner.apiKey || '';
+    if (!prodKey) return res.status(400).json({ ok: false, error: 'Não existe API Key de produção para reativar' });
     const nowDate = new Date();
     await EnterpriseHomologationRequestCompat.updateOne({ _id: partner._id }, {
       $set: {

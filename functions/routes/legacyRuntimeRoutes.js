@@ -1,6 +1,5 @@
 import registerOrderStatusRoutes from './orderStatusRoutes.js';
 import registerAdminCoreRoutes from './adminCoreRoutes.js';
-import registerCreativeCutoutStudioRoutes from './creativeCutoutStudioRoutes.js';
 import registerCouponRoutes from './couponRoutes.js';
 import registerPaymentRoutes from './paymentRoutes.js';
 import registerEnterpriseRoutes from './enterpriseRoutes.js';
@@ -19,7 +18,6 @@ import registerExternalIntegrationRoutes from './externalIntegrationRoutes.js';
 import createAdminOperationalController from '../controllers/adminOperationalController.js';
 import createWhatsappController from '../controllers/whatsappController.js';
 import createMarketplacePricingController from '../controllers/marketplacePricingController.js';
-import { createErpSigeHistoricalPurchaseEnrichmentService } from '../services/erp/erpSigeHistoricalPurchaseEnrichmentService.js';
 
 // ============================================================
 // ROTAS LEGADAS - ARIANA MÓVEIS
@@ -228,43 +226,9 @@ export default function registerLegacyRuntimeRoutes(app, context = {}) {
   };
 
 
-registerOrderSupportRoutes(app, { ...context, calculateShipping, getShippingSettings });
+registerOrderSupportRoutes(app, context);
 registerAdminSigeCrediarioBotRoutes(app, context);
 registerAdminAtendimentoRoutes(app, context);
-
-// Compra histórica SIGE: somente enriquecimento comercial.
-// Esta rotina NÃO altera lançamentos, saldos, baixas, vencimentos ou pagamentos do Ariana ERP.
-const historicalPurchaseEnrichment=createErpSigeHistoricalPurchaseEnrichmentService({mongoose});
-const enrichmentActor=req=>{
-  const u=req.admin||req.auth||req.user||{};
-  return String(u.name||u.nome||u.email||'Administrador').trim()||'Administrador';
-};
-app.get('/api/erp/migracao/sige/compras/status',adminRequired,async(_req,res)=>{
-  try{return res.json({ok:true,enrichment:await historicalPurchaseEnrichment.status()})}
-  catch(error){return res.status(Number(error?.statusCode||500)).json({ok:false,error:error?.message||'Erro ao consultar sincronização das compras.'})}
-});
-app.get('/api/erp/migracao/sige/compras/:sourceSaleId',adminRequired,async(req,res)=>{
-  try{return res.json({ok:true,purchase:await historicalPurchaseEnrichment.purchase(req.params.sourceSaleId)})}
-  catch(error){return res.status(Number(error?.statusCode||500)).json({ok:false,error:error?.message||'Compra histórica não encontrada.'})}
-});
-app.post('/api/erp/migracao/sige/compras/sincronizar',adminRequired,async(req,res)=>{
-  try{
-    if(String(req.body?.confirmation||'')!=='ENRIQUECER_COMPRAS_SIGE')return res.status(409).json({ok:false,error:'Confirmação inválida.'});
-    const result=await historicalPurchaseEnrichment.startInBackground({
-      force:req.body?.force===true,
-      actor:enrichmentActor(req),
-      delayMs:Math.max(3500,Number(req.body?.delayMs||4000)||4000)
-    });
-    return res.status(202).json({ok:true,result});
-  }catch(error){return res.status(Number(error?.statusCode||500)).json({ok:false,error:error?.message||'Erro ao iniciar sincronização das compras.'})}
-});
-const historicalPurchaseEnrichmentTimer=setTimeout(()=>{
-  historicalPurchaseEnrichment.startInBackground({
-    actor:'Ariana ERP - sincronização automática',
-    delayMs:4000
-  }).catch(error=>console.error('[erp-sige-enrichment] não foi possível iniciar:',error?.message||error));
-},30000);
-historicalPurchaseEnrichmentTimer.unref?.();
 
 const {
   BUILD_ID,
@@ -327,247 +291,9 @@ const {
 
 // Funções avançadas de WhatsApp/notificações foram movidas para controllers/whatsappController.js na Etapa 24.
 
-async function getManufacturerIntegration(manufacturer) {
-  return ManufacturerIntegration.findOne({ manufacturer: String(manufacturer || '').trim() });
-}
-
-async function getEnterprisePartnerWebhookFallback(manufacturer = '') {
-  const PartnerModel = mongoose.models.EnterpriseHomologationRequest;
-  if (!PartnerModel) return null;
-
-  const target = normalizeEnterpriseManufacturerKey(manufacturer);
-  if (!target) return null;
-
-  const candidates = await PartnerModel.find({
-    $or: [
-      { status: { $in: ['production', 'active'] } },
-      { 'productionCredentials.active': true },
-      { 'production.active': true },
-      { 'credentials.production.active': true }
-    ]
-  })
-    .select('_id requestId partnerRequestId partnerId companyName tradeName status environment productionCredentials production credentials')
-    .lean()
-    .limit(1000)
-    .catch(() => []);
-
-  const partner = candidates.find((row) => {
-    const keys = [row.requestId, row.partnerRequestId, row.partnerId, row.companyName, row.tradeName]
-      .map((value) => normalizeEnterpriseManufacturerKey(value))
-      .filter(Boolean);
-    return keys.includes(target);
-  });
-  if (!partner) return null;
-
-  const settingKey = `enterprise_webhooks_${sanitizeIdPart(partner.requestId || partner.partnerRequestId || partner.partnerId || partner.companyName || 'partner')}`;
-  const setting = await Setting.findOne({ key: settingKey }).lean().catch(() => null);
-  const config = setting?.value || {};
-  if (config.active !== true || !String(config.url || '').trim() || !String(config.secret || '').trim()) return null;
-
-  const events = Array.isArray(config.events) ? config.events.map((event) => String(event || '').trim()) : [];
-  const event = events.includes('payment_approved')
-    ? 'payment_approved'
-    : events.includes('order_created')
-      ? 'order_created'
-      : '';
-  if (!event) return null;
-
-  let parsed;
-  try {
-    parsed = new URL(String(config.url || '').trim());
-  } catch {
-    return null;
-  }
-  if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return null;
-
-  const hostname = String(parsed.hostname || '').toLowerCase();
-  if (
-    !hostname ||
-    hostname === 'localhost' ||
-    hostname.endsWith('.local') ||
-    hostname.endsWith('.internal') ||
-    hostname === '127.0.0.1' ||
-    hostname === '::1' ||
-    /^10\./.test(hostname) ||
-    /^192\.168\./.test(hostname) ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(hostname)
-  ) return null;
-
-  return {
-    partner,
-    event,
-    endpoint: parsed.toString(),
-    secret: String(config.secret),
-    timeoutMs: Math.max(3000, Number(config.timeoutMs || 30000))
-  };
-}
-
-async function dispatchOrderToPartnerWebhook(orderPayload = {}, manufacturer = '') {
-  const fallback = await getEnterprisePartnerWebhookFallback(manufacturer);
-  if (!fallback) return null;
-
-  const orderId = String(orderPayload._id || orderPayload.id || orderPayload.orderId || orderPayload.externalOrderId || '').trim();
-  const stableSeed = [manufacturer, orderId || JSON.stringify(orderPayload.items || [])].join(':');
-  const deliveryId = `evt_order_${crypto.createHash('sha256').update(stableSeed).digest('hex').slice(0, 24)}`;
-  const timestamp = String(Math.floor(Date.now() / 1000));
-  const payload = {
-    id: deliveryId,
-    event: fallback.event,
-    createdAt: new Date().toISOString(),
-    environment: 'production',
-    manufacturer: fallback.partner.requestId || fallback.partner.tradeName || fallback.partner.companyName || manufacturer,
-    data: orderPayload
-  };
-  const rawBody = JSON.stringify(payload);
-  const signature = crypto.createHmac('sha256', fallback.secret).update(rawBody).digest('hex');
-  const signatureV2 = crypto
-    .createHmac('sha256', fallback.secret)
-    .update(`${timestamp}.${deliveryId}.${rawBody}`)
-    .digest('hex');
-
-  const response = await axios({
-    url: fallback.endpoint,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'User-Agent': 'Ariana-Enterprise-Webhooks/1.0',
-      'X-Ariana-Event': fallback.event,
-      'X-Ariana-Delivery': deliveryId,
-      'X-Ariana-Timestamp': timestamp,
-      'X-Ariana-Signature': signature,
-      'X-Ariana-Signature-V2': `sha256=${signatureV2}`,
-      'X-Webhook-Signature': signature
-    },
-    data: payload,
-    timeout: fallback.timeoutMs,
-    validateStatus: () => true,
-    maxRedirects: 0
-  });
-
-  const ok = response.status >= 200 && response.status < 300;
-  await writeAuditLog({
-    scope: 'enterprise',
-    eventType: ok ? 'webhook_sent' : 'webhook_failed',
-    orderId,
-    manufacturer: fallback.partner.requestId || manufacturer,
-    status: ok ? 'success' : 'error',
-    statusCode: response.status,
-    message: ok ? 'Pedido real entregue ao webhook do fabricante' : `Webhook do fabricante retornou HTTP ${response.status}`,
-    request: { event: fallback.event, deliveryId, payload },
-    response: redact(response.data || null),
-    metadata: {
-      endpoint: fallback.endpoint,
-      event: fallback.event,
-      deliveryId,
-      timestamp,
-      signatureVersion: 'v2',
-      environment: 'production',
-      origin: 'payment_approved_outbound_enterprise'
-    }
-  }).catch(() => null);
-
-  return {
-    ok,
-    manufacturer,
-    endpoint: fallback.endpoint,
-    status: response.status,
-    data: response.data,
-    sentContentType: 'application/json',
-    deliveryId,
-    transport: 'partner_webhook'
-  };
-}
-
-function computeNextAttempt(attempts) {
-  const backoff = Math.pow(2, Math.max(0, attempts - 1)) * DISPATCH_RETRY_BASE_MS;
-  return new Date(Date.now() + backoff);
-}
-
-async function dispatchOrderToManufacturer(orderPayload = {}) {
-  const manufacturer = String(
-    orderPayload.manufacturer ||
-    orderPayload.fabricante ||
-    orderPayload.sellerIds?.[0] ||
-    orderPayload.sellerId ||
-    ''
-  ).trim();
-  if (!manufacturer) throw new Error('Fabricante não informado no pedido.');
-
-  const integration = await getManufacturerIntegration(manufacturer);
-
-  // Quando não existe integração administrativa específica, usa automaticamente
-  // o webhook de Produção configurado pelo próprio fabricante no Portal Enterprise.
-  if (!integration) {
-    const webhookResult = await dispatchOrderToPartnerWebhook(orderPayload, manufacturer);
-    if (webhookResult) return webhookResult;
-    throw new Error(`Integração do fabricante ${manufacturer} não configurada. Configure Manufacturer Integration ou um webhook de Produção no Portal Enterprise.`);
-  }
-
-  if (!integration.enabled) {
-    throw new Error(`Integração do fabricante ${manufacturer} está desativada administrativamente.`);
-  }
-
-  const endpoint = String(integration.endpoint || '').trim();
-  if (!endpoint) {
-    const webhookResult = await dispatchOrderToPartnerWebhook(orderPayload, manufacturer);
-    if (webhookResult) return webhookResult;
-    throw new Error(`Endpoint do fabricante ${manufacturer} não configurado.`);
-  }
-
-  const method = String(integration.method || 'POST').toUpperCase();
-  const sendAs = String(integration.sendAs || 'json').toLowerCase();
-  const headers = { ...(integration.headers || {}) };
-  if (integration.apiKey) headers.apikey = integration.apiKey;
-  if (integration.authToken) headers.Authorization = `Bearer ${integration.authToken}`;
-
-  let response;
-  if (sendAs === 'form') {
-    const body = new URLSearchParams();
-    Object.entries(orderPayload || {}).forEach(([k, v]) => {
-      if (v === undefined || v === null) return;
-      body.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v));
-    });
-    response = await axios({
-      url: endpoint,
-      method,
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers },
-      data: body.toString(),
-      timeout: Number(integration.timeoutMs || 30000),
-      validateStatus: () => true
-    });
-  } else {
-    response = await axios({
-      url: endpoint,
-      method,
-      headers: { 'Content-Type': 'application/json', ...headers },
-      data: orderPayload,
-      timeout: Number(integration.timeoutMs || 30000),
-      validateStatus: () => true
-    });
-  }
-
-  const ok = response.status >= 200 && response.status < 300;
-  await writeAuditLog({
-    scope: 'manufacturer_integration',
-    eventType: 'manufacturer_dispatch_http',
-    orderId: String(orderPayload._id || orderPayload.id || orderPayload.orderId || ''),
-    manufacturer,
-    status: ok ? 'success' : 'error',
-    statusCode: response.status,
-    request: orderPayload,
-    response: response.data,
-    metadata: { endpoint, method, sendAs }
-  });
-  return {
-    ok,
-    manufacturer,
-    endpoint,
-    status: response.status,
-    data: response.data,
-    sentContentType: sendAs === 'form' ? 'application/x-www-form-urlencoded' : 'application/json',
-    transport: 'manufacturer_integration'
-  };
-}
+async function getManufacturerIntegration(manufacturer) { return ManufacturerIntegration.findOne({ manufacturer: String(manufacturer || '').trim() }); }
+function computeNextAttempt(attempts) { const backoff = Math.pow(2, Math.max(0, attempts - 1)) * DISPATCH_RETRY_BASE_MS; return new Date(Date.now() + backoff); }
+async function dispatchOrderToManufacturer(orderPayload = {}) { const manufacturer = String(orderPayload.manufacturer || orderPayload.fabricante || orderPayload.sellerIds?.[0] || orderPayload.sellerId || '').trim(); if (!manufacturer) throw new Error('Fabricante não informado no pedido.'); const integration = await getManufacturerIntegration(manufacturer); if (!integration || !integration.enabled) throw new Error(`Integração do fabricante ${manufacturer} não configurada ou desativada.`); const endpoint = String(integration.endpoint || '').trim(); if (!endpoint) throw new Error(`Endpoint do fabricante ${manufacturer} não configurado.`); const method = String(integration.method || 'POST').toUpperCase(); const sendAs = String(integration.sendAs || 'json').toLowerCase(); const headers = { ...(integration.headers || {}) }; if (integration.apiKey) headers.apikey = integration.apiKey; if (integration.authToken) headers.Authorization = `Bearer ${integration.authToken}`; let response; if (sendAs === 'form') { const body = new URLSearchParams(); Object.entries(orderPayload || {}).forEach(([k, v]) => { if (v === undefined || v === null) return; body.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v)); }); response = await axios({ url: endpoint, method, headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers }, data: body.toString(), timeout: Number(integration.timeoutMs || 30000), validateStatus: () => true }); } else { response = await axios({ url: endpoint, method, headers: { 'Content-Type': 'application/json', ...headers }, data: orderPayload, timeout: Number(integration.timeoutMs || 30000), validateStatus: () => true }); } const ok = response.status >= 200 && response.status < 300; await writeAuditLog({ scope: 'manufacturer_integration', eventType: 'manufacturer_dispatch_http', orderId: String(orderPayload._id || orderPayload.id || orderPayload.orderId || ''), manufacturer, status: ok ? 'success' : 'error', statusCode: response.status, request: orderPayload, response: response.data, metadata: { endpoint, method, sendAs } }); return { ok, manufacturer, endpoint, status: response.status, data: response.data, sentContentType: sendAs === 'form' ? 'application/x-www-form-urlencoded' : 'application/json' }; }
 
 function normalizeEnterpriseManufacturerKey(value = '') {
   return String(value || '')
@@ -836,7 +562,7 @@ const SERVICE_NAMES = { '03298': 'PAC', '03328': 'SEDEX', '03220': 'SEDEX Hoje',
 let correiosTokenCache = { token: null, exp: 0 };
 function correiosCfg(settings = null) { const cfg = settings && settings.correios ? settings.correios : {}; return { user: envFirst('CORREIOS_USER'), pass: envFirst('CORREIOS_PASS'), cartao: envFirst('CORREIOS_CARTAO'), contrato: envFirst('CORREIOS_CONTRATO'), dr: envFirst('CORREIOS_DR') || '0', originCep: normalizeDigits(cfg.origemCep || envFirst('LOJA_ORIGEM_CEP')), services: (Array.isArray(cfg.servicos) && cfg.servicos.length ? cfg.servicos : parseServices(envFirst('CORREIOS_SERVICOS'))), pesoKgPadrao: Number(cfg.pesoKgPadrao || 1), alturaCmPadrao: Number(cfg.alturaCmPadrao || 10), larguraCmPadrao: Number(cfg.larguraCmPadrao || 15), comprimentoCmPadrao: Number(cfg.comprimentoCmPadrao || 20), valorDeclaradoPadrao: Number(cfg.valorDeclaradoPadrao || 0), tokenUrl: 'https://api.correios.com.br/token/v1/autentica/cartaopostagem', precoUrl: 'https://api.correios.com.br/preco/v1/nacional' }; }
 async function getCorreiosToken(settings = null) { const cfg = correiosCfg(settings); const nowTs = Date.now(); if (correiosTokenCache.token && correiosTokenCache.exp > nowTs) return correiosTokenCache.token; const user = String(cfg.user || '').trim(); const pass = String(cfg.pass || '').trim(); if (!user || !pass) throw new Error('Correios: CORREIOS_USER/CORREIOS_PASS ausentes.'); if (!cfg.cartao) throw new Error('Correios: CORREIOS_CARTAO ausente.'); const auth = Buffer.from(`${user}:${pass}`).toString('base64'); const body = { numero: cfg.cartao, contrato: cfg.contrato || undefined, dr: cfg.dr ? Number(cfg.dr) : undefined }; const r = await axios.post(cfg.tokenUrl, body, { headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json', Accept: 'application/json' }, timeout: 20000 }); const expiresIn = Number(r.data?.expires_in || 3000); const token = r.data?.token; if (!token) throw new Error('Correios: token não retornou.'); correiosTokenCache.token = token; correiosTokenCache.exp = nowTs + Math.max(60, expiresIn - 60) * 1000; return token; }
-async function quoteCorreios(body = {}, settings = null, originCepOverride = '') { const shippingSettings = settings || await getShippingSettings(); const cfg = correiosCfg(shippingSettings); const token = await getCorreiosToken(shippingSettings); const cepOrigem = normalizeDigits(originCepOverride || cfg.originCep); const cepDestino = normalizeDigits(body.cepDestino || body.cep || body.destinationCep || ''); if (cepOrigem.length !== 8) throw new Error('LOJA_ORIGEM_CEP inválido (8 dígitos)'); if (cepDestino.length !== 8) throw new Error('cepDestino inválido (8 dígitos)'); const pesoKgNum = Number(body.pesoKg || body.weightKg || body.weight || cfg.pesoKgPadrao || 0); const psObjeto = toGrams(pesoKgNum); if (!psObjeto) throw new Error('pesoKg inválido (ex: 0.3, 1, 2.5)'); if (pesoKgNum > Number((shippingSettings.carriers?.correios || {}).maxWeightKg || 30)) { return { ok: true, quotes: [], errors: [{ code: 'CORREIOS_LIMIT_WEIGHT', message: 'Correios: limite máximo excedido.' }], bestQuote: null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum } }; } let comprimento = positiveIntOrNull(body.comprimento || body.comprimentoCm || body.length || cfg.comprimentoCmPadrao); let largura = positiveIntOrNull(body.largura || body.larguraCm || body.width || cfg.larguraCmPadrao); let altura = positiveIntOrNull(body.altura || body.alturaCm || body.height || cfg.alturaCmPadrao); const hasDims = !!(comprimento && largura && altura); const maxSide = Math.max(Number(comprimento || 0), Number(largura || 0), Number(altura || 0)); if (hasDims && maxSide > Number((shippingSettings.carriers?.correios || {}).maxDimensionCm || 100)) { return { ok: true, quotes: [], errors: [{ code: 'CORREIOS_LIMIT_SIZE', message: 'Correios: maior lado acima do limite configurado.' }], bestQuote: null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum, dimensionsUsed: { comprimento: Number(comprimento), largura: Number(largura), altura: Number(altura) } } }; } const tpObjeto = hasDims ? '2' : '1'; const parametrosProduto = (cfg.services || []).map((coProduto, idx) => { const item = { coProduto: String(coProduto), nuRequisicao: String(idx + 1).padStart(4, '0'), cepOrigem, cepDestino, psObjeto, tpObjeto, nuUnidade: '' }; if (cfg.contrato) item.nuContrato = String(cfg.contrato); const drNum = Number(cfg.dr); if (Number.isFinite(drNum) && drNum > 0) item.nuDR = drNum; if (tpObjeto === '2') { item.comprimento = comprimento; item.largura = largura; item.altura = altura; } if (Number(cfg.valorDeclaradoPadrao || 0) > 0) item.vlDeclarado = Number(cfg.valorDeclaradoPadrao || 0); return item; }); const r = await axios.post(cfg.precoUrl, { idLote: String(Date.now()), parametrosProduto }, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' }, timeout: 20000 }); const rawList = Array.isArray(r.data) ? r.data : Array.isArray(r.data?.itens) ? r.data.itens : Array.isArray(r.data?.resultado) ? r.data.resultado : Array.isArray(r.data?.parametrosProduto) ? r.data.parametrosProduto : (r.data ? [r.data] : []); const quotes = []; const errors = []; for (const item of rawList) { const coProduto = String(item?.coProduto || ''); const txErro = item?.txErro ? String(item.txErro) : ''; if (txErro) { errors.push({ service: coProduto, name: SERVICE_NAMES[coProduto] || coProduto, message: txErro, raw: item }); continue; } const resolvedDeadlineDays = pickDeadline(item);
+async function quoteCorreios(body = {}, settings = null) { const shippingSettings = settings || await getShippingSettings(); const cfg = correiosCfg(shippingSettings); const token = await getCorreiosToken(shippingSettings); const cepOrigem = normalizeDigits(cfg.originCep); const cepDestino = normalizeDigits(body.cepDestino || body.cep || body.destinationCep || ''); if (cepOrigem.length !== 8) throw new Error('LOJA_ORIGEM_CEP inválido (8 dígitos)'); if (cepDestino.length !== 8) throw new Error('cepDestino inválido (8 dígitos)'); const pesoKgNum = Number(body.pesoKg || body.weightKg || body.weight || cfg.pesoKgPadrao || 0); const psObjeto = toGrams(pesoKgNum); if (!psObjeto) throw new Error('pesoKg inválido (ex: 0.3, 1, 2.5)'); if (pesoKgNum > Number((shippingSettings.carriers?.correios || {}).maxWeightKg || 30)) { return { ok: true, quotes: [], errors: [{ code: 'CORREIOS_LIMIT_WEIGHT', message: 'Correios: limite máximo excedido.' }], bestQuote: null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum } }; } let comprimento = positiveIntOrNull(body.comprimento || body.comprimentoCm || body.length || cfg.comprimentoCmPadrao); let largura = positiveIntOrNull(body.largura || body.larguraCm || body.width || cfg.larguraCmPadrao); let altura = positiveIntOrNull(body.altura || body.alturaCm || body.height || cfg.alturaCmPadrao); const hasDims = !!(comprimento && largura && altura); const maxSide = Math.max(Number(comprimento || 0), Number(largura || 0), Number(altura || 0)); if (hasDims && maxSide > Number((shippingSettings.carriers?.correios || {}).maxDimensionCm || 100)) { return { ok: true, quotes: [], errors: [{ code: 'CORREIOS_LIMIT_SIZE', message: 'Correios: maior lado acima do limite configurado.' }], bestQuote: null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum, dimensionsUsed: { comprimento: Number(comprimento), largura: Number(largura), altura: Number(altura) } } }; } const tpObjeto = hasDims ? '2' : '1'; const parametrosProduto = (cfg.services || []).map((coProduto, idx) => { const item = { coProduto: String(coProduto), nuRequisicao: String(idx + 1).padStart(4, '0'), cepOrigem, cepDestino, psObjeto, tpObjeto, nuUnidade: '' }; if (cfg.contrato) item.nuContrato = String(cfg.contrato); const drNum = Number(cfg.dr); if (Number.isFinite(drNum) && drNum > 0) item.nuDR = drNum; if (tpObjeto === '2') { item.comprimento = comprimento; item.largura = largura; item.altura = altura; } if (Number(cfg.valorDeclaradoPadrao || 0) > 0) item.vlDeclarado = Number(cfg.valorDeclaradoPadrao || 0); return item; }); const r = await axios.post(cfg.precoUrl, { idLote: String(Date.now()), parametrosProduto }, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' }, timeout: 20000 }); const rawList = Array.isArray(r.data) ? r.data : Array.isArray(r.data?.itens) ? r.data.itens : Array.isArray(r.data?.resultado) ? r.data.resultado : Array.isArray(r.data?.parametrosProduto) ? r.data.parametrosProduto : (r.data ? [r.data] : []); const quotes = []; const errors = []; for (const item of rawList) { const coProduto = String(item?.coProduto || ''); const txErro = item?.txErro ? String(item.txErro) : ''; if (txErro) { errors.push({ service: coProduto, name: SERVICE_NAMES[coProduto] || coProduto, message: txErro, raw: item }); continue; } const resolvedDeadlineDays = pickDeadline(item);
             const resolvedPrazo = resolvedDeadlineDays
         ? `${resolvedDeadlineDays} dia(s) úteis`
         : ((coProduto === '03298')
@@ -890,58 +616,50 @@ const geoCache = new Map();
 async function getDistanceKm(originCep, destinationCep) {
   const origin = normalizeCepValue(originCep);
   const destination = normalizeCepValue(destinationCep);
-  if (!origin || !destination) return null;
-  if (origin === destination) return 0;
-
+  if (!origin || !destination || origin === destination) return 0;
   const cacheKey = `${origin}:${destination}`;
   if (geoCache.has(cacheKey)) return geoCache.get(cacheKey);
-
-  const geocodeCep = async (cep) => {
-    const info = await lookupCepInfo(cep);
-    if (!info?.city) return null;
-
-    const queries = [
-      [info.street, info.neighborhood, info.city, info.state, cep, 'Brasil'].filter(Boolean).join(', '),
-      [cep, info.city, info.state, 'Brasil'].filter(Boolean).join(', '),
-      [info.city, info.state, 'Brasil'].filter(Boolean).join(', ')
-    ].filter(Boolean);
-
-    for (const query of queries) {
-      try {
-        const response = await axios.get('https://nominatim.openstreetmap.org/search', {
-          params: { q: query, format: 'jsonv2', limit: 1, countrycodes: 'br' },
-          timeout: 10000,
-          headers: { 'User-Agent': 'ArianaMoveis/1.0 (shipping distance lookup)' }
-        });
-        const lat = Number(response.data?.[0]?.lat);
-        const lon = Number(response.data?.[0]?.lon);
-        if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
-      } catch (_) {}
-    }
-    return null;
-  };
-
-  const [originCoords, destinationCoords] = await Promise.all([
-    geocodeCep(origin),
-    geocodeCep(destination)
-  ]);
-
-  if (!originCoords || !destinationCoords) {
-    geoCache.set(cacheKey, null);
-    return null;
+  const originInfo = await lookupCepInfo(origin);
+  const destInfo = await lookupCepInfo(destination);
+  if (!originInfo?.city || !destInfo?.city) {
+    geoCache.set(cacheKey, 0);
+    return 0;
   }
-
-  const toRad = (deg) => (deg * Math.PI) / 180;
-  const R = 6371;
-  const dLat = toRad(destinationCoords.lat - originCoords.lat);
-  const dLon = toRad(destinationCoords.lon - originCoords.lon);
-  const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(originCoords.lat)) * Math.cos(toRad(destinationCoords.lat)) *
-    Math.sin(dLon / 2) ** 2;
-  const arc = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const km = Number((R * arc).toFixed(1));
-  geoCache.set(cacheKey, km);
-  return km;
+  const query = `${destInfo.city}, ${destInfo.state || ''}, Brazil`;
+  try {
+    const url = 'https://nominatim.openstreetmap.org/search';
+    const resp = await axios.get(url, {
+      params: { q: query, format: 'jsonv2', limit: 1 },
+      timeout: 10000,
+      headers: { 'User-Agent': 'ArianaMoveis/1.0 (shipping distance lookup)' }
+    });
+    const lat = Number(resp.data?.[0]?.lat);
+    const lon = Number(resp.data?.[0]?.lon);
+    const originMap = {
+      'GUANHAES|MG': { lat: -18.7752, lon: -42.9325 },
+      'GUANHÃƒES|MG': { lat: -18.7752, lon: -42.9325 }
+    };
+    const originKey = `${(originInfo.city || '').toUpperCase()}|${(originInfo.state || '').toUpperCase()}`;
+    const originCoords = originMap[originKey] || { lat: -18.7752, lon: -42.9325 };
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      geoCache.set(cacheKey, 0);
+      return 0;
+    }
+    const toRad = (deg) => (deg * Math.PI) / 180;
+    const R = 6371;
+    const dLat = toRad(lat - originCoords.lat);
+    const dLon = toRad(lon - originCoords.lon);
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(originCoords.lat)) * Math.cos(toRad(lat)) *
+      Math.sin(dLon / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const km = Number((R * c).toFixed(1));
+    geoCache.set(cacheKey, km);
+    return km;
+  } catch (_error) {
+    geoCache.set(cacheKey, 0);
+    return 0;
+  }
 }
 function calculateOwnDelivery(km, tiers = []) { const sorted = [...tiers].sort((a, b) => Number(a.maxKm || 0) - Number(b.maxKm || 0)); for (const tier of sorted) { if (Number(km || 0) <= Number(tier.maxKm || 0)) return { available: true, price: Number(tier.price || 0), service: 'own_delivery' }; } return { available: false }; }
 function normalizeShippingText(value = '') { return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, ' ').trim().toUpperCase(); }
@@ -1011,59 +729,6 @@ function getSellerContext(body = {}) {
   };
 }
 
-
-function getShippingSellerIds(body = {}) {
-  const ids = [];
-  const push = (value) => {
-    const id = String(value || '').trim();
-    if (id && !ids.includes(id)) ids.push(id);
-  };
-  push(body.sellerId);
-  for (const item of (Array.isArray(body.items) ? body.items : [])) push(item?.sellerId);
-  return ids;
-}
-
-function isArianaShippingSellerId(value = '') {
-  const id = normalizeShippingText(value);
-  return !id || id === 'ADMIN' || id === 'ARIANA' || id === 'ARIANAMOVEIS' || id === 'ARIANA MOVEIS' || id === 'ARIANA MOVEIS LTDA';
-}
-
-async function resolveSellerShippingProfile(body = {}) {
-  if (!Seller) return null;
-  const sellerIds = getShippingSellerIds(body).filter((id) => !isArianaShippingSellerId(id));
-  if (sellerIds.length !== 1) return null;
-
-  const sellerId = sellerIds[0];
-  let seller = null;
-  try {
-    seller = await Seller.findOne({ sellerId }).lean();
-    if (!seller && mongoose?.Types?.ObjectId?.isValid?.(sellerId)) {
-      seller = await Seller.findById(sellerId).lean();
-    }
-  } catch (_) {
-    seller = null;
-  }
-  if (!seller) return { sellerId, found: false, originCep: '', type: 'marketplace', ownCarrier: false };
-
-  const meta = seller.metadata && typeof seller.metadata === 'object' ? seller.metadata : {};
-  const type = String(
-    meta.tipoLogistica ||
-    meta.shippingType ||
-    (meta.transpPropria === true || meta.ownCarrier === true ? 'propria' : 'marketplace')
-  ).trim().toLowerCase() || 'marketplace';
-
-  return {
-    sellerId: String(seller.sellerId || seller._id || sellerId),
-    sellerName: String(seller.storeName || seller.displayName || meta.factoryName || '').trim(),
-    found: true,
-    originCep: normalizeCepValue(meta.cepColeta || meta.pickupCep || meta.cep_coleta || ''),
-    type,
-    ownCarrier: meta.transpPropria === true || meta.ownCarrier === true || meta.transportadoraPropria === true || type === 'propria',
-    carrierName: String(meta.transportadoraNome || meta.carrierName || '').trim(),
-    carrierDeadline: String(meta.transportadoraPrazo || meta.carrierDeadline || '').trim()
-  };
-}
-
 function getShippingOriginCepFromBody(body = {}) {
   const direct = normalizeCepValue(
     body.originCep ||
@@ -1115,44 +780,8 @@ function bodyHasPhoneProduct(body = {}) {
   const text = normalizeShippingText(parts.filter(Boolean).join(' '));
   return /SMARTPHONE|CELULAR|IPHONE|GALAXY|MOTOROLA|MOTO\s*G|XIAOMI|REDMI|SAMSUNG/.test(text);
 }
-async function lookupCepInfo(cep = '') { const normalizedCep = normalizeCepValue(cep); if (!normalizedCep) return null; if (viaCepCache.has(normalizedCep)) return viaCepCache.get(normalizedCep); try { const url = `https://viacep.com.br/ws/${normalizedCep}/json/`; const response = await axios.get(url, { timeout: 10000 }); const data = response.data || {}; if (data.erro) { viaCepCache.set(normalizedCep, null); return null; } const parsed = { cep: normalizedCep, street: data.logradouro || '', complement: data.complemento || '', city: data.localidade || '', state: data.uf || '', neighborhood: data.bairro || '' }; viaCepCache.set(normalizedCep, parsed); return parsed; } catch (_error) { return null; } }
+async function lookupCepInfo(cep = '') { const normalizedCep = normalizeCepValue(cep); if (!normalizedCep) return null; if (viaCepCache.has(normalizedCep)) return viaCepCache.get(normalizedCep); try { const url = `https://viacep.com.br/ws/${normalizedCep}/json/`; const response = await axios.get(url, { timeout: 10000 }); const data = response.data || {}; if (data.erro) { viaCepCache.set(normalizedCep, null); return null; } const parsed = { cep: normalizedCep, city: data.localidade || '', state: data.uf || '', neighborhood: data.bairro || '' }; viaCepCache.set(normalizedCep, parsed); return parsed; } catch (_error) { return null; } }
 async function resolveDestinationLocation(body = {}) { const cep = normalizeCepValue(body.cepDestino || body.cep || body.destinationCep || body.shippingAddress?.cep || ''); const explicitCity = body.cidade || body.city || body.destinationCity || body.shippingAddress?.cidade || body.shippingAddress?.city || ''; const explicitState = body.uf || body.state || body.destinationState || body.shippingAddress?.uf || body.shippingAddress?.state || ''; if (explicitCity) return { cep, city: String(explicitCity).trim(), state: String(explicitState || '').trim(), source: 'request' }; const viaCep = await lookupCepInfo(cep); if (viaCep) return { ...viaCep, source: 'viacep' }; return { cep, city: '', state: '', source: cep ? 'cep_only' : 'unknown' }; }
-
-function classifyDestinationAccess(body = {}, location = {}) {
-  const address = body.shippingAddress && typeof body.shippingAddress === 'object'
-    ? body.shippingAddress
-    : (body.address && typeof body.address === 'object' ? body.address : {});
-
-  const explicitArea = normalizeShippingText(
-    body.areaType ||
-    body.deliveryZone ||
-    body.tipoArea ||
-    address.areaType ||
-    address.deliveryZone ||
-    address.tipoArea ||
-    address.zona ||
-    ''
-  );
-
-  if (explicitArea.includes('RURAL')) return { type: 'rural', source: 'explicit' };
-  if (explicitArea.includes('URBAN')) return { type: 'urban', source: 'explicit' };
-  if (body.isRural === true || address.isRural === true) return { type: 'rural', source: 'explicit_boolean' };
-
-  const street = String(address.logradouro || address.street || address.rua || body.logradouro || body.street || body.rua || location.street || '').trim();
-  const neighborhood = String(address.bairro || address.neighborhood || body.bairro || body.neighborhood || location.neighborhood || '').trim();
-  const complement = String(address.complemento || address.complement || body.complemento || body.complement || '').trim();
-  const reference = String(address.reference || address.referencia || body.reference || body.referencia || '').trim();
-  const full = normalizeShippingText([street, neighborhood, complement, reference].filter(Boolean).join(' '));
-
-  const ruralPattern = /ZONA RURAL|AREA RURAL|FAZENDA|SITIO|CHACARA|POVOADO|COMUNIDADE|CORREGO|ESTRADA RURAL|RODOVIA|KM\s*\d|DISTRITO RURAL|VILA RURAL/;
-  if (ruralPattern.test(full)) return { type: 'rural', source: 'address_text' };
-
-  // Endereço completo com rua e bairro, sem marcador rural, é tratado como urbano.
-  if (street && neighborhood) return { type: 'urban', source: 'complete_address' };
-
-  return { type: 'unknown', source: 'insufficient_address' };
-}
-
 function isRodocapCityAllowed(city = '', rodocapRule = {}) {
   const normalizedCity = normalizeShippingText(city);
   const allowedFromRule = Array.isArray(rodocapRule.allowedCities) ? rodocapRule.allowedCities : [];
@@ -1234,14 +863,14 @@ function normalizeFrenetQuote(row = {}) {
   };
 }
 
-async function quoteFrenet(body = {}, settings = null, originCepOverride = '') {
+async function quoteFrenet(body = {}, settings = null) {
   const shippingSettings = settings || await getShippingSettings();
   const cfg = shippingSettings?.carriers?.frenet || {};
   const token = String(cfg.token || process.env.FRENET_TOKEN || process.env.FRENET_API_TOKEN || '').trim();
   if (!cfg.enabled) return { ok: true, quotes: [], skipped: true, reason: 'frenet_disabled' };
   if (!token) throw new Error('FRENET_TOKEN não configurado.');
 
-  const sellerCep = normalizeCepValue(originCepOverride || cfg.origemCep || process.env.FRENET_ORIGIN_CEP || process.env.LOJA_ORIGEM_CEP || shippingSettings?.correios?.origemCep || '');
+  const sellerCep = normalizeCepValue(cfg.origemCep || process.env.FRENET_ORIGIN_CEP || process.env.LOJA_ORIGEM_CEP || shippingSettings?.correios?.origemCep || '');
   const recipientCep = normalizeCepValue(body.cepDestino || body.cep || body.destinationCep || body.shippingAddress?.cep || '');
   if (!sellerCep) throw new Error('CEP de origem da Frenet não configurado.');
   if (!recipientCep) throw new Error('CEP de destino inválido para cotação Frenet.');
@@ -1304,223 +933,86 @@ async function calculateShipping(body = {}) {
   const productPrice = Number(body.productPrice || body.price || body.valorNota || body.invoiceValue || body.subtotal || 0);
   const destinationCep = normalizeCepValue(body.cepDestino || body.cep || body.destinationCep || body.shippingAddress?.cep || '');
   const sellerCtx = getSellerContext(body);
-  const sellerProfile = await resolveSellerShippingProfile(body);
   const location = await resolveDestinationLocation(body);
   const configuredOriginCep = normalizeCepValue(settings?.correios?.origemCep || process.env.LOJA_ORIGEM_CEP || arianaRule.localOriginCep || arianaRule.freeCepStart || '39740000');
-  const requestOriginCep = getShippingOriginCepFromBody(body);
-  const sellerOriginCep = sellerProfile?.originCep || requestOriginCep;
+  const sellerOriginCep = getShippingOriginCepFromBody(body);
   const arianaLocalOriginCep = normalizeCepValue(arianaRule.localOriginCep || arianaRule.freeCepStart || '39740000');
-
-  const sellerIds = getShippingSellerIds(body);
-  const hasExternalSeller = sellerIds.some((id) => !isArianaShippingSellerId(id));
-  const allSellerRefsAreAriana = sellerIds.length > 0 && sellerIds.every((id) => isArianaShippingSellerId(id));
-  const isAriana =
-    body.shippingRule === 'ariana' ||
-    body.isArianaOrder === true ||
-    (!hasExternalSeller && (allSellerRefsAreAriana || sellerCtx.isAriana));
-
-  // Regra crítica: "enabled" significa apenas que a tabela Ariana existe.
-  // Ela NÃO autoriza aplicar a tabela da Ariana a produtos de sellers.
-  const explicitArianaLogistics =
-    body.shippingRule === 'ariana_local' ||
-    body.useArianaLocalRule === true ||
-    body.useArianaLogistics === true ||
-    body.enableArianaLogistics === true;
-  const usesArianaLocalRule = arianaRule.enabled !== false && (isAriana || explicitArianaLogistics);
-  const usesArianaLogistics = usesArianaLocalRule;
-  const isSNDigital = sellerCtx.isSNDigital;
-
-  // Para seller em logística marketplace, o CEP de coleta cadastrado é a origem.
-  // Nunca usa o CEP da Ariana como fallback para seller externo.
-  const sellerMarketplaceMode = hasExternalSeller && String(sellerProfile?.type || 'marketplace') === 'marketplace';
-  const originCep = usesArianaLocalRule
-    ? (arianaLocalOriginCep || configuredOriginCep)
-    : (hasExternalSeller ? sellerOriginCep : configuredOriginCep);
+  const originCep = sellerOriginCep || configuredOriginCep;
+  const inferredDistanceKm = await getDistanceKm(arianaLocalOriginCep || originCep, destinationCep);
+  const distanceKm = Number(body.distanceKm || body.km || inferredDistanceKm || 0);
   const options = [];
+  const isAriana = body.shippingRule === 'ariana' || body.isArianaOrder === true || sellerCtx.isAriana;
+  const isLocalSellerOrigin = Boolean(arianaLocalOriginCep && sellerOriginCep && sellerOriginCep === arianaLocalOriginCep);
+  // Ariana Logística é a logística local oficial do marketplace.
+  // Ela também cobre a regra antiga chamada SN Digital; para evitar duplicidade, mostramos apenas Ariana Logística.
+  const usesArianaLocalRule = arianaRule.enabled !== false || isAriana || isLocalSellerOrigin || body.shippingRule === 'ariana_local' || body.useArianaLocalRule === true;
+  const isSNDigital = false;
+  const usesArianaLogistics = arianaRule.enabled !== false || usesArianaLocalRule || body.useArianaLogistics === true || body.enableArianaLogistics === true || businessRules?.rodocap?.appliesToArianaLogistics === true;
+  const isPhoneProduct = arianaRule.phoneFlatEnabled !== false && bodyHasPhoneProduct(body);
 
-  if (sellerMarketplaceMode && !originCep) {
-    const unavailable = {
-      service: 'seller_origin_cep_missing',
-      label: 'Frete indisponível',
-      name: 'Frete indisponível',
-      unavailable: true,
-      provider: 'seller',
-      error: 'O vendedor precisa cadastrar um CEP de coleta válido antes de vender com a logística do marketplace.',
-      metadata: {
-        rule: 'seller_marketplace_requires_pickup_cep',
-        sellerId: sellerProfile?.sellerId || sellerIds[0] || null
-      }
-    };
-    return {
-      ok: true,
-      options: [unavailable],
-      quotes: [],
-      cheapest: null,
-      bestQuote: null,
-      montagemCost: 0,
-      context: {
-        sellerDetected: sellerCtx.raw || null,
-        sellerId: sellerProfile?.sellerId || sellerIds[0] || null,
-        sellerShippingType: sellerProfile?.type || 'marketplace',
-        sellerOriginCep: null,
-        isAriana: false,
-        usesArianaLocalRule: false,
-        usesArianaLogistics: false,
-        destinationCity: location.city || null,
-        destinationState: location.state || null,
-        destinationCep: destinationCep || null
-      }
-    };
-  }
-
-  const inferredDistanceKm = await getDistanceKm(originCep, destinationCep);
-  const requestDistanceRaw = body.distanceKm ?? body.km;
-  const requestDistance = Number(requestDistanceRaw);
-  const hasRequestDistance = requestDistanceRaw !== undefined && requestDistanceRaw !== null && requestDistanceRaw !== '' && Number.isFinite(requestDistance) && requestDistance >= 0;
-  const distanceKm = hasRequestDistance ? requestDistance : inferredDistanceKm;
-  const hasKnownDistance = distanceKm !== null && distanceKm !== undefined && Number.isFinite(Number(distanceKm));
-
-  const normalizedDestinationCity = normalizeShippingText(location.city || '');
-  const isGuanhaesDestination =
-    normalizedDestinationCity === 'GUANHAES' ||
-    normalizedDestinationCity === 'GUANHAES MG' ||
-    (destinationCep && destinationCep === normalizeCepValue(arianaRule.localOriginCep || arianaRule.freeCepStart || '39740000'));
-
-  const destinationAccess = classifyDestinationAccess(body, location);
-  const isRuralGuanhaes = isGuanhaesDestination && destinationAccess.type === 'rural';
-  const isUrbanGuanhaes = isGuanhaesDestination && destinationAccess.type === 'urban';
-  // O simulador precisa entregar uma cotação já na página do produto/carrinho.
-  // Guanhães usa CEP geral, então CEP sem rua/bairro não pode bloquear a simulação.
-  // A tabela Ariana é aplicada normalmente; endereço completo continua refinando
-  // a classificação urbano/rural quando estiver disponível.
-
-  // Celular mantém a regra especial fora da zona rural de Guanhães.
-  // Na zona rural de Guanhães vale a tabela normal da Ariana Logística (R$ 89 até 50 km).
-  const isPhoneProduct = usesArianaLocalRule && arianaRule.phoneFlatEnabled !== false && bodyHasPhoneProduct(body);
-  const phoneRuleApplies = isPhoneProduct && !isRuralGuanhaes;
-
-  if (phoneRuleApplies) {
-    const phoneLocalFree = isUrbanGuanhaes;
+  if (isPhoneProduct) {
+    const phoneLocalFree = destinationCep && cepInRange(destinationCep, arianaRule.freeCepStart, arianaRule.freeCepEnd);
     options.push(buildManualShippingOption({
-      service: phoneLocalFree ? 'celular_free_urbano_guanhaes' : 'celular_frete_fixo',
-      label: phoneLocalFree ? 'Frete grátis - área urbana de Guanhães' : 'Frete fixo celular',
+      service: phoneLocalFree ? 'celular_free_local' : 'celular_frete_fixo',
+      label: phoneLocalFree ? 'Frete grátis celular' : 'Frete fixo celular',
       price: phoneLocalFree ? 0 : Number(arianaRule.phoneFlatPrice || 19.90),
       prazo: arianaRule.prazo || '1 a 3 dias úteis',
       provider: 'configured',
       details: phoneLocalFree
-        ? 'Frete grátis somente para a área urbana de Guanhães.'
-        : 'Frete fixo para celular fora da área urbana de Guanhães.',
-      metadata: {
-        rule: phoneLocalFree ? 'celular_free_urbano_guanhaes' : 'celular_frete_fixo',
-        destinationArea: destinationAccess.type,
-        destinationCep
-      },
+        ? `Frete grátis para celulares no CEP ${arianaRule.freeCepStart || '39740-000'}.`
+        : 'Frete fixo para celulares para qualquer destino.',
+      metadata: { rule: phoneLocalFree ? 'celular_free_local' : 'celular_frete_fixo', destinationCep },
       deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
     }));
   }
 
-  const hasPhoneFlatDelivery = phoneRuleApplies;
-  const hasArianaFree =
-    !hasPhoneFlatDelivery &&
-    usesArianaLocalRule &&
-    arianaRule.enabled !== false &&
-    arianaRule.freeLocalEnabled === true &&
-    isUrbanGuanhaes;
-
+  const hasPhoneFlatDelivery = isPhoneProduct;
+  const hasArianaFree = !hasPhoneFlatDelivery && usesArianaLocalRule && arianaRule.enabled !== false && destinationCep && cepInRange(destinationCep, arianaRule.freeCepStart, arianaRule.freeCepEnd);
   if (hasArianaFree) {
     options.push(buildManualShippingOption({
-      service: 'ariana_entrega_gratis_urbano_guanhaes',
-      label: arianaRule.label || 'Ariana Entrega',
+      service: 'ariana_free_local',
+      label: arianaRule.label || 'Ariana Móveis',
       price: 0,
       prazo: arianaRule.prazo || '1 a 3 dias úteis',
       provider: 'configured',
-      details: 'Frete grátis somente para a área urbana de Guanhães.',
-      metadata: {
-        rule: 'ariana_logistica_urbano_guanhaes_gratis',
-        destinationArea: 'urban',
-        destinationCity: location.city || 'Guanhães',
-        destinationCep
-      },
+      details: `Frete grátis para o CEP ${arianaRule.freeCepStart}.`,
+      metadata: { rule: 'ariana_free_local', cep: destinationCep },
       deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
     }));
   }
 
-  const configuredArianaTiers = Array.isArray(arianaRule.tiers) && arianaRule.tiers.length
-    ? arianaRule.tiers
-    : [
-        { maxKm: Number(arianaRule.localMaxKmTier1 || 50), price: Number(arianaRule.localPriceTier1 || 89) },
-        { maxKm: Number(arianaRule.localMaxKmTier2 || 120), price: Number(arianaRule.localPriceTier2 || 159) },
-        { maxKm: Number(arianaRule.localMaxKmTier3 || 200), price: Number(arianaRule.localPriceTier3 || 211) },
-        { maxKm: Number(arianaRule.localMaxKmTier4 || 260), price: Number(arianaRule.localPriceTier4 || 259) }
-      ];
-
-  const arianaTiers = configuredArianaTiers
-    .map((tier) => ({
-      maxKm: Number(tier?.maxKm || 0),
-      price: Number(tier?.price || 0)
-    }))
-    .filter((tier) =>
-      Number.isFinite(tier.maxKm) &&
-      tier.maxKm > 0 &&
-      Number.isFinite(tier.price) &&
-      tier.price > 0
-    )
-    .sort((a, b) => a.maxKm - b.maxKm);
-
-  const arianaTier2Km = Number(arianaTiers[1]?.maxKm || arianaTiers[0]?.maxKm || 120);
-  const arianaMaxLocalKm = Number(arianaTiers[arianaTiers.length - 1]?.maxKm || 260);
-  const hasUsableArianaDistance = hasKnownDistance || isRuralGuanhaes;
-
+  const arianaTier1Km = Number(arianaRule.localMaxKmTier1 || 30);
+  const arianaTier1Price = Number(arianaRule.localPriceTier1 || 80);
+  const arianaTier2Km = Number(arianaRule.localMaxKmTier2 || 70);
+  const arianaTier2Price = Number(arianaRule.localPriceTier2 || 120);
   let hasArianaDistanceDelivery = false;
 
-  if (
-    usesArianaLocalRule &&
-    arianaRule.enabled !== false &&
-    !hasPhoneFlatDelivery &&
-    !hasArianaFree &&
-    hasUsableArianaDistance
-  ) {
-    // Guanhães usa um único CEP. Quando o endereço é rural e o CEP não permite
-    // medir a distância, aplica a primeira faixa (até 50 km = R$ 89).
-    // Se uma distância real/administrativa maior for informada, respeita a faixa correspondente.
-    const rawDistance = hasKnownDistance ? Math.max(0, Number(distanceKm)) : 0;
-    const resolvedDistance = isRuralGuanhaes && rawDistance <= 0 ? 50 : rawDistance;
+  if (usesArianaLocalRule && arianaRule.enabled !== false && !hasPhoneFlatDelivery && !hasArianaFree && Number(distanceKm || 0) > 0 && Number(distanceKm || 0) <= arianaTier1Km) {
+    hasArianaDistanceDelivery = true;
+    options.push(buildManualShippingOption({
+      service: 'ariana_entrega_ate_30km',
+      label: arianaRule.label || 'Ariana Móveis',
+      price: arianaTier1Price,
+      prazo: arianaRule.prazo || '1 a 3 dias úteis',
+      provider: 'configured',
+      details: `Entrega Ariana Móveis até ${arianaTier1Km} km a partir do CEP ${arianaRule.localOriginCep || arianaRule.freeCepStart || '39740-000'}.`,
+      metadata: { rule: 'ariana_entrega_ate_30km', distanceKm, destinationCep },
+      deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
+    }));
+  }
 
-    if (resolvedDistance <= arianaMaxLocalKm) {
-      const tierIndex = arianaTiers.findIndex((tier) =>
-        resolvedDistance <= tier.maxKm
-      );
-      const selectedTier = tierIndex >= 0 ? arianaTiers[tierIndex] : null;
-
-      if (selectedTier) {
-        const previousMaxKm = tierIndex > 0 ? arianaTiers[tierIndex - 1].maxKm : 0;
-        hasArianaDistanceDelivery = true;
-        options.push(buildManualShippingOption({
-          service: isRuralGuanhaes && tierIndex === 0
-            ? 'ariana_rural_guanhaes_ate_50km'
-            : `ariana_entrega_ate_${selectedTier.maxKm}km`,
-          label: arianaRule.label || 'Ariana Entrega',
-          price: selectedTier.price,
-          prazo: arianaRule.prazo || '1 a 3 dias úteis',
-          provider: 'configured',
-          details: isRuralGuanhaes && tierIndex === 0
-            ? 'Zona rural de Guanhães até 50 km: R$ 89,00.'
-            : previousMaxKm > 0
-              ? `Entrega Ariana Logística acima de ${previousMaxKm} km até ${selectedTier.maxKm} km.`
-              : `Entrega Ariana Logística até ${selectedTier.maxKm} km.`,
-          metadata: {
-            rule: isRuralGuanhaes ? 'ariana_logistica_rural_guanhaes' : 'ariana_logistica_tabela_oficial',
-            tier: tierIndex + 1,
-            minKmExclusive: previousMaxKm,
-            maxKm: selectedTier.maxKm,
-            distanceKm: resolvedDistance,
-            destinationArea: destinationAccess.type,
-            destinationCep
-          },
-          deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
-        }));
-      }
-    }
+  if (usesArianaLocalRule && arianaRule.enabled !== false && !hasPhoneFlatDelivery && !hasArianaFree && Number(distanceKm || 0) > arianaTier1Km && Number(distanceKm || 0) <= arianaTier2Km) {
+    hasArianaDistanceDelivery = true;
+    options.push(buildManualShippingOption({
+      service: 'ariana_entrega_30_50km',
+      label: arianaRule.label || 'Ariana Móveis',
+      price: arianaTier2Price,
+      prazo: arianaRule.prazo || '1 a 3 dias úteis',
+      provider: 'configured',
+      details: `Entrega Ariana Logística acima de ${arianaTier1Km} km até ${arianaTier2Km} km a partir do CEP ${arianaRule.localOriginCep || arianaRule.freeCepStart || '39740-000'}.`,
+      metadata: { rule: 'ariana_entrega_30_120km', distanceKm, destinationCep },
+      deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
+    }));
   }
 
   if (false && usesArianaLogistics && !usesArianaLocalRule && !hasPhoneFlatDelivery && snRule.enabled !== false && !hasArianaFree && distanceKm > 0 && distanceKm <= Number(snRule.maxKmTier1 || 40)) {
@@ -1550,7 +1042,7 @@ async function calculateShipping(body = {}) {
   let rodocapAvailable = false;
   let rodocapEligibleByDistance = false;
   let rodocapCityAllowed = false;
-  const rodocapMinKmExclusive = Number(process.env.RODOCAP_MIN_KM_EXCLUSIVE || rodocapRule.minKmExclusive || arianaMaxLocalKm || 260);
+  const rodocapMinKmExclusive = Number(process.env.RODOCAP_MIN_KM_EXCLUSIVE || rodocapRule.minKmExclusive || arianaTier2Km || 70);
   const rodocapEnvFlag = String(process.env.RODOCAP_ENABLED || '').trim().toLowerCase();
   const rodocapEnabled =
     rodocapEnvFlag === 'true' ||
@@ -1650,7 +1142,7 @@ async function calculateShipping(body = {}) {
 
   if (frenetAllowed) {
     try {
-      const quoted = await quoteFrenet(body, settings, originCep);
+      const quoted = await quoteFrenet(body, settings);
       if (Array.isArray(quoted.quotes)) {
         options.push(...quoted.quotes.map((q) => ({
           service: q.service,
@@ -1696,7 +1188,7 @@ async function calculateShipping(body = {}) {
   if (correiosAllowed) {
     correiosAttempted = true;
     try {
-      const quoted = await quoteCorreios(body, settings, originCep);
+      const quoted = await quoteCorreios(body, settings);
       const validCorreiosQuotes = Array.isArray(quoted.quotes)
         ? quoted.quotes
           .map(q => ({
@@ -1825,7 +1317,7 @@ async function calculateShipping(body = {}) {
   }
 
   const ownDelivery = settings.carriers?.ownDelivery || {};
-  if (!hasPhoneFlatDelivery && !hasArianaFree && usesArianaLocalRule && isAriana && ownDelivery.enabled && Number(distanceKm || 0) > 0) {
+  if (!hasPhoneFlatDelivery && !hasArianaFree && !usesArianaLocalRule && !isSNDigital && ownDelivery.enabled && Number(distanceKm || 0) > 0) {
     const own = calculateOwnDelivery(distanceKm, ownDelivery.tiers || []);
     if (own.available) options.push(buildManualShippingOption({ service: 'own_delivery', label: 'Entrega Própria', price: own.price, prazo: '1 a 3 dias úteis', provider: 'configured' }));
   }
@@ -1893,11 +1385,8 @@ async function calculateShipping(body = {}) {
     montagemCost,
     context: {
       sellerDetected: sellerCtx.raw || null,
-      sellerId: sellerProfile?.sellerId || sellerIds[0] || null,
-      sellerShippingType: sellerProfile?.type || (hasExternalSeller ? 'marketplace' : 'ariana'),
-      sellerOriginCep: sellerProfile?.originCep || null,
       isAriana,
-      isLocalSellerOrigin: Boolean(arianaLocalOriginCep && sellerOriginCep && sellerOriginCep === arianaLocalOriginCep),
+      isLocalSellerOrigin,
       usesArianaLocalRule,
       isPhoneProduct,
       isSNDigital,
@@ -1909,11 +1398,8 @@ async function calculateShipping(body = {}) {
       destinationCity: location.city || null,
       destinationState: location.state || null,
       destinationCep: destinationCep || null,
-      destinationArea: destinationAccess.type,
-      destinationAreaSource: destinationAccess.source,
       locationSource: location.source,
-      distanceKm: hasKnownDistance ? Number(distanceKm) : null,
-      freeCity: 'Guanhães',
+      distanceKm,
       weightKg,
       maxDimensionCm
     },
@@ -2958,11 +2444,8 @@ async function notifyNewPartnerRequest(seller = {}) {
 registerSellerPartnerRoutes(app, {
   ...context,
   Seller,
-  User,
-  bcrypt,
   uid,
   adminRequired,
-  sellerAuthRequired,
   mongoose,
   now,
   escapeRegex,
@@ -3380,7 +2863,6 @@ async function updateOrderPaymentFromMercadoPago(orderId, method, mpData = {}, e
     const patch = {
       status: approved ? 'pago' : 'pending_payment',
       statusLabel: approved ? 'Pagamento aprovado' : 'Aguardando confirmação do pagamento',
-      paymentStatus: approved ? 'approved' : (status || 'pending'),
       payment: {
         provider: 'mercadopago',
         method,
@@ -3456,20 +2938,10 @@ registerAdminCoreRoutes(app, {
   ...context,
   BUILD_ID,
   writeAuditLog,
-  createSellerNotification,
   redactWhatsappSettings,
   waMaybeNotifyOrderStatusChange,
   waNotifyAdminOrderStatusChange,
   formatMoneyBRL
-});
-
-
-registerCreativeCutoutStudioRoutes(app, {
-  ...context,
-  mongoose,
-  adminRequired,
-  upload: context.upload,
-  fs: context.fs
 });
 
 // ============================================================
@@ -3562,21 +3034,30 @@ function startEnterpriseQueueWorker() {
     console.log('🏭 Enterprise queue worker desativado por ENTERPRISE_QUEUE_WORKER_ENABLED=false');
     return;
   }
-
-  if (globalThis.__arianaEnterpriseQueueWorkerStarted) return;
-  globalThis.__arianaEnterpriseQueueWorkerStarted = true;
-
   const intervalMs = Math.max(15000, Number(process.env.ENTERPRISE_QUEUE_WORKER_INTERVAL_MS || 60000));
   const limit = Math.max(1, Number(process.env.ENTERPRISE_QUEUE_WORKER_LIMIT || 5));
   console.log(`🏭 Enterprise queue worker ativo: a cada ${intervalMs}ms, limite ${limit}`);
-
-  const timer = setInterval(() => {
+  setInterval(() => {
     processManufacturerQueue(limit).catch((error) => {
       console.error('[ENTERPRISE QUEUE WORKER] ERRO', error.message || error);
     });
   }, intervalMs);
+}
 
-  if (typeof timer.unref === 'function') timer.unref();
+function startEnterpriseCatalogSyncWorker() {
+  const enabled = String(process.env.ENTERPRISE_CATALOG_SYNC_WORKER_ENABLED || 'true').toLowerCase() !== 'false';
+  if (!enabled) {
+    console.log('🏭 Enterprise catalog sync worker desativado por ENTERPRISE_CATALOG_SYNC_WORKER_ENABLED=false');
+    return;
+  }
+  const intervalMs = Math.max(15000, Number(process.env.ENTERPRISE_CATALOG_SYNC_WORKER_INTERVAL_MS || 45000));
+  const limit = Math.max(1, Number(process.env.ENTERPRISE_CATALOG_SYNC_WORKER_LIMIT || 3));
+  console.log(`🏭 Enterprise catalog sync worker ativo: a cada ${intervalMs}ms, limite ${limit}`);
+  setInterval(() => {
+    processPendingEnterpriseCatalogSyncJobs(limit).catch((error) => {
+      console.error('[ENTERPRISE CATALOG SYNC WORKER] ERRO', error.message || error);
+    });
+  }, intervalMs);
 }
 
 
@@ -3625,10 +3106,5 @@ registerExternalIntegrationRoutes(app, {
   EnterpriseBillingRecord,
   redact
 });
-
-// O processador da fila de pedidos/fabricantes vive neste módulo.
-// Iniciá-lo aqui garante que vendas pagas sejam despachadas sem depender
-// de símbolos locais inacessíveis a server.js.
-startEnterpriseQueueWorker();
 
 }

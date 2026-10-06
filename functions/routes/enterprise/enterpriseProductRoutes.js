@@ -16,8 +16,6 @@ export default function registerEnterpriseProductRoutes(app, context = {}) {
     normalizeImageEntry,
     IntegrationAuditLog,
     Product,
-    EnterpriseSandboxProduct,
-    enterpriseProductModelForPartner,
     redact,
     changedKeys
   } = context;
@@ -206,12 +204,10 @@ export default function registerEnterpriseProductRoutes(app, context = {}) {
 
   app.post('/api/enterprise/products/:sku/sync', enterpriseCompatAuth, async (req, res) => {
     try {
-      if (!enterpriseRequirePermission(req, res, 'catalog')) return;
       const sku = String(req.params.sku || req.body?.sku || '').trim();
       if (!sku) return res.status(400).json({ ok: false, error: 'SKU obrigatório' });
 
-      const sellerId = String(req.enterprisePartner?.requestId || req.enterprisePartner?.id || req.body?.sellerId || req.body?.manufacturer || 'enterprise').trim();
-      const ProductModel = enterpriseProductModelForPartner(req.enterprisePartner || {});
+      const sellerId = String(req.body?.sellerId || req.body?.manufacturer || req.enterprisePartner?.requestId || 'enterprise').trim();
       const update = {
         sku,
         sellerId,
@@ -222,7 +218,7 @@ export default function registerEnterpriseProductRoutes(app, context = {}) {
       if (req.body?.price !== undefined) update.price = enterpriseCompatNumber(req.body.price, 0);
       if (req.body?.status) update.status_integracao = String(req.body.status);
 
-      const product = await ProductModel.findOneAndUpdate(
+      const product = await Product.findOneAndUpdate(
         { sku, sellerId },
         { $set: update, $setOnInsert: { name: sku, sellerName: req.enterprisePartner?.tradeName || req.enterprisePartner?.companyName || 'Enterprise' } },
         { upsert: true, new: true }
@@ -236,13 +232,11 @@ export default function registerEnterpriseProductRoutes(app, context = {}) {
 
   app.put('/api/enterprise/products/:sku/stock', enterpriseCompatAuth, async (req, res) => {
     try {
-      if (!enterpriseRequirePermission(req, res, 'stock')) return;
       const sku = String(req.params.sku || '').trim();
-      const sellerId = String(req.enterprisePartner?.requestId || req.enterprisePartner?.id || req.body?.sellerId || req.body?.manufacturer || 'enterprise').trim();
-      const ProductModel = enterpriseProductModelForPartner(req.enterprisePartner || {});
+      const sellerId = String(req.body?.sellerId || req.body?.manufacturer || req.enterprisePartner?.requestId || 'enterprise').trim();
       const stock = enterpriseCompatNumber(req.body?.stock ?? req.body?.estoque, 0);
 
-      const product = await ProductModel.findOneAndUpdate(
+      const product = await Product.findOneAndUpdate(
         { sku, sellerId },
         { $set: { stock, updatedAt: new Date() }, $setOnInsert: { name: sku, sellerId, sellerName: req.enterprisePartner?.tradeName || 'Enterprise', price: 0, active: true } },
         { upsert: true, new: true }
@@ -256,13 +250,11 @@ export default function registerEnterpriseProductRoutes(app, context = {}) {
 
   app.put('/api/enterprise/products/:sku/price', enterpriseCompatAuth, async (req, res) => {
     try {
-      if (!enterpriseRequirePermission(req, res, 'price')) return;
       const sku = String(req.params.sku || '').trim();
-      const sellerId = String(req.enterprisePartner?.requestId || req.enterprisePartner?.id || req.body?.sellerId || req.body?.manufacturer || 'enterprise').trim();
-      const ProductModel = enterpriseProductModelForPartner(req.enterprisePartner || {});
+      const sellerId = String(req.body?.sellerId || req.body?.manufacturer || req.enterprisePartner?.requestId || 'enterprise').trim();
       const price = enterpriseCompatNumber(req.body?.price ?? req.body?.preco, 0);
 
-      const product = await ProductModel.findOneAndUpdate(
+      const product = await Product.findOneAndUpdate(
         { sku, sellerId },
         { $set: { price, updatedAt: new Date() }, $setOnInsert: { name: sku, sellerId, sellerName: req.enterprisePartner?.tradeName || 'Enterprise', stock: 0, active: true } },
         { upsert: true, new: true }

@@ -37,8 +37,7 @@ function buildEnterpriseOpenApiSpec(req = null) {
       description: 'API oficial da Ariana Enterprise para integração de catálogo, estoque, preço, pedidos, NF-e, rastreio, webhooks, OAuth 2.0 e versionamento v1/v2.'
     },
     servers: [
-      { url: `${baseUrl}/v1`, description: 'API v1 estável — recomendada para novas integrações' },
-      { url: baseUrl, description: 'Compatibilidade sem versão (legado)' }
+      { url: baseUrl, description: 'Produção / Sandbox Ariana Backend' }
     ],
     tags: [
       { name: 'Health', description: 'Disponibilidade da API' },
@@ -172,17 +171,6 @@ function buildEnterpriseOpenApiSpec(req = null) {
             active: { type: 'boolean', example: true },
             events: { type: 'array', items: { type: 'string' }, example: ['order_created', 'payment_approved', 'invoice_received', 'tracking_updated'] }
           }
-        },
-        CatalogSyncAccepted: {
-          type: 'object',
-          properties: {
-            ok: { type: 'boolean', example: true },
-            message: { type: 'string', example: 'Sincronização recebida e enfileirada.' },
-            jobId: { type: 'string', example: 'SYNC-1727480000000-1234' },
-            status: { type: 'string', example: 'queued' },
-            received: { type: 'integer', example: 850 },
-            statusUrl: { type: 'string', example: '/api/enterprise/catalog/sync/SYNC-1727480000000-1234' }
-          }
         }
       }
     },
@@ -217,33 +205,6 @@ function buildEnterpriseOpenApiSpec(req = null) {
           responses: {
             201: { description: 'Catálogo recebido', content: { 'application/json': { schema: okSchema } } },
             401: { description: 'Chave inválida', content: { 'application/json': { schema: commonError } } }
-          }
-        }
-      },
-      '/enterprise/catalog/sync': {
-        post: {
-          tags: ['Catálogo'],
-          summary: 'Sincroniza catálogos grandes de forma assíncrona',
-          description: 'Recomendado para cargas maiores. A API responde 202 com jobId e o fabricante acompanha o processamento pelo endpoint de status.',
-          security: apiKeySecurity,
-          requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/ProductInput' } } } },
-          responses: {
-            202: { description: 'Sincronização enfileirada', content: { 'application/json': { schema: { $ref: '#/components/schemas/CatalogSyncAccepted' } } } },
-            401: { description: 'Chave inválida', content: { 'application/json': { schema: commonError } } },
-            413: { description: 'Quantidade de produtos acima do limite permitido' }
-          }
-        }
-      },
-      '/enterprise/catalog/sync/{jobId}': {
-        get: {
-          tags: ['Catálogo'],
-          summary: 'Consulta o andamento de uma sincronização de catálogo',
-          security: apiKeySecurity,
-          parameters: [{ name: 'jobId', in: 'path', required: true, schema: { type: 'string' } }],
-          responses: {
-            200: { description: 'Status do job retornado' },
-            403: { description: 'Job pertence a outro parceiro' },
-            404: { description: 'Job não encontrado' }
           }
         }
       },
@@ -306,44 +267,6 @@ function buildEnterpriseOpenApiSpec(req = null) {
           responses: { 200: { description: 'Rastreio atualizado', content: { 'application/json': { schema: okSchema } } } }
         }
       },
-      '/enterprise/orders/{orderId}/xml': {
-        get: {
-          tags: ['NF-e'],
-          summary: 'Consulta e valida o XML da NF-e',
-          security: apiKeySecurity,
-          parameters: [{ name: 'orderId', in: 'path', required: true, schema: { type: 'string' } }],
-          responses: { 200: { description: 'XML disponível e validado' }, 404: { description: 'XML ainda não disponível' } }
-        }
-      },
-      '/enterprise/orders/{orderId}/danfe': {
-        get: {
-          tags: ['NF-e'],
-          summary: 'Consulta e valida o DANFE',
-          security: apiKeySecurity,
-          parameters: [{ name: 'orderId', in: 'path', required: true, schema: { type: 'string' } }],
-          responses: { 200: { description: 'DANFE disponível e validado' }, 404: { description: 'DANFE ainda não disponível' } }
-        }
-      },
-      '/enterprise/orders/{orderId}/rma': {
-        post: {
-          tags: ['Pedidos'],
-          summary: 'Abre uma devolução / RMA',
-          security: apiKeySecurity,
-          parameters: [{ name: 'orderId', in: 'path', required: true, schema: { type: 'string' } }],
-          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { reason: { type: 'string', example: 'Produto com avaria' }, type: { type: 'string', example: 'return' }, items: { type: 'array', items: { type: 'object' } } } } } } },
-          responses: { 200: { description: 'RMA aberto' } }
-        }
-      },
-      '/enterprise/orders/{orderId}/cancel': {
-        post: {
-          tags: ['Pedidos'],
-          summary: 'Cancela um pedido Enterprise',
-          security: apiKeySecurity,
-          parameters: [{ name: 'orderId', in: 'path', required: true, schema: { type: 'string' } }],
-          requestBody: { required: false, content: { 'application/json': { schema: { type: 'object', properties: { reason: { type: 'string', example: 'Cancelamento solicitado pelo fabricante' } } } } } },
-          responses: { 200: { description: 'Pedido cancelado' } }
-        }
-      },
       '/enterprise/webhooks/test': {
         post: {
           tags: ['Webhooks'],
@@ -354,7 +277,9 @@ function buildEnterpriseOpenApiSpec(req = null) {
         }
       },
       '/enterprise/oauth/token': { post: { tags: ['OAuth 2.0'], summary: 'Emite Bearer Token usando Client Credentials', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { grant_type: { type: 'string', example: 'client_credentials' }, client_id: { type: 'string' }, client_secret: { type: 'string' } } } } } }, responses: { '200': { description: 'Token emitido' }, '401': { description: 'Credenciais inválidas' } } } },
-      '/enterprise/version': { get: { tags: ['Versionamento'], summary: 'Versão e política de compatibilidade da API Enterprise', security: [], responses: { '200': { description: 'Versão estável, versões suportadas e preview retornados' } } } },
+      '/enterprise/versions': { get: { tags: ['Versionamento'], summary: 'Lista versões suportadas da API Enterprise', responses: { '200': { description: 'Versões retornadas' } } } },
+      '/v1/enterprise/versions': { get: { tags: ['Versionamento'], summary: 'Versões via v1', responses: { '200': { description: 'Versões retornadas' } } } },
+      '/v2/enterprise/versions': { get: { tags: ['Versionamento'], summary: 'Versões via v2 preview', responses: { '200': { description: 'Versões retornadas' } } } },
       '/enterprise/oauth/check': { get: { tags: ['OAuth 2.0'], summary: 'Valida Bearer Token OAuth Enterprise', security: [{ EnterpriseOAuth: [] }], responses: { '200': { description: 'Token válido' }, '401': { description: 'Token inválido' } } } },
       '/enterprise/partner/login': {
         post: {

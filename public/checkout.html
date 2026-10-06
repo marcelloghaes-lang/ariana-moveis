@@ -279,7 +279,7 @@
                 <div class="pay-method-body">
                   <div>
                     <div class="pay-title">Crediário Ariana</div>
-                    <div class="pay-desc">Crediário próprio Ariana Móveis em até 15 parcelas</div>
+                    <div class="pay-desc">Carnê Cora em até 15 parcelas</div>
                   </div>
                 </div>
               </label>
@@ -412,7 +412,6 @@
     let addressesCache = [];
     let settingsShipping = null;
     let settingsPayments = null;
-    let settingsLoadPromise = null;
     let shippingQuote = null;
 
     let cart = (() => {
@@ -594,9 +593,6 @@ const computeCartTotal = () =>
         city: pick(a.city, a.cidade),
         state: normalizeUF(pick(a.state, a.uf, a.federal_unit)),
         cep: normalizeCep(pick(a.cep, a.zip, a.zip_code, a.postal_code)),
-        areaType: String(pick(a.areaType, a.tipoArea, a.isRural === true ? 'rural' : '') || '').toLowerCase(),
-        isRural: String(pick(a.areaType, a.tipoArea, a.isRural === true ? 'rural' : '') || '').toLowerCase() === 'rural' ? true :
-          (String(pick(a.areaType, a.tipoArea, '') || '').toLowerCase() === 'urban' ? false : null),
         nickname: pick(a.nickname, a.name, a.label)
       };
     };
@@ -739,40 +735,26 @@ const computeCartTotal = () =>
 
     async function loadSettings() {
       if (settingsShipping && settingsPayments) return { shipping: settingsShipping, payments: settingsPayments };
-      if (settingsLoadPromise) return settingsLoadPromise;
 
-      settingsLoadPromise = (async () => {
-        settingsShipping = normalizeShippingDefaults({});
-        settingsPayments = {};
-
-        const paymentTask = (async () => {
-          try {
-            if (typeof window.getPaymentSettings === 'function') {
-              settingsPayments = await window.getPaymentSettings(false);
-            }
-          } catch (_) {}
-        })();
-
-        const shippingTask = (async () => {
-          try {
-            const res = await fetch(`${getApiBaseUrl()}/settings/shipping`, { headers: { "Content-Type": "application/json" } });
-            if (res.ok) {
-              const data = await res.json();
-              const payload = data?.item || data?.shipping || data || {};
-              settingsShipping = normalizeShippingDefaults(payload);
-            }
-          } catch (_) {}
-        })();
-
-        await Promise.allSettled([paymentTask, shippingTask]);
-        return { shipping: settingsShipping, payments: settingsPayments };
-      })();
+      settingsShipping = normalizeShippingDefaults({});
+      settingsPayments = {};
 
       try {
-        return await settingsLoadPromise;
-      } finally {
-        settingsLoadPromise = null;
-      }
+        if (typeof window.getPaymentSettings === 'function') {
+          settingsPayments = await window.getPaymentSettings(false);
+        }
+      } catch (_) {}
+
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/settings/shipping`, { headers: { "Content-Type": "application/json" } });
+        if (res.ok) {
+          const data = await res.json();
+          const payload = data?.item || data?.shipping || data || {};
+          settingsShipping = normalizeShippingDefaults(payload);
+        }
+      } catch (_) {}
+
+      return { shipping: settingsShipping, payments: settingsPayments };
     }
 
     async function enrichCartShipping() {
@@ -844,7 +826,7 @@ function normalizeCheckoutShippingOption(q, raw = null) {
   };
 }
 
-async function quoteShippingForCep(cepDestino, addressObj = null) {
+async function quoteShippingForCep(cepDestino) {
   await loadSettings();
   await enrichCartShipping();
 
@@ -853,28 +835,10 @@ async function quoteShippingForCep(cepDestino, addressObj = null) {
   // Não usa o total cheio do cartão como valor declarado do frete.
   // Usa exatamente a mesma base enviada pela tela de detalhes do produto.
   const subtotal = computeShippingDeclaredTotal();
-  const normalizedDeliveryAddress = addressObj ? normalizeAddress(addressObj) : null;
   const payload = {
     cepDestino: cleanCep,
     destinationCep: cleanCep,
     cep: cleanCep,
-    cidade: normalizedDeliveryAddress?.city || '',
-    city: normalizedDeliveryAddress?.city || '',
-    uf: normalizedDeliveryAddress?.state || '',
-    state: normalizedDeliveryAddress?.state || '',
-    areaType: normalizedDeliveryAddress?.areaType || '',
-    isRural: normalizedDeliveryAddress?.areaType ? normalizedDeliveryAddress.isRural === true : undefined,
-    shippingAddress: normalizedDeliveryAddress ? {
-      cep: cleanCep,
-      logradouro: normalizedDeliveryAddress.street || '',
-      numero: normalizedDeliveryAddress.number || '',
-      complemento: normalizedDeliveryAddress.complement || '',
-      bairro: normalizedDeliveryAddress.neighborhood || '',
-      cidade: normalizedDeliveryAddress.city || '',
-      uf: normalizedDeliveryAddress.state || '',
-      areaType: normalizedDeliveryAddress.areaType || '',
-      isRural: normalizedDeliveryAddress.areaType ? normalizedDeliveryAddress.isRural === true : undefined
-    } : undefined,
     subtotal,
     total: subtotal,
     invoiceValue: subtotal,
@@ -993,7 +957,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
   // antes da nova regra de prioridade: Ariana Entrega -> Correios -> Rodocap -> Frenet.
   try { localStorage.removeItem('ariana_selected_shipping'); } catch (_) {}
 
-  return quoteShippingForCep(cep, addrObj);
+  return quoteShippingForCep(cep);
 }
 
     function normalizeCouponCode(value) {
@@ -1035,14 +999,10 @@ async function quoteShippingForSelectedAddress(addrObj) {
         storeCouponResult(null);
         return { code: '', valid: false, value: 0, message: '' };
       }
-      const checkedMethod = document.querySelector('input[name="pay"]:checked')?.value;
-      const paymentMethod = String(selectedPayCode || checkedMethod || 'pix').toLowerCase();
       const payload = {
         code: cleanCode,
         subtotal: Number(baseValue || 0),
         total: Number(baseValue || 0),
-        shippingCost: Number(shippingQuote?.effectivePrice ?? shippingQuote?.price ?? 0) || 0,
-        paymentMethod,
         items: cart.map((item) => ({
           productId: item.id || item.productId || item._id || '',
           sellerId: item.sellerId || '',
@@ -1054,7 +1014,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
       try {
         const res = await fetch(`${String(API_BASE).replace(/\/+$/, '')}/coupons/validate`, {
           method: 'POST',
-          headers: { ...getAuthHeaders(), Accept: 'application/json' },
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
           body: JSON.stringify(payload)
         });
         const data = await res.json().catch(() => ({}));
@@ -1127,9 +1087,8 @@ async function quoteShippingForSelectedAddress(addrObj) {
 
       // O desconto do meio de pagamento é a diferença exata entre o preço cheio e o preço-base.
       const paymentDiscountValue = isDiscountMethod ? Math.max(0, fullProducts - baseProducts) : 0;
-      const couponBase = products;
       const subtotalBeforeCoupon = products + shippingFinal;
-      const coupon = getAppliedCoupon(couponBase);
+      const coupon = getAppliedCoupon(subtotalBeforeCoupon);
       const grand = Math.max(0, subtotalBeforeCoupon - coupon.value);
       const discountValue = paymentDiscountValue + coupon.value;
       const discountPercent = isDiscountMethod ? getDiscountPercentFor(method) : 0;
@@ -1183,8 +1142,6 @@ async function quoteShippingForSelectedAddress(addrObj) {
         paymentDiscountValue,
         couponCode: coupon.code || '',
         couponDiscount: coupon.value || 0,
-        couponBase,
-        subtotalBeforeCoupon,
         grandTotal: grand,
         paymentMethod: method
       };
@@ -1344,16 +1301,11 @@ async function quoteShippingForSelectedAddress(addrObj) {
   });
   if (!res.ok) {
     let msg = "Erro ao salvar";
-    let data = null;
     try {
-      data = await res.json();
-      msg = data?.error || data?.message || msg;
+      const j = await res.json();
+      msg = j?.error || j?.message || msg;
     } catch (_) {}
-    const error = new Error(msg);
-    error.status = res.status;
-    error.code = data?.code || "";
-    error.data = data;
-    throw error;
+    throw new Error(msg);
   }
   return res.json();
 }
@@ -1447,11 +1399,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
         addr = addressesCache.find((a) => !!(a.isDefault || a.default || a.isPrimary || a.primary || a.principal || a.main)) || addressesCache[0];
       }
       const el = document.querySelector(`.addr-card[data-addr-id="${String(addr?.id || addr?._id || '')}"]`);
-      if (el && addr) {
-        const normalized = normalizeAddress(addr);
-        const needsUpdate = isGuanhaesAddress(normalized) && !['urban','rural'].includes(normalized.areaType);
-        if (!needsUpdate) setAddr(el, String(addr.id || addr._id || ''));
-      }
+      if (el && addr) setAddr(el, String(addr.id || addr._id || ''));
     }
 
     function renderAddressSelect() {
@@ -1474,7 +1422,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
         const pill = (tag || (isPrimary ? "Endereço principal" : "")).trim();
 
         return `
-          <div class="addr-card ${isGuanhaesAddress(n) && !['urban','rural'].includes(n.areaType) ? 'opacity-70' : ''}" data-addr-id="${a.id}" data-needs-area="${isGuanhaesAddress(n) && !['urban','rural'].includes(n.areaType) ? '1' : '0'}">
+          <div class="addr-card" data-addr-id="${a.id}">
             <div class="flex items-start gap-4">
               <div class="mt-1 w-5 h-5 rounded-full border-2 border-gray-300 flex items-center justify-center shrink-0">
                 <span class="w-2.5 h-2.5 rounded-full bg-transparent dot"></span>
@@ -1487,9 +1435,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
                 </div>
                 <p class="mt-2 font-bold text-gray-900">${line1 || "—"}</p>
                 <p class="text-sm text-gray-500">${line2 || "—"}</p>
-                ${isGuanhaesAddress(n) && !['urban','rural'].includes(n.areaType)
-                  ? '<p class="text-xs text-amber-700 font-semibold mt-2">Atualize este endereço em Minha Conta antes de usar.</p>'
-                  : '<p class="text-xs text-gray-400 mt-2">Clique para selecionar</p>'}
+                <p class="text-xs text-gray-400 mt-2">Clique para selecionar</p>
               </div>
 
               <div class="check-icon text-gray-200">
@@ -1499,12 +1445,6 @@ async function quoteShippingForSelectedAddress(addrObj) {
           </div>
         `;
       }).join("");
-    }
-
-    function isGuanhaesAddress(addr = {}) {
-      const n = normalizeAddress(addr);
-      const city = String(n.city || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
-      return city === 'GUANHAES' || n.cep === '39740000';
     }
 
     async function setAddr(el, addrId) {
@@ -1751,11 +1691,6 @@ async function quoteShippingForSelectedAddress(addrObj) {
         alert("Carrinho vazio.");
         return;
       }
-      if (!shippingQuote) {
-        alert("Não foi possível calcular o frete deste endereço. Confira o endereço e tente novamente.");
-        goToStep(1);
-        return;
-      }
 
       const authUser = user;
       if (!authUser) {
@@ -1791,13 +1726,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
         selectedPayCode = paySelected;
         selectedPay = paySelected === 'pix' ? 'Pix' : (paySelected === 'boleto' ? 'Boleto' : (paySelected === 'crediario_ariana' ? 'Crediário Ariana' : 'Cartão de Crédito'));
         updatePayMethodClasses();
-
-        let totalsComputed = updateTotalsUI();
-        const activeCouponCode = normalizeCouponCode(localStorage.getItem('ariana_applied_coupon') || '');
-        if (activeCouponCode) {
-          await validateCouponRemote(activeCouponCode, totalsComputed.couponBase ?? totalsComputed.products ?? 0);
-          totalsComputed = updateTotalsUI();
-        }
+        const totalsComputed = updateTotalsUI();
 
         const desc = totalsComputed.discountPercent || getDiscountPercentFor(paySelected);
         let valorFinal = totalsComputed.grandTotal;
@@ -1806,7 +1735,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
           // Antes da análise, o cliente vê somente o valor da compra.
           // As condições (quantidade de parcelas, divisor, total financiado e vencimentos)
           // são definidas pela Ariana Móveis somente depois da aprovação.
-          const creditBase = Number(totalsComputed.grandTotal || 0);
+          const creditBase = Number(totalsComputed.grandTotalOriginal || totalsComputed.grandTotal || 0);
           const creditBaseCents = Math.round(Math.max(0, creditBase) * 100);
           crediarioSimulation = {
             baseAmount: creditBaseCents / 100,
@@ -1840,13 +1769,10 @@ async function quoteShippingForSelectedAddress(addrObj) {
           return;
         }
 
-        const shippingIdentity = `${shippingQuote?.provider || ''} ${shippingQuote?.service || ''} ${shippingQuote?.name || ''}`.toLowerCase();
-        const isArianaLogistics = shippingIdentity.includes('ariana');
-        const isArianaManagedShipping = isArianaLogistics || shippingIdentity.includes('correios');
         const shippingToSave = shippingQuote ? {
-          provider: String(shippingQuote.provider || "shipping"),
-          responsibility: isArianaManagedShipping ? "ariana" : "seller",
-          usesArianaLogistics: isArianaLogistics,
+          provider: String(shippingQuote.provider || "correios"),
+          responsibility: String((shippingQuote.provider || '').toLowerCase()).includes('correios') ? "ariana" : "seller",
+          usesArianaLogistics: String(shippingQuote.provider || '').toLowerCase().includes('correios'),
           cepOrigem: String(settingsShipping?.originCep || ""),
           cepDestino: shippingQuote.cepDestino,
           service: shippingQuote.service,
@@ -1981,19 +1907,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
         window.location.href = `pagamento.html?orderId=${encodeURIComponent(orderId)}&method=${encodeURIComponent(selectedPayCode || 'pix')}`;
       } catch (e) {
         console.error(e);
-        if (e?.code === "CHECKOUT_PRICING_CHANGED") {
-          try {
-            const pricing = e?.data?.pricing || {};
-            if (shippingQuote && Number.isFinite(Number(pricing.shipping))) {
-              shippingQuote.price = Number(pricing.shipping);
-              shippingQuote.effectivePrice = Number(pricing.shipping);
-            }
-            updateTotalsUI();
-          } catch (_) {}
-          alert(e?.message || "Os valores foram atualizados. Confira o total e tente novamente.");
-        } else {
-          alert(e?.message || "Erro ao finalizar pedido.");
-        }
+        alert(e?.message || "Erro ao finalizar pedido.");
       } finally {
         setLoadingButton(btn, false);
       }
@@ -2005,10 +1919,6 @@ async function quoteShippingForSelectedAddress(addrObj) {
         if (!card) return;
         const id = card.getAttribute('data-addr-id');
         if (!id) return;
-        if (card.getAttribute('data-needs-area') === '1') {
-          window.location.href = 'minha_conta.html?tab=address&from=checkout';
-          return;
-        }
         await setAddr(card, id);
       });
 
@@ -2025,7 +1935,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
         const msg = document.getElementById('coupon-message');
         if (msg) { msg.textContent = code ? 'Validando cupom...' : 'Cupom removido.'; msg.className = 'text-xs mt-2 text-gray-500'; }
         const preview = updateTotalsUI();
-        await validateCouponRemote(code, preview?.couponBase ?? preview?.products ?? computeCartTotal());
+        await validateCouponRemote(code, preview?.grandTotalOriginal || computeCartTotal());
         updateTotalsUI();
       });
 
@@ -2060,21 +1970,11 @@ async function quoteShippingForSelectedAddress(addrObj) {
       const ok = await bootAuthAndProfile();
       if (!ok) return;
 
-      // Mostra imediatamente o carrinho salvo no dispositivo.
+      await loadSettings();
+      await loadAddresses();
+      await hydrateCheckoutProductImages();
       renderCart();
-
-      // Configurações e endereços são independentes e podem carregar em paralelo.
-      await Promise.allSettled([
-        loadSettings(),
-        loadAddresses()
-      ]);
-
       await applyPaymentSettingsUI();
-
-      // Imagens ausentes são enriquecidas em segundo plano e não bloqueiam a tela.
-      hydrateCheckoutProductImages()
-        .then(() => renderCart())
-        .catch(() => null);
 
       console.log("Tela carregada com API ativa.");
     })();

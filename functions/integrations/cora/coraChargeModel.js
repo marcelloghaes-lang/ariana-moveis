@@ -4,8 +4,6 @@ export function getCoraChargeModel(mongoose) {
 
   const schema = new mongoose.Schema({
     orderId: { type: String, default: '', index: true },
-    purchaseKey: { type: String, default: '', index: true },
-    targetId: { type: String, default: '', index: true },
     source: { type: String, default: 'DIRECT', index: true },
     internalReference: { type: String, default: '', index: true },
     code: { type: String, required: true, index: true },
@@ -32,8 +30,6 @@ export function getCoraChargeModel(mongoose) {
   }, { timestamps: true, minimize: false, collection: 'cora_charges' });
 
   schema.index({ orderId: 1, kind: 1, status: 1 });
-  schema.index({ purchaseKey: 1, kind: 1, status: 1 });
-  schema.index({ targetId: 1, kind: 1, status: 1 });
   schema.index({ internalReference: 1, kind: 1, status: 1 });
   return mongoose.model('CoraCharge', schema);
 }

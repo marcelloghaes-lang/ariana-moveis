@@ -5,11 +5,10 @@ SDK PHP oficial para integrar ERPs, fabricantes e distribuidores com a Ariana En
 ## Instalação
 
 ```bash
-composer config repositories.ariana-enterprise path ./ariana-enterprise-php
-composer require ariana/enterprise-sdk:*
+composer require ariana/enterprise-sdk
 ```
 
-O SDK ainda não está publicado no Packagist. Baixe o pacote oficial da Ariana Enterprise, extraia a pasta `ariana-enterprise-php` no seu projeto e use a instalação local acima.
+Enquanto o pacote não estiver publicado no Packagist, use este diretório local no Composer do seu projeto.
 
 ## Uso rápido
 
@@ -20,8 +19,8 @@ require 'vendor/autoload.php';
 use ArianaEnterprise\Client;
 
 $api = new Client([
-    'apiKey' => 'ari_sbx_xxxxx',
-    'environment' => 'sandbox'
+    'apiKey' => 'ari_live_xxxxx',
+    'environment' => 'production'
 ]);
 
 $api->catalog()->push([

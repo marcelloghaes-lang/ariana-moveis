@@ -1,6 +1,7 @@
 // ============================================================
 // ENTERPRISE SHARED - ORDER
 // Funções compartilhadas de pedidos/produtos Enterprise.
+// Extraído de routes/enterpriseRoutes.js sem alterar regras ou respostas.
 // ============================================================
 
 export function createEnterpriseOrder(context = {}) {
@@ -12,74 +13,56 @@ export function createEnterpriseOrder(context = {}) {
     normalizeObjectId,
     Order,
     Product,
-    EnterpriseSandboxOrder,
-    EnterpriseSandboxProduct,
     normalizeProductForResponse
   } = context;
 
-  function enterpriseEnvironment(partner = {}) {
-    return String(partner?.environment || 'sandbox').trim().toLowerCase();
-  }
-
-  function enterpriseOrderModelForPartner(partner = {}) {
-    return enterpriseEnvironment(partner) === 'sandbox' && EnterpriseSandboxOrder
-      ? EnterpriseSandboxOrder
-      : Order;
-  }
-
-  function enterpriseProductModelForPartner(partner = {}) {
-    return enterpriseEnvironment(partner) === 'sandbox' && EnterpriseSandboxProduct
-      ? EnterpriseSandboxProduct
-      : Product;
-  }
-
-  function enterpriseProductModelForEnvironment(environment = 'sandbox') {
-    return String(environment || 'sandbox').trim().toLowerCase() === 'sandbox' && EnterpriseSandboxProduct
-      ? EnterpriseSandboxProduct
-      : Product;
-  }
-
-  async function enterpriseCompatFindOrder(orderId = '', partner = {}) {
+  async function enterpriseCompatFindOrder(orderId = '') {
     const id = String(orderId || '').trim();
     if (!id) return null;
 
-    const identity = [
-      { 'manufacturerDispatch.externalOrderId': id },
-      { 'manufacturerDispatch.orderId': id },
-      { 'manufacturerDispatch.enterpriseOrderId': id },
-      { status_integracao: id },
-      { trackingCode: id }
-    ];
     const oid = normalizeObjectId(id);
-    if (oid) identity.unshift({ _id: oid });
+    if (oid) {
+      const byId = await Order.findById(oid);
+      if (byId) return byId;
+    }
 
-    const OrderModel = enterpriseOrderModelForPartner(partner);
-    const partnerIds = enterprisePartnerProductScope(partner);
-    if (!partnerIds.length) return OrderModel.findOne({ $or: identity });
-
-    return OrderModel.findOne({
-      $and: [
-        { $or: identity },
-        {
-          $or: [
-            { manufacturer: { $in: partnerIds } },
-            { sellerIds: { $in: partnerIds } },
-            { 'items.sellerId': { $in: partnerIds } },
-            { 'manufacturerDispatch.payload.manufacturer': { $in: partnerIds } }
-          ]
-        }
+    return Order.findOne({
+      $or: [
+        { 'manufacturerDispatch.externalOrderId': id },
+        { 'manufacturerDispatch.orderId': id },
+        { 'manufacturerDispatch.enterpriseOrderId': id },
+        { status_integracao: id },
+        { trackingCode: id }
       ]
     });
   }
 
-  // Toda autenticação de operação passa pelo autenticador unificado.
-  // Ele distingue API Key (x-ariana-key) de Bearer JWT do Portal/OAuth.
   async function enterpriseOrderOperationAuth(req, res, next) {
     const apiKey = getEnterpriseCompatKey(req);
-    const auth = String(req.headers.authorization || '').trim();
-    const hasBearer = auth.toLowerCase().startsWith('bearer ');
-    if (!apiKey && !hasBearer) return res.status(401).json({ ok: false, error: 'Credencial Enterprise ausente' });
-    return enterpriseCompatAuth(req, res, next);
+    if (apiKey) return enterpriseCompatAuth(req, res, next);
+
+    const header = String(req.headers.authorization || '').trim();
+    const token = header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : '';
+    if (!token) return res.status(401).json({ ok: false, error: 'Token ausente' });
+
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      if (!decoded || decoded.role !== 'enterprise_partner') {
+        return res.status(403).json({ ok: false, error: 'Token Enterprise inválido' });
+      }
+      req.enterprisePortal = decoded;
+      req.enterprisePartner = {
+        id: decoded.partnerId || '',
+        requestId: decoded.requestId || '',
+        companyName: decoded.companyName || '',
+        tradeName: decoded.tradeName || '',
+        environment: decoded.environment || 'sandbox',
+        permissions: Array.isArray(decoded.permissions) ? decoded.permissions : []
+      };
+      return next();
+    } catch (_error) {
+      return res.status(401).json({ ok: false, error: 'Token Enterprise expirado ou inválido' });
+    }
   }
 
   function enterprisePartnerProductScope(partner = {}) {
@@ -137,11 +120,11 @@ export function createEnterpriseOrder(context = {}) {
         }
       : { $or: or };
 
-    const ProductModel = enterpriseProductModelForPartner(partner);
-    let product = await ProductModel.findOne(scoped);
+    let product = await Product.findOne(scoped);
     if (product) return product;
-    if (sellerIds.length) return null;
-    return ProductModel.findOne({ sku: cleanSku });
+
+    // Compatibilidade com produtos antigos que foram criados sem escopo correto.
+    return Product.findOne({ sku: cleanSku });
   }
 
   function enterpriseProductResponse(productDoc = {}) {
@@ -166,9 +149,6 @@ export function createEnterpriseOrder(context = {}) {
     enterpriseRequirePermission,
     enterpriseProductSkuFromBody,
     enterpriseFindProductBySkuForPartner,
-    enterpriseProductResponse,
-    enterpriseOrderModelForPartner,
-    enterpriseProductModelForPartner,
-    enterpriseProductModelForEnvironment
+    enterpriseProductResponse
   };
 }

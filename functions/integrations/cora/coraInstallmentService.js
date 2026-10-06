@@ -16,18 +16,6 @@ function toCents(value) {
   return Math.round((number + Number.EPSILON) * 100);
 }
 
-function moneyToCents(value) {
-  const number = Number(value);
-  if (!Number.isFinite(number) || number <= 0) return 0;
-  return Math.round((number + Number.EPSILON) * 100);
-}
-
-function normalizeExplicitCents(value) {
-  const number = Number(value);
-  if (!Number.isFinite(number) || number <= 0) return 0;
-  return Math.round(number);
-}
-
 function isoDate(value) {
   const raw = clean(value, 20);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return '';
@@ -56,14 +44,14 @@ function normalizeDocument(document = '') {
 
 function normalizeAddress(input = {}) {
   const address = {
-    street: clean(input.street || input.logradouro || input.addressLine || input.address_line, 120),
-    number: clean(input.number || input.numero || input.addressNumber || input.address_number || 'S/N', 20),
-    district: clean(input.district || input.neighborhood || input.bairro, 80),
-    city: clean(input.city || input.cidade || input.municipio || input.municipality, 80),
-    state: clean(input.state || input.stateCode || input.state_code || input.uf, 2).toUpperCase(),
+    street: clean(input.street || input.logradouro, 120),
+    number: clean(input.number || input.numero || 'S/N', 20),
+    district: clean(input.district || input.bairro, 80),
+    city: clean(input.city || input.cidade, 80),
+    state: clean(input.state || input.uf, 2).toUpperCase(),
     complement: clean(input.complement || input.complemento || '', 80),
     country: clean(input.country || input.pais || 'BR', 2).toUpperCase(),
-    zip_code: digits(input.zip_code || input.zipCode || input.postalCode || input.postal_code || input.cep).slice(0, 8)
+    zip_code: digits(input.zip_code || input.zipCode || input.cep).slice(0, 8)
   };
 
   const missing = Object.entries(address)
@@ -148,10 +136,7 @@ export function buildCoraInstallmentPayload(input = {}) {
     throw error;
   }
 
-  const explicitTotalCents = input.totalAmountCents ?? input.amountCents ?? input.totalCents;
-  const totalAmount = explicitTotalCents !== undefined && explicitTotalCents !== null && explicitTotalCents !== ''
-    ? normalizeExplicitCents(explicitTotalCents)
-    : moneyToCents(input.totalAmount ?? input.amount ?? input.total);
+  const totalAmount = toCents(input.totalAmount ?? input.amount ?? input.total);
   if (totalAmount < 500 * installments) {
     const error = new Error('O valor total é inválido ou resulta em parcela inferior a R$ 5,00.');
     error.code = 'CORA_INVALID_AMOUNT';
@@ -213,31 +198,6 @@ export function buildCoraInstallmentPayload(input = {}) {
 export async function issueCoraInstallmentBook(input = {}, { idempotencyKey, onTrace } = {}) {
   const payload = buildCoraInstallmentPayload(input);
   const key = String(idempotencyKey || crypto.randomUUID());
-  const response = await coraRequest({
-    method: 'POST',
-    path: '/v2/invoices/installments',
-    data: payload,
-    idempotencyKey: key,
-    timeoutMs: Math.max(60000, Number(process.env.CORA_INSTALLMENTS_TIMEOUT_MS || 90000)),
-    onTrace
-  });
-  return { idempotencyKey: key, payload, response: response.data };
-}
-
-export async function retryCoraInstallmentBookPayload(payload = {}, { idempotencyKey, onTrace } = {}) {
-  const key = String(idempotencyKey || '').trim();
-  if (!key) {
-    const error = new Error('A cobrança pendente não possui a chave de idempotência original.');
-    error.code = 'CORA_IDEMPOTENCY_KEY_REQUIRED';
-    error.statusCode = 409;
-    throw error;
-  }
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !payload.code || !payload.installment) {
-    const error = new Error('A cobrança pendente não possui o payload original necessário para reconciliação.');
-    error.code = 'CORA_ORIGINAL_PAYLOAD_REQUIRED';
-    error.statusCode = 409;
-    throw error;
-  }
   const response = await coraRequest({
     method: 'POST',
     path: '/v2/invoices/installments',

@@ -24,7 +24,6 @@ let knownNotificationIds = new Set();
 let editingProductId = null;
 let productImagesCache = [];
 let pollers = [];
-let adminPublicThumbnailPromise = null;
 
 function escHtml(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 
@@ -276,40 +275,6 @@ function resolveAdminImageUrl(value){
   if(raw.startsWith('/')) return `${API_ORIGIN}${raw}`;
   return `${API_ORIGIN}/${raw.replace(/^\.?\//,'')}`;
 }
-function cloudinaryAdminThumbnailUrl(value){
-  const resolved=resolveAdminImageUrl(value);
-  if(resolved===PRODUCT_IMAGE_FALLBACK||!/^https?:\/\/res\.cloudinary\.com\//i.test(resolved)) return resolved;
-  if(!/\/image\/upload\//i.test(resolved)) return resolved;
-  return resolved.replace(/\/image\/upload\//i,'/image/upload/f_auto,q_auto,c_fill,w_112,h_112/');
-}
-function productImageCandidates(product={}){
-  const values=[
-    product.adminListImageUrl,
-    product.mainImageUrl,
-    product.imageUrl,
-    product.image,
-    product.imagem,
-    ...(Array.isArray(product.images)?product.images.map((img)=>typeof img==='string'?img:(img?.url||img?.imageUrl||img?.secure_url||img?.secureUrl||'')):[]),
-    ...(Array.isArray(product.imageUrls)?product.imageUrls:[])
-  ];
-  return Array.from(new Set(values.map((value)=>String(value||'').trim()).filter(Boolean)));
-}
-function adminProductThumbnail(product={}){
-  const candidates=productImageCandidates(product);
-  const original=candidates.find((value)=>/^https?:\/\//i.test(value))||candidates[0]||'';
-  const originalUrl=resolveAdminImageUrl(original);
-  return { src:cloudinaryAdminThumbnailUrl(originalUrl), original:originalUrl };
-}
-window.handleAdminProductThumbnailError=function(img){
-  const original=String(img?.dataset?.originalSrc||'').trim();
-  if(original&&original!==PRODUCT_IMAGE_FALLBACK&&img.src!==original){
-    img.dataset.originalSrc='';
-    img.src=original;
-    return;
-  }
-  img.onerror=null;
-  img.src=PRODUCT_IMAGE_FALLBACK;
-};
 function normalizeImageEntry(img){
   if(!img) return null;
   if(typeof img==='string'){const v=String(img).trim(); if(!v) return null; return {url:v,path:v,name:v.split('/').pop(),isMain:false};}
@@ -473,10 +438,7 @@ async function bootAuthed(targetView='dashboard'){
     localStorage.setItem('admin_permissions', JSON.stringify(me.permissions || []));
     applyAdminPermissionsToUI();
   }
-  // Boot rapido: nao bloqueie a abertura do painel carregando 500 produtos,
-  // 500 pedidos, usuarios e configuracoes que a tela inicial ainda nao precisa.
-  // Cada view ja carrega seus proprios dados quando aberta.
-  await loadNotifications().catch(()=>{});
+  await Promise.allSettled([loadCategories(), loadProducts(), loadOrders(), loadUsers(), loadNotifications(), loadTelefones()]);
   await window.changeView(targetView || currentView || 'dashboard', true);
   startPoller(async()=>{ if(currentView==='dashboard') await renderDashboardView(); await loadNotifications(); }, 20000);
 }
@@ -856,39 +818,9 @@ window.salvarConfigTelefones = async function(){
 async function loadTelefones(){ const data=await readSetting('contact',{}); document.getElementById('cfg-0800').value=data.tel0800||''; document.getElementById('cfg-4004').value=data.tel4004||''; }
 
 async function loadProducts(){
-  if(!adminPublicThumbnailPromise){
-    adminPublicThumbnailPromise=apiRequest('/products?limit=500')
-      .then((payload)=>Array.isArray(payload)?payload:(payload?.items||payload?.products||[]))
-      .catch((error)=>{adminPublicThumbnailPromise=null;console.warn('[admin/products] Falha ao preparar miniaturas públicas:',error?.message||error);return [];});
-  }
-  const publicThumbnailPromise=adminPublicThumbnailPromise;
-  const data = await apiRequest('/admin/products?sortBy=updatedAt&sortDir=desc&limit=500&storefrontOnly=true',{headers:buildHeadersAuth()});
+  const data = await apiRequest('/admin/products?sortBy=updatedAt&sortDir=desc&limit=500',{headers:buildHeadersAuth()});
   const rows = Array.isArray(data)?data:(data.items||data.docs||data.results||[]);
   allProductsCache = rows.map(normalizeProduct);
-
-  // A listagem pública já entrega uma miniatura externa compacta por produto.
-  // Use-a como fonte de recuperação quando documentos antigos do admin possuem
-  // imagens inline pesadas, caminhos legados ou campos de mídia incompletos.
-  try{
-    const publicProducts=await publicThumbnailPromise;
-    const byId=new Map();
-    const bySku=new Map();
-    publicProducts.forEach((item)=>{
-      const id=String(item?.id||item?._id||'').trim();
-      const sku=String(item?.sku||'').trim().toLowerCase();
-      if(id) byId.set(id,item);
-      if(sku) bySku.set(sku,item);
-    });
-    allProductsCache=allProductsCache.map((product)=>{
-      const id=String(product.id||product._id||'').trim();
-      const sku=String(product.sku||'').trim().toLowerCase();
-      const publicProduct=byId.get(id)||(sku?bySku.get(sku):null);
-      const recovered=publicProduct&&(publicProduct.mainImageUrl||publicProduct.imageUrl||publicProduct.image||'');
-      return recovered?{...product,adminListImageUrl:recovered}:product;
-    });
-  }catch(error){
-    console.warn('[admin/products] Não foi possível carregar miniaturas públicas:',error?.message||error);
-  }
 }
 
 function productExportRows(products = []) {
@@ -1703,9 +1635,7 @@ async function renderEnterpriseView(){
 }
 
 async function renderDashboardView(){
-  // Produtos e pedidos podem ser grandes. Carregue em paralelo apenas quando o
-  // dashboard realmente precisa deles; notificacoes ja possuem poller proprio.
-  await Promise.allSettled([loadProducts(),loadOrders()]);
+  await Promise.allSettled([loadProducts(),loadOrders(),loadNotifications()]);
   const revenue=allOrdersCache.reduce((s,o)=>s+Number(o.total||o.totalAmount||0),0);
   const pending=allOrdersCache.filter(o=>String(o.status||'').toLowerCase().includes('pend')).length;
   document.getElementById('dashboard-content').innerHTML=`
@@ -1728,71 +1658,18 @@ function productFlagsMarkup(p={}){ return `
   <label class="inline-flex items-center gap-2"><input type="checkbox" id="product-isBestSeller" ${p.isBestSeller?'checked':''}><span>Mais vendido</span></label>
   <label class="inline-flex items-center gap-2"><input type="checkbox" id="product-isNewArrival" ${p.isNewArrival?'checked':''}><span>Lançamento</span></label>
   <label class="inline-flex items-center gap-2"><input type="checkbox" id="product-isRecommended" ${p.isRecommended?'checked':''}><span>Recomendado</span></label>`; }
-function storefrontProductMeta(p={}){
-  const status=String(p.storefrontStatus||'').trim().toLowerCase();
-  if(status==='pending_review'){
-    return {pending:true,label:'Aguardando aprovação',badge:'bg-yellow-100 text-yellow-800'};
-  }
-  if(status==='approved'||status==='published'){
-    return {pending:false,label:'Publicado',badge:'bg-green-100 text-green-800'};
-  }
-  return {pending:false,label:'Publicado',badge:'bg-blue-50 text-primary-blue'};
-}
-function renderPendingStorefrontQueue(){
-  const pending=allProductsCache.filter(p=>String(p.storefrontStatus||'').trim().toLowerCase()==='pending_review');
-  if(!pending.length) return '';
-  return `
-    <div class="mb-6 bg-yellow-50 border border-yellow-200 rounded-2xl p-5 shadow-sm">
-      <div class="flex items-start justify-between gap-3 flex-wrap mb-4">
-        <div><h2 class="text-xl font-black text-yellow-900">Produtos aguardando aprovação para o site</h2><p class="text-sm text-yellow-800 mt-1">Vieram do Ariana ERP e continuam fora da vitrine até você revisar, completar e publicar.</p></div>
-        <span class="px-3 py-1 rounded-full bg-yellow-200 text-yellow-900 text-sm font-black">${pending.length} pendente${pending.length===1?'':'s'}</span>
-      </div>
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        ${pending.map(p=>`
-          <div class="bg-white border border-yellow-200 rounded-xl p-4 flex items-center justify-between gap-4">
-            <div class="min-w-0">
-              <div class="font-black text-gray-900 break-words">${escHtml(p.name||'Produto sem nome')}</div>
-              <div class="text-xs text-gray-500 mt-1">SKU: ${escHtml(p.sku||'—')} · Preço ERP: ${formatCurrency(p.price||0)} · Estoque: ${Number(p.stock||0)}</div>
-            </div>
-            <div class="flex gap-2 flex-shrink-0">
-              <button class="px-3 py-2 rounded-lg bg-primary-blue text-white text-xs font-bold" onclick="window.editProduct('${escHtml(p.id||p._id)}')">Editar antes de publicar</button>
-              ${hasAdminPerm('products:update')?`<button class="px-3 py-2 rounded-lg bg-success-green text-white text-xs font-bold" onclick="window.publishProductToStorefront('${escHtml(p.id||p._id)}')">Publicar no site</button>`:''}
-            </div>
-          </div>`).join('')}
-      </div>
-    </div>`;
-}
-window.publishProductToStorefront=async function(id){
-  if(!hasAdminPerm('products:update')){ displayMessage('Você não tem permissão para publicar produtos.','error'); return; }
-  if(!confirm('Publicar este produto na vitrine do site agora?')) return;
-  try{
-    await apiRequest(`/admin/products/${encodeURIComponent(id)}/storefront`,{
-      method:'PATCH',
-      headers:buildHeadersAuth(),
-      body:JSON.stringify({status:'approved'})
-    });
-    await loadProducts();
-    await renderProductsView();
-    displayMessage('Produto aprovado e publicado na vitrine do site.','success');
-  }catch(e){
-    displayMessage(e.message||'Não foi possível publicar o produto.','error');
-  }
-};
 function renderProductsTable(){
   return allProductsCache.map(p=>{
     const category=String(p.categoryName||p.category||p.categoria||'Sem categoria');
     const stockClass=Number(p.stock||0)>0?'bg-success-green/20 text-success-green':'bg-error-red/20 text-error-red';
-    const thumbnail=adminProductThumbnail(p);
-    const storefront=storefrontProductMeta(p);
     return `<tr class="align-middle hover:bg-gray-50 transition-colors border-t">
-      <td class="px-4 py-4 min-w-[320px]"><div class="flex items-center gap-3"><div class="flex-shrink-0 h-14 w-14 rounded-lg overflow-hidden border border-gray-200 bg-gray-50"><img class="h-full w-full object-cover" src="${escHtml(thumbnail.src)}" data-original-src="${escHtml(thumbnail.original)}" alt="Imagem do Produto" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="window.handleAdminProductThumbnailError(this)"></div><div class="min-w-0 flex-1"><div class="text-sm font-semibold text-gray-900 leading-5 break-words">${escHtml(p.name||'Produto sem nome')}</div><div class="text-xs text-gray-500 mt-1 break-words">${escHtml(category)}</div></div></div></td>
+      <td class="px-4 py-4 min-w-[320px]"><div class="flex items-center gap-3"><div class="flex-shrink-0 h-14 w-14 rounded-lg overflow-hidden border border-gray-200 bg-gray-50"><img class="h-full w-full object-cover" src="${resolveAdminImageUrl(p.mainImageUrl||p.imageUrl||p.image)}" alt="Imagem do Produto" onerror="this.onerror=null;this.src='${PRODUCT_IMAGE_FALLBACK}'"></div><div class="min-w-0 flex-1"><div class="text-sm font-semibold text-gray-900 leading-5 break-words">${escHtml(p.name||'Produto sem nome')}</div><div class="text-xs text-gray-500 mt-1 break-words">${escHtml(category)}</div></div></div></td>
       <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${formatCurrency(p.price||0)}</td>
       <td class="px-4 py-4 whitespace-nowrap"><span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${stockClass}">${Number(p.stock||0)} em estoque</span></td>
-      <td class="px-4 py-4 whitespace-nowrap"><span class="px-2 py-1 inline-flex text-xs leading-5 font-bold rounded-full ${storefront.badge}">${storefront.label}</span></td>
       <td class="px-4 py-4 text-sm text-gray-500">${p.isHighlight?'<span class="px-2 py-1 rounded-full bg-primary-blue/10 text-primary-blue text-xs font-semibold">Destaque</span>':''}</td>
-      <td class="px-4 py-4 whitespace-nowrap text-sm font-medium"><div class="flex items-center gap-2"><button class="px-3 py-1.5 rounded-md bg-primary-blue text-white text-xs font-semibold" onclick="window.editProduct('${escHtml(p.id)}')">Editar</button>${storefront.pending&&hasAdminPerm('products:update')?`<button class="px-3 py-1.5 rounded-md bg-success-green text-white text-xs font-semibold" onclick="window.publishProductToStorefront('${escHtml(p.id)}')">Publicar</button>`:''}${hasAdminPerm('posters:generate') ? `<button class="px-3 py-1.5 rounded-md bg-success-green text-white text-xs font-semibold" onclick="window.generateProductPoster('${escHtml(p.id)}','square')">Poster</button><button class="px-3 py-1.5 rounded-md bg-secondary-light-blue text-white text-xs font-semibold" onclick="window.generateProductPoster('${escHtml(p.id)}','story')">Story</button>` : ''}${hasAdminPerm('products:delete') ? `<button class="px-3 py-1.5 rounded-md bg-error-red text-white text-xs font-semibold" onclick="window.deleteProduct('${escHtml(p.id)}')">Excluir</button>` : ''}</div></td>
+      <td class="px-4 py-4 whitespace-nowrap text-sm font-medium"><div class="flex items-center gap-2"><button class="px-3 py-1.5 rounded-md bg-primary-blue text-white text-xs font-semibold" onclick="window.editProduct('${escHtml(p.id)}')">Editar</button>${hasAdminPerm('posters:generate') ? `<button class="px-3 py-1.5 rounded-md bg-success-green text-white text-xs font-semibold" onclick="window.generateProductPoster('${escHtml(p.id)}','square')">Poster</button><button class="px-3 py-1.5 rounded-md bg-secondary-light-blue text-white text-xs font-semibold" onclick="window.generateProductPoster('${escHtml(p.id)}','story')">Story</button>` : ''}${hasAdminPerm('products:delete') ? `<button class="px-3 py-1.5 rounded-md bg-error-red text-white text-xs font-semibold" onclick="window.deleteProduct('${escHtml(p.id)}')">Excluir</button>` : ''}</div></td>
     </tr>`;
-  }).join('') || '<tr><td colspan="6" class="text-gray-500 py-8 text-center">Nenhum produto cadastrado.</td></tr>';
+  }).join('') || '<tr><td colspan="5" class="text-gray-500 py-8 text-center">Nenhum produto cadastrado.</td></tr>';
 }
 function renderProductImages(){
   const box=document.getElementById('product-images-grid'); if(!box) return;
@@ -1809,41 +1686,8 @@ function resetProductForm(){
   document.getElementById('product-form-title').textContent='Cadastrar / Editar Produto';
   renderProductImages();
 }
-function cleanTechnicalSpecsForEditor(value){
-  if(value===null||value===undefined)return'';
-  if(typeof value==='object'){
-    value=Object.entries(value).map(([k,v])=>`${k}: ${v&&typeof v==='object'?(v.value||v.valor||JSON.stringify(v)):v}`).join('\n');
-  }
-  let text=String(value)
-    .replace(/\\r\\n|\\n|\\r/g,'\n')
-    .replace(/\\text\s*\{([^{}]*)\}/gi,' $1')
-    .replace(/\\mathrm\s*\{([^{}]*)\}/gi,' $1')
-    .replace(/\\(?:,|;|!)/g,' ')
-    .replace(/\\times/gi,' × ')
-    .replace(/\\cdot/gi,' · ')
-    .replace(/\\(?:left|right)/gi,'')
-    .replace(/\$/g,'')
-    .replace(/[{}]/g,'')
-    .replace(/([^\n])(?=(?:Peso(?:\s+(?:do Produto|com Embalagem))?|Comprimento|Altura|Largura|Profundidade|Capacidade|Voltagem|Potência|Potencia|Garantia|Material|Cor|Modelo|Marca|Dimensões|Dimensoes|Consumo|Frequência|Frequencia)\s*:)/gi,'$1\n')
-    .replace(/[ \t]+\n/g,'\n')
-    .replace(/\n[ \t]+/g,'\n')
-    .replace(/[ \t]{2,}/g,' ')
-    .replace(/\n{3,}/g,'\n\n')
-    .trim();
-  return text;
-}
-window.editProduct = async function(id){
-  let p=allProductsCache.find(x=>String(x.id||x._id)===String(id));
-  try{
-    const fresh=await apiRequest(`/admin/products/${encodeURIComponent(id)}`,{headers:buildHeadersAuth()});
-    const normalized=normalizeProduct(fresh);
-    const index=allProductsCache.findIndex(x=>String(x.id||x._id)===String(id));
-    if(index>=0) allProductsCache[index]=normalized;
-    p=normalized;
-  }catch(error){
-    console.warn('[admin/products] Falha ao carregar os dados completos do produto:',error?.message||error);
-  }
-  if(!p){ displayMessage('Não foi possível carregar este produto.','error'); return; }
+window.editProduct = function(id){
+  const p=allProductsCache.find(x=>String(x.id||x._id)===String(id)); if(!p) return;
   editingProductId=String(p.id||p._id); document.getElementById('product-id').value=editingProductId;
   document.getElementById('product-name').value=p.name||''; document.getElementById('product-category').innerHTML=productCategoryOptions(p.categoryName||p.category||'');
   document.getElementById('product-price').value=Number(p.price||0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}); document.getElementById('product-stock').value=Number(p.stock||0); document.getElementById('product-sku').value=p.sku||''; document.getElementById('product-description').value=p.description||''; const specsEl=document.getElementById('product-technical-specs'); 
@@ -1853,7 +1697,7 @@ window.editProduct = async function(id){
       const obj = p.attributes || p.atributos;
       specValue = Object.entries(obj).map(([k,v]) => `${k}: ${v && typeof v === 'object' ? (v.value || v.valor || JSON.stringify(v)) : v}`).join('\n');
     }
-    specsEl.value = cleanTechnicalSpecsForEditor(specValue);
+    specsEl.value = specValue;
   }
   document.getElementById('product-weight').value=p.weight||1; document.getElementById('product-length').value=p.length||20; document.getElementById('product-height').value=p.height||10; document.getElementById('product-width').value=p.width||15;
   ['Offer','Favorite','Highlight','BestSeller','NewArrival','Recommended'].forEach(k=>{const el=document.getElementById(`product-is${k}`); if(el) el.checked=!!p[`is${k}`]});
@@ -2279,12 +2123,9 @@ async function saveProductFromForm(e){
       await renderProductsView();
       window.editProduct(resolvedId);
 
-      const stillPending=String(synced?.storefrontStatus||'').trim().toLowerCase()==='pending_review';
-      const successMessage=stillPending
-        ? 'Produto salvo. Ele continua fora da vitrine até você clicar em Publicar no site.'
-        : (pendingFiles.length
-          ? (wasEditing ? 'Produto e imagens atualizados com sucesso!' : 'Produto e imagens salvos com sucesso!')
-          : (wasEditing ? 'Produto atualizado com sucesso!' : 'Produto salvo com sucesso!'));
+      const successMessage=pendingFiles.length
+        ? (wasEditing ? 'Produto e imagens atualizados com sucesso!' : 'Produto e imagens salvos com sucesso!')
+        : (wasEditing ? 'Produto atualizado com sucesso!' : 'Produto salvo com sucesso!');
       displayMessage(successMessage,'success');
     } finally {
       saveBtn.innerHTML=originalSave;
@@ -2333,21 +2174,9 @@ async function uploadProductImages(options={}){
       productImagesCache=[...productImagesCache,...uploaded];
       if(productImagesCache.length&&!productImagesCache.some(x=>x.isMain)) productImagesCache[0].isMain=true;
       await persistProductImages();
-
-      // IMPORTANTE: /admin/products e uma listagem compacta e nao inclui o array
-      // completo de imagens. Nao sincronize o editor a partir dessa grade, pois
-      // isso apagaria visualmente (e no proximo PATCH, poderia sobrescrever) as
-      // imagens que acabaram de ser salvas. Releia o produto pela rota individual,
-      // que e a fonte completa para edicao.
-      const fresh=await apiRequest(`/admin/products/${encodeURIComponent(productId)}`,{headers:buildHeadersAuth()});
-      const normalizedFresh=normalizeProduct(fresh);
-      const freshIndex=allProductsCache.findIndex(x=>String(x.id||x._id)===productId);
-      if(freshIndex>=0){
-        allProductsCache[freshIndex]={...allProductsCache[freshIndex],...normalizedFresh};
-      }else{
-        allProductsCache.unshift(normalizedFresh);
-      }
-      syncProductStateFromServer(normalizedFresh);
+      await loadProducts();
+      const refreshed=allProductsCache.find(x=>String(x.id||x._id)===productId);
+      if(refreshed) syncProductStateFromServer(refreshed);
       renderProductImages();
       if(input && !options.keepInput) input.value='';
       if(!options.silentSuccess) displayMessage('Imagens carregadas com sucesso!','success');
@@ -2358,12 +2187,10 @@ async function uploadProductImages(options={}){
   }catch(e){displayMessage(`Erro no upload: ${e.message}`,'error'); throw e;}
 }
 async function renderProductsView(){
-  const box=document.getElementById('products-content');
-  box.innerHTML='<div class="bg-white p-6 rounded-xl shadow-sm text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i>Carregando produtos...</div>';
   await Promise.allSettled([loadProducts(), loadCategories()]);
+  const box=document.getElementById('products-content');
   box.innerHTML=`
     ${getAdminRole() !== 'admin' ? '<div class="mb-4 p-4 rounded-xl bg-blue-50 border border-blue-100 text-sm text-blue-900"><b>Acesso limitado:</b> você tem permissão somente nas funções liberadas para produtos/posters.</div>' : ''}
-    ${renderPendingStorefrontQueue()}
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
       <div class="xl:col-span-2 bg-white p-5 rounded-lg shadow-md">
         <div class="flex items-center justify-between mb-4"><h2 id="product-form-title" class="text-2xl font-bold text-text-dark">Cadastrar / Editar Produto</h2><button type="button" id="product-reset-btn" class="px-3 py-2 rounded-md bg-gray-100 text-gray-700 text-sm font-semibold">Limpar</button></div>
@@ -2407,7 +2234,7 @@ async function renderProductsView(){
           </div>
         <div class="flex flex-wrap gap-2"><button type="button" onclick="window.generateAllProductPosters('square')" class="px-3 py-2 rounded-md bg-success-green text-white text-xs font-bold">Gerar posters de todos</button><button type="button" onclick="window.generateAllProductPosters('story')" class="px-3 py-2 rounded-md bg-secondary-light-blue text-white text-xs font-bold">Gerar stories de todos</button><button type="button" onclick="window.changeView('marketing')" class="px-3 py-2 rounded-md bg-primary-blue text-white text-xs font-bold">Banners em rascunho</button></div>
       </div>
-      <div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Produto</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Preço</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Estoque</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Vitrine</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Marcadores</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Ações</th></tr></thead><tbody>${renderProductsTable()}</tbody></table></div>
+      <div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Produto</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Preço</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Estoque</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Marcadores</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Ações</th></tr></thead><tbody>${renderProductsTable()}</tbody></table></div>
     </div>`;
   const productForm=document.getElementById('product-form');
   const productSaveBtn=document.getElementById('product-submit-btn');

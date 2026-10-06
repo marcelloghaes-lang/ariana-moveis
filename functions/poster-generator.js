@@ -350,18 +350,6 @@ function professionalPricing(product = {}, options = {}) {
   if (cashPrice <= 0 && fullPrice > 0) cashPrice = +(fullPrice * (1 - pixPercent / 100)).toFixed(2);
   if (fullPrice <= 0 && cashPrice > 0) fullPrice = +(cashPrice / 0.8272).toFixed(2);
 
-  const explicitInstallmentPrice = toNumber(
-    options.installmentPrice ?? options.parcelPrice ?? product.installmentPrice ?? product.parcelPrice,
-    0
-  );
-  const installmentPrice = explicitInstallmentPrice > 0
-    ? explicitInstallmentPrice
-    : (installmentCount > 0 ? +(fullPrice / installmentCount).toFixed(2) : fullPrice);
-  // O total anunciado no cartão precisa fechar exatamente com a multiplicação
-  // das parcelas, inclusive nos centavos.
-  if (installmentCount > 0 && installmentPrice > 0) {
-    fullPrice = +(installmentPrice * installmentCount).toFixed(2);
-  }
   const discountPercent = fullPrice > 0 && cashPrice > 0
     ? Math.max(0, Math.round((1 - cashPrice / fullPrice) * 100))
     : pixPercent;
@@ -371,7 +359,7 @@ function professionalPricing(product = {}, options = {}) {
     cashPrice,
     discountPercent,
     installmentCount,
-    installmentPrice
+    installmentPrice: installmentCount > 0 ? fullPrice / installmentCount : fullPrice
   };
 }
 
@@ -379,47 +367,11 @@ function professionalPalette(_template = 'oferta', colorTheme = 'azul') {
   const key = String(colorTheme || 'azul').toLowerCase();
   const palettes = {
     azul: { start: '#0047AB', middle: '#0797DE', end: '#07C3F4', glow: '#BCEEFF', accent: '#FFE600', footer: '#00398D', brandText: '#062B63', brandStroke: '#FFFFFF', brandSecondary: '#FFFFFF', headlineText: '#FFE600', subtitleText: '#FFFFFF', bodyText: '#062B63', price: '#00398D', priceText: '#063B86', line: '#064B9A' },
-    celeste: { start: '#69BDEB', middle: '#8FD0F3', end: '#D5F2FF', glow: '#FFFFFF', accent: '#FFD900', footer: '#073B78', brandText: '#0C4B8E', brandStroke: '#FFFFFF', brandSecondary: '#FFFFFF', headlineText: '#0B3A75', subtitleText: '#FFFFFF', bodyText: '#123F7D', price: '#0A4F91', priceText: '#0A4F91', line: '#4EA6D8' },
-    champagne: { start: '#B8935B', middle: '#D8BE8C', end: '#F4E9D4', glow: '#FFF9EE', accent: '#FFD400', footer: '#5B4528', brandText: '#51402A', brandStroke: '#FFFDF8', brandSecondary: '#FFFDF8', headlineText: '#47371F', subtitleText: '#FFFDF8', bodyText: '#51402A', price: '#5B4528', priceText: '#51402A', line: '#B0905C' },
-    salvia: { start: '#6D8C79', middle: '#9EB7A5', end: '#DCE7DF', glow: '#F8FFF9', accent: '#FFD84A', footer: '#355342', brandText: '#2F4B3A', brandStroke: '#FFFFFF', brandSecondary: '#FFFFFF', headlineText: '#2F4B3A', subtitleText: '#FFFFFF', bodyText: '#2F4B3A', price: '#355342', priceText: '#355342', line: '#6D8C79' },
-    areia: { start: '#C98E6D', middle: '#E7B99E', end: '#F7DDD0', glow: '#FFF8F3', accent: '#FFD348', footer: '#694738', brandText: '#5B3B2F', brandStroke: '#FFFFFF', brandSecondary: '#FFFFFF', headlineText: '#5B3B2F', subtitleText: '#FFFFFF', bodyText: '#5B3B2F', price: '#694738', priceText: '#694738', line: '#B77858' },
-    prata: { start: '#768492', middle: '#B6C0C9', end: '#EEF2F5', glow: '#FFFFFF', accent: '#FFD800', footer: '#394754', brandText: '#2D3A46', brandStroke: '#FFFFFF', brandSecondary: '#FFFFFF', headlineText: '#2D3A46', subtitleText: '#FFFFFF', bodyText: '#2D3A46', price: '#394754', priceText: '#394754', line: '#6E7A86' },
-    lilas: { start: '#8575A8', middle: '#B7A9D0', end: '#ECE6F5', glow: '#FFFFFF', accent: '#FFE05B', footer: '#4A3D67', brandText: '#46385F', brandStroke: '#FFFFFF', brandSecondary: '#FFFFFF', headlineText: '#46385F', subtitleText: '#FFFFFF', bodyText: '#46385F', price: '#4A3D67', priceText: '#4A3D67', line: '#7A6A9A' },
-    amarelo: { start: '#E3A900', middle: '#FFD23B', end: '#FFF1A3', glow: '#FFF9D9', accent: '#073B78', footer: '#062F68', brandText: '#073B78', brandStroke: '#FFFFFF', brandSecondary: '#073B78', headlineText: '#073B78', subtitleText: '#073B78', bodyText: '#073B78', price: '#073B78', priceText: '#073B78', line: '#B78600' },
     dourado: { start: '#6B3F12', middle: '#B7791F', end: '#E8B84E', glow: '#FFF0B3', accent: '#FFF06A', footer: '#3D240B', brandText: '#3D240B', brandStroke: '#FFF8DC', brandSecondary: '#FFF8DC', headlineText: '#3D240B', subtitleText: '#4A2B0A', bodyText: '#3D240B', price: '#3D240B', priceText: '#4A2B0A', line: '#6B3F12' },
     esmeralda: { start: '#064E3B', middle: '#0F766E', end: '#2DB89A', glow: '#CFFDEE', accent: '#FFD84D', footer: '#043B32', brandText: '#043B32', brandStroke: '#EFFFF8', brandSecondary: '#FFFFFF', headlineText: '#FFD84D', subtitleText: '#FFFFFF', bodyText: '#043B32', price: '#043B32', priceText: '#064E3B', line: '#08705E' },
     violeta: { start: '#35166D', middle: '#6D3DB5', end: '#A66DE8', glow: '#E9D8FF', accent: '#FFE066', footer: '#251044', brandText: '#251044', brandStroke: '#F7F0FF', brandSecondary: '#FFFFFF', headlineText: '#FFE066', subtitleText: '#FFFFFF', bodyText: '#251044', price: '#251044', priceText: '#35166D', line: '#4B2585' }
   };
   return palettes[key] || palettes.azul;
-}
-
-function professionalAdaptiveText(colorTheme = 'azul', layoutVariant = 'classic') {
-  const key = String(colorTheme || 'azul').toLowerCase();
-  const layout = String(layoutVariant || 'classic').toLowerCase();
-
-  const naturallyLight = new Set(['celeste', 'champagne', 'salvia', 'areia', 'prata', 'lilas', 'amarelo']);
-  const lateralLight = ['azul_lateral_exato', 'varejo', 'mascote_lateral_clean'].includes(layout) && ['azul', 'celeste'].includes(key);
-  const lightSurface = naturallyLight.has(key) || lateralLight;
-
-  if (lightSurface) {
-    return {
-      primary: '#052B60',
-      secondary: '#0B3F7E',
-      accent: '#052B60',
-      price: '#052B60',
-      onDark: '#FFFFFF',
-      decorative: '#FFF200'
-    };
-  }
-
-  return {
-    primary: '#FFFFFF',
-    secondary: '#FFFFFF',
-    accent: '#FFF200',
-    price: '#FFF200',
-    onDark: '#FFFFFF',
-    decorative: '#FFF200'
-  };
 }
 
 function professionalTextSize(text = '', large = 52, medium = 44, small = 36) {
@@ -432,12 +384,12 @@ function professionalTextSize(text = '', large = 52, medium = 44, small = 36) {
 function professionalProductPreset(product = {}) {
   const type = detectProductType(product);
   const presets = {
-    tv: { w: 900, h: 420 },
-    wide: { w: 900, h: 420 },
-    large: { w: 840, h: 420 },
-    phone: { w: 620, h: 420 },
-    medium: { w: 760, h: 420 },
-    default: { w: 800, h: 420 }
+    tv: { w: 850, h: 380 },
+    wide: { w: 790, h: 390 },
+    large: { w: 760, h: 390 },
+    phone: { w: 480, h: 390 },
+    medium: { w: 650, h: 390 },
+    default: { w: 690, h: 390 }
   };
   return presets[type] || presets.default;
 }
@@ -650,17 +602,6 @@ async function loadProfessionalMascotBuffer(options = {}) {
   return loadLocalImageBuffer(path.resolve(__dirname, '../public/assets/avatar-ariana2.png'));
 }
 
-async function loadMascoteLateralCleanBuffer() {
-  const encodedPath = path.resolve(__dirname, './assets/mascote-lateral-clean.base64.txt');
-  try {
-    if (fs.existsSync(encodedPath)) {
-      const encoded = fs.readFileSync(encodedPath, 'utf8').trim();
-      if (encoded) return Buffer.from(encoded, 'base64');
-    }
-  } catch (_error) {}
-  return loadProfessionalMascotBuffer({});
-}
-
 async function loadHeaderMascotBuffer(options = {}) {
   const headerMascotUrl = String(options.headerMascotUrl || '').trim();
   if (headerMascotUrl) {
@@ -709,7 +650,7 @@ async function professionalBackgroundBuffer(product = {}, options = {}) {
   if (!scene.buffer) {
     return Buffer.from(professionalBackgroundSvg({ template: options.template, layoutVariant: layout, colorTheme: options.colorTheme }));
   }
-  const tintMap = { azul: '#1687D2', celeste: '#8BCDF1', champagne: '#C7A56E', salvia: '#93AD9A', areia: '#D4A084', prata: '#9EABB6', lilas: '#A99AC3', amarelo: '#E5B51A', dourado: '#B7791F', esmeralda: '#168A72', violeta: '#7650B9' };
+  const tintMap = { azul: '#1687D2', dourado: '#B7791F', esmeralda: '#168A72', violeta: '#7650B9' };
   const tint = tintMap[String(options.colorTheme || 'azul').toLowerCase()] || tintMap.azul;
   const overlay = Buffer.from(`<svg width="1080" height="1350" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".08"/><stop offset=".58" stop-color="#ffffff" stop-opacity=".02"/><stop offset="1" stop-color="#001B3A" stop-opacity=".36"/></linearGradient></defs><rect width="1080" height="1350" fill="url(#shade)"/><rect y="1190" width="1080" height="160" fill="#001B3A" opacity=".96"/></svg>`);
   try {
@@ -733,83 +674,15 @@ async function professionalBackgroundBuffer(product = {}, options = {}) {
 function professionalBackgroundSvg({ template = 'oferta', layoutVariant = 'classic', colorTheme = 'azul' }) {
   const palette = professionalPalette(template, colorTheme);
   const layout = String(layoutVariant || 'classic').toLowerCase();
-
-  if (layout === 'mascote_lateral_clean') {
-    return `
-    <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="cleanBg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#9BE1FF"/>
-          <stop offset="38%" stop-color="#27B3F1"/>
-          <stop offset="100%" stop-color="#078FE4"/>
-        </linearGradient>
-        <radialGradient id="cleanGlow" cx="50%" cy="8%" r="68%">
-          <stop offset="0%" stop-color="#FFFFFF" stop-opacity=".72"/>
-          <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
-        </radialGradient>
-        <filter id="cleanShadow" x="-40%" y="-100%" width="180%" height="300%">
-          <feGaussianBlur stdDeviation="16"/>
-        </filter>
-      </defs>
-      <rect width="1080" height="1350" fill="url(#cleanBg)"/>
-      <rect width="1080" height="1190" fill="url(#cleanGlow)"/>
-      <path d="M0 655 C210 770 430 825 650 790 C845 760 970 690 1080 625 L1080 1040 C845 1010 650 1080 455 1050 C260 1022 125 930 0 865 Z" fill="#006FCB" opacity=".24"/>
-      <path d="M0 800 C230 905 460 955 680 920 C865 890 995 835 1080 785 L1080 1110 C855 1085 660 1130 450 1110 C245 1088 105 1020 0 955 Z" fill="#0B83D9" opacity=".26"/>
-      <ellipse cx="830" cy="1100" rx="180" ry="27" fill="#062B63" opacity=".20" filter="url(#cleanShadow)"/>
-      <rect x="0" y="1190" width="1080" height="160" fill="#062F68"/>
-      <rect x="0" y="1190" width="1080" height="6" fill="#FFD400"/>
-      <path d="M0 1190 H60 L20 1248 H0 Z" fill="#FFD400"/>
-      <path d="M1080 1190 H1020 L1060 1248 H1080 Z" fill="#FFD400"/>
-      <path d="M0 1344 H72 L44 1312 H0 Z" fill="#FFD400" opacity=".94"/>
-      <path d="M1080 1344 H1008 L1036 1312 H1080 Z" fill="#FFD400" opacity=".94"/>
-    </svg>`;
-  }
-
-  if (layout === 'azul_lateral_exato') {
-    const colorKey = String(colorTheme || 'azul').toLowerCase();
-    const isBlueFamily = colorKey === 'azul' || colorKey === 'celeste';
-    const isYellowTheme = colorKey === 'amarelo';
-    const base = isBlueFamily ? '#79C8F2' : (isYellowTheme ? '#F4C430' : palette.middle);
-    const wave = isBlueFamily ? '#62B7E8' : (isYellowTheme ? '#E5AD12' : palette.end);
-    const glow = isBlueFamily ? '#CDEFFF' : palette.glow;
-    const footer = '#062F68';
-    const gold = '#FFD400';
-    return `
-    <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <radialGradient id="exactGlow" cx="50%" cy="12%" r="78%">
-          <stop offset="0%" stop-color="${glow}" stop-opacity=".48"/>
-          <stop offset="100%" stop-color="${glow}" stop-opacity="0"/>
-        </radialGradient>
-        <filter id="exactSoftShadow" x="-50%" y="-100%" width="200%" height="300%">
-          <feGaussianBlur stdDeviation="18"/>
-        </filter>
-      </defs>
-      <rect width="1080" height="1350" fill="${base}"/>
-      <rect width="1080" height="1175" fill="url(#exactGlow)"/>
-      <path d="M0 510 C245 425 510 405 765 430 C905 445 1000 472 1080 500 L1080 910 C865 875 655 900 460 875 C270 850 120 805 0 835 Z" fill="${wave}" opacity=".74"/>
-      <ellipse cx="286" cy="1040" rx="205" ry="31" fill="#123F7D" opacity=".20" filter="url(#exactSoftShadow)"/>
-      <rect x="0" y="1175" width="1080" height="175" fill="${footer}"/>
-      <rect x="0" y="1175" width="1080" height="6" fill="${gold}"/>
-      <path d="M0 1175 H56 L18 1235 H0 Z" fill="${gold}"/>
-      <path d="M1080 1175 H1024 L1062 1235 H1080 Z" fill="${gold}"/>
-      <path d="M0 1344 H74 L45 1310 H0 Z" fill="${gold}" opacity=".92"/>
-      <path d="M1080 1344 H1006 L1035 1310 H1080 Z" fill="${gold}" opacity=".92"/>
-    </svg>`;
-  }
   const layoutDecoration = layout === 'showcase'
-    ? `<path d="M0 250 L1080 80 L1080 350 L0 520 Z" fill="#FFD400" opacity=".08"/><circle cx="930" cy="720" r="300" fill="#ffffff" opacity=".055"/>`
+    ? `<path d="M0 250 L1080 80 L1080 350 L0 520 Z" fill="${palette.accent}" opacity=".08"/><circle cx="930" cy="720" r="300" fill="#ffffff" opacity=".055"/>`
     : layout === 'premium'
       ? `<path d="M-80 880 L1080 520 L1080 930 L-80 1150 Z" fill="#001B4D" opacity=".16"/><rect x="36" y="300" width="1008" height="500" rx="38" fill="none" stroke="#ffffff" stroke-width="2" opacity=".12"/>`
       : layout === 'catalog'
-        ? `<path d="M0 390 C260 315 445 355 650 315 C840 278 960 300 1080 250 L1080 790 C860 750 690 800 495 775 C300 750 145 700 0 735 Z" fill="#ffffff" opacity=".09"/><rect x="55" y="375" width="970" height="430" rx="38" fill="#ffffff" opacity=".12" stroke="#ffffff" stroke-width="3"/>`
-        : layout === 'diagonal'
-          ? `<path d="M-120 360 L1080 120 L1080 340 L-120 580 Z" fill="#FFD400" opacity=".12"/><path d="M-100 890 L1080 560 L1080 820 L-100 1110 Z" fill="#001B4D" opacity=".16"/><circle cx="905" cy="510" r="190" fill="#ffffff" opacity=".06"/>`
-          : layout === 'split'
+        ? `<path d="M0 390 C260 315 445 355 650 315 C840 278 960 300 1080 250 L1080 790 C860 750 690 800 495 775 C300 750 145 700 0 735 Z" fill="#ffffff" opacity=".09"/><rect x="55" y="375" width="970" height="430" rx="38" fill="#ffffff" opacity=".07" stroke="#ffffff" stroke-width="2"/>`
+        : layout === 'split'
           ? `<path d="M0 420 C210 350 390 385 570 345 C760 302 920 310 1080 255 L1080 760 C850 720 650 790 465 760 C285 730 130 690 0 735 Z" fill="#ffffff" opacity=".07"/>`
-          : layout === 'varejo'
-            ? `<path d="M0 415 C250 345 470 370 650 338 C830 305 955 300 1080 270 L1080 870 C850 820 650 860 455 835 C285 815 125 760 0 795 Z" fill="#ffffff" opacity=".10"/>`
-            : '';
+          : '';
   return `
   <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
     <defs>
@@ -829,199 +702,46 @@ function professionalBackgroundSvg({ template = 'oferta', layoutVariant = 'class
     </defs>
     <rect width="1080" height="1350" fill="url(#posterBg)"/>
     <rect width="1080" height="1350" fill="url(#posterGlow)"/>
-    ${layout === 'varejo' ? `<rect x="0" y="0" width="1080" height="1350" fill="${palette.glow}" opacity=".16"/>` : ''}
     <circle cx="930" cy="165" r="220" fill="#ffffff" opacity=".035"/>
     <circle cx="85" cy="560" r="210" fill="#ffffff" opacity=".025"/>
     ${layoutDecoration}
     <path d="M0 745 C230 690 390 770 600 720 C790 675 915 605 1080 650 L1080 1080 C880 1040 720 1110 525 1080 C315 1045 180 980 0 1035 Z" fill="#ffffff" opacity=".055"/>
     <ellipse cx="555" cy="756" rx="315" ry="34" fill="#00163F" opacity=".32" filter="url(#softShadow)"/>
-    <rect x="0" y="${layout === 'varejo' ? 1175 : 1190}" width="1080" height="${layout === 'varejo' ? 175 : 160}" fill="${palette.footer}"/>
-    <rect x="0" y="${layout === 'varejo' ? 1175 : 1190}" width="1080" height="6" fill="#FFD400" opacity=".98"/>
+    <rect x="0" y="1190" width="1080" height="160" fill="${palette.footer}"/>
+    <rect x="0" y="1190" width="1080" height="6" fill="${palette.accent}" opacity=".95"/>
   </svg>`;
-}
-
-function professionalTextComposition({ product = {}, options = {}, layout = 'classic', headline = '', subtitle = '', productName = '', adaptive = {} }) {
-  const hints = options.compositionHints && typeof options.compositionHints === 'object'
-    ? options.compositionHints
-    : null;
-  const lightSurface = adaptive.primary !== '#FFFFFF';
-
-  const productColor = lightSurface ? '#0A4A86' : '#FFF200';
-  const headlineColor = lightSurface ? '#052B60' : '#FFFFFF';
-  const subtitleColor = lightSurface ? '#2B5F88' : '#DDF4FF';
-
-  const mascotClean = layout === 'mascote_lateral_clean';
-  const sideLeftProduct = ['showcase', 'split', 'azul_lateral_exato', 'varejo'].includes(layout);
-  const sideRightProduct = ['catalog', 'diagonal'].includes(layout);
-  const centered = !sideLeftProduct && !sideRightProduct && !mascotClean;
-
-  let productX = mascotClean ? 335 : (sideLeftProduct ? 785 : (sideRightProduct ? 285 : 540));
-  let productY = mascotClean ? 360 : (sideLeftProduct ? 455 : (sideRightProduct ? 360 : 246));
-  let productMaxChars = mascotClean ? 31 : (sideLeftProduct || sideRightProduct ? 28 : 36);
-
-  if (!mascotClean && hints && Number.isFinite(Number(hints.left)) && Number.isFinite(Number(hints.right))) {
-    const left = Number(hints.left);
-    const right = Number(hints.right);
-    const top = Number(hints.top || 420);
-    const leftSpace = Math.max(0, left - 38);
-    const rightSpace = Math.max(0, 1080 - right - 38);
-
-    if (rightSpace >= 315 && rightSpace >= leftSpace) {
-      productX = Math.round(right + rightSpace / 2);
-      productY = Math.max(390, Math.min(575, top + 58));
-      productMaxChars = rightSpace >= 430 ? 30 : 24;
-    } else if (leftSpace >= 315) {
-      productX = Math.round(38 + leftSpace / 2);
-      productY = Math.max(390, Math.min(575, top + 58));
-      productMaxChars = leftSpace >= 430 ? 30 : 24;
-    } else if (centered) {
-      productX = 540;
-      productY = Math.max(238, Math.min(350, top - 62));
-      productMaxChars = 36;
-    }
-  }
-
-  const productLines = wrapText(productName, productMaxChars, 2);
-  const productSize = professionalTextSize(productName, 38, 33, 27);
-  const productGap = productSize >= 36 ? 42 : 36;
-  const headlineLines = wrapText(headline, 40, 2);
-  const subtitleLines = subtitle ? wrapText(subtitle, 50, 2) : [''];
-  const headlineSize = professionalTextSize(headline, 46, 40, 34);
-  const subtitleSize = professionalTextSize(subtitle, 28, 25, 22);
-  const headlineGap = headlineSize + 7;
-  const subtitleGap = subtitleSize + 6;
-
-  // Calcula a caixa visual aproximada de cada bloco para impedir que uma
-  // legenda invada outra legenda ou a fotografia/recorte do produto.
-  const blockRect = (block) => {
-    const lines = Array.isArray(block.lines) && block.lines.length ? block.lines : [''];
-    const longest = lines.reduce((max, line) => Math.max(max, String(line).length), 0);
-    const width = Math.min(980, Math.max(90, longest * block.size * 0.56));
-    return {
-      left: block.x - width / 2,
-      right: block.x + width / 2,
-      top: block.y - block.size,
-      bottom: block.y + (lines.length - 1) * block.gap + block.size * 0.32,
-      width
-    };
-  };
-
-  const placeAwayFromImage = (block) => {
-    if (!hints || !Number.isFinite(Number(hints.left)) || !Number.isFinite(Number(hints.right)) || !Number.isFinite(Number(hints.top)) || !Number.isFinite(Number(hints.bottom))) {
-      return block;
-    }
-
-    const image = {
-      left: Number(hints.left) - 18,
-      right: Number(hints.right) + 18,
-      top: Number(hints.top) - 18,
-      bottom: Number(hints.bottom) + 18
-    };
-    const rect = blockRect(block);
-    const collides = rect.right > image.left && rect.left < image.right && rect.bottom > image.top && rect.top < image.bottom;
-    if (!collides) return block;
-
-    if (mascotClean) {
-      const lastLineOffset = (block.lines.length - 1) * block.gap;
-      const safeBaseline = Math.floor(image.top - 28 - lastLineOffset);
-      block.x = Math.min(400, Math.max(285, block.x));
-      if (safeBaseline >= 205) block.y = Math.min(block.y, safeBaseline);
-      return block;
-    }
-
-    const leftSpace = Math.max(0, image.left - 30);
-    const rightSpace = Math.max(0, 1080 - image.right - 30);
-    const needed = rect.width + 34;
-
-    if (rightSpace >= needed || leftSpace >= needed) {
-      if (rightSpace >= leftSpace) {
-        block.x = Math.round(image.right + rightSpace / 2 + 15);
-      } else {
-        block.x = Math.round(15 + leftSpace / 2);
-      }
-      return block;
-    }
-
-    // Se não houver coluna lateral suficiente, mantém o texto acima da imagem
-    // com uma folga real, sem reduzir nem deslocar a própria imagem do produto.
-    const lastLineOffset = (block.lines.length - 1) * block.gap;
-    const safeBaseline = Math.floor(image.top - 24 - lastLineOffset);
-    if (safeBaseline >= 205) block.y = Math.min(block.y, safeBaseline);
-    return block;
-  };
-
-  let productBlock;
-  let headlineBlock;
-  let subtitleBlock;
-
-  if (mascotClean) {
-    headlineBlock = { x: 335, y: 226, lines: headlineLines, size: Math.min(headlineSize, 40), gap: Math.min(headlineGap, 47), color: headlineColor, weight: 950 };
-    const headlineLast = headlineBlock.y + (headlineLines.length - 1) * headlineBlock.gap;
-    subtitleBlock = { x: 335, y: headlineLast + headlineBlock.size + 20, lines: subtitleLines, size: Math.min(subtitleSize, 25), gap: Math.min(subtitleGap, 31), color: subtitleColor, weight: 800 };
-    const subtitleLast = subtitleBlock.y + (subtitleLines.length - 1) * subtitleBlock.gap;
-    productBlock = { x: 335, y: subtitleLast + subtitleBlock.size + 28, lines: productLines, size: Math.min(productSize, 34), gap: Math.min(productGap, 39), color: productColor, weight: 950 };
-  } else if (['azul_lateral_exato', 'varejo'].includes(layout)) {
-    subtitleBlock = { x: 540, y: 225, lines: subtitleLines, size: subtitleSize, gap: subtitleGap, color: subtitleColor, weight: 800 };
-    const subtitleLast = subtitleBlock.y + (subtitleLines.length - 1) * subtitleGap;
-    headlineBlock = { x: 540, y: subtitleLast + subtitleSize + 24, lines: headlineLines, size: headlineSize, gap: headlineGap, color: headlineColor, weight: 950 };
-    if (!hints) productY = 470;
-    productBlock = { x: productX, y: productY, lines: productLines, size: productSize, gap: productGap, color: productColor, weight: 950 };
-  } else if (['showcase', 'split', 'catalog', 'diagonal'].includes(layout)) {
-    headlineBlock = { x: 540, y: 225, lines: headlineLines, size: headlineSize, gap: headlineGap, color: headlineColor, weight: 950 };
-    const headlineLast = headlineBlock.y + (headlineLines.length - 1) * headlineGap;
-    subtitleBlock = { x: 540, y: headlineLast + headlineSize + 22, lines: subtitleLines, size: subtitleSize, gap: subtitleGap, color: subtitleColor, weight: 800 };
-    productBlock = { x: productX, y: productY, lines: productLines, size: productSize, gap: productGap, color: productColor, weight: 950 };
-  } else {
-    productY = Math.min(productY, 252);
-    productBlock = { x: productX, y: productY, lines: productLines, size: productSize, gap: productGap, color: productColor, weight: 950 };
-    const productLast = productBlock.y + (productLines.length - 1) * productGap;
-    subtitleBlock = { x: 540, y: productLast + productSize + 26, lines: subtitleLines, size: subtitleSize, gap: subtitleGap, color: subtitleColor, weight: 800 };
-    const subtitleLast = subtitleBlock.y + (subtitleLines.length - 1) * subtitleGap;
-    headlineBlock = { x: 540, y: subtitleLast + subtitleSize + 26, lines: headlineLines, size: headlineSize, gap: headlineGap, color: headlineColor, weight: 950 };
-  }
-
-  productBlock = placeAwayFromImage(productBlock);
-  headlineBlock = placeAwayFromImage(headlineBlock);
-  subtitleBlock = placeAwayFromImage(subtitleBlock);
-
-  return {
-    product: productBlock,
-    headline: headlineBlock,
-    subtitle: subtitleBlock
-  };
-}
-
-function professionalTextBlockSvg(block = {}) {
-  const lines = Array.isArray(block.lines) ? block.lines : [];
-  return lines.map((line, index) => `<text x="${block.x}" y="${block.y + index * block.gap}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${block.size}" font-weight="${block.weight || 900}" fill="${block.color}">${escapeXml(line)}</text>`).join('');
 }
 
 function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   const template = String(options.template || 'oferta').toLowerCase();
   const layout = String(options.layoutVariant || 'classic').toLowerCase();
   const palette = professionalPalette(template, options.colorTheme);
-  const adaptive = professionalAdaptiveText(options.colorTheme, layout);
   const headline = String(options.headline || (template === 'queima' ? 'QUEIMA DE ESTOQUE' : template === 'campanha' ? 'O MÊS COMEÇOU COM TUDO' : 'OFERTA IMPERDÍVEL')).trim();
-  const subtitle = String(Object.prototype.hasOwnProperty.call(options, 'subtitle') ? (options.subtitle ?? '') : (template === 'queima' ? 'Últimas unidades com preço especial' : 'Economize de verdade na Ariana Móveis')).trim();
-  const productNameRaw = String(options.productName || product.name || product.title || 'Produto Ariana Móveis').trim();
-  const productName = productNameRaw;
-  const textPlan = professionalTextComposition({ product, options, layout, headline, subtitle, productName: productNameRaw, adaptive });
-  const productLines = textPlan.product.lines;
-  const headlineSize = textPlan.headline.size;
-  const productNameSize = textPlan.product.size;
-  const headlineSvg = professionalTextBlockSvg(textPlan.headline);
-  const subtitleSvg = professionalTextBlockSvg(textPlan.subtitle);
-  const productNameSvg = professionalTextBlockSvg(textPlan.product);
+  const subtitle = String(options.subtitle || (template === 'queima' ? 'Últimas unidades com preço especial' : 'Economize de verdade na Ariana Móveis')).trim();
+  const productName = String(options.productName || product.name || product.title || 'PRODUTO ARIANA MÓVEIS').trim().toUpperCase();
+  const productLines = wrapText(productName, 34, 2);
+  const headlineSize = professionalTextSize(headline, 54, 46, 38);
+  const productNameSize = professionalTextSize(productName, 36, 32, 27);
   const fullValue = brl(pricing.fullPrice).replace(/^R\$\s*/, '');
   const cashValue = brl(pricing.cashPrice).replace(/^R\$\s*/, '');
   const installmentValue = brl(pricing.installmentPrice);
   const whatsapp = String(options.whatsapp || '(31) 98514-7119').trim();
   const email = String(options.email || 'contato@arianamoveis.com.br').trim();
   const site = String(options.siteLabel || options.siteText || 'arianamoveis.com.br').replace(/^https?:\/\//i, '').replace(/\/$/, '').trim();
+  const layoutPriceShift = layout === 'showcase' ? 45 : layout === 'premium' ? -25 : 0;
+  const layoutPriceY = layout === 'showcase' ? 8 : layout === 'premium' ? -6 : layout === 'catalog' ? 3 : 0;
+  const priceX = 300 + layoutPriceShift;
+  const priceWidth = 720;
+  const pricePanelX = 280;
+  const pricePanelWidth = 760;
+  const darkPanel = layout === 'premium';
+  const pricePanel = layout === 'classic' ? '' : `<rect x="${pricePanelX}" y="810" width="${pricePanelWidth}" height="318" rx="32" fill="${darkPanel ? '#003477' : '#ffffff'}" opacity="${darkPanel ? '.90' : '.82'}" stroke="${palette.accent}" stroke-width="2"/>`;
+  const mainPriceColor = darkPanel ? palette.accent : palette.price;
+  const priceTextColor = darkPanel ? '#ffffff' : palette.priceText;
+  const priceLineColor = darkPanel ? '#ffffff' : palette.line;
   const isSplit = layout === 'split';
-  const isVarejo = layout === 'varejo';
-  const isExactLateral = layout === 'azul_lateral_exato';
-  const isMascotClean = layout === 'mascote_lateral_clean';
+  const productNameTop = isSplit ? 304 : 350;
+  const productNameSvg = productLines.map((line, index) => `<text x="540" y="${productNameTop + index * 37}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${productNameSize}" font-weight="800" fill="${palette.bodyText}" stroke="${palette.brandStroke}" stroke-width=".7" paint-order="stroke fill">${escapeXml(line)}</text>`).join('');
   // Assinatura 2D oficial: igual em todos os cartazes, independente do layout
   // ou da paleta escolhida. Posição central, azul institucional e traço amarelo.
   const brandSvg = `
@@ -1036,202 +756,49 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
     <text x="540" y="88" text-anchor="middle" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="76" font-weight="950" letter-spacing="2" fill="#123F7D" stroke="#FFFFFF" stroke-width="1.2" paint-order="stroke fill">ARIANA</text>
     <text x="540" y="143" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="43" font-weight="900" fill="#123F7D" stroke="#FFFFFF" stroke-width="1.1" paint-order="stroke fill">móveis</text>
     <path d="M450 160 H630" stroke="#F7D800" stroke-width="6" stroke-linecap="round"/>`;
-  if (isMascotClean) {
-    const cleanPrimary = '#052B60';
-    const cleanSecondary = '#0B3F7E';
-    const cleanAccent = '#FFF200';
-    const emailParts = email.includes('@') ? [email.slice(0, email.indexOf('@') + 1), email.slice(email.indexOf('@') + 1)] : [email];
-    return `
-    <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
-      ${brandSvg}
-      ${headlineSvg}
-      ${subtitleSvg}
-      ${productNameSvg}
-
-      <g font-family="Arial, Helvetica, sans-serif">
-        <text x="355" y="800" text-anchor="middle" font-size="29" font-weight="950" fill="${cleanPrimary}">POR</text>
-        <text x="210" y="880" font-size="40" font-weight="950" fill="${cleanPrimary}">R$</text>
-        <text x="280" y="880" font-size="82" font-weight="950" letter-spacing="-3" fill="${cleanPrimary}">${escapeXml(cashValue)}</text>
-        <text x="355" y="918" text-anchor="middle" font-size="23" font-weight="900" fill="${cleanSecondary}">À VISTA NO DINHEIRO OU PIX</text>
-        <text x="355" y="960" text-anchor="middle" font-size="31" font-weight="950" fill="${cleanAccent}">OU</text>
-        <text x="355" y="1005" text-anchor="middle" font-size="30" font-weight="950" fill="${cleanPrimary}">${pricing.installmentCount}X DE ${escapeXml(installmentValue)}</text>
-        <text x="355" y="1042" text-anchor="middle" font-size="24" font-weight="900" fill="${cleanPrimary}">NO CARTÃO DE CRÉDITO</text>
-        <text x="355" y="1080" text-anchor="middle" font-size="21" font-weight="850" fill="${cleanSecondary}">VALOR PARCELADO: R$ ${escapeXml(fullValue)}</text>
-        <text x="355" y="1118" text-anchor="middle" font-size="17" font-weight="850" fill="${cleanSecondary}">CONSULTE CONDIÇÕES NO CREDIÁRIO PRÓPRIO</text>
-      </g>
-
-      <g transform="translate(24 1204)" font-family="Arial, Helvetica, sans-serif">
-        <circle cx="44" cy="43" r="36" fill="#1DB954" stroke="#FFFFFF" stroke-width="4"/>
-        <path d="M35 29c-3 3-2 10 4 17 6 7 13 10 17 7l4-5-8-5-3 4c-4-2-8-6-10-10l4-3-5-8-3 3Z" fill="#FFFFFF"/>
-        <text x="94" y="30" font-size="17" fill="#FFFFFF">Atendimento pelo</text>
-        <text x="94" y="52" font-size="17" fill="#FFFFFF">WhatsApp</text>
-        <text x="94" y="86" font-size="26" font-weight="950" fill="#FFD400">${escapeXml(whatsapp.replace(/[()]/g, ''))}</text>
-      </g>
-
-      <line x1="350" y1="1198" x2="350" y2="1330" stroke="#FFD400" stroke-width="2"/>
-
-      <g transform="translate(374 1204)" font-family="Arial, Helvetica, sans-serif">
-        <circle cx="42" cy="43" r="34" fill="none" stroke="#FFD400" stroke-width="4"/>
-        <ellipse cx="42" cy="43" rx="14" ry="33" fill="none" stroke="#FFD400" stroke-width="2.2"/>
-        <path d="M10 43h64M15 29h54M15 57h54" fill="none" stroke="#FFD400" stroke-width="2.1"/>
-        <text x="92" y="30" font-size="17" fill="#FFFFFF">Compre também pelo</text>
-        <text x="92" y="52" font-size="17" fill="#FFFFFF">nosso site</text>
-        <text x="174" y="86" text-anchor="middle" font-size="20" font-weight="950" fill="#FFD400">${escapeXml(site)}</text>
-      </g>
-
-      <line x1="710" y1="1198" x2="710" y2="1330" stroke="#FFD400" stroke-width="2"/>
-
-      <g transform="translate(732 1204)" font-family="Arial, Helvetica, sans-serif">
-        <circle cx="43" cy="43" r="34" fill="none" stroke="#FFD400" stroke-width="4"/>
-        <rect x="24" y="30" width="38" height="27" rx="3" fill="none" stroke="#FFD400" stroke-width="3"/>
-        <path d="M25 32l18 14 18-14" fill="none" stroke="#FFD400" stroke-width="3"/>
-        <text x="96" y="29" font-size="17" fill="#FFFFFF">E-mail</text>
-        <text x="96" y="57" font-size="19" font-weight="950" fill="#FFD400">${escapeXml(emailParts[0] || '')}</text>
-        <text x="96" y="82" font-size="19" font-weight="950" fill="#FFD400">${escapeXml(emailParts[1] || '')}</text>
-      </g>
-    </svg>`;
-  }
-
-  if (isExactLateral) {
-    const colorKey = String(options.colorTheme || 'azul').toLowerCase();
-    const exactText = professionalAdaptiveText(options.colorTheme, layout);
-    const richYellow = exactText.price;
-    const strongBlue = ['azul', 'celeste'].includes(colorKey) ? '#0B3F7E' : exactText.primary;
-    const lightText = exactText.primary;
-    const emailParts = email.includes('@') ? [email.slice(0, email.indexOf('@') + 1), email.slice(email.indexOf('@') + 1)] : [email];
-
-    return `
-    <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
-      <g font-family="Arial, Helvetica, sans-serif">
-        <text x="540" y="94" text-anchor="middle" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="78" font-weight="950" letter-spacing="2" fill="#123F7D">ARIANA</text>
-        <text x="540" y="151" text-anchor="middle" font-size="45" font-weight="900" fill="#123F7D">móveis</text>
-        <path d="M448 170 H632" stroke="#FFD400" stroke-width="7" stroke-linecap="round"/>
-
-        ${subtitleSvg}
-        ${headlineSvg}
-        ${productNameSvg}
-
-        <text x="790" y="704" text-anchor="middle" font-size="30" font-weight="950" fill="${lightText}">POR</text>
-        <text x="625" y="795" font-size="43" font-weight="950" fill="${lightText}">R$</text>
-        <text x="700" y="795" font-size="92" font-weight="950" letter-spacing="-3" fill="${richYellow}">${escapeXml(cashValue)}</text>
-        <text x="790" y="840" text-anchor="middle" font-size="25" font-weight="900" fill="${lightText}">À VISTA NO DINHEIRO OU PIX</text>
-
-        <text x="790" y="898" text-anchor="middle" font-size="38" font-weight="950" fill="${richYellow}">OU</text>
-        <text x="790" y="955" text-anchor="middle" font-size="34" font-weight="950" fill="${lightText}">${pricing.installmentCount}X DE ${escapeXml(installmentValue)}</text>
-        <text x="790" y="996" text-anchor="middle" font-size="27" font-weight="900" fill="${lightText}">NO CARTÃO DE CRÉDITO</text>
-        <text x="790" y="1042" text-anchor="middle" font-size="23" font-weight="850" fill="${lightText}">VALOR PARCELADO: R$ ${escapeXml(fullValue)}</text>
-        <text x="790" y="1085" text-anchor="middle" font-size="19" font-weight="850" fill="${lightText}">CONSULTE CONDIÇÕES DE PAGAMENTO</text>
-        <text x="790" y="1113" text-anchor="middle" font-size="19" font-weight="850" fill="${lightText}">NO CREDIÁRIO PRÓPRIO</text>
-      </g>
-
-      <g transform="translate(28 1203)" font-family="Arial, Helvetica, sans-serif">
-        <circle cx="46" cy="45" r="37" fill="#1DB954" stroke="#FFFFFF" stroke-width="4"/>
-        <path d="M46 20c-14 0-25 10-25 23 0 7 3 13 8 17l-3 12 12-5c3 1 5 1 8 1 14 0 25-10 25-24S60 20 46 20Z" fill="none" stroke="#FFFFFF" stroke-width="3.2" stroke-linejoin="round"/>
-        <path d="M36 31c-2 2-2 6 0 10 3 6 8 11 14 14 4 2 8 2 10 0l4-5-8-5-3 4c-4-2-8-6-10-10l4-3-6-8-5 3Z" fill="#FFFFFF"/>
-        <text x="98" y="30" font-size="17" fill="#FFFFFF">Atendimento pelo</text>
-        <text x="98" y="52" font-size="17" fill="#FFFFFF">WhatsApp</text>
-        <text x="98" y="87" font-size="27" font-weight="950" fill="#FFD400">${escapeXml(whatsapp.replace(/[()]/g, ''))}</text>
-      </g>
-
-      <line x1="346" y1="1193" x2="346" y2="1332" stroke="#FFD400" stroke-width="2"/>
-
-      <g transform="translate(365 1203)" font-family="Arial, Helvetica, sans-serif">
-        <circle cx="42" cy="43" r="34" fill="none" stroke="#FFD400" stroke-width="4"/>
-        <ellipse cx="42" cy="43" rx="14" ry="33" fill="none" stroke="#FFD400" stroke-width="2.2"/>
-        <path d="M10 43h64M15 29h54M15 57h54" fill="none" stroke="#FFD400" stroke-width="2.1"/>
-        <text x="92" y="30" font-size="17" fill="#FFFFFF">Compre também pelo</text>
-        <text x="92" y="52" font-size="17" fill="#FFFFFF">nosso site</text>
-        <text x="172" y="86" text-anchor="middle" font-size="20" font-weight="950" fill="#FFD400">${escapeXml(site)}</text>
-      </g>
-
-      <line x1="704" y1="1193" x2="704" y2="1332" stroke="#FFD400" stroke-width="2"/>
-
-      <g transform="translate(724 1203)" font-family="Arial, Helvetica, sans-serif">
-        <circle cx="43" cy="43" r="34" fill="none" stroke="#FFD400" stroke-width="4"/>
-        <rect x="24" y="30" width="38" height="27" rx="3" fill="none" stroke="#FFD400" stroke-width="3"/>
-        <path d="M25 32l18 14 18-14" fill="none" stroke="#FFD400" stroke-width="3"/>
-        <text x="96" y="29" font-size="17" fill="#FFFFFF">E-mail</text>
-        <text x="96" y="57" font-size="20" font-weight="950" fill="#FFD400">${escapeXml(emailParts[0] || '')}</text>
-        <text x="96" y="82" font-size="20" font-weight="950" fill="#FFD400">${escapeXml(emailParts[1] || '')}</text>
-      </g>
-    </svg>`;
-  }
-
-  if (isVarejo) {
-    const colorKey = String(options.colorTheme || '').toLowerCase();
-    const varejoText = professionalAdaptiveText(options.colorTheme, layout);
-    const richYellow = varejoText.price;
-    const footerGold = '#FFD400';
-    const strongBlue = ['azul', 'celeste'].includes(colorKey) ? '#0B3F7E' : varejoText.primary;
-    return `
-    <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
-      ${brandSvg}
-      ${subtitleSvg}
-      ${headlineSvg}
-      ${productNameSvg}
-      <g font-family="Arial, Helvetica, sans-serif">
-        <text x="770" y="690" text-anchor="middle" font-size="30" font-weight="950" fill="${varejoText.primary}">POR</text>
-        <text x="630" y="780" font-size="42" font-weight="950" fill="${varejoText.primary}">R$</text>
-        <text x="705" y="780" font-size="90" font-weight="950" letter-spacing="-3" fill="${richYellow}">${escapeXml(cashValue)}</text>
-        <text x="770" y="825" text-anchor="middle" font-size="25" font-weight="900" fill="${varejoText.primary}">À VISTA NO DINHEIRO OU PIX</text>
-        <text x="770" y="883" text-anchor="middle" font-size="38" font-weight="950" fill="${richYellow}">OU</text>
-        <text x="770" y="940" text-anchor="middle" font-size="34" font-weight="950" fill="${varejoText.primary}">${pricing.installmentCount}X DE ${escapeXml(installmentValue)}</text>
-        <text x="770" y="981" text-anchor="middle" font-size="27" font-weight="900" fill="${varejoText.primary}">NO CARTÃO DE CRÉDITO</text>
-        <text x="770" y="1027" text-anchor="middle" font-size="23" font-weight="850" fill="${varejoText.secondary}">VALOR PARCELADO: R$ ${escapeXml(fullValue)}</text>
-        <text x="770" y="1070" text-anchor="middle" font-size="19" font-weight="850" fill="${varejoText.secondary}">CONSULTE CONDIÇÕES DE PAGAMENTO</text>
-        <text x="770" y="1098" text-anchor="middle" font-size="19" font-weight="850" fill="${varejoText.secondary}">NO CREDIÁRIO PRÓPRIO</text>
-      </g>
-      <g transform="translate(35 1205)">
-        <circle cx="44" cy="44" r="37" fill="#19B64B" stroke="#FFFFFF" stroke-width="5"/>
-        <text x="100" y="30" font-family="Arial, Helvetica, sans-serif" font-size="19" fill="#FFFFFF">Atendimento pelo WhatsApp</text>
-        <text x="100" y="67" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="950" fill="${footerGold}">${escapeXml(whatsapp)}</text>
-      </g>
-      <line x1="350" y1="1197" x2="350" y2="1330" stroke="${footerGold}" stroke-width="2"/>
-      <g transform="translate(382 1205)">
-        <circle cx="44" cy="44" r="35" fill="none" stroke="${footerGold}" stroke-width="4"/>
-        <text x="100" y="30" font-family="Arial, Helvetica, sans-serif" font-size="19" fill="#FFFFFF">Compre também pelo nosso site</text>
-        <text x="100" y="67" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="950" fill="${footerGold}">${escapeXml(site)}</text>
-      </g>
-      <line x1="705" y1="1197" x2="705" y2="1330" stroke="${footerGold}" stroke-width="2"/>
-      <g transform="translate(735 1205)">
-        <circle cx="44" cy="44" r="35" fill="none" stroke="${footerGold}" stroke-width="4"/>
-        <rect x="25" y="31" width="38" height="26" rx="3" fill="none" stroke="${footerGold}" stroke-width="3"/>
-        <path d="M26 33l18 14 18-14" fill="none" stroke="${footerGold}" stroke-width="3"/>
-        <text x="98" y="30" font-family="Arial, Helvetica, sans-serif" font-size="19" fill="#FFFFFF">E-mail</text>
-        <text x="98" y="67" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="950" fill="${footerGold}">${escapeXml(email)}</text>
-      </g>
-    </svg>`;
-  }
-
-  // Padrão único de pagamento em todos os layouts:
-  // preço à vista, parcelas no cartão, total parcelado e crediário próprio.
-  const pricingBlock = `
-    <g font-family="Arial, Helvetica, sans-serif">
-      <text x="540" y="808" text-anchor="middle" font-size="29" font-weight="950" fill="${adaptive.primary}">POR</text>
-      <text x="345" y="892" font-size="38" font-weight="950" fill="${adaptive.primary}">R$</text>
-      <text x="420" y="892" font-size="86" font-weight="950" letter-spacing="-3" fill="${adaptive.price}">${escapeXml(cashValue)}</text>
-      <text x="540" y="932" text-anchor="middle" font-size="24" font-weight="900" fill="${adaptive.primary}">À VISTA NO DINHEIRO OU PIX</text>
-      <text x="540" y="973" text-anchor="middle" font-size="32" font-weight="950" fill="${adaptive.accent}">OU</text>
-      <text x="650" y="1017" text-anchor="middle" font-size="29" font-weight="950" fill="${adaptive.primary}">${pricing.installmentCount}X DE ${escapeXml(installmentValue)} NO CARTÃO DE CRÉDITO</text>
-      <text x="650" y="1055" text-anchor="middle" font-size="23" font-weight="850" fill="${adaptive.secondary}">VALOR PARCELADO: R$ ${escapeXml(fullValue)}</text>
-      <text x="650" y="1092" text-anchor="middle" font-size="19" font-weight="850" fill="${adaptive.secondary}">CONSULTE CONDIÇÕES DE PAGAMENTO NO CREDIÁRIO PRÓPRIO</text>
+  const pricingBlock = layout === 'split' ? `
+    <g>
+      <rect x="270" y="810" width="770" height="308" rx="28" fill="#D9F2FF" opacity=".20"/>
+      <line x1="660" y1="832" x2="660" y2="1095" stroke="${palette.line}" stroke-width="3" opacity=".85"/>
+      <text x="470" y="852" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="950" fill="${palette.bodyText}">SUPER DESCONTO À VISTA</text>
+      <text x="470" y="928" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="950" letter-spacing="-2" fill="${palette.price}">R$ ${escapeXml(cashValue)}</text>
+      <text x="470" y="974" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="950" fill="${palette.bodyText}">À VISTA COM ${pricing.discountPercent}% DE DESCONTO</text>
+      <text x="470" y="1004" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="850" fill="${palette.bodyText}">(NO PIX OU BOLETO)</text>
+      <text x="470" y="1048" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="900" fill="${palette.bodyText}">CONSULTE CONDIÇÕES NO CREDIÁRIO PRÓPRIO</text>
+      <text x="850" y="852" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="900" fill="${palette.bodyText}">POR R$</text>
+      <text x="850" y="928" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="62" font-weight="950" letter-spacing="-2" fill="${palette.price}">${escapeXml(fullValue)}</text>
+      <text x="850" y="973" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="700" fill="${palette.bodyText}">EM ATÉ</text>
+      <text x="850" y="1011" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="950" fill="${palette.price}">${pricing.installmentCount}X DE ${escapeXml(installmentValue)}</text>
+      <text x="850" y="1047" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="900" fill="${palette.bodyText}">SEM JUROS NO CARTÃO</text>
+    </g>` : `
+    <g transform="translate(0 ${layoutPriceY})">
+      ${pricePanel}
+      <text x="${priceX}" y="870" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="900" fill="${priceTextColor}">POR R$</text>
+      <text x="${priceX + 170}" y="884" font-family="Arial, Helvetica, sans-serif" font-size="84" font-weight="950" letter-spacing="-3" fill="${mainPriceColor}">${escapeXml(fullValue)}</text>
+      <text x="${priceX}" y="920" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="500" fill="${priceTextColor}">EM ATÉ <tspan font-weight="950">${pricing.installmentCount}X DE ${escapeXml(installmentValue)}</tspan> SEM JUROS NO CARTÃO</text>
+      <line x1="${priceX}" y1="960" x2="${priceX + Math.round(priceWidth * .38)}" y2="960" stroke="${priceLineColor}" stroke-width="2"/>
+      <text x="${priceX + Math.round(priceWidth * .5)}" y="970" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="950" fill="${priceTextColor}">OU</text>
+      <line x1="${priceX + Math.round(priceWidth * .62)}" y1="960" x2="${priceX + priceWidth}" y2="960" stroke="${priceLineColor}" stroke-width="2"/>
+      <text x="${priceX + Math.round(priceWidth * .5)}" y="1040" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="950" fill="${mainPriceColor}">R$ ${escapeXml(cashValue)}</text>
+      <text x="${priceX + Math.round(priceWidth * .5)}" y="1074" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="950" fill="${priceTextColor}">À VISTA COM ${pricing.discountPercent}% DE DESCONTO</text>
+      <text x="${priceX + Math.round(priceWidth * .5)}" y="1110" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="900" fill="${priceTextColor}">NO PIX OU BOLETO • CONSULTE CONDIÇÕES NO CREDIÁRIO PRÓPRIO</text>
     </g>`;
 
   return `
   <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
     ${brandSvg}
+    <text x="540" y="${isSplit ? 222 : 274}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${headlineSize}" font-weight="950" fill="${palette.headlineText}" stroke="${palette.brandText}" stroke-width="1" paint-order="stroke fill">${escapeXml(headline)}</text>
+    <text x="540" y="${isSplit ? 260 : 314}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="600" fill="${palette.subtitleText}">${escapeXml(subtitle)}</text>
     ${productNameSvg}
-    ${subtitleSvg}
-    ${headlineSvg}
 
     ${pricingBlock}
 
-    <g transform="translate(260 1135)">
-      <rect x="0" y="0" width="760" height="54" rx="25" fill="#0057A8" opacity=".86" stroke="#FFD400" stroke-width="2"/>
-      <circle cx="35" cy="27" r="16" fill="none" stroke="#FFD400" stroke-width="3"/>
-      <path d="M19 27h32M35 11c-7 5-10 10-10 16s3 11 10 16M35 11c7 5 10 10 10 16s-3 11-10 16M35 11v32" fill="none" stroke="#FFD400" stroke-width="1.8"/>
+    <g transform="translate(185 1130)">
+      <rect x="0" y="0" width="855" height="54" rx="25" fill="#0057A8" opacity=".74" stroke="${palette.accent}" stroke-width="2"/>
+      <circle cx="35" cy="27" r="16" fill="none" stroke="${palette.accent}" stroke-width="3"/>
+      <path d="M19 27h32M35 11c-7 5-10 10-10 16s3 11 10 16M35 11c7 5 10 10 10 16s-3 11-10 16M35 11v32" fill="none" stroke="${palette.accent}" stroke-width="1.8"/>
       <text x="68" y="22" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="800" fill="#ffffff">Compre também pelo nosso site:</text>
-      <text x="68" y="46" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="950" fill="#FFD400">${escapeXml(site)}</text>
+      <text x="68" y="46" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="950" fill="${palette.accent}">${escapeXml(site)}</text>
     </g>
 
     <g transform="translate(44 1215)">
@@ -1239,15 +806,15 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
       <path d="M43 20C31 20 22 29 22 41c0 7 3 13 9 17l-3 10 11-5c1 0 3 1 4 1 12 0 22-9 22-22S55 20 43 20Z" fill="none" stroke="#ffffff" stroke-width="3.5" stroke-linejoin="round"/>
       <path d="M34 30c-3 3-2 10 4 17 6 7 13 10 17 7l4-5-8-5-3 4c-4-2-8-6-10-10l4-3-5-8-3 3Z" fill="#ffffff"/>
       <text x="98" y="33" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="500" fill="#ffffff">Atendimento pelo WhatsApp</text>
-      <text x="98" y="69" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="950" fill="#FFD400">${escapeXml(whatsapp)}</text>
+      <text x="98" y="69" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="950" fill="${palette.accent}">${escapeXml(whatsapp)}</text>
     </g>
     <line x1="515" y1="1219" x2="515" y2="1325" stroke="#ffffff" stroke-width="2" opacity=".75"/>
     <g transform="translate(548 1215)">
-      <circle cx="43" cy="43" r="38" fill="none" stroke="#FFD400" stroke-width="4"/>
-      <rect x="22" y="29" width="42" height="29" rx="3" fill="none" stroke="#FFD400" stroke-width="4"/>
-      <path d="M23 31l20 16 20-16" fill="none" stroke="#FFD400" stroke-width="4"/>
+      <circle cx="43" cy="43" r="38" fill="none" stroke="${palette.accent}" stroke-width="4"/>
+      <rect x="22" y="29" width="42" height="29" rx="3" fill="none" stroke="${palette.accent}" stroke-width="4"/>
+      <path d="M23 31l20 16 20-16" fill="none" stroke="${palette.accent}" stroke-width="4"/>
       <text x="98" y="33" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="500" fill="#ffffff">E-mail</text>
-      <text x="98" y="69" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="950" fill="#FFD400">${escapeXml(email)}</text>
+      <text x="98" y="69" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="950" fill="${palette.accent}">${escapeXml(email)}</text>
     </g>
   </svg>`;
 }
@@ -1258,31 +825,24 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
   const height = 1350;
   const pricing = professionalPricing(product, options);
   const background = await professionalBackgroundBuffer(product, options);
+  const foreground = Buffer.from(professionalForegroundSvg({ product, pricing, options }));
   const composites = [{ input: background, top: 0, left: 0 }];
   let headerMascotComposite = null;
 
   // A mascote é parte fixa da assinatura da marca na lateral esquerda.
   // O arquivo já possui transparência limpa e enquadramento até o quadril.
-  const currentLayout = String(options.layoutVariant || '').toLowerCase();
-  const headerMascotBuffer = ['varejo', 'azul_lateral_exato', 'mascote_lateral_clean'].includes(currentLayout)
-    ? null
-    : await loadHeaderMascotBuffer(options).catch(() => null);
+  const headerMascotBuffer = await loadHeaderMascotBuffer(options).catch(() => null);
   if (headerMascotBuffer) {
     const headerMascot = await sharp(headerMascotBuffer)
       .rotate()
       .ensureAlpha()
-      .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 8 })
-      .resize(285, 360, { fit: 'contain', position: 'bottom', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .resize(300, 410, { fit: 'contain', position: 'bottom', background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()
       .toBuffer();
-    headerMascotComposite = { input: headerMascot, top: 830, left: 4 };
+    headerMascotComposite = { input: headerMascot, top: 700, left: 5 };
   }
 
   const imageUrl = String(options.imageUrl || options.productImageUrl || getMainImageUrl(product) || '').trim();
-  // Recupera o fluxo de recorte inteligente que já havia sido aprovado: para
-  // imagens originais do Cloudinary, tenta primeiro a remoção de fundo por IA.
-  // O recorte local fica somente como fallback para fontes que não têm essa
-  // transformação disponível, evitando deformar móveis e produtos claros.
   const intelligentCutoutUrl = options.removeLightBackground !== false ? cloudinaryBackgroundRemovalUrl(imageUrl) : '';
   let usedIntelligentCutout = false;
   let rawImage = null;
@@ -1294,21 +854,7 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
   if (rawImage) {
     const cutout = usedIntelligentCutout
       ? rawImage
-      : await removeEdgeConnectedLightBackground(
-          rawImage,
-          options.removeLightBackground !== false
-        ).catch(() => rawImage);
-    // O serviço de recorte pode devolver um PNG transparente com uma grande
-    // margem vazia. Se essa margem entrar no cálculo, o objeto real fica
-    // pequeno. Normalizamos e retiramos apenas transparência externa antes de
-    // medir e redimensionar; nenhuma parte visível do produto é removida.
-    const normalizedCutout = await sharp(cutout)
-      .rotate()
-      .ensureAlpha()
-      .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 8 })
-      .png()
-      .toBuffer()
-      .catch(() => cutout);
+      : await removeEdgeConnectedLightBackground(rawImage, options.removeLightBackground !== false).catch(() => rawImage);
     const preset = professionalProductPreset(product);
     // O produto permanece no centro geométrico do cartaz. Quando a mascote está
     // presente, produtos largos usam uma faixa vertical mais baixa para terminar
@@ -1320,126 +866,66 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     const productNameTop = splitLayout ? 304 : 350;
     const lastProductLineBaseline = productNameTop + (productLineCount - 1) * 37;
     const minProductTop = lastProductLineBaseline + 38;
-    const cutoutMeta = await sharp(normalizedCutout).metadata();
+    const cutoutMeta = await sharp(cutout).metadata();
     const naturalWidth = Math.max(1, Number(cutoutMeta.width || preset.w));
     const naturalHeight = Math.max(1, Number(cutoutMeta.height || preset.h));
     const initialScale = Math.min(preset.w / naturalWidth, preset.h / naturalHeight);
     const estimatedWidth = naturalWidth * initialScale;
     const estimatedHeight = naturalHeight * initialScale;
-    const exactLateral = layout === 'azul_lateral_exato';
-    const mascotCleanProduct = layout === 'mascote_lateral_clean';
-    const productBottomLimit = mascotCleanProduct ? 790 : (exactLateral ? 1110 : (layout === 'varejo' ? 1090 : 790));
-    const productMaxWidth = mascotCleanProduct ? Math.min(preset.w, 570) : (exactLateral ? Math.min(preset.w, 490) : (layout === 'varejo' ? Math.min(preset.w, 520) : preset.w));
-    const productMaxHeight = mascotCleanProduct ? Math.min(390, productBottomLimit - 380) : (exactLateral ? Math.min(650, productBottomLimit - 425) : (layout === 'varejo' ? Math.min(650, productBottomLimit - 420) : Math.max(180, Math.min(preset.h, productBottomLimit - minProductTop))));
-    const resizedProduct = await sharp(normalizedCutout)
-    .rotate()
-    .ensureAlpha()
-    .resize({
-      width: Math.max(1, Math.round(productMaxWidth)),
-      height: Math.max(1, Math.round(productMaxHeight)),
-      fit: 'inside',
-      withoutEnlargement: false
-    })
-    .png()
-    .toBuffer();
-  // Mantém exatamente o recorte/proporção resultante; nenhuma máscara altera
-  // cantos, antenas, telas, pés ou bordas do produto.
-  const productPng = resizedProduct;
-  const meta = await sharp(productPng).metadata();
+    const centeredEstimatedLeft = (width - estimatedWidth) / 2;
+    const mayReachMascot = Boolean(headerMascotComposite) && centeredEstimatedLeft < 315 && minProductTop + estimatedHeight > 690;
+    const productBottomLimit = mayReachMascot ? 690 : 790;
+    const productMaxWidth = preset.w;
+    const productMaxHeight = Math.max(180, Math.min(preset.h, productBottomLimit - minProductTop));
+    const resizedProduct = await sharp(cutout)
+      .rotate()
+      .ensureAlpha()
+      .resize(productMaxWidth, productMaxHeight, {
+        fit: 'contain',
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+        withoutEnlargement: false
+      })
+      .png()
+      .toBuffer();
+    const resizedMeta = await sharp(resizedProduct).metadata();
+    const resizedWidth = Number(resizedMeta.width || productMaxWidth);
+    const resizedHeight = Number(resizedMeta.height || productMaxHeight);
+    const roundedMask = Buffer.from(`<svg width="${resizedWidth}" height="${resizedHeight}" xmlns="http://www.w3.org/2000/svg"><rect width="${resizedWidth}" height="${resizedHeight}" rx="18" fill="#fff"/></svg>`);
+    const productPng = await sharp(resizedProduct)
+      .composite([{ input: roundedMask, blend: 'dest-in' }])
+      .png()
+      .toBuffer();
+    const meta = await sharp(productPng).metadata();
     const productW = Number(meta.width || preset.w);
     const productH = Number(meta.height || preset.h);
-    // Centraliza o objeto visível, e não apenas o retângulo do arquivo. Alguns
-    // recortes da nuvem mantêm transparência ou pequenos resíduos de um lado,
-    // o que deslocava visualmente celulares, caixas de som e móveis.
-    const visual = await sharp(productPng).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    const visualChannels = Number(visual.info.channels || 4);
-    let alphaWeight = 0;
-    let weightedX = 0;
-    let visibleMinX = productW;
-    let visibleMaxX = 0;
-    for (let y = 0; y < productH; y += 1) {
-      for (let x = 0; x < productW; x += 1) {
-        const alpha = visual.data[(y * productW + x) * visualChannels + 3] || 0;
-        if (alpha < 48) continue;
-        alphaWeight += alpha;
-        weightedX += x * alpha;
-        visibleMinX = Math.min(visibleMinX, x);
-        visibleMaxX = Math.max(visibleMaxX, x);
-      }
-    }
-    const visibleCenterX = alphaWeight > 0 ? weightedX / alphaWeight : productW / 2;
-    if (alphaWeight <= 0) {
-      visibleMinX = 0;
-      visibleMaxX = productW - 1;
-    }
-    const automaticOffsetY = layout === 'showcase' ? 12 : layout === 'premium' ? -10 : layout === 'diagonal' ? 8 : 0;
-    const layoutCenterX = mascotCleanProduct
-      ? 335
-      : (['showcase', 'split'].includes(layout)
-        ? 315
-        : (['catalog', 'diagonal'].includes(layout) ? 755 : width / 2));
-    const centeredLeft = exactLateral
-      ? Math.round(285 - visibleCenterX)
-      : (layout === 'varejo' ? Math.round(285 - visibleCenterX) : Math.round(layoutCenterX - visibleCenterX));
-    // A moldura transparente pode sair do canvas; somente os pixels visíveis
-    // precisam respeitar a margem de segurança de 20 px.
-    const minSafeLeft = 20 - visibleMinX;
-    const canvasMaxSafeLeft = width - 20 - visibleMaxX;
-    const textColumnSafeLeft = mascotCleanProduct
-      ? 640 - visibleMaxX
-      : (exactLateral
-        ? 520 - visibleMaxX
-        : (layout === 'varejo' ? 525 - visibleMaxX : canvasMaxSafeLeft));
-    const maxSafeLeft = Math.min(canvasMaxSafeLeft, textColumnSafeLeft);
-    const left = Math.max(minSafeLeft, Math.min(maxSafeLeft, centeredLeft));
-    const desiredTop = Math.round((mascotCleanProduct ? 385 : (exactLateral ? 430 : (layout === 'varejo' ? 430 : minProductTop))) + automaticOffsetY + Number(options.productOffsetY || 0));
-    const top = Math.max(mascotCleanProduct ? 350 : (exactLateral ? 405 : (layout === 'varejo' ? 390 : minProductTop)), Math.min(productBottomLimit - productH, desiredTop));
-    options.compositionHints = {
-      left,
-      top,
-      right: left + productW,
-      bottom: top + productH,
-      width: productW,
-      height: productH
-    };
-    composites.push({ input: productPng, left, top });
+    // Todos os modelos partem do centro real; somente o controle manual do
+    // painel pode deslocar o produto horizontalmente.
+    const automaticOffsetX = 0;
+    const automaticOffsetY = layout === 'showcase' ? 12 : layout === 'premium' ? -10 : 0;
+    const centeredLeft = Math.round((width - productW) / 2);
+    const left = Math.max(20, Math.round(centeredLeft + automaticOffsetX + Number(options.productOffsetX || 0)));
+    const desiredTop = Math.round(minProductTop + automaticOffsetY + Number(options.productOffsetY || 0));
+    const top = Math.max(minProductTop, Math.min(productBottomLimit - productH, desiredTop));
+    composites.push({ input: productPng, left: Math.min(width - productW - 20, left), top });
   }
 
   // A mascote entra depois do produto e permanece totalmente visível.
   if (headerMascotComposite) composites.push(headerMascotComposite);
 
-  if (currentLayout === 'mascote_lateral_clean') {
-    const cleanMascotBuffer = await loadMascoteLateralCleanBuffer().catch(() => null);
-    if (cleanMascotBuffer) {
-      const cleanMascot = await sharp(cleanMascotBuffer)
-        .rotate()
-        .ensureAlpha()
-        .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 8 })
-        .resize(480, 760, { fit: 'contain', position: 'bottom', background: { r: 0, g: 0, b: 0, alpha: 0 }, withoutEnlargement: false })
-        .png()
-        .toBuffer();
-      composites.push({ input: cleanMascot, top: 350, left: 580 });
-    }
-  }
-
-  if (currentLayout !== 'mascote_lateral_clean' && (options.showMascot === true || options.useMascot === true || options.mascote === true)) {
+  if (options.showMascot === true || options.useMascot === true || options.mascote === true) {
     const mascotBuffer = await loadProfessionalMascotBuffer(options).catch(() => null);
     if (mascotBuffer) {
-      const mascotLayout = String(options.layoutVariant || '').toLowerCase() === 'azul_lateral_exato'
-        ? { w: 210, h: 260, top: 915, left: 18 }
-        : { w: 255, h: 330, top: 835, left: 20 };
       const mascotPng = await sharp(mascotBuffer)
         .rotate()
         .ensureAlpha()
         .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 8 })
-        .resize(mascotLayout.w, mascotLayout.h, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+        .resize(255, 330, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
         .png()
         .toBuffer();
-      composites.push({ input: mascotPng, top: mascotLayout.top, left: mascotLayout.left });
+      composites.push({ input: mascotPng, top: 835, left: 20 });
     }
   }
 
-  const foreground = Buffer.from(professionalForegroundSvg({ product, pricing, options }));
   composites.push({ input: foreground, top: 0, left: 0 });
   return sharp({ create: { width, height, channels: 4, background: '#ffffff' } })
     .composite(composites)

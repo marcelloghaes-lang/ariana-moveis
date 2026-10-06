@@ -1,9 +1,6 @@
 import crypto from 'crypto';
 import { calculateArianaScore, suggestCreditDecision } from '../services/crediarioScoreEngine.js';
 import { getCrediarioWhatsAppConfig, sendCrediarioWhatsApp } from '../services/crediarioWhatsAppService.js';
-import { ensureStockReservationForPaymentAttempt, releaseStockReservation } from '../services/stockReservationService.js';
-import { createAdminNotification } from '../services/notificationService.js';
-import { sendCreditAnalysisWhatsappAlert } from '../services/adminWhatsappAlertService.js';
 
 const ANALYSIS_STATUSES = [
   'PENDENTE_ANALISE',
@@ -73,7 +70,6 @@ function getModels(mongoose) {
     origin: { type: String, enum: ['SITE','LOJA_FISICA','WHATSAPP'], default: 'SITE', index: true },
     conversationId: { type: String, default: '', index: true },
     documentCollectionStatus: { type: String, default: 'NAO_INICIADA', index: true },
-    adminWhatsapp: { type: mongoose.Schema.Types.Mixed, default: null },
     purchase: { type: mongoose.Schema.Types.Mixed, default: null },
     customerId: { type: String, default: '', index: true },
     customer: {
@@ -236,61 +232,9 @@ function getModels(mongoose) {
   return { Analysis, Profile, CollectionLog, Renegotiation };
 }
 
-export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, Product, authRequired, adminRequired, waSendTextMessage } = {}) {
+export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, authRequired, adminRequired } = {}) {
   if (!app || !mongoose || !Order) throw new Error('Crediário análise: dependências obrigatórias ausentes.');
   const { Analysis, Profile, CollectionLog, Renegotiation } = getModels(mongoose);
-  const LOJA_BOT_API_TOKEN = String(process.env.LOJA_BOT_API_TOKEN || '').trim();
-  const LOJA_BOT_API_TOKEN_HASH = String(
-    process.env.LOJA_BOT_API_TOKEN_HASH || 'b606566f79a4e7545ccc413029ad8136decb159de2de5ef5fe471d2503b2044b'
-  ).trim().toLowerCase();
-
-  function lojaBotAccessRequired(req, res, next) {
-    const incomingToken = String(
-      req.headers['x-loja-bot-token'] ||
-      req.headers['x-bot-token'] ||
-      req.headers['x-api-key'] ||
-      req.query.token ||
-      ''
-    ).trim();
-
-    const validBySecret = Boolean(LOJA_BOT_API_TOKEN) && incomingToken === LOJA_BOT_API_TOKEN;
-    const incomingHash = incomingToken
-      ? crypto.createHash('sha256').update(incomingToken).digest('hex')
-      : '';
-    const validByHash = Boolean(LOJA_BOT_API_TOKEN_HASH) && incomingHash === LOJA_BOT_API_TOKEN_HASH;
-
-    if (!validBySecret && !validByHash) {
-      return res.status(401).json({ ok: false, error: 'Token da loja inválido.' });
-    }
-    return next();
-  }
-
-
-  async function notifyAdminOnce({ type, relatedId, title, message, severity = 'info', metadata = {} } = {}) {
-    try {
-      const Notification = mongoose?.models?.Notification;
-      const query = {
-        audience: 'admin',
-        type: String(type || ''),
-        relatedId: String(relatedId || '')
-      };
-      if (metadata?.analysisId) query['metadata.analysisId'] = String(metadata.analysisId);
-      if (Notification && await Notification.exists(query)) return null;
-
-      return await createAdminNotification({
-        type,
-        title,
-        message,
-        relatedId,
-        severity,
-        audience: 'admin',
-        metadata
-      });
-    } catch (error) {
-      console.error('[crediario notification]', error?.message || error);
-      return null;
-    }
-  }
 
   async function findOrder(orderId) {
     const id = text(orderId, 120);
@@ -309,79 +253,6 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
     await Order.collection.updateOne(query, { $set: { ...set, updatedAt: new Date() } });
     return Order.collection.findOne(query);
   }
-
-  async function backfillRecentCrediarioNotifications() {
-    try {
-      const since = new Date(Date.now() - (6 * 60 * 60 * 1000));
-      const rows = await Analysis.find({
-        createdAt: { $gte: since },
-        status: { $in: ['PENDENTE_ANALISE', 'AGUARDANDO_DOCUMENTOS', 'EM_ANALISE'] }
-      }).sort({ createdAt: -1 }).limit(50).lean();
-
-      for (const analysis of rows) {
-        const orderId = text(analysis.orderId, 120);
-        const order = orderId ? await findOrder(orderId) : null;
-        const shortId = orderId ? orderId.slice(-8).toUpperCase() : '---';
-        const customerName = text(analysis.customer?.name || order?.customerName || 'Cliente', 160);
-
-        if (orderId && order) {
-          await notifyAdminOnce({
-            type: 'crediario_order_received',
-            relatedId: orderId,
-            title: 'Novo pedido no Crediário Ariana',
-            message: `Pedido #${shortId} de ${customerName} no valor de R$ ${Number(order.total || 0).toFixed(2).replace('.', ',')} aguardando análise de crédito.`,
-            severity: 'warning',
-            metadata: {
-              orderId,
-              paymentMethod: 'crediario_ariana',
-              status: order.status || '',
-              total: Number(order.total || 0),
-              action: 'open_credit_analysis'
-            }
-          });
-        }
-
-        await notifyAdminOnce({
-          type: 'crediario_analysis_requested',
-          relatedId: orderId || analysis.analysisId,
-          title: 'Nova análise de crédito',
-          message: `${customerName} possui solicitação de análise${orderId ? ` do pedido #${shortId}` : ''} aguardando ação.`,
-          severity: 'warning',
-          metadata: {
-            orderId,
-            analysisId: analysis.analysisId,
-            status: analysis.status,
-            origin: analysis.origin || 'SITE',
-            action: 'open_credit_analysis'
-          }
-        });
-
-        if (analysis.documentCollectionStatus === 'DOCUMENTOS_RECEBIDOS') {
-          await notifyAdminOnce({
-            type: 'crediario_documents_received',
-            relatedId: orderId || analysis.analysisId,
-            title: 'Documentos do crediário recebidos',
-            message: `Os dados e documentos de ${customerName}${orderId ? ` do pedido #${shortId}` : ''} foram recebidos e estão prontos para análise.`,
-            severity: 'success',
-            metadata: {
-              orderId,
-              analysisId: analysis.analysisId,
-              status: analysis.status,
-              action: 'open_credit_analysis'
-            }
-          });
-        }
-      }
-    } catch (error) {
-      console.error('[crediario notification backfill]', error?.message || error);
-    }
-  }
-
-  const notificationBackfillTimer = setTimeout(() => {
-    backfillRecentCrediarioNotifications().catch(() => null);
-  }, 15000);
-  notificationBackfillTimer.unref?.();
-
 
   function customerOwns(order, req) {
     const userId = String(req.user?._id || req.auth?.id || '');
@@ -629,34 +500,7 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
       if (!customerOwns(order, req)) return res.status(403).json({ ok: false, error: 'Pedido não pertence ao cliente autenticado.' });
 
       const existing = await Analysis.findOne({ orderId, status: { $nin: ['REPROVADO', 'CANCELADO'] } }).sort({ createdAt: -1 });
-      if (existing) {
-        const shortId = String(orderId || '').slice(-8).toUpperCase();
-        await notifyAdminOnce({
-          type: 'crediario_analysis_requested',
-          relatedId: orderId,
-          title: 'Nova análise de crédito',
-          message: `${existing.customer?.name || order.customerName || 'Cliente'} possui solicitação de análise do pedido #${shortId} aguardando ação.`,
-          severity: 'warning',
-          metadata: {
-            orderId,
-            analysisId: existing.analysisId,
-            status: existing.status,
-            origin: existing.origin || 'SITE',
-            action: 'open_credit_analysis'
-          }
-        });
-        if (!existing.adminWhatsapp?.firstSentAt) {
-          sendCreditAnalysisWhatsappAlert({
-            mongoose,
-            waSendTextMessage,
-            analysis: existing,
-            reminder: false
-          }).catch((error) => {
-            console.error('[admin-whatsapp] análise de crédito existente:', error?.message || error);
-          });
-        }
-        return res.status(200).json({ ok: true, reused: true, analysis: existing });
-      }
+      if (existing) return res.status(200).json({ ok: true, reused: true, analysis: existing });
 
       const plan = body.plan || body.crediario || {};
       const baseAmountCents = cents(plan.baseAmountCents || body.baseAmountCents);
@@ -725,33 +569,6 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
         'crediario.installmentDivisor': installmentDivisor,
         'crediario.firstDueDate': analysis.firstDueDate,
         'crediario.installmentPlan': analysis.installmentPlan
-      });
-
-      const shortId = String(orderId || '').slice(-8).toUpperCase();
-      await notifyAdminOnce({
-        type: 'crediario_analysis_requested',
-        relatedId: orderId,
-        title: 'Nova análise de crédito',
-        message: `${analysis.customer?.name || order.customerName || 'Cliente'} enviou uma solicitação de análise para o pedido #${shortId}.`,
-        severity: 'warning',
-        metadata: {
-          orderId,
-          analysisId: analysis.analysisId,
-          status: analysis.status,
-          origin: 'SITE',
-          customerId: analysis.customerId || '',
-          baseAmountCents,
-          action: 'open_credit_analysis'
-        }
-      });
-
-      sendCreditAnalysisWhatsappAlert({
-        mongoose,
-        waSendTextMessage,
-        analysis,
-        reminder: false
-      }).catch((error) => {
-        console.error('[admin-whatsapp] nova análise de crédito:', error?.message || error);
       });
 
       let whatsapp = null;
@@ -921,144 +738,6 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
       return res.status(500).json({ ok: false, error: error.message || 'Falha ao abrir solicitação da loja.' });
     }
   });
-
-  app.post('/api/bot/crediario/analises/loja', lojaBotAccessRequired, async (req, res) => {
-    try {
-      const body = req.body || {};
-      const phone = digits(body.phone || body.telefone);
-      const baseAmountCents = cents(body.baseAmountCents || body.valorCentavos);
-      const customerName = text(body.customerName || body.nome, 160);
-      const purchaseDescription = text(body.purchaseDescription || body.produto, 1000);
-
-      if (!customerName || !phone || baseAmountCents <= 0) {
-        return res.status(400).json({
-          ok: false,
-          error: 'Informe nome, WhatsApp e valor da compra.'
-        });
-      }
-
-      const duplicateSince = new Date(Date.now() - 30 * 60 * 1000);
-      const existing = await Analysis.findOne({
-        'customer.phone': phone,
-        baseAmountCents,
-        status: { $in: ['PENDENTE_ANALISE', 'AGUARDANDO_DOCUMENTOS', 'EM_ANALISE'] },
-        createdAt: { $gte: duplicateSince },
-        'purchase.source': 'WHATSAPP'
-      }).sort({ createdAt: -1 });
-
-      if (existing) {
-        return res.status(200).json({
-          ok: true,
-          existing: true,
-          analysis: existing,
-          message: 'Já existe uma solicitação recente de crediário para este cliente e valor.'
-        });
-      }
-
-      const analysis = await Analysis.create({
-        analysisId: publicId('analise'),
-        orderId: text(body.orderId || body.pedidoId, 120),
-        origin: 'WHATSAPP',
-        conversationId: text(body.conversationId, 160),
-        documentCollectionStatus: 'ENVIO_CONVITE_PENDENTE',
-        customerId: text(body.customerId, 120),
-        customer: {
-          name: customerName,
-          document: digits(body.document || body.cpf),
-          email: text(body.email, 160),
-          phone
-        },
-        status: 'AGUARDANDO_DOCUMENTOS',
-        baseAmountCents,
-        financedAmountCents: baseAmountCents,
-        installmentCount: Number(body.installmentCount || body.parcelas || 0),
-        installmentDivisor: Number(body.installmentDivisor || body.divisor || 0),
-        internalNote: text(
-          body.note ||
-          body.observacao ||
-          'Solicitação aberta automaticamente pelo atendimento comercial do WhatsApp principal.',
-          3000
-        ),
-        purchase: {
-          source: 'WHATSAPP',
-          description: purchaseDescription,
-          seller: text(body.seller || body.vendedor || 'Atendimento WhatsApp', 160),
-          storeReference: text(body.storeReference || body.referencia || 'numero_principal', 160)
-        },
-        history: [{
-          action: 'ANALYSIS_REQUESTED',
-          toStatus: 'AGUARDANDO_DOCUMENTOS',
-          actorId: 'loja_whatsapp_bot',
-          actorName: 'Atendimento WhatsApp Ariana',
-          note: 'Solicitação de crediário iniciada pelo número principal da loja.',
-          metadata: { origin: 'WHATSAPP', source: 'loja_bot' }
-        }]
-      });
-
-      sendCreditAnalysisWhatsappAlert({
-        mongoose,
-        waSendTextMessage,
-        analysis
-      }).catch((error) => {
-        console.error('[admin-whatsapp] análise criada pelo bot da loja:', error?.message || error);
-      });
-
-      let whatsapp = null;
-      try {
-        whatsapp = await sendCrediarioWhatsApp({
-          phone,
-          message: `Olá, ${customerName.split(' ')[0]}! 👋 A equipe da *Ariana Móveis* abriu uma solicitação de crediário para sua compra${purchaseDescription ? ` de *${text(purchaseDescription, 180)}*` : ''}. Para iniciar o envio seguro dos seus dados e documentos, responda *ACEITO* nesta conversa.`,
-          metadata: {
-            eventType: 'CREDIT_ANALYSIS_INVITE',
-            origin: 'WHATSAPP',
-            source: 'loja_bot',
-            orderId: analysis.orderId,
-            analysisId: analysis.analysisId
-          }
-        });
-
-        analysis.documentCollectionStatus = 'CONVITE_ENVIADO';
-        analysis.history.push({
-          action: 'WHATSAPP_INVITE_SENT',
-          actorName: 'Sistema',
-          metadata: {
-            provider: whatsapp.provider,
-            messageId: whatsapp.messageId,
-            normalizedPhone: whatsapp.normalizedPhone || phone,
-            attempts: whatsapp.attempts || []
-          }
-        });
-        await analysis.save();
-      } catch (sendError) {
-        analysis.documentCollectionStatus = 'FALHA_NO_CONVITE';
-        analysis.history.push({
-          action: 'WHATSAPP_INVITE_FAILED',
-          actorName: 'Sistema',
-          note: text(sendError.message, 1000),
-          metadata: {
-            code: text(sendError.code, 120),
-            phone,
-            attempts: Array.isArray(sendError.attempts) ? sendError.attempts : []
-          }
-        });
-        await analysis.save();
-        console.error('[crediario invite LOJA BOT]', {
-          analysisId: analysis.analysisId,
-          phone,
-          code: sendError.code || '',
-          error: sendError.message
-        });
-      }
-
-      return res.status(201).json({ ok: true, existing: false, analysis, whatsapp });
-    } catch (error) {
-      return res.status(500).json({
-        ok: false,
-        error: error.message || 'Falha ao abrir solicitação do crediário pelo WhatsApp.'
-      });
-    }
-  });
-
 
   app.post(
     '/api/admin/crediario/analises/:id/reenviar-convite',
@@ -1241,27 +920,6 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
     };
     await updateOrder(analysis.orderId, orderFields);
 
-    if (nextStatus === 'REPROVADO' || nextStatus === 'CANCELADO') {
-      await releaseStockReservation({
-        Order,
-        Product,
-        orderId: analysis.orderId,
-        reason: nextStatus === 'REPROVADO' ? 'crediario_credit_rejected' : 'crediario_cancelled'
-      }).catch((error) => {
-        console.error('[stock-reservation] Crediário status:', error?.message || error);
-      });
-    } else if (nextStatus === 'APROVADO') {
-      await ensureStockReservationForPaymentAttempt({
-        Order,
-        Product,
-        orderId: analysis.orderId,
-        paymentMethod: 'crediario_ariana',
-        reason: 'crediario_credit_approved'
-      }).catch((error) => {
-        console.error('[stock-reservation] Crediário aprovação:', error?.message || error);
-      });
-    }
-
     const doc = digits(analysis.customer?.document);
     if (doc) {
       let profile = await Profile.findOne({ document: doc });
@@ -1443,15 +1101,6 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
       analysis.history.push({ action: 'SIGNATURE_REQUESTED', fromStatus: previous, toStatus: analysis.status, actorId: String(req.admin?.id || req.auth?.id || ''), actorName: text(req.admin?.name || 'Administrador', 120), metadata: { envelopeId: analysis.signature.envelopeId, expiresAt: analysis.signature.expiresAt, documents: docs.map(({type,title,hash}) => ({type,title,hash})) } });
       await analysis.save();
       await updateOrder(analysis.orderId, { 'crediario.analysisStatus': analysis.status, 'crediario.signatureStatus': 'PENDING', 'crediario.signatureEnvelopeId': analysis.signature.envelopeId, paymentStatus: 'AWAITING_SIGNATURE', status: 'awaiting_signature', statusLabel: 'Aguardando assinatura eletrônica' });
-      await ensureStockReservationForPaymentAttempt({
-        Order,
-        Product,
-        orderId: analysis.orderId,
-        paymentMethod: 'crediario_ariana',
-        reason: 'crediario_signature_requested'
-      }).catch((error) => {
-        console.error('[stock-reservation] Crediário assinatura:', error?.message || error);
-      });
       return res.status(201).json({ ok: true, signature: { ...analysis.signature.toObject?.() || analysis.signature, tokenHash: undefined, token: rawToken, signingUrl: analysis.signature.signingUrl } });
     } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Falha ao preparar assinatura.' }); }
   });
@@ -1470,14 +1119,6 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
     analysis.history.push({ action: 'SIGNATURE_CANCELLED', fromStatus: analysis.status, toStatus: analysis.status, actorId: String(req.admin?.id || req.auth?.id || ''), actorName: text(req.admin?.name || 'Administrador', 120), note: text(req.body?.reason, 1000) });
     await analysis.save();
     await updateOrder(analysis.orderId, { 'crediario.signatureStatus': 'CANCELLED' });
-    await releaseStockReservation({
-      Order,
-      Product,
-      orderId: analysis.orderId,
-      reason: 'crediario_signature_cancelled'
-    }).catch((error) => {
-      console.error('[stock-reservation] Cancelamento assinatura crediário:', error?.message || error);
-    });
     return res.json({ ok: true, signature: analysis.signature });
   });
 
@@ -1509,15 +1150,6 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
       analysis.history.push({ action: 'DOCUMENTS_SIGNED', fromStatus: previous, toStatus: 'ASSINADO', actorId: String(req.user?._id || req.auth?.id || ''), actorName: signerName, metadata: { evidenceId, envelopeId: analysis.signature.envelopeId, signedAt: analysis.signature.signedAt } });
       await analysis.save();
       await updateOrder(analysis.orderId, { 'crediario.analysisStatus': 'ASSINADO', 'crediario.signatureStatus': 'SIGNED', 'crediario.signatureEvidenceId': evidenceId, 'crediario.signedAt': analysis.signature.signedAt, paymentStatus: 'SIGNED_PENDING_ISSUANCE', status: 'awaiting_cora_issuance', statusLabel: 'Contrato assinado — aguardando emissão do carnê' });
-      await ensureStockReservationForPaymentAttempt({
-        Order,
-        Product,
-        orderId: analysis.orderId,
-        paymentMethod: 'crediario_ariana',
-        reason: 'crediario_contract_signed'
-      }).catch((error) => {
-        console.error('[stock-reservation] Contrato crediário assinado:', error?.message || error);
-      });
       return res.json({ ok: true, signature: { status: 'SIGNED', signedAt: analysis.signature.signedAt, evidenceId, envelopeId: analysis.signature.envelopeId }, nextStep: 'ISSUE_CORA_CARNE' });
     } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Falha ao registrar assinatura.' }); }
   });

@@ -1,19 +1,3 @@
-import { releaseStockReservation, syncStockReservationForPayment } from '../services/stockReservationService.js';
-import { generateCreativeBannerBuffer, resolveCreativeBannerFormat } from '../creative-banner-generator.js';
-import {
-  generateCreativeBannerPro,
-  analyzeCreativeBannerPro,
-  generateCreativeBannerProMulti,
-  analyzeCreativeBannerProMulti,
-  resolveProFormat,
-  getProTemplateManifest
-} from '../creative-banner-pro-generator.js';
-import { researchCreativeCampaignWithAi } from '../services/creativeCampaignAiDirectorService.js';
-import {
-  findApprovedCreativeCutoutAsset,
-  getCreativeCutoutFile
-} from '../services/creativeCutoutBankService.js';
-
 // ============================================================
 // ROTAS ADMIN CORE / UPLOAD / POSTERS / CRUD GENÉRICO
 // Extraído de legacyRoutes.js na Etapa 16.
@@ -26,7 +10,6 @@ export default function registerAdminCoreRoutes(app, context = {}) {
     ADMIN_NAME,
     ADMIN_PASSWORD,
     APP_BASE_URL,
-    crypto,
     MONGODB_DB,
     PORT,
     DEFAULT_CURRENCY,
@@ -55,7 +38,6 @@ export default function registerAdminCoreRoutes(app, context = {}) {
     cloudinary,
     upload,
     uploadToCloudinary,
-    tmpUploadsDir,
     isCloudinaryConfigured,
     safeUploadFolder,
     path,
@@ -70,7 +52,6 @@ export default function registerAdminCoreRoutes(app, context = {}) {
     toJSON,
     changedKeys,
     createAdminNotification,
-    createSellerNotification,
     createSellerOrderNotifications,
     waMaybeNotifyOrderStatusChange,
     waNotifyAdminOrderStatusChange,
@@ -78,8 +59,6 @@ export default function registerAdminCoreRoutes(app, context = {}) {
     buildPublicFileUrl,
     escapeRegex,
     ensureArray,
-    buildProductBasePriceMapForOrders,
-    getSellerSettlementForOrder,
     now,
     mongoose,
     BUILD_ID
@@ -100,291 +79,6 @@ function clientInfo(req) {
   const os = /Windows/i.test(ua) ? 'Windows' : /Android/i.test(ua) ? 'Android' : /iPhone|iPad/i.test(ua) ? 'iOS' : /Mac OS/i.test(ua) ? 'macOS' : /Linux/i.test(ua) ? 'Linux' : 'Outro';
   const device = /Mobile|Android|iPhone|iPad/i.test(ua) ? 'Celular/Tablet' : 'Computador';
   return { ip, userAgent: ua, browser, os, device };
-}
-
-
-const CREATIVE_SOURCE_TTL_MS = 2 * 60 * 60 * 1000;
-const creativeSourceRegistry = new Map();
-
-function cleanupCreativeSourceRegistry() {
-  const nowMs = Date.now();
-  for (const [token, entry] of creativeSourceRegistry.entries()) {
-    const expired = !entry || Number(entry.expiresAt || 0) <= nowMs;
-    const missing = !entry?.path || !fs.existsSync(entry.path);
-    if (!expired && !missing) continue;
-    if (entry?.path && fs.existsSync(entry.path)) {
-      try { fs.unlinkSync(entry.path); } catch {}
-    }
-    creativeSourceRegistry.delete(token);
-  }
-
-  if (!tmpUploadsDir || !fs.existsSync(tmpUploadsDir)) return;
-  try {
-    for (const name of fs.readdirSync(tmpUploadsDir)) {
-      if (!String(name).startsWith('creative-studio-pro-')) continue;
-      const abs = path.join(tmpUploadsDir, name);
-      let stat = null;
-      try { stat = fs.statSync(abs); } catch {}
-      if (!stat?.isFile()) continue;
-      if (nowMs - Number(stat.mtimeMs || 0) <= CREATIVE_SOURCE_TTL_MS) continue;
-      try { fs.unlinkSync(abs); } catch {}
-    }
-  } catch {}
-}
-
-function registerCreativeDirectSource(file) {
-  cleanupCreativeSourceRegistry();
-  if (!file?.path || !fs.existsSync(file.path)) {
-    throw new Error('creative_source_file_missing');
-  }
-
-  const token = typeof crypto?.randomUUID === 'function'
-    ? crypto.randomUUID()
-    : (Date.now().toString(36) + '-' + Math.random().toString(36).slice(2));
-
-  const rawExt = path.extname(String(file.originalname || ''));
-  const ext = /^\.[a-z0-9]{1,8}$/i.test(rawExt) ? rawExt.toLowerCase() : '';
-  const finalPath = path.join(tmpUploadsDir, 'creative-studio-pro-' + token + ext);
-
-  if (file.path !== finalPath) {
-    fs.renameSync(file.path, finalPath);
-  }
-
-  const nowMs = Date.now();
-  const entry = {
-    token,
-    path: finalPath,
-    originalName: String(file.originalname || 'produto'),
-    mimeType: String(file.mimetype || ''),
-    size: Number(file.size || 0),
-    createdAt: nowMs,
-    expiresAt: nowMs + CREATIVE_SOURCE_TTL_MS,
-    persistentUrl: '',
-    persistentPublicId: ''
-  };
-  creativeSourceRegistry.set(token, entry);
-  return entry;
-}
-
-async function persistCreativeDirectSource(entry) {
-  if (!entry?.path || !fs.existsSync(entry.path) || !isCloudinaryConfigured()) return entry;
-  try {
-    const safeBase = sanitizeIdPart(String(entry.originalName || 'produto').replace(/\.[a-z0-9]+$/i,'')) || 'produto';
-    const result = await cloudinary.uploader.upload(entry.path, {
-      folder: buildCloudinaryFolder('marketing/creative-studio-pro/sources'),
-      public_id: safeBase + '-' + entry.token,
-      resource_type: 'image',
-      overwrite: true,
-      invalidate: true
-    });
-    entry.persistentUrl = String(result?.secure_url || result?.url || '');
-    entry.persistentPublicId = String(result?.public_id || '');
-  } catch (error) {
-    console.warn('[creative-studio-pro] falha ao persistir imagem original no Cloudinary:', error?.message || error);
-  }
-  return entry;
-}
-
-function resolveCreativeDirectSource(product = {}) {
-  const token = String(
-    product.sourceToken ||
-    product.originalSourceToken ||
-    product.directSourceToken ||
-    ''
-  ).trim();
-  if (!token) return product;
-
-  cleanupCreativeSourceRegistry();
-  const entry = creativeSourceRegistry.get(token);
-  if (!entry || !entry.path || !fs.existsSync(entry.path)) {
-    const persistentUrl = String(
-      product.persistentSourceUrl ||
-      product.sourceUrl ||
-      product.imageUrl ||
-      product.mainImageUrl ||
-      ''
-    ).trim();
-    if (/^https?:\/\//i.test(persistentUrl)) {
-      return {
-        ...product,
-        imageUrl: persistentUrl,
-        sourceType: 'persistent_original_upload',
-        sourceToken: ''
-      };
-    }
-    const error = new Error('A imagem original temporária expirou. Envie o arquivo novamente.');
-    error.code = 'creative_source_expired';
-    throw error;
-  }
-
-  entry.expiresAt = Date.now() + CREATIVE_SOURCE_TTL_MS;
-  return {
-    ...product,
-    originalSourcePath: entry.path,
-    originalSourceName: entry.originalName,
-    originalSourceMimeType: entry.mimeType,
-    originalSourceBytes: entry.size,
-    persistentSourceUrl: entry.persistentUrl || product.persistentSourceUrl || '',
-    imageUrl: entry.persistentUrl || product.imageUrl,
-    sourceType: entry.persistentUrl ? 'persistent_original_upload' : 'direct_original_upload'
-  };
-}
-
-function resolveCreativeDirectSources(products = []) {
-  return products.map(item => resolveCreativeDirectSource(item));
-}
-
-async function resolveCreativeBankProduct(product = {}) {
-  const direct = resolveCreativeDirectSource(product);
-  let assetId = String(
-    direct.cutoutAssetId ||
-    direct.masterAssetId ||
-    direct.creativeCutoutAssetId ||
-    ''
-  ).trim();
-
-  if (
-    !assetId &&
-    direct.sourceType !== 'direct_original_upload' &&
-    direct.sourceType !== 'persistent_original_upload'
-  ) {
-    const approved = await findApprovedCreativeCutoutAsset({
-      mongoose,
-      sku: direct.sku || direct.codigo || '',
-      name: direct.name || direct.title || '',
-      category: direct.category || direct.categoryName || ''
-    });
-    assetId = String(approved?.id || '').trim();
-  }
-
-  if (!assetId) return direct;
-
-  const file = await getCreativeCutoutFile({
-    mongoose,
-    id: assetId,
-    kind: 'approved'
-  });
-
-  if (!file?.buffer?.length) {
-    const error = new Error('PNG Mestre aprovado não encontrado no Banco Mestre.');
-    error.code = 'creative_cutout_master_not_found';
-    throw error;
-  }
-
-  return {
-    ...direct,
-    cutoutAssetId: assetId,
-    originalBuffer: file.buffer,
-    originalSourceName: file.filename || direct.name || 'produto.png',
-    originalSourceMimeType: file.contentType || 'image/png',
-    originalSourceBytes: Number(file.buffer.length || 0),
-    sourceToken: '',
-    persistentSourceUrl: '',
-    sourceType: 'approved_cutout_bank',
-    masterBankResolved: true
-  };
-}
-
-async function resolveCreativeBankProducts(products = []) {
-  const output = [];
-  for (const item of products) {
-    output.push(await resolveCreativeBankProduct(item));
-  }
-  return output;
-}
-
-
-function inferCreativeCategoryFromText(value = '') {
-  const text = String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
-
-  const rules = [
-    ['ventilador', 'Ventiladores'],
-    ['climatizador', 'Climatização'],
-    ['ar condicionado', 'Climatização'],
-    ['geladeira', 'Geladeiras'],
-    ['refrigerador', 'Geladeiras'],
-    ['lavadora', 'Lavadoras'],
-    ['lava e seca', 'Lavadoras'],
-    ['maquina de lavar', 'Lavadoras'],
-    ['fogao', 'Fogões'],
-    ['cooktop', 'Fogões e Cooktops'],
-    ['micro ondas', 'Micro-ondas'],
-    ['microondas', 'Micro-ondas'],
-    ['air fryer', 'Air Fryer'],
-    ['fritadeira', 'Air Fryer'],
-    ['smart tv', 'TVs'],
-    ['televisor', 'TVs'],
-    ['guarda roupa', 'Móveis'],
-    ['roupeiro', 'Móveis'],
-    ['sofa', 'Móveis'],
-    ['colchao', 'Móveis']
-  ];
-  for (const [needle, category] of rules) {
-    if (text.includes(needle)) return category;
-  }
-  return '';
-}
-
-async function creativeVisionDataUrl(sourcePath = '') {
-  if (!sourcePath || !fs.existsSync(sourcePath)) return '';
-  try {
-    const { default: sharp } = await import('sharp');
-    const preview = await sharp(sourcePath, { failOn: 'none' })
-      .rotate()
-      .resize({
-        width: 1024,
-        height: 1024,
-        fit: 'inside',
-        withoutEnlargement: true,
-        kernel: sharp.kernel.lanczos3
-      })
-      .flatten({ background: '#ffffff' })
-      .jpeg({ quality: 86, mozjpeg: true })
-      .toBuffer();
-
-    return 'data:image/jpeg;base64,' + preview.toString('base64');
-  } catch (error) {
-    console.warn('[creative-studio-pro] não foi possível preparar visão temporária:', error?.message || error);
-    return '';
-  }
-}
-
-async function resolveCreativeResearchProducts(products = []) {
-  const output = [];
-  for (const raw of (Array.isArray(products) ? products : []).filter(Boolean).slice(0, 5)) {
-    const product = await resolveCreativeBankProduct(raw);
-    const category =
-      product.category ||
-      product.categoryName ||
-      inferCreativeCategoryFromText(
-        [product.name, product.title, product.originalSourceName].filter(Boolean).join(' ')
-      );
-
-    let imageUrl =
-      product.imageUrl ||
-      product.mainImageUrl ||
-      product.image ||
-      product.imagem ||
-      '';
-
-    if (Buffer.isBuffer(product.originalBuffer) && product.originalBuffer.length) {
-      imageUrl = 'data:image/png;base64,' + product.originalBuffer.toString('base64');
-    } else if (product.originalSourcePath) {
-      const visionDataUrl = await creativeVisionDataUrl(product.originalSourcePath);
-      if (visionDataUrl) imageUrl = visionDataUrl;
-    }
-
-    output.push({
-      ...product,
-      category,
-      categoryName: product.categoryName || category,
-      imageUrl
-    });
-  }
-  return output;
 }
 
 async function recordLoginEvent(payload = {}) {
@@ -1139,7 +833,7 @@ function professionalCreativeInput(body = {}) {
 
 const PROFESSIONAL_POSTER_ROTATION_KEY = 'professional_poster_layout_rotation';
 function professionalLayoutForSequence(sequence = 0) {
-  const layouts = ['classic', 'showcase', 'premium', 'azul_lateral_exato', 'split', 'catalog', 'diagonal', 'varejo'];
+  const layouts = ['classic', 'showcase', 'premium', 'catalog', 'split'];
   return layouts[Math.floor(Math.max(0, Number(sequence) || 0) / 10) % layouts.length];
 }
 async function professionalPosterRotationState() {
@@ -1171,294 +865,48 @@ app.post('/api/admin/posters/preview', adminRequired, async (req, res) => {
 
 app.post('/api/admin/posters/professional', adminRequired, async (req, res) => {
   try {
+    if (!isCloudinaryConfigured()) return res.status(500).json({ ok: false, error: 'Cloudinary não configurado.' });
     const { product, options } = professionalCreativeInput(req.body || {});
     const rotation = await professionalPosterRotationState();
-    const manualLayout = Boolean(options.layoutVariant || options.sceneTheme);
     options.layoutVariant = options.sceneTheme ? 'split' : (options.layoutVariant || rotation.layoutVariant);
-
     const buffer = await generateProductPosterBuffer(product, options);
-    const nextCount = manualLayout ? rotation.count : rotation.count + 1;
-
-    if (!manualLayout) {
-      await setSetting(
-        PROFESSIONAL_POSTER_ROTATION_KEY,
-        { count: nextCount, lastLayout: options.layoutVariant, updatedAt: new Date().toISOString() },
-        String(req.admin?.email || req.admin?.id || 'admin')
-      ).catch(() => null);
-    }
-
     const productName = String(product.name || product.title || 'cartaz-ariana');
-    const safeName = sanitizeIdPart(productName) || 'cartaz-ariana';
-    res.set({
-      'Content-Type': 'image/png',
-      'Content-Disposition': `attachment; filename="${safeName}.png"`,
-      'Cache-Control': 'no-store, max-age=0',
-      'X-Poster-Layout': options.layoutVariant,
-      'X-Poster-Sequence': String(nextCount),
-      'X-Next-Layout-Change-At': String((Math.floor(nextCount / 10) + 1) * 10),
-      'X-Content-Type-Options': 'nosniff'
+    const publicId = `${sanitizeIdPart(productName)}-whatsapp-${Date.now()}`;
+    const result = await uploadBufferToCloudinary(buffer, {
+      folder: buildCloudinaryFolder('posters/profissionais/whatsapp'),
+      public_id: publicId
     });
-    return res.send(buffer);
-  } catch (error) {
-    console.error('[posters] erro ao gerar cartaz profissional:', error);
-    return res.status(500).json({ ok: false, error: error.message || 'professional_poster_generate_failed' });
-  }
-});
-
-app.post('/api/admin/posters/preview-banner', adminRequired, async (req, res) => {
-  try {
-    const { product, options } = professionalCreativeInput(req.body || {});
-    options.outputFormat = String(options.outputFormat || req.body?.outputFormat || 'site_hero_desktop').trim();
-    const format = resolveCreativeBannerFormat(options.outputFormat);
-    const buffer = await generateCreativeBannerBuffer(product, options);
-    res.set({
-      'Content-Type': 'image/png',
-      'Content-Disposition': 'inline; filename="previa-banner-ariana.png"',
-      'Cache-Control': 'no-store, max-age=0',
-      'X-Creative-Format': format.id,
-      'X-Creative-Width': String(format.width),
-      'X-Creative-Height': String(format.height),
-      'X-Content-Type-Options': 'nosniff'
-    });
-    return res.send(buffer);
-  } catch (error) {
-    console.error('[creative-studio] erro ao gerar prévia de banner:', error);
-    return res.status(500).json({ ok: false, error: error.message || 'creative_banner_preview_failed' });
-  }
-});
-
-app.post('/api/admin/posters/professional-banner', adminRequired, async (req, res) => {
-  try {
-    const { product, options } = professionalCreativeInput(req.body || {});
-    options.outputFormat = String(options.outputFormat || req.body?.outputFormat || 'site_hero_desktop').trim();
-    const format = resolveCreativeBannerFormat(options.outputFormat);
-    const buffer = await generateCreativeBannerBuffer(product, options);
-    const productName = String(product.name || product.title || 'banner-ariana');
-    const safeName = sanitizeIdPart(productName) || 'banner-ariana';
-    res.set({
-      'Content-Type': 'image/png',
-      'Content-Disposition': `attachment; filename="${safeName}-${format.id}.png"`,
-      'Cache-Control': 'no-store, max-age=0',
-      'X-Creative-Format': format.id,
-      'X-Creative-Width': String(format.width),
-      'X-Creative-Height': String(format.height),
-      'X-Content-Type-Options': 'nosniff'
-    });
-    return res.send(buffer);
-  } catch (error) {
-    console.error('[creative-studio] erro ao gerar banner:', error);
-    return res.status(500).json({ ok: false, error: error.message || 'creative_banner_generate_failed' });
-  }
-});
-
-app.get('/api/creative-studio/pro/ai-status', (_req, res) => {
-  return res.json({
-    ok: true,
-    configured: Boolean(String(process.env.OPENAI_API_KEY || '').trim()),
-    model: String(process.env.CREATIVE_AI_MODEL || 'gpt-5.6-luna').trim(),
-    engine: 'ai_vision_web',
-    fallback: 'rules_fallback'
-  });
-});
-
-app.get('/api/admin/creative-studio/pro/templates/:templateId', adminRequired, (req, res) => {
-  try {
-    const manifest = getProTemplateManifest(req.params?.templateId || '');
-    res.set({
-      'Content-Type': 'application/json; charset=utf-8',
-      'Cache-Control': 'no-store, max-age=0',
-      'Content-Disposition': `attachment; filename="ariana-template-${manifest.id}.json"`
-    });
-    return res.json(manifest);
-  } catch (error) {
-    return res.status(400).json({
-      ok: false,
-      error: error.message || 'creative_template_export_failed'
-    });
-  }
-});
-
-app.post(
-  '/api/admin/creative-studio/pro/source-image',
-  adminRequired,
-  upload.single('file'),
-  async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ ok: false, error: 'Nenhuma imagem enviada.' });
-      }
-
-      const mimeType = String(req.file.mimetype || '').toLowerCase();
-      if (!mimeType.startsWith('image/')) {
-        if (req.file.path && fs.existsSync(req.file.path)) {
-          try { fs.unlinkSync(req.file.path); } catch {}
-        }
-        return res.status(415).json({ ok: false, error: 'O arquivo enviado não é uma imagem válida.' });
-      }
-
-      const entry = await persistCreativeDirectSource(registerCreativeDirectSource(req.file));
-      return res.json({
-        ok: true,
-        sourceToken: entry.token,
-        originalName: entry.originalName,
-        mimeType: entry.mimeType,
-        bytes: entry.size,
-        persistentUrl: entry.persistentUrl || '',
-        persistentPublicId: entry.persistentPublicId || '',
-        expiresInSeconds: Math.round(CREATIVE_SOURCE_TTL_MS / 1000),
-        sourceType: entry.persistentUrl ? 'persistent_original_upload' : 'direct_original_upload'
-      });
-    } catch (error) {
-      if (req.file?.path && fs.existsSync(req.file.path)) {
-        try { fs.unlinkSync(req.file.path); } catch {}
-      }
-      console.error('[creative-studio-pro] erro ao receber imagem original:', error);
-      return res.status(500).json({
-        ok: false,
-        error: error.message || 'creative_studio_pro_source_upload_failed'
-      });
-    }
-  }
-);
-
-app.post('/api/admin/creative-studio/pro/research-copy', adminRequired, async (req, res) => {
-  try {
-    const rawProducts = Array.isArray(req.body?.products)
-      ? req.body.products.filter(Boolean).slice(0, 5)
-      : (req.body?.product ? [req.body.product] : []);
-    const products = await resolveCreativeResearchProducts(rawProducts);
-    const context = {
-      format: req.body?.context?.format,
-      template: req.body?.context?.template,
-      templateLibraryId: req.body?.context?.templateLibraryId,
-      contentMode: req.body?.context?.contentMode,
-      generationStyle: req.body?.context?.generationStyle,
-      marketplacePreset: req.body?.context?.marketplacePreset,
-      layoutGrammar: req.body?.context?.layoutGrammar,
-      objective: req.body?.context?.objective
+    const poster = {
+      variant: 'whatsapp',
+      template: options.template,
+      layoutVariant: options.layoutVariant,
+      url: result.secure_url,
+      public_id: result.public_id,
+      width: result.width,
+      height: result.height,
+      format: result.format,
+      createdAt: new Date().toISOString()
     };
-    const result = await researchCreativeCampaignWithAi(products, context);
-    return res.json(result);
-  } catch (error) {
-    console.error('[creative-studio-pro] erro ao pesquisar campanha:', error);
-    return res.status(500).json({
-      ok: false,
-      error: error.message || 'creative_studio_pro_campaign_research_failed'
-    });
-  }
-});
 
-app.post('/api/admin/creative-studio/pro/analyze', adminRequired, async (req, res) => {
-  try {
-    const input = professionalCreativeInput(req.body || {});
-    const product = await resolveCreativeBankProduct(input.product);
-    const options = input.options;
-    const products = Array.isArray(req.body?.products)
-      ? await resolveCreativeBankProducts(req.body.products.filter(Boolean).slice(0, 5))
-      : [];
-    const analysis = products.length >= 2
-      ? await analyzeCreativeBannerProMulti(products, options)
-      : await analyzeCreativeBannerPro(product, options);
-    return res.json(analysis);
-  } catch (error) {
-    console.error('[creative-studio-pro] erro ao analisar imagem:', error);
-    return res.status(500).json({ ok: false, error: error.message || 'creative_studio_pro_analyze_failed' });
-  }
-});
+    const productId = String(req.body?.productId || product.id || product._id || '').trim();
+    const oid = normalizeObjectId(productId);
+    if (oid) {
+      await Product.findByIdAndUpdate(oid, {
+        $push: { posters: { $each: [poster], $slice: -20 } },
+        $set: { updatedAt: new Date() }
+      }).catch(() => null);
+    }
 
-app.post('/api/admin/creative-studio/pro/preview', adminRequired, async (req, res) => {
-  try {
-    const input = professionalCreativeInput(req.body || {});
-    const product = await resolveCreativeBankProduct(input.product);
-    const options = { ...input.options, previewMode:true };
-    const products = Array.isArray(req.body?.products)
-      ? await resolveCreativeBankProducts(req.body.products.filter(Boolean).slice(0, 5))
-      : [];
-    const result = products.length >= 2
-      ? await generateCreativeBannerProMulti(products, options)
-      : await generateCreativeBannerPro(product, options);
-    const format = result.meta?.format || resolveProFormat(options.outputFormat);
-    res.set({
-      'Content-Type': 'image/png',
-      'Content-Disposition': 'inline; filename="previa-creative-studio-pro.png"',
-      'Cache-Control': 'no-store, max-age=0',
-      'X-Creative-Pro': '1',
-      'X-Creative-Multi': result.meta?.multiProduct ? '1' : '0',
-      'X-Creative-Format': format.id,
-      'X-Creative-Width': String(format.width),
-      'X-Creative-Height': String(format.height),
-      'X-Creative-Quality': String(result.meta?.quality?.score ?? ''),
-      'X-Creative-Blocked': result.meta?.quality?.blockSave ? '1' : '0',
-      'X-Creative-Background': String(result.meta?.product?.removalMode || ''),
-      'X-Content-Type-Options': 'nosniff'
-    });
-    return res.send(result.buffer);
-  } catch (error) {
-    console.error('[creative-studio-pro] erro ao gerar prévia:', error);
-    if (error?.code === 'creative_quality_blocked') {
-      return res.status(422).json({
-        ok:false,
-        error:'creative_quality_blocked',
-        message:'A prévia foi bloqueada porque existe produto reprovado.',
-        quality:error.quality || null
-      });
-    }
-    return res.status(500).json({ ok: false, error: error.message || 'creative_studio_pro_preview_failed' });
-  }
-});
+    await setSetting(
+      PROFESSIONAL_POSTER_ROTATION_KEY,
+      { count: rotation.count + 1, lastLayout: options.layoutVariant, updatedAt: new Date().toISOString() },
+      String(req.admin?.email || req.admin?.id || 'admin')
+    ).catch(() => null);
 
-app.post('/api/admin/creative-studio/pro/render', adminRequired, async (req, res) => {
-  try {
-    const input = professionalCreativeInput(req.body || {});
-    const product = await resolveCreativeBankProduct(input.product);
-    const options = { ...input.options, previewMode:false };
-    const products = Array.isArray(req.body?.products)
-      ? await resolveCreativeBankProducts(req.body.products.filter(Boolean).slice(0, 5))
-      : [];
-    const result = products.length >= 2
-      ? await generateCreativeBannerProMulti(products, options)
-      : await generateCreativeBannerPro(product, options);
-    if (result.meta?.quality?.blockSave) {
-      return res.status(422).json({
-        ok: false,
-        error: 'creative_quality_blocked',
-        message: 'A arte final foi bloqueada porque a imagem não atingiu a qualidade mínima.',
-        quality: result.meta.quality,
-        product: result.meta.product || null,
-        products: result.meta.products || [],
-        brand: result.meta.brand
-      });
-    }
-    const format = result.meta?.format || resolveProFormat(options.outputFormat);
-    const productName = result.meta?.multiProduct
-      ? String(options.brandLabel || 'campanha-ariana')
-      : String(product.name || product.title || 'banner-ariana-pro');
-    const safeName = sanitizeIdPart(productName) || 'banner-ariana-pro';
-    res.set({
-      'Content-Type': 'image/png',
-      'Content-Disposition': `attachment; filename="${safeName}-${format.id}-pro.png"`,
-      'Cache-Control': 'no-store, max-age=0',
-      'X-Creative-Pro': '1',
-      'X-Creative-Multi': result.meta?.multiProduct ? '1' : '0',
-      'X-Creative-Format': format.id,
-      'X-Creative-Width': String(format.width),
-      'X-Creative-Height': String(format.height),
-      'X-Creative-Quality': String(result.meta?.quality?.score ?? ''),
-      'X-Creative-Background': String(result.meta?.product?.removalMode || ''),
-      'X-Content-Type-Options': 'nosniff'
-    });
-    return res.send(result.buffer);
+    return res.json({ ok: true, poster, url: poster.url, sequence: rotation.count + 1, nextLayoutChangeAt: (Math.floor(rotation.count / 10) + 1) * 10 });
   } catch (error) {
-    console.error('[creative-studio-pro] erro ao gerar arquivo final:', error);
-    if (error?.code === 'creative_quality_blocked') {
-      return res.status(422).json({
-        ok:false,
-        error:'creative_quality_blocked',
-        message:'O PNG final foi bloqueado porque existe produto reprovado.',
-        quality:error.quality || null
-      });
-    }
-    return res.status(500).json({ ok: false, error: error.message || 'creative_studio_pro_render_failed' });
+    console.error('[posters] erro ao publicar cartaz profissional:', error);
+    return res.status(500).json({ ok: false, error: error.message || 'professional_poster_generate_failed' });
   }
 });
 
@@ -1761,367 +1209,12 @@ function buildAdminQuery(modelName, req) {
   if (modelName === 'products') {
     if (req.query.where_category) q.category = String(req.query.where_category);
     if (req.query.where_sellerId) q.sellerId = String(req.query.where_sellerId);
-    if (['1', 'true', 'yes'].includes(String(req.query.storefrontOnly || '').trim().toLowerCase())) {
-      // Produtos criados exclusivamente pela migração do SIGE pertencem ao
-      // Ariana ERP e não possuem, necessariamente, categoria ou imagens para
-      // a vitrine. Mantê-los fora do cadastro da loja evita que ocupem o
-      // limite da listagem sem apagar ou alterar os registros históricos.
-      q['specs.sigeSourceId'] = { $exists: false };
-    }
   }
   if (modelName === 'orders' && req.query.where_status) q.status = String(req.query.where_status);
   if ((modelName === 'atendimentos' || modelName === 'tickets') && req.query.where_status) q.status = String(req.query.where_status);
   return q;
 }
 
-
-// A grade administrativa precisa dos dados comerciais do produto, mas nao das
-// imagens inline antigas, historico de posters e metadados de integracao. Alguns
-// documentos legados possuem varios megabytes nesses campos; carregar centenas
-// deles de uma vez bloqueia o boot inteiro do painel.
-const ADMIN_PRODUCT_LIST_FIELD_NAMES = [
-  '_id', 'name', 'slug', 'description',
-  'category', 'categoryId', 'categoryName', 'brand', 'sku',
-  'sellerId', 'sellerName',
-  'price', 'oldPrice', 'pixPrice', 'installmentCount',
-  'stock', 'active',
-  'storefrontStatus', 'storefrontSource', 'storefrontSubmittedAt', 'storefrontReviewedAt', 'storefrontReviewedBy', 'storefrontReviewNote',
-  'specs', 'dimensions', 'logistics',
-  'weight', 'length', 'height', 'width',
-  'isOffer', 'isFavorite', 'isHighlight', 'isBestSeller',
-  'isNewArrival', 'isRecommended',
-  'createdAt', 'updatedAt'
-];
-
-const ADMIN_PRODUCT_LIST_PROJECTION = ADMIN_PRODUCT_LIST_FIELD_NAMES.reduce((projection, field) => {
-  projection[field] = 1;
-  return projection;
-}, {});
-
-// Somente URLs externas pequenas entram na listagem. A rota individual continua
-// sendo a fonte completa ao abrir um produto para edicao.
-ADMIN_PRODUCT_LIST_PROJECTION.imageUrl = {
-  $switch: {
-    branches: ['imageUrl', 'mainImageUrl', 'image', 'imagem'].map((field) => ({
-      case: {
-        $regexMatch: {
-          input: { $convert: { input: `${field}`, to: 'string', onError: '', onNull: '' } },
-          regex: '^https?://',
-          options: 'i'
-        }
-      },
-      then: `${field}`
-    })),
-    default: ''
-  }
-};
-
-app.get('/api/admin/products', adminRequired, async (req, res) => {
-  try {
-    const query = buildAdminQuery('products', req);
-    const requestedLimit = Number(req.query.limit || 500);
-    const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 500, 1), 1000);
-    const requestedSort = String(req.query.sortBy || 'createdAt').trim();
-    const sortBy = /^[a-zA-Z0-9_.]+$/.test(requestedSort) ? requestedSort : 'createdAt';
-    const sortDir = String(req.query.sortDir || 'desc').toLowerCase() === 'asc' ? 1 : -1;
-
-    const rows = await Product.aggregate([
-      { $match: query },
-      { $sort: { [sortBy]: sortDir } },
-      { $limit: limit },
-      { $project: ADMIN_PRODUCT_LIST_PROJECTION }
-    ]);
-
-    return res.json(rows.map(normalizeProductForResponse));
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'admin_products_list_failed' });
-  }
-});
-
-app.patch('/api/admin/products/:id/storefront', adminRequired, async (req, res) => {
-  try {
-    const oid = normalizeObjectId(req.params.id);
-    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
-
-    const product = await Product.findById(oid);
-    if (!product) return res.status(404).json({ ok: false, error: 'Produto não encontrado' });
-
-    const requestedStatus = String(req.body?.status || 'approved').trim().toLowerCase();
-    if (!['approved', 'pending_review'].includes(requestedStatus)) {
-      return res.status(400).json({ ok: false, error: 'Status da vitrine inválido' });
-    }
-
-    if (requestedStatus === 'approved') {
-      const current = normalizeProductForResponse(product);
-      const imageUrl = String(current.mainImageUrl || current.imageUrl || current.image || '').trim();
-      const missing = [];
-      if (!String(product.name || '').trim()) missing.push('nome');
-      if (!String(product.categoryName || product.category || '').trim()) missing.push('categoria');
-      if (!(Number(product.price || 0) > 0)) missing.push('preço');
-      if (!String(product.description || '').trim()) missing.push('descrição');
-      if (!imageUrl || !/^https?:\/\//i.test(imageUrl)) missing.push('imagem');
-
-      if (missing.length) {
-        return res.status(400).json({
-          ok: false,
-          error: 'Complete o cadastro antes de publicar.',
-          code: 'STOREFRONT_PRODUCT_INCOMPLETE',
-          missing
-        });
-      }
-    }
-
-    const updated = await Product.findByIdAndUpdate(
-      oid,
-      {
-        $set: {
-          storefrontStatus: requestedStatus,
-          storefrontSource: String(product.storefrontSource || 'erp'),
-          storefrontReviewedAt: now(),
-          storefrontReviewedBy: String(req.admin?.email || req.admin?.id || 'admin'),
-          storefrontReviewNote: String(req.body?.note || '').trim()
-        }
-      },
-      { new: true, runValidators: true }
-    );
-
-    await writeAuditLog?.({
-      scope: 'products',
-      eventType: requestedStatus === 'approved' ? 'storefront_product_published' : 'storefront_product_review',
-      status: 'success',
-      metadata: {
-        productId: String(updated._id),
-        storefrontStatus: requestedStatus,
-        actor: req.admin?.email || req.admin?.id || 'admin'
-      }
-    }).catch(() => null);
-
-    return res.json({ ok: true, product: normalizeProductForResponse(updated) });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'storefront_product_status_failed' });
-  }
-});
-
-
-// ============================================================
-// REPASSES MANUAIS A SELLERS
-// A Ariana recebe do cliente e registra o repasse por seller no próprio pedido.
-// O seller nunca possui rota para marcar o próprio repasse como pago.
-// ============================================================
-app.get('/api/admin/seller-settlements', adminRequired, async (req, res) => {
-  try {
-    const sellerId = String(req.query.sellerId || '').trim();
-    const status = String(req.query.status || '').trim().toLowerCase();
-    const query = sellerId
-      ? { $or: [{ sellerIds: sellerId }, { 'items.sellerId': sellerId }] }
-      : { $or: [{ sellerIds: { $exists: true, $ne: [] } }, { 'items.sellerId': { $exists: true } }] };
-    const docs = await Order.find(query).sort({ createdAt: -1 }).limit(Math.min(Math.max(Number(req.query.limit || 500), 1), 1000));
-    const rows = [];
-    const productBaseMap = typeof buildProductBasePriceMapForOrders === 'function'
-      ? await buildProductBasePriceMapForOrders(docs)
-      : new Map();
-    docs.forEach((doc) => {
-      const order = toJSON(doc) || {};
-      const settlements = order.sellerSettlements && typeof order.sellerSettlements === 'object' ? order.sellerSettlements : {};
-      const ids = sellerId ? [sellerId] : [...new Set(ensureArray(order.sellerIds).concat(ensureArray(order.items).map((i) => i?.sellerId)).map((v) => String(v || '').trim()).filter(Boolean))];
-      ids.forEach((sid) => {
-        const entry = settlements[sid] || {};
-        const currentStatus = String(entry.status || 'pending').toLowerCase();
-        if (status && currentStatus !== status) return;
-        const calculated = typeof getSellerSettlementForOrder === 'function'
-          ? getSellerSettlementForOrder(order, sid, productBaseMap)
-          : { gross: 0, fee: 0, net: 0, commissionPercent: null };
-        const sellerDoc = null;
-        rows.push({
-          orderId: String(order._id || order.id || ''),
-          sellerId: sid,
-          status: currentStatus,
-          gross: Number(calculated.gross || 0),
-          commission: Number(calculated.fee || calculated.commission || 0),
-          commissionPercent: calculated.commissionPercent ?? null,
-          net: Number(calculated.net || 0),
-          amount: currentStatus === 'paid' ? Number(entry.amount || calculated.net || 0) : Number(calculated.net || 0),
-          paidAt: entry.paidAt || null,
-          paidBy: entry.paidBy || '',
-          reference: entry.reference || '',
-          note: entry.note || '',
-          createdAt: order.createdAt
-        });
-      });
-    });
-    return res.json({ ok: true, items: rows, total: rows.length, mode: 'manual_settlement' });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'seller_settlements_list_failed' });
-  }
-});
-
-app.post('/api/admin/orders/:orderId/seller-settlements/:sellerId/paid', adminRequired, async (req, res) => {
-  try {
-    const oid = normalizeObjectId(req.params.orderId);
-    const sid = String(req.params.sellerId || '').trim();
-    if (!oid || !sid) return res.status(400).json({ ok: false, error: 'Pedido ou seller inválido' });
-    const order = await Order.findById(oid);
-    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
-    const orderObj = toJSON(order) || {};
-    const belongs = ensureArray(orderObj.sellerIds).map(String).includes(sid) || ensureArray(orderObj.items).some((item) => String(item?.sellerId || '') === sid);
-    if (!belongs) return res.status(404).json({ ok: false, error: 'Seller não pertence a este pedido' });
-
-    const amount = Number(req.body?.amount);
-    if (!Number.isFinite(amount) || amount < 0) return res.status(400).json({ ok: false, error: 'Informe o valor efetivamente repassado' });
-    const key = `sellerSettlements.${sid}`;
-    const entry = {
-      status: 'paid',
-      amount,
-      paidAt: now(),
-      paidBy: String(req.admin?.email || req.admin?.id || 'admin'),
-      reference: String(req.body?.reference || '').trim(),
-      note: String(req.body?.note || '').trim(),
-      mode: 'manual'
-    };
-    await Order.updateOne({ _id: oid }, { $set: { [key]: entry } });
-
-    await createSellerNotification?.({
-      sellerId: sid,
-      type: 'seller_settlement_paid',
-      title: 'Repasse realizado',
-      message: `A Ariana registrou o repasse do pedido #${String(oid).slice(-8).toUpperCase()}.`,
-      relatedId: String(oid),
-      severity: 'success',
-      metadata: { amount, reference: entry.reference }
-    }).catch(() => null);
-    await writeAuditLog({ scope: 'seller_settlements', eventType: 'seller_settlement_paid', status: 'success', metadata: { orderId: String(oid), sellerId: sid, amount, reference: entry.reference, actor: entry.paidBy } }).catch(() => null);
-    return res.json({ ok: true, settlement: entry });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'seller_settlement_paid_failed' });
-  }
-});
-
-app.post('/api/admin/orders/:orderId/seller-settlements/:sellerId/pending', adminRequired, async (req, res) => {
-  try {
-    const oid = normalizeObjectId(req.params.orderId);
-    const sid = String(req.params.sellerId || '').trim();
-    if (!oid || !sid) return res.status(400).json({ ok: false, error: 'Pedido ou seller inválido' });
-    const order = await Order.findById(oid);
-    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
-    const orderObj = toJSON(order) || {};
-    const belongs = ensureArray(orderObj.sellerIds).map(String).includes(sid) || ensureArray(orderObj.items).some((item) => String(item?.sellerId || '') === sid);
-    if (!belongs) return res.status(404).json({ ok: false, error: 'Seller não pertence a este pedido' });
-    const key = `sellerSettlements.${sid}`;
-    await Order.updateOne({ _id: oid }, { $set: { [key]: { status: 'pending', amount: 0, paidAt: null, paidBy: '', reference: '', note: String(req.body?.note || '').trim(), mode: 'manual' } } });
-    await writeAuditLog({ scope: 'seller_settlements', eventType: 'seller_settlement_reopened', status: 'success', metadata: { orderId: String(oid), sellerId: sid, actor: req.admin?.email || req.admin?.id || 'admin' } }).catch(() => null);
-    return res.json({ ok: true, status: 'pending' });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'seller_settlement_pending_failed' });
-  }
-});
-
-// ============================================================
-// MODERAÇÃO DE PRODUTOS DE SELLERS
-// Produtos enviados/alterados pelo seller entram como pending_review e somente
-// a Ariana pode aprovar ou reprovar a publicação no marketplace.
-// ============================================================
-app.get('/api/admin/seller-products/review', adminRequired, async (req, res) => {
-  try {
-    const status = String(req.query.status || 'pending').trim().toLowerCase();
-    const query = {
-      sellerId: { $exists: true, $nin: ['', null] },
-      ...(status === 'all' ? {} : {
-        $or: status === 'approved'
-          ? [{ approvalStatus: 'approved' }, { status: 'approved' }]
-          : status === 'rejected'
-            ? [{ approvalStatus: 'rejected' }, { status: 'rejected' }]
-            : [{ approvalStatus: 'pending' }, { status: 'pending_review' }]
-      })
-    };
-    const limit = Math.min(Math.max(Number(req.query.limit || 200), 1), 500);
-    const rows = await Product.find(query).sort({ submittedAt: 1, updatedAt: 1 }).limit(limit);
-    return res.json({ ok: true, items: rows.map(normalizeProductForResponse), total: rows.length });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'seller_products_review_list_failed' });
-  }
-});
-
-app.post('/api/admin/seller-products/:id/approve', adminRequired, async (req, res) => {
-  try {
-    const oid = normalizeObjectId(req.params.id);
-    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
-    const before = await Product.findById(oid);
-    if (!before || !String(before.sellerId || '').trim()) return res.status(404).json({ ok: false, error: 'Produto de seller não encontrado' });
-
-    const stock = Number(before.stock || 0);
-    const updated = await Product.findByIdAndUpdate(oid, {
-      $set: {
-        active: stock > 0,
-        status: 'approved',
-        approvalStatus: 'approved',
-        reviewedAt: now(),
-        reviewedBy: String(req.admin?.email || req.admin?.id || 'admin'),
-        reviewNote: String(req.body?.note || '').trim()
-      }
-    }, { new: true, runValidators: true });
-
-    await createSellerNotification?.({
-      sellerId: String(updated.sellerId),
-      type: 'seller_product_approved',
-      title: 'Produto aprovado',
-      message: `O produto ${updated.name || updated.sku || updated._id} foi aprovado pela Ariana Móveis.`,
-      relatedId: String(updated._id),
-      severity: 'success'
-    }).catch(() => null);
-
-    await writeAuditLog({
-      scope: 'seller_products',
-      eventType: 'seller_product_approved',
-      status: 'success',
-      metadata: { productId: String(updated._id), sellerId: String(updated.sellerId), actor: req.admin?.email || req.admin?.id || 'admin' }
-    }).catch(() => null);
-
-    return res.json({ ok: true, product: normalizeProductForResponse(updated) });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'seller_product_approve_failed' });
-  }
-});
-
-app.post('/api/admin/seller-products/:id/reject', adminRequired, async (req, res) => {
-  try {
-    const oid = normalizeObjectId(req.params.id);
-    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
-    const before = await Product.findById(oid);
-    if (!before || !String(before.sellerId || '').trim()) return res.status(404).json({ ok: false, error: 'Produto de seller não encontrado' });
-
-    const note = String(req.body?.note || req.body?.reason || '').trim();
-    const updated = await Product.findByIdAndUpdate(oid, {
-      $set: {
-        active: false,
-        status: 'rejected',
-        approvalStatus: 'rejected',
-        reviewedAt: now(),
-        reviewedBy: String(req.admin?.email || req.admin?.id || 'admin'),
-        reviewNote: note
-      }
-    }, { new: true, runValidators: true });
-
-    await createSellerNotification?.({
-      sellerId: String(updated.sellerId),
-      type: 'seller_product_rejected',
-      title: 'Produto precisa de ajustes',
-      message: note ? `${updated.name || updated.sku || 'Produto'}: ${note}` : `O produto ${updated.name || updated.sku || updated._id} não foi aprovado. Revise os dados e envie novamente.`,
-      relatedId: String(updated._id),
-      severity: 'warning'
-    }).catch(() => null);
-
-    await writeAuditLog({
-      scope: 'seller_products',
-      eventType: 'seller_product_rejected',
-      status: 'success',
-      metadata: { productId: String(updated._id), sellerId: String(updated.sellerId), actor: req.admin?.email || req.admin?.id || 'admin', note }
-    }).catch(() => null);
-
-    return res.json({ ok: true, product: normalizeProductForResponse(updated) });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'seller_product_reject_failed' });
-  }
-});
 
 // ============================================================
 // EXPORTAÇÃO DE PRODUTOS - PDF / EXCEL PELO PAINEL ADMIN
@@ -2228,17 +1321,6 @@ app.patch('/api/admin/:collection/:id', adminRequired, async (req, res, next) =>
 
     if (key === 'orders') {
       const afterObj = toJSON(doc);
-
-      await syncStockReservationForPayment({
-        Order,
-        Product,
-        orderId: afterObj.id || afterObj._id,
-        paymentStatus: afterObj.status || afterObj.paymentStatus || afterObj.payment?.status || '',
-        reasonPrefix: 'admin_order_status'
-      }).catch((error) => {
-        console.error('[stock-reservation] Admin order status:', error?.message || error);
-      });
-
       const changed = changedKeys(beforeObj, afterObj);
       const statusChanged = String(beforeObj.status || '') !== String(afterObj.status || '') || String(beforeObj.statusLabel || '') !== String(afterObj.statusLabel || '');
       const trackingChanged = String(beforeObj.trackingCode || '') !== String(afterObj.trackingCode || '');
@@ -2299,18 +1381,6 @@ app.delete('/api/admin/:collection/:id', adminRequired, async (req, res, next) =
     if (key === 'settings') { await Setting.deleteOne({ key: req.params.id }); return res.json({ ok: true }); }
     const oid = normalizeObjectId(req.params.id);
     if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
-
-    if (key === 'orders') {
-      await releaseStockReservation({
-        Order,
-        Product,
-        orderId: oid,
-        reason: 'admin_order_deleted'
-      }).catch((error) => {
-        console.error('[stock-reservation] Admin delete order:', error?.message || error);
-      });
-    }
-
     await Model.findByIdAndDelete(oid);
     return res.json({ ok: true });
   } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'admin_delete_failed' }); }

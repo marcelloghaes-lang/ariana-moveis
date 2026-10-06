@@ -217,7 +217,7 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
             <a href="seller_pedidos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
             <a href="seller_vendas.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-chart-line"></i><span>Vendas</span></a>
             <a href="seller_notificacoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-bell"></i><span>Notificações</span></a>
-            <a href="seller_mercadopago.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-credit-card"></i><span>Recebimentos</span></a>
+            <a href="seller_mercadopago.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-credit-card"></i><span>Mercado Pago</span></a>
             <a href="seller_configuracoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-cog"></i><span>Configurações</span></a>
             <a href="seller_devolucoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-exchange-alt"></i><span>Devoluções</span></a>
             <a href="seller_extrato.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-receipt"></i><span>Extrato</span></a>
@@ -346,19 +346,6 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
 
 <script>
 
-    function escapeSellerOrderHtml(value = '') {
-      return String(value ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-    }
-    function sellerOrderItems(order){ return Array.isArray(order?.items) ? order.items : []; }
-    function sellerOrderTotal(order){
-      return sellerOrderItems(order).reduce((sum,it)=>{
-        const qty=Number(it?.qty ?? it?.quantity ?? it?.quantidade ?? 1)||1;
-        const unit=Number(it?.unitPrice ?? it?.price ?? it?.preco ?? 0)||0;
-        const explicit=Number(it?.totalPrice ?? it?.total ?? NaN);
-        return sum+(Number.isFinite(explicit)?explicit:(unit*qty));
-      },0);
-    }
-
     async function loadOrders() {
       if (!ensureSellerSession()) return;
       applySellerHeaderName();
@@ -397,21 +384,21 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
         $("kpi-orders").textContent = orders.length;
         $("kpi-pending").textContent = orders.filter(o => ['pending','pendente','aguardando_pagamento','aguardando'].includes(String(o.status || '').toLowerCase())).length;
         $("kpi-shipped").textContent = orders.filter(o => ['shipped','enviado','em_envio','despachado','transporte'].includes(String(o.status || '').toLowerCase())).length;
-        const totalRevenue = orders.reduce((acc, o) => acc + sellerOrderTotal(o), 0);
+        const totalRevenue = orders.reduce((acc, o) => acc + (o.total || 0), 0);
         $("kpi-revenue").textContent = totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
         tbody.innerHTML = orders.map(o => `
-          <tr class="hover:bg-gray-50 transition" data-status="${escapeSellerOrderHtml(String(o.status || o.statusLabel || '').toLowerCase())}">
-            <td class="p-4 font-black text-dark-bg">#${escapeSellerOrderHtml(String(o._id || o.id || '').substring(0,8).toUpperCase())}</td>
+          <tr class="hover:bg-gray-50 transition" data-status="${String(o.status || o.statusLabel || '').toLowerCase()}">
+            <td class="p-4 font-black text-dark-bg">#${String(o._id || o.id || '').substring(0,8).toUpperCase()}</td>
             <td class="p-4">
-                <div class="font-bold">${escapeSellerOrderHtml(o.customerName || 'Cliente')}</div>
-                <div class="text-[10px] text-gray-400">${escapeSellerOrderHtml(o.customerEmail || '')}</div>
+                <div class="font-bold">${o.customerName || 'Cliente'}</div>
+                <div class="text-[10px] text-gray-400">${o.customerEmail || ''}</div>
             </td>
-            <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-black uppercase bg-gray-100">${escapeSellerOrderHtml(o.status || 'pendente')}</span></td>
+            <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-black uppercase bg-gray-100">${o.status || 'pendente'}</span></td>
             <td class="p-4 text-gray-500">${new Date(o.createdAt).toLocaleDateString('pt-BR')}</td>
-            <td class="p-4 text-right font-black">${sellerOrderTotal(o).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+            <td class="p-4 text-right font-black">${Number(o.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
             <td class="p-4 text-right">
-                <a href="seller_pedido_detalhe.html?id=${encodeURIComponent(o._id || o.id || '')}" class="text-primary-blue font-bold text-xs hover:underline">Ver Detalhes</a>
+                <a href="seller_pedido_detalhe.html?id=${o._id || o.id}" class="text-primary-blue font-bold text-xs hover:underline">Ver Detalhes</a>
             </td>
           </tr>
         `).join('');

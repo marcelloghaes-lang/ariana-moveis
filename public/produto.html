@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <title>Produto | Ariana Móveis</title>
-  <meta name="description" content="Veja detalhes, preço e condições de pagamento deste produto na Ariana Móveis.">
+  <title>Início | ARIANA MÓVEIS</title>
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
   
@@ -83,11 +82,11 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
 <style>
 
 #product-old-price {
-    color: #6b7280;
-    font-weight: 500;
-    font-size: 14px;
-    text-decoration: none;
-    display: none;
+    color: #999;
+    font-weight: 400;
+    font-size: 16px;
+    text-decoration: line-through;
+    display: none; /* Ele começa escondido e o JS mostra se houver preço */
 }
 
         /* CORREÇÃO PROVISÓRIA PARA A SOBRA LATERAL */
@@ -242,399 +241,25 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
             transform: rotate(180deg);
         }
 
-        /* --- GALERIA DE PRODUTO: PADRÃO MARKETPLACE (INSPIRADO NA EXPERIÊNCIA MAGALU) --- */
-        .product-left-col {
-            width: 100%;
-            min-width: 0;
-        }
-
-        .product-gallery-shell {
-            width: 100%;
-            min-width: 0;
-            display: grid;
-            grid-template-columns: 78px minmax(0, 1fr);
-            grid-template-areas: "thumbs main";
-            gap: 14px;
-            align-items: start;
-        }
-
-        #thumbnail-gallery {
-            grid-area: thumbs;
-            width: 100%;
-            max-width: 78px;
-            max-height: 520px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            overflow-x: hidden;
-            overflow-y: auto;
-            padding: 2px;
-            scrollbar-width: thin;
-            scroll-behavior: smooth;
-        }
-
+        /* --- ESTILOS DA GALERIA DE MINIATURAS --- */
         .thumbnail-image {
-            display: block;
-            flex: 0 0 72px;
-            width: 72px;
-            height: 72px;
-            min-width: 72px;
-            min-height: 72px;
-            box-sizing: border-box;
             cursor: pointer;
-            border: 2px solid #e5e7eb;
-            background: #ffffff;
-            padding: 6px;
-            border-radius: 8px;
+            border: 2px solid transparent;
+            transition: border-color 0.2s;
+            padding: 2px;
+            border-radius: 4px;
+            width: 80px;
+            height: 80px;
             object-fit: contain;
-            object-position: center;
-            transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
-            outline: none;
-        }
-
-        .thumbnail-image:hover {
-            border-color: #93c5fd;
-        }
-
-        .thumbnail-image:focus-visible {
-            border-color: #2E6DA4;
-            box-shadow: 0 0 0 3px rgba(46,109,164,.16);
         }
 
         .thumbnail-image.active {
             border-color: #2E6DA4;
-            box-shadow: 0 0 0 1px #2E6DA4;
         }
 
-        .product-main-media {
-            grid-area: main;
-            position: relative;
-            width: 100%;
-            aspect-ratio: 1 / 1;
-            min-width: 0;
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            padding: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            cursor: zoom-in;
-            box-shadow: 0 1px 3px rgba(15,23,42,.06);
+        #thumbnail-gallery {
+            max-width: 100%;
         }
-
-        #main-product-image {
-            display: block;
-            width: 100% !important;
-            height: 100% !important;
-            max-width: 100% !important;
-            max-height: 100% !important;
-            object-fit: contain !important;
-            object-position: center !important;
-            cursor: zoom-in;
-            transition: opacity .14s ease;
-            user-select: none;
-            -webkit-user-drag: none;
-        }
-
-        #main-product-image.is-changing {
-            opacity: .55;
-        }
-
-        .gallery-main-nav {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 42px;
-            height: 42px;
-            border-radius: 9999px;
-            border: 1px solid #e5e7eb;
-            background: rgba(255,255,255,.96);
-            color: #334155;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            z-index: 4;
-            box-shadow: 0 4px 14px rgba(15,23,42,.12);
-            transition: background .18s ease, box-shadow .18s ease, transform .18s ease;
-        }
-
-        .gallery-main-nav:hover {
-            background: #ffffff;
-            box-shadow: 0 6px 18px rgba(15,23,42,.18);
-        }
-
-        .gallery-main-nav.prev { left: 12px; }
-        .gallery-main-nav.next { right: 12px; }
-
-        .gallery-image-counter {
-            position: absolute;
-            right: 12px;
-            bottom: 12px;
-            min-width: 44px;
-            height: 28px;
-            padding: 0 10px;
-            border-radius: 9999px;
-            background: rgba(17,24,39,.72);
-            color: #ffffff;
-            font-size: 12px;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            pointer-events: none;
-            z-index: 3;
-        }
-
-        .gallery-image-counter.is-single {
-            display: none;
-        }
-
-        /* Visualização ampliada: área estável, produto inteiro e navegação limpa */
-        .lightbox {
-            background-color: rgba(15, 23, 42, .84);
-            backdrop-filter: blur(2px);
-        }
-
-        .lightbox-content {
-            width: min(94vw, 1080px);
-            height: min(88vh, 860px);
-            max-height: none;
-            padding: 34px 68px;
-            border-radius: 12px;
-            box-shadow: 0 25px 70px rgba(0,0,0,.34);
-        }
-
-        .lightbox-content img {
-            width: 100%;
-            height: 100%;
-            max-height: none;
-            object-fit: contain;
-            object-position: center;
-            border-radius: 0;
-        }
-
-        .lightbox-nav {
-            width: 44px;
-            height: 44px;
-            padding: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(255,255,255,.97);
-            color: #334155;
-            border: 1px solid #e5e7eb;
-            box-shadow: 0 4px 14px rgba(15,23,42,.14);
-        }
-
-        .lightbox-nav:hover {
-            background: #ffffff;
-        }
-
-        .lightbox-nav-prev { left: 14px; }
-        .lightbox-nav-next { right: 14px; }
-
-        .lightbox-image-stage {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            border-radius: 8px;
-            background: #ffffff;
-            touch-action: none;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-
-        .lightbox-image-stage img {
-            width: 100%;
-            height: 100%;
-            max-height: none;
-            object-fit: contain;
-            object-position: center;
-            border-radius: 0;
-            transform-origin: center center;
-            will-change: transform;
-            transition: transform .14s ease;
-            user-select: none;
-            -webkit-user-drag: none;
-        }
-
-        .lightbox-image-stage.is-dragging img {
-            transition: none;
-        }
-
-        .lightbox-image-stage.is-zoomed {
-            cursor: grab;
-        }
-
-        .lightbox-image-stage.is-dragging {
-            cursor: grabbing;
-        }
-
-        .lightbox-zoom-controls {
-            position: absolute;
-            left: 50%;
-            bottom: 12px;
-            transform: translateX(-50%);
-            z-index: 1012;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 5px;
-            border-radius: 9999px;
-            background: rgba(17,24,39,.82);
-            box-shadow: 0 6px 20px rgba(0,0,0,.24);
-            backdrop-filter: blur(6px);
-        }
-
-        .lightbox-zoom-btn,
-        .lightbox-zoom-value {
-            height: 34px;
-            min-width: 34px;
-            border: 0;
-            border-radius: 9999px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            color: #ffffff;
-            background: transparent;
-            font-size: 13px;
-            font-weight: 800;
-            line-height: 1;
-        }
-
-        .lightbox-zoom-btn {
-            cursor: pointer;
-        }
-
-        .lightbox-zoom-btn:hover,
-        .lightbox-zoom-btn:focus-visible {
-            background: rgba(255,255,255,.16);
-            outline: none;
-        }
-
-        .lightbox-zoom-value {
-            min-width: 58px;
-            padding: 0 8px;
-            cursor: pointer;
-        }
-
-        .lightbox-zoom-hint {
-            position: absolute;
-            left: 50%;
-            top: 12px;
-            transform: translateX(-50%);
-            z-index: 1011;
-            max-width: calc(100% - 150px);
-            padding: 6px 10px;
-            border-radius: 9999px;
-            background: rgba(17,24,39,.68);
-            color: #fff;
-            font-size: 11px;
-            font-weight: 700;
-            text-align: center;
-            pointer-events: none;
-            opacity: .9;
-        }
-
-        body.gallery-lightbox-open {
-            overflow: hidden !important;
-        }
-
-        @media (max-width: 767px) {
-            .product-gallery-shell {
-                grid-template-columns: minmax(0, 1fr);
-                grid-template-areas:
-                    "main"
-                    "thumbs";
-                gap: 12px;
-            }
-
-            .product-main-media {
-                width: 100%;
-                aspect-ratio: 1 / 1;
-                padding: 14px;
-                border-radius: 10px;
-            }
-
-            #thumbnail-gallery {
-                width: 100%;
-                max-width: 100%;
-                max-height: none;
-                flex-direction: row;
-                gap: 8px;
-                overflow-x: auto;
-                overflow-y: hidden;
-                padding: 2px 2px 6px;
-                scroll-snap-type: x proximity;
-            }
-
-            .thumbnail-image {
-                flex: 0 0 64px;
-                width: 64px;
-                height: 64px;
-                min-width: 64px;
-                min-height: 64px;
-                padding: 5px;
-                scroll-snap-align: start;
-            }
-
-            .gallery-main-nav {
-                width: 38px;
-                height: 38px;
-            }
-
-            .gallery-main-nav.prev { left: 8px; }
-            .gallery-main-nav.next { right: 8px; }
-
-            .gallery-image-counter {
-                right: 9px;
-                bottom: 9px;
-            }
-
-            .lightbox-content {
-                width: 96vw;
-                height: min(82vh, 720px);
-                padding: 26px 46px;
-                border-radius: 10px;
-            }
-
-            .lightbox-nav {
-                width: 38px;
-                height: 38px;
-            }
-
-            .lightbox-nav-prev { left: 6px; }
-            .lightbox-nav-next { right: 6px; }
-
-            .lightbox-zoom-controls {
-                bottom: 8px;
-            }
-
-            .lightbox-zoom-btn,
-            .lightbox-zoom-value {
-                height: 36px;
-                min-width: 36px;
-            }
-
-            .lightbox-zoom-value {
-                min-width: 62px;
-            }
-
-            .lightbox-zoom-hint {
-                top: 8px;
-                max-width: calc(100% - 110px);
-                font-size: 10px;
-            }
-        }
-
-
 /* Estilo para os Banners */
         .banner-placeholder {
             min-height: 150px;
@@ -930,33 +555,12 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
 <div id="product-details-container" class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start" style="display:none;">
 
   <div class="lg:col-span-2 product-main-cols grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-  <div class="lg:col-span-1 self-start product-left-col">
-    <div class="product-gallery-shell" id="product-gallery-shell">
-      <div id="thumbnail-gallery" aria-label="Miniaturas do produto"></div>
-
-      <div class="product-main-media" onclick="window.openCurrentProductImage()" role="button" tabindex="0" aria-label="Ampliar imagem do produto">
-        <button id="gallery-prev" type="button" class="gallery-main-nav prev" aria-label="Imagem anterior"
-          onclick="event.stopPropagation(); window.changeProductGalleryImage(-1)">
-          <i class="fas fa-chevron-left" aria-hidden="true"></i>
-        </button>
-
-        <img id="main-product-image"
-          src="https://placehold.co/500x500/cccccc/333333?text=Carregando"
-          alt="Imagem principal do produto"
-          loading="eager"
-          fetchpriority="high"
-          decoding="async">
-
-        <button id="gallery-next" type="button" class="gallery-main-nav next" aria-label="Próxima imagem"
-          onclick="event.stopPropagation(); window.changeProductGalleryImage(1)">
-          <i class="fas fa-chevron-right" aria-hidden="true"></i>
-        </button>
-
-        <div id="gallery-image-counter" class="gallery-image-counter is-single" aria-live="polite">1 / 1</div>
-      </div>
+  <div class="lg:col-span-1 self-start product-left-col flex flex-col items-start">
+    <div class="w-full h-auto bg-white p-6 rounded-lg shadow-md mb-4 flex items-center justify-center image-flex-container border border-gray-200" onclick="window.openLightbox(0)">
+      <img id="main-product-image" src="https://placehold.co/500x500/cccccc/333333?text=Carregando" alt="Imagem principal do produto" class="max-w-full max-h-full object-contain cursor-zoom-in" loading="lazy">
     </div>
-  </div>
-
+  <div id="thumbnail-gallery" class="flex space-x-2 overflow-x-auto pb-2 w-full justify-start"></div>
+</div>
 
 <div class="lg:col-span-1 space-y-6 product-middle-col">
   <div class="bg-white p-6 border border-gray-200 rounded-lg shadow-sm space-y-4 relative">
@@ -967,7 +571,14 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
 <p id="product-sku" class="text-sm text-gray-500 font-medium">SKU: Carregando...</p>
 <h1 id="product-name" class="text-2xl font-extrabold text-text-dark"></h1>
 
-<div id="product-review-summary" class="hidden flex items-center space-x-2 text-yellow-500" aria-live="polite"></div>
+<div class="flex items-center space-x-2 text-yellow-500">
+<i class="fas fa-star"></i>
+<i class="fas fa-star"></i>
+<i class="fas fa-star"></i>
+<i class="fas fa-star-half-alt"></i>
+<i class="far fa-star"></i>
+<span class="text-sm text-gray-500 ml-2">(42 Avaliações)</span>
+</div>
 
 <div class="border-t border-gray-200 pt-4 space-y-2">
 <p id="product-old-price"></p>
@@ -1188,41 +799,18 @@ Adicionar ao Carrinho
 </main>
 
 <div id="product-lightbox" class="lightbox" onclick="window.closeLightbox()">
-  <button class="lightbox-close" onclick="event.stopPropagation(); window.closeLightbox()" aria-label="Fechar imagem ampliada">
+  <button class="lightbox-close" onclick="event.stopPropagation(); window.closeLightbox()">
     &times;
   </button>
-
-  <div class="lightbox-content" onclick="event.stopPropagation()">
-    <button class="lightbox-nav lightbox-nav-prev" onclick="event.stopPropagation(); window.navigateLightbox(-1)" aria-label="Imagem anterior">
-      <i class="fas fa-chevron-left"></i>
-    </button>
-
-    <div id="lightbox-image-stage" class="lightbox-image-stage" aria-label="Imagem ampliada. Use os controles, a roda do mouse ou gesto de pinça para aplicar zoom.">
-      <img id="lightbox-image" src="" alt="Zoom da imagem do produto" draggable="false">
-    </div>
-
-    <button class="lightbox-nav lightbox-nav-next" onclick="event.stopPropagation(); window.navigateLightbox(1)" aria-label="Próxima imagem">
-      <i class="fas fa-chevron-right"></i>
-    </button>
-
-    <div class="lightbox-zoom-hint" id="lightbox-zoom-hint">
-      Use + / −, roda do mouse ou gesto de pinça
-    </div>
-
-    <div class="lightbox-zoom-controls" role="group" aria-label="Controles de zoom">
-      <button type="button" class="lightbox-zoom-btn" onclick="event.stopPropagation(); window.changeLightboxZoom(-0.5)" aria-label="Diminuir zoom" title="Diminuir zoom">
-        <i class="fas fa-minus"></i>
-      </button>
-
-      <button type="button" id="lightbox-zoom-value" class="lightbox-zoom-value" onclick="event.stopPropagation(); window.resetLightboxZoom()" aria-label="Restaurar zoom para 100%" title="Restaurar para 100%">
-        100%
-      </button>
-
-      <button type="button" class="lightbox-zoom-btn" onclick="event.stopPropagation(); window.changeLightboxZoom(0.5)" aria-label="Aumentar zoom" title="Aumentar zoom">
-        <i class="fas fa-plus"></i>
-      </button>
-    </div>
-  </div>
+  <div class="lightbox-content">
+    <button class="lightbox-nav lightbox-nav-prev" onclick="event.stopPropagation(); window.navigateLightbox(-1)">
+    <i class="fas fa-chevron-left"></i>
+  </button>
+  <img id="lightbox-image" src="" alt="Zoom da imagem do produto">
+  <button class="lightbox-nav lightbox-nav-next" onclick="event.stopPropagation(); window.navigateLightbox(1)">
+  <i class="fas fa-chevron-right"></i>
+</button>
+</div>
 </div>
 
 
@@ -1361,78 +949,6 @@ async function loadPaymentsSettingsForProduct() {
         let cartItems = [];
         let isFavorite = false;
 
-        function normalizeProductGalleryIndex(index) {
-            const total = productImages.length;
-            if (!total) return 0;
-            const parsed = Number.isFinite(Number(index)) ? Number(index) : 0;
-            return ((parsed % total) + total) % total;
-        }
-
-        function syncProductGallery(index, options = {}) {
-            if (!productImages.length) return;
-
-            const { ensureVisible = false } = options;
-            currentImageIndex = normalizeProductGalleryIndex(index);
-
-            const mainImg = document.getElementById('main-product-image');
-            const selectedSrc = productImages[currentImageIndex];
-
-            if (mainImg && selectedSrc) {
-                mainImg.classList.add('is-changing');
-
-                const finishSwap = () => {
-                    mainImg.classList.remove('is-changing');
-                    mainImg.removeEventListener('load', finishSwap);
-                    mainImg.removeEventListener('error', finishSwap);
-                };
-
-                mainImg.addEventListener('load', finishSwap, { once: true });
-                mainImg.addEventListener('error', finishSwap, { once: true });
-                mainImg.src = selectedSrc;
-                mainImg.alt = `${productData?.name || productData?.nome || 'Produto'} - foto ${currentImageIndex + 1}`;
-
-                window.setTimeout(() => mainImg.classList.remove('is-changing'), 450);
-            }
-
-            const thumbs = Array.from(document.querySelectorAll('.thumbnail-image'));
-            thumbs.forEach((thumb, idx) => {
-                const active = idx === currentImageIndex;
-                thumb.classList.toggle('active', active);
-                thumb.setAttribute('aria-current', active ? 'true' : 'false');
-
-                if (active && ensureVisible) {
-                    try {
-                        thumb.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-                    } catch (_) {}
-                }
-            });
-
-            const total = productImages.length;
-            const counter = document.getElementById('gallery-image-counter');
-            if (counter) {
-                counter.textContent = `${currentImageIndex + 1} / ${total}`;
-                counter.classList.toggle('is-single', total <= 1);
-            }
-
-            const hasMultiple = total > 1;
-            const prev = document.getElementById('gallery-prev');
-            const next = document.getElementById('gallery-next');
-            if (prev) prev.style.display = hasMultiple ? 'flex' : 'none';
-            if (next) next.style.display = hasMultiple ? 'flex' : 'none';
-        }
-
-        window.selectProductGalleryImage = (index) => {
-            syncProductGallery(index, { ensureVisible: true });
-        };
-
-        window.changeProductGalleryImage = (direction) => {
-            syncProductGallery(currentImageIndex + Number(direction || 0), { ensureVisible: true });
-        };
-
-        window.openCurrentProductImage = () => {
-            window.openLightbox(currentImageIndex);
-        };
-
         async function loadProductDetails() {
             const params = new URLSearchParams(window.location.search);
             const productId = params.get('id');
@@ -1445,9 +961,9 @@ async function loadPaymentsSettingsForProduct() {
             }
 
             try {
-                let response = await fetch(`${API_BASE}/products/${encodeURIComponent(productId)}`);
+                let response = await fetch(`${API_BASE}/seller/products/${encodeURIComponent(productId)}`);
                 if (!response.ok) {
-                    response = await fetch(`${API_BASE}/seller/products/${encodeURIComponent(productId)}`);
+                    response = await fetch(`${API_BASE}/products/${encodeURIComponent(productId)}`);
                 }
                 if (!response.ok) {
                     throw new Error(`Produto não encontrado (${response.status})`);
@@ -1497,7 +1013,6 @@ async function loadPaymentsSettingsForProduct() {
                 const pricing = computeDetailPricing(productData);
                 window.__detailPricing = pricing;
                 applyDetailPricingToUI(pricing);
-                applyProductReviewSummary(productData);
 
                 const badgeNameEl = byId('seller-badge-name');
                 const badgeEl = byId('seller-badge');
@@ -1648,53 +1163,32 @@ async function loadPaymentsSettingsForProduct() {
 
                 productImages = [];
                 if (Array.isArray(productData.images)) {
-                    productImages = productData.images
-                        .map(img => typeof img === 'string' ? img : (img?.url || img?.imageUrl || img?.src || ''))
-                        .filter(Boolean);
+                    productImages = productData.images.map(img => typeof img === 'string' ? img : (img?.url || img?.imageUrl || img?.src || '')).filter(Boolean);
                 } else if (productData.images && typeof productData.images === 'object') {
-                    productImages = Object.values(productData.images)
-                        .map(img => typeof img === 'string' ? img : (img?.url || img?.imageUrl || img?.src || ''))
-                        .filter(Boolean);
+                    productImages = Object.values(productData.images).map(img => typeof img === 'string' ? img : (img?.url || img?.imageUrl || img?.src || '')).filter(Boolean);
                 }
-
                 if (!productImages.length) {
                     const fallbackImage = productData.imageUrl || productData.mainImageUrl || productData.image || 'https://placehold.co/600';
                     productImages = [fallbackImage];
                 }
 
+                const mainImg = byId('main-product-image');
+                if (mainImg) mainImg.src = productImages[0];
                 const gallery = byId('thumbnail-gallery');
                 if (gallery) {
                     gallery.innerHTML = '';
-
                     productImages.forEach((url, idx) => {
                         const imgThumb = document.createElement('img');
                         imgThumb.src = url;
                         imgThumb.className = 'thumbnail-image' + (idx === 0 ? ' active' : '');
-                        imgThumb.alt = `${nome} - miniatura ${idx + 1}`;
-                        imgThumb.loading = idx < 4 ? 'eager' : 'lazy';
-                        imgThumb.decoding = 'async';
-                        imgThumb.tabIndex = 0;
-                        imgThumb.setAttribute('role', 'button');
-                        imgThumb.setAttribute('aria-label', `Ver foto ${idx + 1} de ${productImages.length}`);
-                        imgThumb.setAttribute('aria-current', idx === 0 ? 'true' : 'false');
-
-                        imgThumb.addEventListener('click', () => {
-                            window.selectProductGalleryImage(idx);
-                        });
-
-                        imgThumb.addEventListener('keydown', (event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault();
-                                window.selectProductGalleryImage(idx);
-                            }
-                        });
-
+                        imgThumb.onclick = () => {
+                            if (mainImg) mainImg.src = url;
+                            document.querySelectorAll('.thumbnail-image').forEach(t => t.classList.remove('active'));
+                            imgThumb.classList.add('active');
+                        };
                         gallery.appendChild(imgThumb);
                     });
                 }
-
-                syncProductGallery(0);
-
 
                 const loadingMessage = byId('loading-message');
                 const productGrid = byId('product-details-container') || byId('product-content-grid');
@@ -1845,83 +1339,39 @@ async function loadPaymentsSettingsForProduct() {
         }
 
         function applyDetailPricingToUI(pricing) {
+            // Preço Riscado
             const oldPriceEl = document.getElementById('product-old-price');
             if (oldPriceEl) {
-                oldPriceEl.innerHTML = `
-                    <span class="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Preço no cartão</span>
-                    <span class="ml-1 text-sm text-gray-500 font-semibold">${pricing.originalFormatted}</span>
-                `;
-                oldPriceEl.className = 'leading-tight';
-                oldPriceEl.style.display = 'block';
-                oldPriceEl.style.textDecoration = 'none';
+                if (pricing.discountPercent > 0 && pricing.original > pricing.cash) {
+                    oldPriceEl.innerText = pricing.originalFormatted;
+                    oldPriceEl.style.display = 'block';
+                } else {
+                    oldPriceEl.style.display = 'none';
+                }
             }
 
+            // Preço Principal (Grande)
             const priceFullEl = document.getElementById('product-price-full');
             if (priceFullEl) {
-                const pixBadge = (pricing.discountPercent > 0)
-                    ? `<span class="inline-flex items-center text-green-600 text-sm sm:text-base ml-2 font-bold">${pricing.discountPercent}% OFF no Pix ou boleto</span>`
-                    : '';
-
+                const off = (pricing.discountPercent > 0) ? `${pricing.discountPercent}% OFF` : '';
                 priceFullEl.innerHTML = `
                     <span class="text-2xl font-normal mr-1">R$</span>
-                    <span class="font-extrabold">${pricing.cashValueFormatted.replace('R$', '').trim()}</span>
-                    ${pixBadge}
+                    ${pricing.cashValueFormatted.replace('R$', '').trim()}
+                    ${off ? `<span class="text-green-500 text-lg ml-2 font-semibold">${off}</span>` : ``}
                 `;
             }
 
+            // Texto do PIX
             const priceCashEl = document.getElementById('product-price-cash');
             if (priceCashEl) {
-                priceCashEl.innerHTML = '<span class="font-semibold">à vista no Pix ou boleto</span>';
-                priceCashEl.className = 'text-sm text-green-600 font-semibold';
-                priceCashEl.style.display = 'block';
+                priceCashEl.innerHTML = `<i class="fas fa-bolt mr-1"></i> ${pricing.cashValueFormatted} no PIX à vista`;
             }
 
+            // Parcelamento abaixo do preço principal/PIX, calculado pelo valor cheio/a prazo.
             const installmentsEl = document.getElementById('product-price-installments');
             if (installmentsEl) {
-                const installmentValue = pricing.original > 0 ? (pricing.original / 12) : 0;
-                const installmentFormatted = formatCurrency(installmentValue).replace('R$', '').trim();
-
-                installmentsEl.innerHTML = `
-                    <span class="block text-gray-700 leading-tight">ou 12x sem juros no cartão</span>
-                    <span class="block mt-1 text-gray-700 leading-tight">
-                        parcelas de até
-                        <span class="inline-flex items-baseline ml-1 text-primary-blue">
-                            <span class="text-base font-semibold mr-1">R$</span>
-                            <strong class="text-2xl sm:text-3xl font-extrabold">${installmentFormatted}</strong>
-                        </span>
-                    </span>
-                    <span class="block mt-1 text-xs text-gray-500">Valor total parcelado: ${pricing.originalFormatted}</span>
-                `;
+                installmentsEl.innerHTML = `${pricing.installmentsText}<br><span class="text-gray-500 text-sm">${pricing.totalPrazoText}</span>`;
             }
-        }
-
-        function applyProductReviewSummary(product) {
-            const container = document.getElementById('product-review-summary');
-            if (!container) return;
-
-            const rating = __num(
-                product?.rating ?? product?.avaliacao ?? product?.averageRating ?? product?.ratingAverage,
-                0
-            );
-            const count = Math.max(0, Math.floor(__num(
-                product?.reviewsCount ?? product?.reviewCount ?? product?.avaliacoesCount ?? product?.totalReviews,
-                0
-            )));
-
-            if (!(rating > 0) || count < 1) {
-                container.innerHTML = '';
-                container.classList.add('hidden');
-                return;
-            }
-
-            const safeRating = Math.min(5, Math.max(0, rating));
-            container.innerHTML = `
-                <i class="fas fa-star" aria-hidden="true"></i>
-                <span class="font-bold text-gray-700">${safeRating.toFixed(1).replace('.', ',')}</span>
-                <span class="text-sm text-gray-500">(${count} ${count === 1 ? 'avaliação' : 'avaliações'})</span>
-            `;
-            container.setAttribute('aria-label', `${safeRating.toFixed(1)} de 5, ${count} ${count === 1 ? 'avaliação' : 'avaliações'}`);
-            container.classList.remove('hidden');
         }
 
         window.formatPriceParts = (value) => {
@@ -1957,278 +1407,24 @@ async function loadPaymentsSettingsForProduct() {
             }, 3000);
         }
 
-        const LIGHTBOX_ZOOM_MIN = 1;
-        const LIGHTBOX_ZOOM_MAX = 5;
-        let lightboxZoom = 1;
-        let lightboxPanX = 0;
-        let lightboxPanY = 0;
-        let lightboxIsDragging = false;
-        let lightboxDragStart = null;
-        const lightboxPointers = new Map();
-        let lightboxPinchStart = null;
-
-        function getLightboxStage() {
-            return document.getElementById('lightbox-image-stage');
-        }
-
-        function getLightboxImage() {
-            return document.getElementById('lightbox-image');
-        }
-
-        function clampLightboxPan() {
-            const stage = getLightboxStage();
-            if (!stage || lightboxZoom <= 1) {
-                lightboxPanX = 0;
-                lightboxPanY = 0;
-                return;
-            }
-
-            const maxX = (stage.clientWidth * (lightboxZoom - 1)) / 2;
-            const maxY = (stage.clientHeight * (lightboxZoom - 1)) / 2;
-
-            lightboxPanX = Math.max(-maxX, Math.min(maxX, lightboxPanX));
-            lightboxPanY = Math.max(-maxY, Math.min(maxY, lightboxPanY));
-        }
-
-        function applyLightboxZoomTransform() {
-            const image = getLightboxImage();
-            const stage = getLightboxStage();
-            const value = document.getElementById('lightbox-zoom-value');
-
-            clampLightboxPan();
-
-            if (image) {
-                image.style.transform = `translate3d(${lightboxPanX}px, ${lightboxPanY}px, 0) scale(${lightboxZoom})`;
-            }
-
-            if (stage) {
-                stage.classList.toggle('is-zoomed', lightboxZoom > 1.001);
-                stage.classList.toggle('is-dragging', lightboxIsDragging);
-            }
-
-            if (value) {
-                value.textContent = `${Math.round(lightboxZoom * 100)}%`;
-            }
-        }
-
-        function setLightboxZoom(nextZoom, options = {}) {
-            const { keepPan = true } = options;
-            const numericZoom = Number(nextZoom);
-            if (!Number.isFinite(numericZoom)) return;
-
-            lightboxZoom = Math.max(LIGHTBOX_ZOOM_MIN, Math.min(LIGHTBOX_ZOOM_MAX, numericZoom));
-
-            if (!keepPan || lightboxZoom <= 1.001) {
-                lightboxPanX = 0;
-                lightboxPanY = 0;
-            }
-
-            applyLightboxZoomTransform();
-        }
-
-        window.changeLightboxZoom = (delta) => {
-            setLightboxZoom(lightboxZoom + Number(delta || 0));
-        };
-
-        window.resetLightboxZoom = () => {
-            lightboxZoom = 1;
-            lightboxPanX = 0;
-            lightboxPanY = 0;
-            lightboxIsDragging = false;
-            lightboxDragStart = null;
-            lightboxPointers.clear();
-            lightboxPinchStart = null;
-            applyLightboxZoomTransform();
-        };
-
-        function setupLightboxManualZoom() {
-            const stage = getLightboxStage();
-            if (!stage || stage.dataset.zoomReady === '1') return;
-            stage.dataset.zoomReady = '1';
-
-            stage.addEventListener('wheel', (event) => {
-                const lightbox = document.getElementById('product-lightbox');
-                if (!lightbox?.classList.contains('active')) return;
-
-                event.preventDefault();
-                const direction = event.deltaY < 0 ? 0.25 : -0.25;
-                setLightboxZoom(lightboxZoom + direction);
-            }, { passive: false });
-
-            stage.addEventListener('dblclick', (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-
-                if (lightboxZoom > 1.001) {
-                    window.resetLightboxZoom();
-                } else {
-                    setLightboxZoom(2);
-                }
-            });
-
-            stage.addEventListener('pointerdown', (event) => {
-                const lightbox = document.getElementById('product-lightbox');
-                if (!lightbox?.classList.contains('active')) return;
-
-                stage.setPointerCapture?.(event.pointerId);
-                lightboxPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-
-                if (lightboxPointers.size === 1 && lightboxZoom > 1.001) {
-                    lightboxIsDragging = true;
-                    lightboxDragStart = {
-                        x: event.clientX,
-                        y: event.clientY,
-                        panX: lightboxPanX,
-                        panY: lightboxPanY
-                    };
-                    applyLightboxZoomTransform();
-                }
-
-                if (lightboxPointers.size === 2) {
-                    const points = Array.from(lightboxPointers.values());
-                    const dx = points[1].x - points[0].x;
-                    const dy = points[1].y - points[0].y;
-                    const midpoint = {
-                        x: (points[0].x + points[1].x) / 2,
-                        y: (points[0].y + points[1].y) / 2
-                    };
-
-                    lightboxIsDragging = false;
-                    lightboxDragStart = null;
-                    lightboxPinchStart = {
-                        distance: Math.max(1, Math.hypot(dx, dy)),
-                        zoom: lightboxZoom,
-                        midpoint,
-                        panX: lightboxPanX,
-                        panY: lightboxPanY
-                    };
-                    applyLightboxZoomTransform();
-                }
-            });
-
-            stage.addEventListener('pointermove', (event) => {
-                if (!lightboxPointers.has(event.pointerId)) return;
-
-                lightboxPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-
-                if (lightboxPointers.size >= 2 && lightboxPinchStart) {
-                    const points = Array.from(lightboxPointers.values()).slice(0, 2);
-                    const dx = points[1].x - points[0].x;
-                    const dy = points[1].y - points[0].y;
-                    const distance = Math.max(1, Math.hypot(dx, dy));
-                    const midpoint = {
-                        x: (points[0].x + points[1].x) / 2,
-                        y: (points[0].y + points[1].y) / 2
-                    };
-
-                    lightboxZoom = Math.max(
-                        LIGHTBOX_ZOOM_MIN,
-                        Math.min(LIGHTBOX_ZOOM_MAX, lightboxPinchStart.zoom * (distance / lightboxPinchStart.distance))
-                    );
-
-                    lightboxPanX = lightboxPinchStart.panX + (midpoint.x - lightboxPinchStart.midpoint.x);
-                    lightboxPanY = lightboxPinchStart.panY + (midpoint.y - lightboxPinchStart.midpoint.y);
-                    applyLightboxZoomTransform();
-                    return;
-                }
-
-                if (lightboxPointers.size === 1 && lightboxIsDragging && lightboxDragStart && lightboxZoom > 1.001) {
-                    lightboxPanX = lightboxDragStart.panX + (event.clientX - lightboxDragStart.x);
-                    lightboxPanY = lightboxDragStart.panY + (event.clientY - lightboxDragStart.y);
-                    applyLightboxZoomTransform();
-                }
-            });
-
-            const finishPointer = (event) => {
-                lightboxPointers.delete(event.pointerId);
-
-                if (lightboxPointers.size < 2) {
-                    lightboxPinchStart = null;
-                }
-
-                if (lightboxPointers.size === 1 && lightboxZoom > 1.001) {
-                    const remaining = Array.from(lightboxPointers.values())[0];
-                    lightboxIsDragging = true;
-                    lightboxDragStart = {
-                        x: remaining.x,
-                        y: remaining.y,
-                        panX: lightboxPanX,
-                        panY: lightboxPanY
-                    };
-                } else if (lightboxPointers.size === 0) {
-                    lightboxIsDragging = false;
-                    lightboxDragStart = null;
-                }
-
-                applyLightboxZoomTransform();
-            };
-
-            stage.addEventListener('pointerup', finishPointer);
-            stage.addEventListener('pointercancel', finishPointer);
-            stage.addEventListener('lostpointercapture', finishPointer);
-        }
-
-        window.openLightbox = (index = currentImageIndex) => {
+        window.openLightbox = (index) => {
             if (productImages.length === 0) return;
-
-            currentImageIndex = normalizeProductGalleryIndex(index);
-
+            currentImageIndex = index;
             const lightbox = document.getElementById('product-lightbox');
-            const lightboxImage = getLightboxImage();
-            if (!lightbox || !lightboxImage) return;
-
-            window.resetLightboxZoom();
+            const lightboxImage = document.getElementById('lightbox-image');
             lightboxImage.src = productImages[currentImageIndex];
-            lightboxImage.alt = `${productData?.name || productData?.nome || 'Produto'} - foto ampliada ${currentImageIndex + 1}`;
             lightbox.classList.add('active');
-            document.body.classList.add('gallery-lightbox-open');
-
-            setupLightboxManualZoom();
-        };
+        }
 
         window.closeLightbox = () => {
-            const lightbox = document.getElementById('product-lightbox');
-            if (lightbox) lightbox.classList.remove('active');
-            document.body.classList.remove('gallery-lightbox-open');
-            window.resetLightboxZoom();
-        };
+            document.getElementById('product-lightbox').classList.remove('active');
+        }
 
         window.navigateLightbox = (direction) => {
             if (productImages.length === 0) return;
-
-            currentImageIndex = normalizeProductGalleryIndex(currentImageIndex + Number(direction || 0));
-            const lightboxImage = getLightboxImage();
-
-            window.resetLightboxZoom();
-
-            if (lightboxImage) {
-                lightboxImage.src = productImages[currentImageIndex];
-                lightboxImage.alt = `${productData?.name || productData?.nome || 'Produto'} - foto ampliada ${currentImageIndex + 1}`;
-            }
-
-            syncProductGallery(currentImageIndex, { ensureVisible: true });
-        };
-
-        document.addEventListener('keydown', (event) => {
-            const lightbox = document.getElementById('product-lightbox');
-            const isLightboxOpen = !!lightbox?.classList.contains('active');
-
-            if (isLightboxOpen) {
-                if (event.key === 'Escape') window.closeLightbox();
-                if (event.key === 'ArrowLeft') window.navigateLightbox(-1);
-                if (event.key === 'ArrowRight') window.navigateLightbox(1);
-                if (event.key === '+' || event.key === '=') window.changeLightboxZoom(0.5);
-                if (event.key === '-') window.changeLightboxZoom(-0.5);
-                if (event.key === '0') window.resetLightboxZoom();
-                return;
-            }
-
-            const galleryMedia = document.querySelector('.product-main-media');
-            if (document.activeElement === galleryMedia && (event.key === 'Enter' || event.key === ' ')) {
-                event.preventDefault();
-                window.openCurrentProductImage();
-            }
-        });
+            currentImageIndex = (currentImageIndex + direction + productImages.length) % productImages.length;
+            document.getElementById('lightbox-image').src = productImages[currentImageIndex];
+        }
 
         
 window.toggleProductDescription = () => {
@@ -2632,13 +1828,8 @@ function addToCart(action = 'add') {
 
             writeCartArray(cart);
             cartItems = cart;
-            // Garantia estendida está temporariamente desativada até existir
-            // parceria formal com seguradora. Remove resíduos antigos para que
-            // nenhum adicional local seja levado ao fluxo de compra.
-            try {
-                localStorage.removeItem('ariana_extended_warranty');
-                localStorage.removeItem('ariana_warranty_reviewed_cart_sig');
-            } catch (_) {}
+            // Qualquer inclusão/alteração no carrinho exige uma nova revisão da garantia.
+            try { localStorage.removeItem('ariana_warranty_reviewed_cart_sig'); } catch (_) {}
             updateCartCounter();
 
             if (typeof window.loadCartCounter === 'function') {
@@ -2647,7 +1838,7 @@ function addToCart(action = 'add') {
             }
 
             if (action === 'buy_now') {
-                window.location.href = 'carrinho.html';
+                window.location.href = 'garantia_estendida.html';
                 return;
             }
 
@@ -2841,7 +2032,7 @@ function addToCart(action = 'add') {
 // IDs esperados na coleção "banners":
 // - produto_detail_horizontal_1
 // - produto_detail_horizontal_2
-// Campos aceitos: desktop imageUrl/image + mobileImageUrl/mobileImage (fallback automático para desktop)
+// Campos aceitos: imageUrl | url | image | desktopUrl | src
 // =========================================================
 window.loadProductDetailBanners = async function () {
     const section = document.getElementById('product-detail-banners');
@@ -2849,15 +2040,12 @@ window.loadProductDetailBanners = async function () {
     const slot2 = document.getElementById('product-detail-banner-2');
     if (!section || !slot1 || !slot2) return;
 
-    const pickDesktopImage = (data) => data?.imageUrl || data?.desktopImageUrl || data?.url || data?.image || data?.desktopUrl || data?.src || '';
-    const pickMobileImage = (data) => data?.mobileImageUrl || data?.mobileImage || data?.imageMobile || data?.mobileUrl || '';
+    const pickImage = (data) => data?.imageUrl || data?.url || data?.image || data?.desktopUrl || data?.src || '';
     const pickLink = (data) => data?.link || data?.href || data?.linkUrl || data?.targetUrl || data?.to || '';
-    const attr = (value) => String(value || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
     const renderSlot = (el, data) => {
-        const desktopUrl = pickDesktopImage(data);
-        const mobileUrl = pickMobileImage(data);
-        if (!desktopUrl) return false;
+        const imgUrl = pickImage(data);
+        if (!imgUrl) return false;
         const isActive = (data.active !== false) && (data.isActive !== false) && (data.enabled !== false);
         if (!isActive) return false;
 
@@ -2869,11 +2057,7 @@ window.loadProductDetailBanners = async function () {
             if (u.origin !== window.location.origin) el.target = '_blank';
         } catch (_) {}
 
-        const alt = attr(data.mobileAlt || data.alt || data.title || data.nome || 'Banner promocional');
-        el.innerHTML = `<picture>
-          ${mobileUrl ? `<source media="(max-width: 767px)" srcset="${attr(mobileUrl)}">` : ''}
-          <img src="${attr(desktopUrl)}" alt="${alt}" loading="lazy">
-        </picture>`;
+        el.innerHTML = `<img src="${imgUrl}" alt="${(data.title || data.nome || 'Banner promocional').toString().replace(/"/g,'&quot;')}" loading="lazy">`;
         el.classList.remove('hidden');
         return true;
     };
@@ -3189,12 +2373,7 @@ async function quoteUnifiedShipping(cepDestino, quantity) {
             const joined = [...fromOptions, ...fromQuotes, ...fromCheapest, ...fromQuote];
             if (joined.length) mergedQuotes.push(...joined);
             if (Array.isArray(data?.errors)) {
-                errors.push(...data.errors.map((e) => ({
-                    code: e.code || '',
-                    service: e.service || 'Frete',
-                    name: e.name || e.service || 'Frete',
-                    message: e.message || e.error || 'Indisponível'
-                })));
+                errors.push(...data.errors.map((e) => ({ service: e.service || 'Frete', name: e.name || e.service || 'Frete', message: e.message || e.error || 'Indisponível' })));
             }
         } catch (err) {
             lastError = err?.message || String(err || '');

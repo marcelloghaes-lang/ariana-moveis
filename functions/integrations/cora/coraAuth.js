@@ -1,7 +1,6 @@
 import fs from 'fs';
 import https from 'https';
 import axios from 'axios';
-import crypto from 'crypto';
 import { assertCoraConfigured } from './coraConfig.js';
 
 let tokenCache = {
@@ -10,18 +9,10 @@ let tokenCache = {
   expiresAt: 0
 };
 
-function certificateValue(cfg) {
-  return cfg.certPem || fs.readFileSync(cfg.certPath);
-}
-
-function privateKeyValue(cfg) {
-  return cfg.keyPem || fs.readFileSync(cfg.keyPath);
-}
-
 function makeHttpsAgent(cfg) {
   return new https.Agent({
-    cert: certificateValue(cfg),
-    key: privateKeyValue(cfg),
+    cert: fs.readFileSync(cfg.certPath),
+    key: fs.readFileSync(cfg.keyPath),
     rejectUnauthorized: true,
     keepAlive: true
   });
@@ -30,76 +21,6 @@ function makeHttpsAgent(cfg) {
 function parseProviderError(data, status) {
   if (typeof data === 'string' && data.trim()) return data.trim();
   return data?.message || data?.error_description || data?.error || `Cora respondeu HTTP ${status}`;
-}
-
-function safeAuthError(data, status) {
-  return {
-    status: Number(status || 0) || null,
-    error: String(data?.error || data?.message || data?.error_description || '').slice(0, 160) || null
-  };
-}
-
-function certificateCommonName(cfg) {
-  try {
-    const cert = new crypto.X509Certificate(certificateValue(cfg));
-    return String(cert.subject || '').split(/\n|,/).map(part => part.trim()).find(part => part.startsWith('CN='))?.slice(3) || '';
-  } catch (_error) {
-    return '';
-  }
-}
-
-async function authProbe(url, cfg) {
-  const body = new URLSearchParams({
-    grant_type: 'client_credentials',
-    client_id: cfg.clientId
-  });
-  try {
-    const response = await axios.post(url, body.toString(), {
-      httpsAgent: makeHttpsAgent(cfg),
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Accept: 'application/json'
-      },
-      timeout: Math.min(cfg.timeoutMs, 20000),
-      validateStatus: () => true
-    });
-    if (response.status >= 200 && response.status < 300 && response.data?.access_token) {
-      return { ok: true, status: response.status, error: null };
-    }
-    return { ok: false, ...safeAuthError(response.data, response.status) };
-  } catch (error) {
-    return { ok: false, status: null, error: String(error?.code || error?.message || error).slice(0, 160) };
-  }
-}
-
-export async function diagnoseCoraCredentials() {
-  const cfg = assertCoraConfigured();
-  const cn = certificateCommonName(cfg);
-  const productionUrl = 'https://matls-clients.api.cora.com.br/token';
-  const stageUrl = 'https://matls-clients.api.stage.cora.com.br/token';
-  const [production, stage] = await Promise.all([
-    authProbe(productionUrl, cfg),
-    authProbe(stageUrl, cfg)
-  ]);
-  return {
-    configuredEnvironment: cfg.environment,
-    clientIdMatchesCertificateCn: Boolean(cn && cfg.clientId && cn === cfg.clientId),
-    production,
-    stage
-  };
-}
-
-if (String(process.env.CORA_STARTUP_DIAGNOSTIC || '').toLowerCase() === 'true') {
-  setTimeout(async () => {
-    try {
-      const result = await diagnoseCoraCredentials();
-      console.info('[cora-auth-diagnostic]', JSON.stringify(result));
-    } catch (error) {
-      console.info('[cora-auth-diagnostic]', JSON.stringify({
-        error: String(error?.code || error?.message || error).slice(0, 200)
-      }));
-    }
-  }, 2500).unref?.();
 }
 
 export function clearCoraTokenCache() {

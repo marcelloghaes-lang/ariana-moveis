@@ -10,9 +10,7 @@ function integer(value, fallback = 0) {
 }
 
 export function moneyToCents(value) {
-  // Este helper recebe valor monetário em reais. Inteiros como 207 ou 828
-  // continuam sendo reais e precisam ser convertidos para 20700/82800 centavos.
-  // Valores que já estão em centavos devem usar diretamente os campos *AmountCents.
+  if (Number.isInteger(value)) return value;
   const n = Number(value || 0);
   if (!Number.isFinite(n)) return 0;
   return Math.round((n + Number.EPSILON) * 100);

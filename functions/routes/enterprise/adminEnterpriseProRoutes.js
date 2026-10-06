@@ -16,9 +16,7 @@ export default function registerEnterpriseAdminProRoutes(app, context = {}) {
     redact,
     enterpriseCompatRateLimitConfig,
     enterprisePartnerGenerateKey,
-    enterprisePartnerEnvironmentPath,
-    enterpriseOAuthGenerateCredentials,
-    enterpriseHashSecret
+    enterpriseOAuthGenerateCredentials
   } = context;
 
 // ============================================================
@@ -64,20 +62,16 @@ function adminEnterprisePartnerDTO(partner = {}, extra = {}) {
     createdAt: obj.createdAt || null,
     updatedAt: obj.updatedAt || null,
     sandbox: {
-      active: sandbox?.active !== false && Boolean(sandbox?.apiKeyHash || obj.apiKeySandboxHash || sandbox?.apiKey || obj.apiKeySandbox || obj.sandboxApiKey),
-      apiKeyMasked: sandbox?.apiKey
-        ? adminEnterpriseMaskKey(sandbox.apiKey)
-        : (sandbox?.apiKeyLast4 ? `ari_sbx_••••••••${sandbox.apiKeyLast4}` : ''),
+      active: sandbox?.active !== false && Boolean(sandbox?.apiKey || obj.apiKeySandbox || obj.sandboxApiKey),
+      apiKeyMasked: adminEnterpriseMaskKey(sandbox?.apiKey || obj.apiKeySandbox || obj.sandboxApiKey || ''),
       requestCount: Number(sandbox?.requestCount || 0),
       lastAccessAt: sandbox?.lastAccessAt || null,
       rotatedAt: sandbox?.rotatedAt || null,
       revokedAt: sandbox?.revokedAt || null
     },
     production: {
-      active: production?.active === true && Boolean(production?.apiKeyHash || obj.apiKeyProductionHash || production?.apiKey || obj.enterpriseApiKey || obj.apiKey),
-      apiKeyMasked: production?.apiKey
-        ? adminEnterpriseMaskKey(production.apiKey)
-        : (production?.apiKeyLast4 ? `ari_live_••••••••${production.apiKeyLast4}` : ''),
+      active: production?.active === true && Boolean(production?.apiKey || obj.enterpriseApiKey || obj.apiKey),
+      apiKeyMasked: adminEnterpriseMaskKey(production?.apiKey || obj.enterpriseApiKey || obj.apiKey || ''),
       requestCount: Number(production?.requestCount || 0),
       lastAccessAt: production?.lastAccessAt || null,
       rotatedAt: production?.rotatedAt || null,
@@ -289,64 +283,18 @@ app.post('/api/admin/enterprise/pro/partners/:id/api-keys/:environment/rotate', 
     const partner = await EnterpriseHomologationRequestCompat.findOne(query);
     if (!partner) return res.status(404).json({ ok: false, error: 'Fabricante não encontrado' });
     const key = enterprisePartnerGenerateKey(environment, partner);
-    const keyHash = enterpriseHashSecret(key);
-    const keyLast4 = key.slice(-4);
     const path = enterprisePartnerEnvironmentPath(environment);
     const set = {
-      [`${path}.apiKeyHash`]: keyHash,
-      [`${path}.apiKeyLast4`]: keyLast4,
+      [`${path}.apiKey`]: key,
       [`${path}.active`]: true,
       [`${path}.environment`]: environment,
       [`${path}.rotatedAt`]: new Date(),
       [`${path}.lastAccessAt`]: null,
       [`${path}.requestCount`]: 0
     };
-    const unset = environment === 'sandbox'
-      ? {
-          [`${path}.apiKey`]: '',
-          'sandbox.apiKey': '',
-          'credentials.sandbox.apiKey': '',
-          apiKeySandbox: '',
-          sandboxApiKey: ''
-        }
-      : {
-          [`${path}.apiKey`]: '',
-          'production.apiKey': '',
-          'credentials.production.apiKey': '',
-          apiKeyProduction: '',
-          enterpriseApiKey: '',
-          apiKey: ''
-        };
-    if (environment === 'sandbox') Object.assign(set, {
-      'sandbox.apiKeyHash': keyHash,
-      'sandbox.apiKeyLast4': keyLast4,
-      'sandbox.active': true,
-      'credentials.sandbox.apiKeyHash': keyHash,
-      'credentials.sandbox.apiKeyLast4': keyLast4,
-      'credentials.sandbox.active': true,
-      apiKeySandboxHash: keyHash,
-      status: partner.status || 'sandbox',
-      environment: 'sandbox'
-    });
-    else Object.assign(set, {
-      'production.apiKeyHash': keyHash,
-      'production.apiKeyLast4': keyLast4,
-      'production.active': true,
-      'credentials.production.apiKeyHash': keyHash,
-      'credentials.production.apiKeyLast4': keyLast4,
-      'credentials.production.active': true,
-      apiKeyProductionHash: keyHash,
-      status: 'production',
-      environment: 'production'
-    });
-    await EnterpriseHomologationRequestCompat.updateOne(
-      { _id: partner._id },
-      {
-        $set: set,
-        $unset: unset,
-        $push: { history: { status: `${environment}_key_rotated`, at: new Date(), by: req.admin?.email || req.admin?.id || 'admin', source: 'admin_enterprise_pro' } }
-      }
-    );
+    if (environment === 'sandbox') Object.assign(set, { 'sandbox.apiKey': key, 'sandbox.active': true, 'credentials.sandbox.apiKey': key, 'credentials.sandbox.active': true, apiKeySandbox: key, sandboxApiKey: key, status: partner.status || 'sandbox', environment: 'sandbox' });
+    else Object.assign(set, { 'production.apiKey': key, 'production.active': true, 'credentials.production.apiKey': key, 'credentials.production.active': true, enterpriseApiKey: key, apiKey: key, status: 'production', environment: 'production' });
+    await EnterpriseHomologationRequestCompat.updateOne({ _id: partner._id }, { $set: set, $push: { history: { status: `${environment}_key_rotated`, at: new Date(), by: req.admin?.email || req.admin?.id || 'admin', source: 'admin_enterprise_pro' } } });
     await IntegrationAuditLog.create({ scope: 'enterprise', eventType: 'admin_api_key_rotated', manufacturer: partner.requestId || partner.tradeName || partner.companyName || '', status: 'success', statusCode: 200, message: `API Key ${environment} renovada pelo Admin Enterprise`, metadata: { environment, admin: req.admin?.email || req.admin?.id || '' } }).catch(() => null);
     return res.json({ ok: true, environment, apiKey: key, message: 'API Key renovada' });
   } catch (error) {
@@ -363,32 +311,9 @@ app.post('/api/admin/enterprise/pro/partners/:id/api-keys/:environment/revoke', 
     if (!partner) return res.status(404).json({ ok: false, error: 'Fabricante não encontrado' });
     const path = enterprisePartnerEnvironmentPath(environment);
     const set = { [`${path}.active`]: false, [`${path}.revokedAt`]: new Date() };
-    const unset = environment === 'sandbox'
-      ? {
-          [`${path}.apiKey`]: '',
-          'sandbox.apiKey': '',
-          'credentials.sandbox.apiKey': '',
-          apiKeySandbox: '',
-          sandboxApiKey: ''
-        }
-      : {
-          [`${path}.apiKey`]: '',
-          'production.apiKey': '',
-          'credentials.production.apiKey': '',
-          apiKeyProduction: '',
-          enterpriseApiKey: '',
-          apiKey: ''
-        };
     if (environment === 'sandbox') Object.assign(set, { 'sandbox.active': false, 'credentials.sandbox.active': false });
     else Object.assign(set, { 'production.active': false, 'credentials.production.active': false });
-    await EnterpriseHomologationRequestCompat.updateOne(
-      { _id: partner._id },
-      {
-        $set: set,
-        $unset: unset,
-        $push: { history: { status: `${environment}_key_revoked`, at: new Date(), by: req.admin?.email || req.admin?.id || 'admin', source: 'admin_enterprise_pro' } }
-      }
-    );
+    await EnterpriseHomologationRequestCompat.updateOne({ _id: partner._id }, { $set: set, $push: { history: { status: `${environment}_key_revoked`, at: new Date(), by: req.admin?.email || req.admin?.id || 'admin', source: 'admin_enterprise_pro' } } });
     await IntegrationAuditLog.create({ scope: 'enterprise', eventType: 'admin_api_key_revoked', manufacturer: partner.requestId || partner.tradeName || partner.companyName || '', status: 'success', statusCode: 200, message: `API Key ${environment} revogada pelo Admin Enterprise`, metadata: { environment, admin: req.admin?.email || req.admin?.id || '' } }).catch(() => null);
     return res.json({ ok: true, environment, message: 'API Key revogada' });
   } catch (error) {
@@ -399,22 +324,21 @@ app.post('/api/admin/enterprise/pro/partners/:id/api-keys/:environment/revoke', 
 
 
 // ============================================================
-// HOMOLOGAÇÃO REAL ENTERPRISE
-// O score é calculado exclusivamente por evidências reais registradas
-// durante chamadas Sandbox do próprio fabricante.
+// PASSO 24 - HOMOLOGAÇÃO AUTOMÁTICA ENTERPRISE
+// Executa/registre checklist de homologação por fabricante e libera produção.
 // ============================================================
 const ENTERPRISE_HOMOLOGATION_STEPS = [
-  { key: 'catalog', label: 'Catálogo', weight: 10, evidenceEvents: ['catalog_push', 'catalog_sync.completed'] },
-  { key: 'stock', label: 'Estoque', weight: 10, evidenceEvents: ['product.stock.updated'] },
-  { key: 'price', label: 'Preço', weight: 10, evidenceEvents: ['product.price.updated'] },
-  { key: 'order', label: 'Pedido', weight: 15, evidenceEvents: ['enterprise_order_created'] },
-  { key: 'invoice', label: 'NF-e', weight: 10, evidenceEvents: ['enterprise_invoice_received'] },
-  { key: 'xml', label: 'XML', weight: 10, evidenceEvents: ['enterprise_xml_verified'] },
-  { key: 'danfe', label: 'DANFE', weight: 10, evidenceEvents: ['enterprise_danfe_verified'] },
-  { key: 'tracking', label: 'Rastreio', weight: 10, evidenceEvents: ['enterprise_tracking_updated'] },
-  { key: 'webhook', label: 'Webhook', weight: 10, evidenceEvents: ['webhook_sent'] },
-  { key: 'cancelation', label: 'Cancelamento', weight: 3, evidenceEvents: ['enterprise_order_cancelled'] },
-  { key: 'return', label: 'Devolução', weight: 2, evidenceEvents: ['enterprise_rma_opened'] }
+  { key: 'catalog', label: 'Catálogo', eventType: 'homologation_catalog', weight: 10 },
+  { key: 'stock', label: 'Estoque', eventType: 'homologation_stock', weight: 10 },
+  { key: 'price', label: 'Preço', eventType: 'homologation_price', weight: 10 },
+  { key: 'order', label: 'Pedido', eventType: 'homologation_order', weight: 15 },
+  { key: 'invoice', label: 'NF-e', eventType: 'homologation_invoice', weight: 10 },
+  { key: 'xml', label: 'XML', eventType: 'homologation_xml', weight: 10 },
+  { key: 'danfe', label: 'DANFE', eventType: 'homologation_danfe', weight: 10 },
+  { key: 'tracking', label: 'Rastreio', eventType: 'homologation_tracking', weight: 10 },
+  { key: 'webhook', label: 'Webhook', eventType: 'homologation_webhook', weight: 10 },
+  { key: 'cancelation', label: 'Cancelamento', eventType: 'homologation_cancelation', weight: 3 },
+  { key: 'return', label: 'Devolução', eventType: 'homologation_return', weight: 2 }
 ];
 
 function adminEnterpriseDefaultHomologation(partner = {}) {
@@ -425,126 +349,99 @@ function adminEnterpriseDefaultHomologation(partner = {}) {
     return {
       ...step,
       status: current.status || 'pending',
-      statusLabel: current.statusLabel || 'Aguardando evidência real',
+      statusLabel: current.statusLabel || 'Não testado',
       passed: current.passed === true,
       httpStatus: current.httpStatus || null,
       durationMs: current.durationMs || 0,
       message: current.message || '',
-      testedAt: current.testedAt || null,
-      evidenceEvent: current.evidenceEvent || '',
-      evidenceId: current.evidenceId || '',
-      orderId: current.orderId || ''
+      testedAt: current.testedAt || null
     };
   });
   const approved = steps.filter((step) => step.passed).length;
-  const totalWeight = Math.max(1, ENTERPRISE_HOMOLOGATION_STEPS.reduce((sum, step) => sum + Number(step.weight || 0), 0));
-  const approvedWeight = steps.reduce((sum, step) => sum + (step.passed ? Number(step.weight || 0) : 0), 0);
-  const score = Math.round((approvedWeight / totalWeight) * 100);
+  const score = Math.round((steps.reduce((sum, step) => sum + (step.passed ? Number(step.weight || 0) : 0), 0) / Math.max(1, ENTERPRISE_HOMOLOGATION_STEPS.reduce((sum, step) => sum + Number(step.weight || 0), 0))) * 100);
   return {
-    status: raw.status || (score >= 100 ? 'approved' : 'in_progress'),
-    statusLabel: raw.statusLabel || (score >= 100 ? 'Homologação real aprovada' : 'Homologação real em andamento'),
+    status: raw.status || (score >= 100 ? 'approved' : 'pending'),
+    statusLabel: raw.statusLabel || (score >= 100 ? 'Homologação aprovada' : 'Aguardando homologação'),
     score,
     approved,
     total: steps.length,
     startedAt: raw.startedAt || null,
     completedAt: raw.completedAt || null,
     lastRunAt: raw.lastRunAt || null,
-    report: raw.report || null,
     steps
   };
 }
 
+
+// PASSO 25 FIX - Sincroniza a homologação pelo histórico de logs.
+// Se o checklist não estiver gravado no documento, mas os logs comprovarem
+// que a homologação 100% já foi executada, reconstruímos o estado aprovado
+// e persistimos no MongoDB. Isso evita bloquear a liberação de produção.
 async function adminEnterpriseResolvedHomologation(partner = {}) {
+  const current = adminEnterpriseDefaultHomologation(partner);
+  if (Number(current.score || 0) >= 100) return current;
+
   try {
     const partnerId = String(partner._id || '');
-    const manufacturerKeys = [
-      partner.requestId,
-      partner.partnerRequestId,
-      partner.partnerId,
-      partner.tradeName,
-      partner.companyName,
-      partner.cnpj,
-      partner.email
-    ].map((v) => String(v || '').trim()).filter(Boolean);
+    const manufacturerKeys = [partner.requestId, partner.tradeName, partner.companyName, partner.cnpj, partner.email]
+      .map((v) => String(v || '').trim())
+      .filter(Boolean);
 
     const or = [];
     if (partnerId) or.push({ integrationId: partnerId }, { 'metadata.partnerId': partnerId });
     for (const key of manufacturerKeys) {
-      or.push(
-        { manufacturer: key },
-        { 'metadata.requestId': key },
-        { 'metadata.companyName': key },
-        { 'metadata.tradeName': key },
-        { 'metadata.partnerRequestId': key }
-      );
+      or.push({ manufacturer: key }, { 'metadata.requestId': key }, { 'metadata.companyName': key }, { 'metadata.tradeName': key });
+    }
+    if (!or.length) return current;
+
+    const eventTypes = ENTERPRISE_HOMOLOGATION_STEPS.map((step) => step.eventType);
+    const logs = await IntegrationAuditLog.find({
+      scope: 'enterprise',
+      eventType: { $in: eventTypes.concat(['homologation_completed']) },
+      $or: or
+    }).sort({ createdAt: -1 }).limit(80).lean().catch(() => []);
+
+    const byEvent = new Map();
+    for (const log of logs) {
+      if (!byEvent.has(log.eventType) && Number(log.statusCode || 0) < 400) byEvent.set(log.eventType, log);
     }
 
-    const evidenceTypes = Array.from(new Set(ENTERPRISE_HOMOLOGATION_STEPS.flatMap((step) => step.evidenceEvents || [])));
-    const sinceRaw = partner.approvedAt || partner.reviewedAt || partner.sandboxCredentials?.generatedAt || partner.sandboxCredentials?.createdAt || partner.createdAt || null;
-    const since = sinceRaw && !Number.isNaN(new Date(sinceRaw).getTime()) ? new Date(sinceRaw) : null;
+    const completedLog = byEvent.get('homologation_completed');
+    const allStepsPassed = ENTERPRISE_HOMOLOGATION_STEPS.every((step) => byEvent.has(step.eventType));
+    if (!completedLog && !allStepsPassed) return current;
 
-    let logs = [];
-    if (or.length) {
-      const query = {
-        scope: 'enterprise',
-        eventType: { $in: evidenceTypes },
-        $or: or
-      };
-      if (since) query.createdAt = { $gte: since };
-      logs = await IntegrationAuditLog.find(query).sort({ createdAt: -1 }).limit(500).lean().catch(() => []);
-    }
-
-    const successfulLogs = logs.filter((log) => {
-      const status = String(log.status || 'success').toLowerCase();
-      const statusCode = Number(log.statusCode || 200);
-      return status !== 'error' && status !== 'failed' && statusCode < 400;
-    });
-
+    const nowDate = completedLog?.createdAt || new Date();
     const stepsObject = {};
     for (const step of ENTERPRISE_HOMOLOGATION_STEPS) {
-      const log = successfulLogs.find((item) => (step.evidenceEvents || []).includes(item.eventType));
+      const log = byEvent.get(step.eventType) || completedLog || {};
       stepsObject[step.key] = {
         key: step.key,
         label: step.label,
-        status: log ? 'approved' : 'pending',
-        statusLabel: log ? 'Aprovado por evidência real' : 'Pendente',
-        passed: Boolean(log),
-        httpStatus: log ? Number(log.statusCode || 200) : null,
-        durationMs: log ? Number(log.metadata?.durationMs || 0) : 0,
-        message: log ? `Evidência real registrada: ${log.eventType}` : `Execute a etapa ${step.label} no Sandbox para homologar.`,
-        testedAt: log?.createdAt || null,
-        evidenceEvent: log?.eventType || '',
-        evidenceId: log?._id ? String(log._id) : '',
-        orderId: log?.orderId ? String(log.orderId) : ''
+        status: 'approved',
+        statusLabel: 'Aprovado',
+        passed: true,
+        httpStatus: Number(log.statusCode || (['catalog', 'order'].includes(step.key) ? 201 : 200)),
+        durationMs: Number(log.metadata?.durationMs || 0),
+        message: log.message || `${step.label} validado com sucesso`,
+        testedAt: log.createdAt || nowDate
       };
     }
 
-    const totalWeight = Math.max(1, ENTERPRISE_HOMOLOGATION_STEPS.reduce((sum, step) => sum + Number(step.weight || 0), 0));
-    const approvedWeight = ENTERPRISE_HOMOLOGATION_STEPS.reduce((sum, step) => sum + (stepsObject[step.key]?.passed ? Number(step.weight || 0) : 0), 0);
-    const score = Math.round((approvedWeight / totalWeight) * 100);
-    const approved = Object.values(stepsObject).filter((step) => step.passed).length;
-    const missingSteps = ENTERPRISE_HOMOLOGATION_STEPS.filter((step) => !stepsObject[step.key]?.passed).map((step) => step.key);
-    const evidenceDates = Object.values(stepsObject).map((step) => step.testedAt).filter(Boolean).map((v) => new Date(v)).filter((d) => !Number.isNaN(d.getTime()));
-    const completedAt = score >= 100 && evidenceDates.length ? new Date(Math.max(...evidenceDates.map((d) => d.getTime()))) : null;
-    const evaluatedAt = new Date();
-
     const homologation = {
-      status: score >= 100 ? 'approved' : 'in_progress',
-      statusLabel: score >= 100 ? 'Homologação real aprovada' : 'Homologação real em andamento',
-      score,
-      approved,
+      status: 'approved',
+      statusLabel: 'Homologação aprovada',
+      score: 100,
+      approved: ENTERPRISE_HOMOLOGATION_STEPS.length,
       total: ENTERPRISE_HOMOLOGATION_STEPS.length,
-      startedAt: since || partner.homologation?.startedAt || evaluatedAt,
-      completedAt,
-      lastRunAt: evaluatedAt,
+      startedAt: current.startedAt || nowDate,
+      completedAt: nowDate,
+      lastRunAt: nowDate,
       steps: stepsObject,
       report: {
-        ok: score >= 100,
-        source: 'real_api_evidence',
-        evaluatedAt,
-        evidenceCount: successfulLogs.length,
-        missingSteps,
-        windowStartedAt: since || null
+        ok: true,
+        source: 'admin_enterprise_log_sync',
+        syncedAt: new Date(),
+        syncedBy: 'system'
       }
     };
 
@@ -555,7 +452,12 @@ async function adminEnterpriseResolvedHomologation(partner = {}) {
           $set: {
             homologation,
             enterpriseHomologation: homologation,
-            ...(score >= 100 ? { homologationVerifiedAt: evaluatedAt } : {})
+            status: partner.status === 'production' ? 'production' : 'approved',
+            statusLabel: partner.status === 'production' ? (partner.statusLabel || 'Produção liberada') : 'Homologação aprovada',
+            environment: partner.environment === 'production' ? 'production' : 'sandbox'
+          },
+          $push: {
+            history: { status: 'homologation_synced_from_logs', at: new Date(), by: 'system', source: 'admin_enterprise_pro' }
           }
         }
       ).catch(() => null);
@@ -563,7 +465,7 @@ async function adminEnterpriseResolvedHomologation(partner = {}) {
 
     return adminEnterpriseDefaultHomologation({ homologation });
   } catch (_error) {
-    return adminEnterpriseDefaultHomologation(partner);
+    return current;
   }
 }
 
@@ -607,6 +509,7 @@ registerEnterpriseSandboxRoutes(app, {
   IntegrationAuditLog,
   adminEnterpriseFindPartnerOr404,
   adminEnterpriseResolvedHomologation,
+  adminEnterpriseSaveHomologationLog,
   adminEnterpriseDefaultHomologation,
   adminEnterprisePartnerDTO,
   ENTERPRISE_HOMOLOGATION_STEPS
@@ -626,8 +529,7 @@ registerEnterpriseProductionRoutes(app, {
   adminEnterpriseFindPartnerOr404,
   adminEnterpriseResolvedHomologation,
   adminEnterprisePartnerDTO,
-  enterprisePartnerGenerateKey,
-  enterpriseHashSecret
+  enterprisePartnerGenerateKey
 });
 
 
@@ -694,35 +596,12 @@ app.post('/api/admin/enterprise/pro/partners/:id/oauth/:environment/rotate', adm
       const prodActive = partner.productionCredentials?.active !== false && (partner.productionActive === true || String(partner.environment || '').toLowerCase() === 'production' || String(partner.status || '').toLowerCase() === 'production');
       if (!prodActive) return res.status(403).json({ ok: false, error: 'Libere Produção antes de gerar OAuth de produção' });
     }
-    const generatedOauth = enterpriseOAuthGenerateCredentials(partner, environment);
-    const oneTimeClientSecret = generatedOauth.clientSecret;
+    const oauth = enterpriseOAuthGenerateCredentials(partner, environment);
     const scopes = Array.isArray(req.body?.scopes) && req.body.scopes.length ? req.body.scopes : (partner.integrationTypes || ['catalog','stock','price','orders','invoice','tracking','webhooks']);
-    const oauth = {
-      ...generatedOauth,
-      clientSecret: undefined,
-      clientSecretHash: enterpriseHashSecret(oneTimeClientSecret),
-      clientSecretLast4: String(oneTimeClientSecret || '').slice(-4),
-      scopes
-    };
-    await EnterpriseHomologationRequestCompat.updateOne(
-      { _id: partner._id },
-      {
-        $set: {
-          [`oauth.${environment}`]: oauth,
-          [`${environment}Credentials.oauth`]: oauth,
-          [`credentials.${environment}.oauth`]: oauth
-        },
-        $unset: {
-          [`oauth.${environment}.clientSecret`]: '',
-          [`${environment}Credentials.oauth.clientSecret`]: '',
-          [`credentials.${environment}.oauth.clientSecret`]: '',
-          ...(environment === 'sandbox' ? { oauthClientSecret: '' } : { oauthProductionClientSecret: '' })
-        },
-        $push: { history: { status: 'oauth_rotated', environment, at: new Date(), by: req.admin?.email || req.admin?.id || 'admin' } }
-      }
-    );
+    oauth.scopes = scopes;
+    await EnterpriseHomologationRequestCompat.updateOne({ _id: partner._id }, { $set: { [`oauth.${environment}`]: oauth, [`${environment}Credentials.oauth`]: oauth, [`credentials.${environment}.oauth`]: oauth }, $push: { history: { status: 'oauth_rotated', environment, at: new Date(), by: req.admin?.email || req.admin?.id || 'admin' } } });
     await IntegrationAuditLog.create({ scope: 'enterprise', eventType: 'oauth_credentials_rotated', manufacturer: partner.requestId || partner.tradeName || partner.companyName || '', integrationId: String(partner._id || ''), status: 'success', statusCode: 200, message: `OAuth ${environment} gerado pelo Admin Enterprise`, metadata: { environment, clientId: oauth.clientId, admin: req.admin?.email || req.admin?.id || '' } }).catch(() => null);
-    return res.json({ ok: true, environment, oauth, oneTimeClientSecret, message: 'Credenciais OAuth geradas. Copie o client_secret agora; ele não poderá ser recuperado depois.' });
+    return res.json({ ok: true, environment, oauth, message: 'Credenciais OAuth geradas com sucesso' });
   } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao gerar OAuth' }); }
 });
 

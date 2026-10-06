@@ -245,7 +245,6 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
             <a href="seller_dashboard.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 bg-dark-gray-bg text-white"><i class="fas fa-home"></i><span>Dashboard</span></a>
             <a href="#" id="seller-store-nav-link" target="_blank" rel="noopener" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-store"></i><span>Minha loja no site</span></a>
             <a href="seller_produtos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-box"></i><span>Meus Produtos</span></a>
-    <a href="seller_catalogo_importar.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-file-import"></i><span>Importar catálogo</span></a>
             <a href="seller_produto_novo.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-plus-circle"></i><span>Cadastrar Produto</span></a>
             <a href="seller_pedidos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
             <a href="logistica_etiquetas.html?from=seller" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-truck-loading"></i><span>Logística / Etiquetas</span></a>
@@ -340,7 +339,7 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
                         <input id="seller-uf" maxlength="2" class="w-full border border-gray-300 rounded-xl px-3 py-2 uppercase" placeholder="MG" />
                     </div>
                     <div class="lg:col-span-4 flex justify-end">
-                        <button id="seller-profile-save-btn" type="submit" class="inline-flex items-center justify-center px-5 py-3 rounded-xl bg-primary-blue text-white font-bold hover:bg-secondary-light-blue transition disabled:opacity-60 disabled:cursor-not-allowed">
+                        <button type="submit" class="inline-flex items-center justify-center px-5 py-3 rounded-xl bg-primary-blue text-white font-bold hover:bg-secondary-light-blue transition">
                             <i class="fas fa-save mr-2"></i> Salvar dados cadastrais
                         </button>
                     </div>
@@ -356,9 +355,9 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
                     <div><p class="text-sm font-medium text-gray-500">Meus Pedidos</p><p id="kpi-orders" class="text-3xl font-bold text-success-green">0</p></div>
                     <i class="fas fa-shopping-cart text-4xl text-success-green opacity-50"></i>
                 </div>
-                <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between gap-3 overflow-hidden animate-fade">
-                    <div class="min-w-0 flex-1"><p class="text-sm font-medium text-gray-500">Vendas (aprovadas)</p><p id="kpi-sales" class="text-2xl xl:text-3xl font-bold text-text-dark whitespace-nowrap">R$ 0,00</p></div>
-                    <i class="fas fa-coins text-3xl text-text-dark opacity-40 shrink-0"></i>
+                <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between animate-fade">
+                    <div><p class="text-sm font-medium text-gray-500">Vendas (aprovadas)</p><p id="kpi-sales" class="text-3xl font-bold text-text-dark">R$ 0,00</p></div>
+                    <i class="fas fa-money-check-alt text-4xl text-text-dark opacity-50"></i>
                 </div>
                 <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between animate-fade">
                     <div><p class="text-sm font-medium text-gray-500">Pendências</p><p id="kpi-pending" class="text-3xl font-bold text-error-red">0</p></div>
@@ -560,30 +559,25 @@ function isSellerApproved(seller = {}) {
 
 function applySellerProfileLock(seller = {}) {
   const approved = isSellerApproved(seller);
-  const ids = [
-    "seller-store-name","seller-display-name","seller-document","seller-phone",
-    "seller-email","seller-cep","seller-address","seller-city","seller-uf"
+
+  const lockedIds = [
+    "seller-store-name",
+    "seller-display-name",
+    "seller-document",
+    "seller-email"
   ];
 
-  let editableMissing = 0;
-  ids.forEach((id) => {
+  lockedIds.forEach((id) => {
     const input = $(id);
     if (!input) return;
-    const hasValue = String(input.value || "").trim().length > 0;
-    const shouldLock = approved && hasValue;
-
-    input.readOnly = shouldLock;
+    input.readOnly = approved;
     input.disabled = false;
-    input.dataset.lockedSaved = shouldLock ? "true" : "false";
-    input.classList.toggle("bg-gray-100", shouldLock);
-    input.classList.toggle("text-gray-500", shouldLock);
-    input.classList.toggle("cursor-not-allowed", shouldLock);
-    input.classList.toggle("border-green-200", shouldLock);
-    input.title = shouldLock
-      ? "Dado já salvo e bloqueado. Para alterar, solicite ao administrador da Ariana Móveis."
+    input.classList.toggle("bg-gray-100", approved);
+    input.classList.toggle("text-gray-500", approved);
+    input.classList.toggle("cursor-not-allowed", approved);
+    input.title = approved
+      ? "Este dado cadastral fica bloqueado após aprovação. Para alterar, solicite ao administrador da Ariana Móveis."
       : "";
-
-    if (approved && !hasValue) editableMissing++;
   });
 
   let warning = $("seller-profile-lock-warning");
@@ -592,35 +586,11 @@ function applySellerProfileLock(seller = {}) {
     warning = document.createElement("div");
     warning.id = "seller-profile-lock-warning";
     warning.className = "lg:col-span-4 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-xl px-4 py-3 text-sm";
+    warning.innerHTML = '<i class="fas fa-lock mr-2"></i>Dados jurídicos bloqueados após aprovação: nome da loja, responsável, CPF/CNPJ e e-mail. Para alterar esses dados, solicite ao administrador da Ariana Móveis.';
     form.insertBefore(warning, form.firstChild);
-  }
-
-  if (approved && warning) {
-    warning.innerHTML = editableMissing > 0
-      ? '<i class="fas fa-lock mr-2"></i>Os dados já salvos estão bloqueados. Preencha apenas os campos que ainda estão vazios; depois de salvos, eles também serão bloqueados.'
-      : '<i class="fas fa-lock mr-2"></i>Cadastro concluído. Todos os dados já salvos estão bloqueados. Para alterar algum deles, solicite ao administrador da Ariana Móveis.';
   } else if (!approved && warning) {
     warning.remove();
   }
-
-  const saveBtn = $("seller-profile-save-btn");
-  if (saveBtn) {
-    if (approved && editableMissing === 0) {
-      saveBtn.disabled = true;
-      saveBtn.innerHTML = '<i class="fas fa-lock mr-2"></i> Cadastro concluído';
-    } else if (approved) {
-      saveBtn.disabled = false;
-      saveBtn.innerHTML = '<i class="fas fa-save mr-2"></i> Salvar dados faltantes';
-    } else {
-      saveBtn.disabled = false;
-      saveBtn.innerHTML = '<i class="fas fa-save mr-2"></i> Salvar dados cadastrais';
-    }
-  }
-}
-
-function formatSellerCep(value = "") {
-  const digits = String(value || "").replace(/\D/g, "").slice(0, 8);
-  return digits.length > 5 ? digits.slice(0, 5) + "-" + digits.slice(5) : digits;
 }
 
 function fillSellerProfileForm(seller = {}, user = {}) {
@@ -631,10 +601,10 @@ function fillSellerProfileForm(seller = {}, user = {}) {
   set("seller-document", seller.document || user.cpf || "");
   set("seller-phone", seller.phone || user.phone || "");
   set("seller-email", seller.email || user.email || "");
-  set("seller-cep", formatSellerCep(seller.cep || meta.cep || meta.postalCode || ""));
-  set("seller-address", seller.address || seller.endereco || meta.address || meta.endereco || "");
-  set("seller-city", seller.city || seller.cidade || user.city || meta.city || meta.cidade || "");
-  set("seller-uf", seller.uf || user.uf || meta.uf || meta.state || "");
+  set("seller-cep", meta.cep || "");
+  set("seller-address", meta.address || "");
+  set("seller-city", user.city || meta.city || "");
+  set("seller-uf", user.uf || meta.uf || "");
   const badge = $("seller-status-badge");
   if (badge) {
     const status = String(seller.status || "pendente");
@@ -651,29 +621,20 @@ async function saveSellerProfile(event) {
     const currentSeller = getSellerProfile();
     const approved = isSellerApproved(currentSeller);
 
-    const payload = {};
-    const canSend = (id) => {
-      const el = $(id);
-      return !!el && el.readOnly !== true && el.dataset.lockedSaved !== "true";
+    const payload = {
+      phone: $("seller-phone")?.value || "",
+      cep: $("seller-cep")?.value || "",
+      address: $("seller-address")?.value || "",
+      city: $("seller-city")?.value || "",
+      uf: $("seller-uf")?.value || ""
     };
 
-    if (canSend("seller-phone")) payload.phone = $("seller-phone")?.value?.trim() || "";
-    if (canSend("seller-cep")) payload.cep = String($("seller-cep")?.value || "").replace(/\D/g, "");
-    if (canSend("seller-address")) {
-      payload.address = $("seller-address")?.value?.trim() || "";
-      payload.endereco = payload.address;
+    if (!approved) {
+      payload.storeName = $("seller-store-name")?.value || "";
+      payload.displayName = $("seller-display-name")?.value || "";
+      payload.document = $("seller-document")?.value || "";
+      payload.email = $("seller-email")?.value || "";
     }
-    if (canSend("seller-city")) {
-      payload.city = $("seller-city")?.value?.trim() || "";
-      payload.cidade = payload.city;
-    }
-    if (canSend("seller-uf")) payload.uf = $("seller-uf")?.value?.trim().toUpperCase() || "";
-
-    if (canSend("seller-store-name")) payload.storeName = $("seller-store-name")?.value || "";
-    if (canSend("seller-display-name")) payload.displayName = $("seller-display-name")?.value || "";
-    if (canSend("seller-document")) payload.document = $("seller-document")?.value || "";
-    if (canSend("seller-email")) payload.email = $("seller-email")?.value || "";
-
     let res = await fetch(`${API_BASE}/seller/profile`, {
       method: "PATCH",
       headers: authHeaders({ "Content-Type": "application/json" }),
@@ -694,27 +655,7 @@ async function saveSellerProfile(event) {
     if (res.status === 401 || res.status === 403) { clearSellerSession(); window.location.href = 'seller_login.html'; return; }
     if (!res.ok) throw new Error(data?.error || data?.message || `Erro ${res.status}`);
 
-    const sellerFromApi = data.seller || data.user || data || {};
-    const sellerAtualizado = {
-      ...currentSeller,
-      ...sellerFromApi,
-      cep: sellerFromApi.cep || payload.cep,
-      address: sellerFromApi.address || sellerFromApi.endereco || payload.address,
-      endereco: sellerFromApi.endereco || sellerFromApi.address || payload.endereco,
-      city: sellerFromApi.city || payload.city,
-      cidade: sellerFromApi.cidade || sellerFromApi.city || payload.cidade,
-      uf: sellerFromApi.uf || payload.uf,
-      metadata: {
-        ...(currentSeller.metadata || {}),
-        ...(sellerFromApi.metadata || {}),
-        cep: sellerFromApi.metadata?.cep || sellerFromApi.cep || payload.cep,
-        address: sellerFromApi.metadata?.address || sellerFromApi.address || payload.address,
-        endereco: sellerFromApi.metadata?.endereco || sellerFromApi.endereco || payload.endereco,
-        city: sellerFromApi.metadata?.city || sellerFromApi.city || payload.city,
-        cidade: sellerFromApi.metadata?.cidade || sellerFromApi.cidade || payload.cidade,
-        uf: sellerFromApi.metadata?.uf || sellerFromApi.uf || payload.uf
-      }
-    };
+    const sellerAtualizado = data.seller || data.user || data || {};
     localStorage.setItem("seller_profile", JSON.stringify(sellerAtualizado));
     fillSellerProfileForm(sellerAtualizado, data.user || {});
     updateSellerStoreShortcut(sellerAtualizado);
@@ -830,7 +771,6 @@ async function saveSellerProfile(event) {
 
     $('seller-store-copy-btn')?.addEventListener('click', copySellerStoreLink);
     $('seller-profile-form')?.addEventListener('submit', saveSellerProfile);
-$("seller-cep")?.addEventListener("input", (e) => { e.target.value = formatSellerCep(e.target.value); });
 
     window.onload = () => { initSellerInstallBanner(); loadDashboard(); };
   </script>

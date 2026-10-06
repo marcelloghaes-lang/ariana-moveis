@@ -1,6 +1,4 @@
 import registerLegacyRuntimeRoutes from './legacyRuntimeRoutes.js';
-import registerStorefrontProductVisibilityRoutes from './storefrontProductVisibilityRoutes.js';
-import registerCurrentPaymentGuardRoutes from './currentPaymentGuardRoutes.js';
 
 // ============================================================
 // ROTAS LEGADAS - ARIANA MÓVEIS
@@ -82,94 +80,8 @@ function prioritizeSpecificAdminRoutes(app) {
   );
 }
 
-function ensureEnterpriseSandboxModels(context = {}) {
-  const mongoose = context.mongoose;
-  if (!mongoose?.Schema || typeof mongoose.model !== 'function') {
-    throw new Error('[legacyRoutes] Mongoose indisponível para inicializar o Sandbox Enterprise');
-  }
-
-  const sourceProductSchema = context.productSchema || context.Product?.schema || null;
-  const sourceOrderSchema = context.orderSchema || context.Order?.schema || null;
-
-  if (!sourceProductSchema) {
-    throw new Error('[legacyRoutes] productSchema indisponível para inicializar o Sandbox Enterprise');
-  }
-  if (!sourceOrderSchema) {
-    throw new Error('[legacyRoutes] orderSchema indisponível para inicializar o Sandbox Enterprise');
-  }
-
-  // O Sandbox replica o schema operacional para que todos os campos usados em
-  // catálogo, preço, estoque, imagens, logística e especificações sejam realmente
-  // persistidos. As coleções continuam fisicamente separadas da produção.
-  if (!mongoose.models.EnterpriseSandboxProduct) {
-    const sandboxProductSchema = sourceProductSchema.clone();
-    sandboxProductSchema.set('strict', false);
-    sandboxProductSchema.add({
-      sellerIds: [{ type: String }],
-      manufacturer: { type: String, index: true },
-      codigo: { type: String, index: true },
-      productSku: { type: String, index: true },
-      metadata: mongoose.Schema.Types.Mixed,
-      status_integracao: { type: String, index: true }
-    });
-    sandboxProductSchema.index({ sku: 1, sellerId: 1 });
-    mongoose.model('EnterpriseSandboxProduct', sandboxProductSchema, 'enterprise_sandbox_products');
-  }
-
-  // Pedidos Sandbox também mantêm paridade com o pedido real: rastreio, histórico,
-  // NF-e, dados fiscais, pagamento e demais campos permanecem disponíveis sem tocar
-  // na coleção pública de pedidos.
-  if (!mongoose.models.EnterpriseSandboxOrder) {
-    const sandboxOrderSchema = sourceOrderSchema.clone();
-    sandboxOrderSchema.set('strict', false);
-    sandboxOrderSchema.add({
-      invoice: mongoose.Schema.Types.Mixed,
-      tracking: mongoose.Schema.Types.Mixed,
-      metadata: mongoose.Schema.Types.Mixed
-    });
-    sandboxOrderSchema.index({ manufacturer: 1, 'manufacturerDispatch.externalOrderId': 1 });
-    sandboxOrderSchema.index({ manufacturer: 1, 'manufacturerDispatch.idempotencyKeyHash': 1 });
-    mongoose.model('EnterpriseSandboxOrder', sandboxOrderSchema, 'enterprise_sandbox_orders');
-  }
-}
-
-function buildRuntimeContext(context = {}) {
-  const Product = context.Product;
-  const Order = context.Order;
-
-  const productSchema = context.productSchema || Product?.schema || null;
-  const orderSchema = context.orderSchema || Order?.schema || null;
-
-  if (!productSchema) {
-    throw new Error('[legacyRoutes] productSchema indisponível para inicializar o Ariana Enterprise');
-  }
-
-  if (!orderSchema) {
-    throw new Error('[legacyRoutes] orderSchema indisponível para inicializar o Ariana Enterprise');
-  }
-
-  ensureEnterpriseSandboxModels({ ...context, productSchema, orderSchema });
-
-  return {
-    ...context,
-    productSchema,
-    orderSchema
-  };
-}
-
 export default function registerLegacyRoutes(app, context = {}) {
-  const runtimeContext = buildRuntimeContext(context);
-
-  // Rotas públicas da vitrine precisam ser registradas antes das rotas legadas.
-  // A migração SIGE usa o mesmo model Product para o ERP; produtos criados apenas
-  // para o ERP possuem specs.sigeSourceId e não devem ocupar a home/catálogo público.
-  registerStorefrontProductVisibilityRoutes(app, runtimeContext);
-
-  // Bloqueia primeiro os gateways que não fazem parte da operação vigente.
-  // O código histórico permanece preservado dentro das rotas legadas.
-  registerCurrentPaymentGuardRoutes(app, runtimeContext);
-
-  const result = registerLegacyRuntimeRoutes(app, runtimeContext);
+  const result = registerLegacyRuntimeRoutes(app, context);
   prioritizeSpecificAdminRoutes(app);
   return result;
 }

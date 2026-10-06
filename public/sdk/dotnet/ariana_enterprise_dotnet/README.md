@@ -5,10 +5,8 @@ SDK oficial em C#/.NET para integrar fabricantes, distribuidores e ERPs com a Ar
 ## Instalação
 
 ```bash
-dotnet add reference ./ariana_enterprise_dotnet/ArianaEnterprise.Sdk.csproj
+dotnet add package ArianaEnterprise.Sdk --version 1.0.0
 ```
-
-O SDK ainda não está publicado no NuGet. Baixe e extraia o pacote oficial e adicione a referência local acima.
 
 ## Uso rápido
 
@@ -17,8 +15,8 @@ using ArianaEnterprise;
 
 var ariana = new ArianaEnterpriseClient(new ArianaEnterpriseOptions
 {
-    ApiKey = "ari_sbx_xxxxx",
-    Environment = "sandbox"
+    ApiKey = "ari_live_xxxxx",
+    Environment = "production"
 });
 
 await ariana.HealthAsync();

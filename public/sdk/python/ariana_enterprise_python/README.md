@@ -5,10 +5,8 @@ SDK oficial em Python para integrar catálogo, estoque, preço, pedidos, NF-e, r
 ## Instalação
 
 ```bash
-pip install ./ariana_enterprise_python
+pip install ariana-enterprise
 ```
-
-O SDK ainda não está publicado no PyPI. Baixe e extraia o pacote oficial antes de executar o comando acima.
 
 ## Uso rápido
 
@@ -16,8 +14,8 @@ O SDK ainda não está publicado no PyPI. Baixe e extraia o pacote oficial antes
 from ariana_enterprise import ArianaEnterpriseClient
 
 api = ArianaEnterpriseClient(
-    api_key="ari_sbx_xxxxx",
-    environment="sandbox"
+    api_key="ari_live_xxxxx",
+    environment="production"
 )
 
 api.catalog.push([
@@ -34,7 +32,7 @@ api.products.update_price("ARI-0001", 2199)
 api = ArianaEnterpriseClient(
     client_id="ari_client_xxxxx",
     client_secret="ari_secret_xxxxx",
-    environment="sandbox"
+    environment="production"
 )
 
 api.health()

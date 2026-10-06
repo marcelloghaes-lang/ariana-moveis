@@ -7,7 +7,6 @@
 export default function registerShippingRoutes(app, context = {}) {
   const {
     Order,
-    Product,
     adminRequired,
     calculateShipping,
     getShippingSettings,
@@ -25,158 +24,14 @@ export default function registerShippingRoutes(app, context = {}) {
     throw new Error('registerShippingRoutes: getShippingSettings não foi informado no context.');
   }
 
-  // Diagnóstico somente leitura para confirmar se o estoque foi realmente zerado
-  // no MongoDB ou se o problema é apenas de exibição no ERP/site.
-  if (Product) {
-    setTimeout(async () => {
-      try {
-        const [total, zero, positive, missing, sample] = await Promise.all([
-          Product.countDocuments({}),
-          Product.countDocuments({ stock: { $lte: 0 } }),
-          Product.countDocuments({ stock: { $gt: 0 } }),
-          Product.countDocuments({ $or: [{ stock: { $exists: false } }, { stock: null }] }),
-          Product.find({}).select('_id name sku stock active storefrontSource dropshipping').sort({ updatedAt: -1 }).limit(15).lean()
-        ]);
-        console.log('[stock-audit-readonly]', JSON.stringify({
-          total,
-          zero,
-          positive,
-          missing,
-          sample: sample.map((p) => ({
-            id: String(p._id || ''),
-            name: String(p.name || ''),
-            sku: String(p.sku || ''),
-            stock: p.stock,
-            active: p.active !== false,
-            source: String(p.storefrontSource || p?.dropshipping?.provider || '')
-          }))
-        }));
-      } catch (error) {
-        console.error('[stock-audit-readonly] failed', error?.message || error);
-      }
-    }, 8000);
-  }
-
-  function cleanString(value = '') {
-    return String(value ?? '').trim();
-  }
-
-  function normalizeSource(value = '') {
-    return cleanString(value).toLowerCase();
-  }
-
-  function isDsliteProduct(product = {}) {
-    const sku = cleanString(product?.sku).toUpperCase();
-    const storefrontSource = normalizeSource(product?.storefrontSource);
-    const logisticsSource = normalizeSource(product?.logistics?.source);
-    const dropshippingProvider = normalizeSource(product?.dropshipping?.provider);
-
-    return (
-      sku.startsWith('DSLITE-') ||
-      storefrontSource === 'dslite' ||
-      logisticsSource === 'dslite' ||
-      dropshippingProvider === 'dslite'
-    );
-  }
-
-  async function resolveShippingProduct(body = {}) {
-    if (!Product) return null;
-
-    const items = Array.isArray(body?.items) ? body.items : [];
-    const idCandidates = [
-      body?.productId,
-      body?.id,
-      ...items.flatMap((item) => [item?.productId, item?.id])
-    ].map(cleanString).filter(Boolean);
-
-    for (const id of idCandidates) {
-      try {
-        const product = await Product.findById(id).lean();
-        if (product) return product;
-      } catch (_) {}
-    }
-
-    const skuCandidates = [
-      body?.sku,
-      ...items.map((item) => item?.sku)
-    ].map(cleanString).filter(Boolean);
-
-    for (const sku of skuCandidates) {
-      try {
-        const product = await Product.findOne({ sku }).lean();
-        if (product) return product;
-      } catch (_) {}
-    }
-
-    return null;
-  }
-
-  function buildDsliteFreightUnavailable(product = {}, body = {}) {
-    const destinationCep = cleanString(
-      body?.cepDestino || body?.destinationCep || body?.cep || body?.shippingAddress?.cep
-    ).replace(/\D/g, '').slice(0, 8);
-
-    const supplier = cleanString(product?.dropshipping?.supplier || 'Fornecedor DSLite');
-    const supplierId = product?.dropshipping?.supplierId || product?.logistics?.supplierId || null;
-    const sourceSku = cleanString(product?.dropshipping?.sourceSku || product?.sku || '');
-
-    const unavailable = {
-      service: 'dslite_supplier_freight_unavailable',
-      label: 'Entrega pelo fornecedor',
-      name: 'Entrega pelo fornecedor',
-      unavailable: true,
-      provider: 'dslite',
-      error: 'A cotação do frete do fornecedor está temporariamente indisponível. O frete da Ariana não será usado neste produto.',
-      metadata: {
-        rule: 'dslite_never_fallback_to_ariana',
-        supplier,
-        supplierId,
-        sourceSku,
-        destinationCep: destinationCep || null
-      }
-    };
-
-    return {
-      ok: true,
-      options: [unavailable],
-      quotes: [],
-      cheapest: null,
-      bestQuote: null,
-      montagemCost: 0,
-      context: {
-        isAriana: false,
-        isDslite: true,
-        shippingSource: 'dslite',
-        supplier,
-        supplierId,
-        sourceSku,
-        destinationCep: destinationCep || null,
-        safeFallbackBlocked: true
-      }
-    };
-  }
-
-  async function calculateShippingWithSupplierGuard(body = {}) {
-    const product = await resolveShippingProduct(body);
-
-    if (product && isDsliteProduct(product)) {
-      // Segurança comercial: produto de fornecedor DSLite nunca pode cair na
-      // tabela local da Ariana (R$ 89 / 3 dias etc.). A cotação real do
-      // fornecedor será ligada à API DSLite nesta mesma ramificação.
-      return buildDsliteFreightUnavailable(product, body);
-    }
-
-    return calculateShipping(body || {});
-  }
-
-app.post('/api/shipping/calculate', async (req, res) => { try { return res.json(await calculateShippingWithSupplierGuard(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
-app.post('/shipping/calculate', async (req, res) => { try { return res.json(await calculateShippingWithSupplierGuard(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
-app.post('/api/shipping/quote', async (req, res) => { try { return res.json(await calculateShippingWithSupplierGuard(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
-app.post('/shipping/quote', async (req, res) => { try { return res.json(await calculateShippingWithSupplierGuard(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
+app.post('/api/shipping/calculate', async (req, res) => { try { return res.json(await calculateShipping(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
+app.post('/shipping/calculate', async (req, res) => { try { return res.json(await calculateShipping(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
+app.post('/api/shipping/quote', async (req, res) => { try { return res.json(await calculateShipping(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
+app.post('/shipping/quote', async (req, res) => { try { return res.json(await calculateShipping(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
 app.post('/api/shipping/logistics/quote', async (req, res) => {
   try {
-    const result = await calculateShippingWithSupplierGuard(req.body || {});
-    const quotes = Array.isArray(result?.options) ? result.options.filter((q) => q && !q.unavailable).map((q) => ({
+    const result = await calculateShipping(req.body || {});
+    const quotes = Array.isArray(result?.options) ? result.options.map((q) => ({
       service: q.service,
       label: q.label || q.name || 'Logística',
       name: q.label || q.name || 'Logística',
@@ -200,8 +55,8 @@ app.post('/api/shipping/logistics/quote', async (req, res) => {
 });
 app.post('/shipping/logistics/quote', async (req, res) => {
   try {
-    const result = await calculateShippingWithSupplierGuard(req.body || {});
-    const quotes = Array.isArray(result?.options) ? result.options.filter((q) => q && !q.unavailable).map((q) => ({
+    const result = await calculateShipping(req.body || {});
+    const quotes = Array.isArray(result?.options) ? result.options.map((q) => ({
       service: q.service,
       label: q.label || q.name || 'Logística',
       name: q.label || q.name || 'Logística',
@@ -230,6 +85,6 @@ app.get('/api/shipping/correios/debug', async (_req, res) => { const cfg = corre
 app.get('/api/shipping/correios/token-test', async (_req, res) => { try { const token = await getCorreiosToken(await getShippingSettings()); return res.json({ ok: true, tokenPreview: String(token).slice(0, 16) + '...' }); } catch (e) { const err = safeAxiosError(e); return res.status(err.status || 500).json({ ok: false, stage: 'token', error: err.message, correios: err.data }); } });
 app.post('/api/shipping/correios/quote', async (req, res) => { try { return res.json(await quoteCorreios(req.body || {}, await getShippingSettings())); } catch (e) { const err = safeAxiosError(e); return res.status(err.status || 500).json({ ok: false, error: err.message, correios: err.data }); } });
 app.post('/shipping/correios/quote', async (req, res) => { try { return res.json(await quoteCorreios(req.body || {}, await getShippingSettings())); } catch (e) { const err = safeAxiosError(e); return res.status(err.status || 500).json({ ok: false, error: err.message, correios: err.data }); } });
-app.get('/api/shipping/correios/tracking/:code', async (req, res) => { try { const code = String(req.params.code || '').trim(); if (!code) return res.status(400).json({ ok: false, error: 'tracking_code_required' }); const order = await Order.findOne({ $or: [{ trackingCode: code }, { 'shipping.trackingCode': code }, { 'payment.externalReference': code }] }).sort({ createdAt: -1 }); if (!order) return res.status(404).send('Pedido não encontrado'); return res.json({ ok: true, trackingCode: code, orderId: String(order._id), status: order.status || null, statusLabel: order.statusLabel || null, customerName: order.customerName || null, trackingHistory: order.trackingHistory || [], shipping: order.shipping || null }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'tracking_failed' }); } });
+app.get('/api/shipping/correios/tracking/:code', async (req, res) => { try { const code = String(req.params.code || '').trim(); if (!code) return res.status(400).json({ ok: false, error: 'tracking_code_required' }); const order = await Order.findOne({ $or: [{ trackingCode: code }, { 'shipping.trackingCode': code }, { 'payment.externalReference': code }] }).sort({ createdAt: -1 }); if (!order) return res.status(404).json({ ok: false, error: 'tracking_not_found' }); return res.json({ ok: true, trackingCode: code, orderId: String(order._id), status: order.status || null, statusLabel: order.statusLabel || null, customerName: order.customerName || null, trackingHistory: order.trackingHistory || [], shipping: order.shipping || null }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'tracking_failed' }); } });
 app.get('/api/shipping/correios/label/:orderId/html', async (req, res) => { try { const order = await Order.findById(req.params.orderId); if (!order) return res.status(404).send('Pedido não encontrado'); const addr = order.shippingAddress || {}; const items = Array.isArray(order.items) ? order.items : []; const html = `<!DOCTYPE html><html lang="pt-br"><head><meta charset="utf-8"><title>Etiqueta ${String(order._id)}</title><style>body{font-family:Arial,sans-serif;padding:24px} .box{border:2px solid #111;padding:24px;max-width:760px} .muted{color:#555;font-size:12px} h1{margin:0 0 12px} .row{margin:8px 0}</style></head><body><div class="box"><h1>Ariana Móveis - Etiqueta</h1><div class="row"><strong>Pedido:</strong> ${String(order._id)}</div><div class="row"><strong>Destinatário:</strong> ${String(order.customerName || addr.name || '')}</div><div class="row"><strong>Telefone:</strong> ${String(order.customerPhone || addr.phone || '')}</div><div class="row"><strong>Endereço:</strong> ${String(addr.logradouro || '')}, ${String(addr.numero || '')} - ${String(addr.bairro || '')}</div><div class="row"><strong>Cidade/UF:</strong> ${String(addr.cidade || '')}/${String(addr.uf || '')} - CEP ${String(addr.cep || '')}</div><div class="row"><strong>Itens:</strong> ${items.map(i => `${String(i.name || 'Item')} x${Number(i.qty || 1)}`).join(', ')}</div><div class="row"><strong>Código de rastreio:</strong> ${String(order.trackingCode || '') || '—'}</div><div class="muted">Etiqueta HTML de contingência. A etiqueta operacional oficial depende do fluxo contratado dos Correios.</div></div></body></html>`; res.setHeader('Content-Type', 'text/html; charset=utf-8'); return res.send(html); } catch (error) { return res.status(500).send(error.message || 'Erro ao gerar etiqueta'); } });
 }

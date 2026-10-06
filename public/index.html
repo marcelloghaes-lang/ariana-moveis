@@ -7,22 +7,40 @@
   <!-- SEO: página oficial da home para evitar duplicidade /index.html no Google Search Console -->
   <link rel="canonical" href="https://arianamoveis.com.br/">
   <meta property="og:url" content="https://arianamoveis.com.br/">
-  <meta name="description" content="Móveis, eletrodomésticos, eletrônicos e utilidades para todo o Brasil. Compre na Ariana Móveis com preço especial no Pix e parcelamento no cartão.">
-  <meta property="og:title" content="Ariana Móveis | Sua casa merece o melhor">
-  <meta property="og:description" content="Móveis, eletrodomésticos, eletrônicos e utilidades com entrega para todo o Brasil.">
   <meta name="robots" content="index,follow,max-image-preview:large">
 
-  <link rel="preconnect" href="https://ariana-backend.onrender.com" crossorigin>
-  <link rel="dns-prefetch" href="//ariana-backend.onrender.com">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 <link rel="icon" type="image/png" href="./favicon.png">
   <link rel="stylesheet" href="css/tailwind.min.css">
 
-  <script src="js/api-config.js"></script>
+  <script src="js/api-config.js">  
+
+// Botão do menu superior chama esta função para abrir a janela de cupons.
+window.openCouponsWindow = window.openCouponsWindow || function(){
+  try {
+    const modal = document.getElementById('coupons-window');
+    if (modal) {
+      const hiddenBtn = document.getElementById('open-coupons-window');
+      if (hiddenBtn && hiddenBtn !== document.activeElement) { try { hiddenBtn.click(); return; } catch(_e){} }
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden', 'false');
+      if (typeof window.loadPublicCoupons === 'function') window.loadPublicCoupons();
+    }
+  } catch(_e) {}
+};
+window.closeCouponsWindow = window.closeCouponsWindow || function(){
+  try {
+    const modal = document.getElementById('coupons-window');
+    if (modal) {
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+  } catch(_e) {}
+};
+
+</script>
 
   <script>
     window.syncHeroBannerLayout = window.syncHeroBannerLayout || function(){};
@@ -314,6 +332,108 @@ footer, .site-footer, .footer, .footer-wrap {
 #footer-banner-section .banner-fit-contain{
   object-fit: cover !important;
 }
+
+
+
+    /* ===== Ariana Enterprise CTA público - versão discreta para Home ===== */
+    .enterprise-home-cta{
+      background:linear-gradient(135deg,#0b2f63 0%,#0047ab 58%,#1d4ed8 100%);
+      color:#fff;
+      border-radius:18px;
+      padding:18px 22px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:18px;
+      min-height:170px;
+      box-shadow:0 12px 28px rgba(0,71,171,.16);
+      overflow:hidden;
+      position:relative;
+    }
+    .enterprise-home-cta:before{
+      content:"";
+      position:absolute;
+      right:-70px;
+      top:-85px;
+      width:210px;
+      height:210px;
+      border-radius:999px;
+      background:rgba(255,255,255,.10);
+    }
+    .enterprise-home-kicker{
+      display:inline-flex;
+      align-items:center;
+      gap:7px;
+      font-weight:900;
+      font-size:.72rem;
+      text-transform:uppercase;
+      letter-spacing:.05em;
+      background:rgba(255,255,255,.13);
+      border:1px solid rgba(255,255,255,.18);
+      padding:6px 10px;
+      border-radius:999px;
+      margin-bottom:8px;
+    }
+    .enterprise-home-cta h2{
+      font-size:clamp(1.25rem,2.2vw,1.75rem);
+      font-weight:950;
+      line-height:1.08;
+      margin:0 0 7px;
+    }
+    .enterprise-home-cta p{
+      max-width:720px;
+      color:#e5efff;
+      font-size:.92rem;
+      line-height:1.45;
+      margin:0 0 10px;
+    }
+    .enterprise-home-badges{
+      display:flex;
+      flex-wrap:wrap;
+      gap:7px;
+    }
+    .enterprise-home-badges span{
+      background:#fff;
+      color:#0b2f63;
+      border-radius:999px;
+      padding:5px 9px;
+      font-size:.72rem;
+      font-weight:850;
+      white-space:nowrap;
+    }
+    .enterprise-home-button{
+      position:relative;
+      z-index:1;
+      flex:0 0 auto;
+      display:inline-flex;
+      align-items:center;
+      gap:9px;
+      background:#fff;
+      color:#0047ab!important;
+      border-radius:13px;
+      padding:12px 16px;
+      font-size:.9rem;
+      font-weight:950;
+      box-shadow:0 10px 20px rgba(0,0,0,.14);
+      transition:.2s;
+      white-space:nowrap;
+    }
+    .enterprise-home-button:hover{
+      transform:translateY(-2px);
+      color:#003782!important;
+    }
+    @media(max-width:768px){
+      .enterprise-home-cta{
+        flex-direction:column;
+        align-items:flex-start;
+        min-height:auto;
+        padding:18px;
+      }
+      .enterprise-home-button{
+        width:100%;
+        justify-content:center;
+      }
+    }
 
 /* ===== Janela pública de cupons Ariana ===== */
 .coupon-floating-btn{display:none!important;
@@ -777,7 +897,28 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
         </a>
       </div>
     </section>
-<footer></footer>
+
+
+
+    <!-- ARIANA ENTERPRISE - CHAMADA PARA FABRICANTES -->
+    <section id="enterprise-public-cta" class="page-wrap content-pad">
+      <div class="enterprise-home-cta">
+        <div>
+          <span class="enterprise-home-kicker"><i class="fas fa-network-wired"></i> Ariana Enterprise</span>
+          <h2>Fabricante ou distribuidor?</h2>
+          <p>Integre seu catálogo via API e venda na Ariana Móveis com estoque, pedidos, NF-e e rastreio conectados ao marketplace.</p>
+          <div class="enterprise-home-badges">
+            <span>API REST</span>
+            <span>Estoque em tempo real</span>
+            <span>Pedidos automáticos</span>
+            <span>NF-e e rastreio</span>
+          </div>
+        </div>
+        <a href="fabricantes.html" class="enterprise-home-button">Quero ser parceiro <i class="fas fa-arrow-right"></i></a>
+      </div>
+    </section>
+
+    <footer></footer>
  
   </main>
 
@@ -835,28 +976,6 @@ const normalizeListResponse = (data) => {
   if (data && Array.isArray(data.banners)) return data.banners;
   if (data && Array.isArray(data.categories)) return data.categories;
   return [];
-};
-
-// Compartilha uma única chamada entre banners, categorias e produtos.
-// Isso reduz a espera principalmente quando o backend está saindo do modo
-// de economia de recursos.
-let __homeIndexDataPromise = null;
-const getHomeIndexData = () => {
-  if (!__homeIndexDataPromise) {
-    __homeIndexDataPromise = apiRequest('/home/index-data')
-      .then((data) => {
-        window.__HOME_INDEX_DATA__ = data || {};
-        if (Array.isArray(data?.categories)) window.__CATEGORIES_CACHE__ = data.categories;
-        if (Array.isArray(data?.banners)) window.__HEADER_BANNERS_CACHE__ = data.banners;
-        if (Array.isArray(data?.products)) window.__HOME_PRODUCTS_CACHE__ = data.products;
-        return data;
-      })
-      .catch((error) => {
-        __homeIndexDataPromise = null;
-        throw error;
-      });
-  }
-  return __homeIndexDataPromise;
 };
 
     window.BRAND_NAME = 'ARIANA MOVEIS';
@@ -1099,13 +1218,10 @@ window.loadData = async () => {
     __homeDataBooted = true;
     window.updateBranding(window.BRAND_NAME);
     loadClientAddress();
-    await Promise.all([
-      loadAllBanners(),
-      loadCategories(),
-      loadHomeProductsWhenAuthReady()
-    ]);
+    await loadAllBanners();
     if (typeof window.syncHeroBannerLayout === 'function') window.syncHeroBannerLayout();
     if (typeof window.initMiniBannersCarousel === 'function') window.initMiniBannersCarousel();
+    await loadCategories();
   }
   await loadHomeProductsWhenAuthReady();
 };
@@ -1268,53 +1384,6 @@ const loadClientAddress = () => {
 
 
     
-const __bannerMobileMedia = window.matchMedia('(max-width: 767px)');
-
-function __syncResponsiveBannerImage(imgEl) {
-  if (!imgEl) return;
-  const mobile = __bannerMobileMedia.matches;
-  const desktopSrc = String(imgEl.dataset.bannerDesktopSrc || '').trim();
-  const mobileSrc = String(imgEl.dataset.bannerMobileSrc || '').trim();
-  const useMobile = mobile && !!mobileSrc;
-  const nextSrc = useMobile ? mobileSrc : desktopSrc;
-  const nextAlt = useMobile
-    ? String(imgEl.dataset.bannerMobileAlt || imgEl.dataset.bannerDesktopAlt || imgEl.alt || '')
-    : String(imgEl.dataset.bannerDesktopAlt || imgEl.alt || '');
-
-  if (nextSrc && imgEl.getAttribute('src') !== nextSrc) imgEl.src = nextSrc;
-  if (nextAlt) imgEl.alt = nextAlt;
-
-  const linkEl = imgEl.closest('a');
-  if (!linkEl) return;
-
-  if (!useMobile) {
-    linkEl.style.removeProperty('aspect-ratio');
-    return;
-  }
-
-  const adjust = () => {
-    if (!__bannerMobileMedia.matches || !mobileSrc) return;
-    const w = Number(imgEl.naturalWidth || 0);
-    const h = Number(imgEl.naturalHeight || 0);
-    if (w > 0 && h > 0) linkEl.style.aspectRatio = w + ' / ' + h;
-  };
-
-  if (imgEl.complete) adjust();
-  else imgEl.addEventListener('load', adjust, { once: true });
-}
-
-if (!window.__ARIANA_RESPONSIVE_BANNER_BOUND__) {
-  window.__ARIANA_RESPONSIVE_BANNER_BOUND__ = true;
-  const refreshResponsiveBanners = () => {
-    document.querySelectorAll('img[data-responsive-banner="true"]').forEach(__syncResponsiveBannerImage);
-  };
-  if (typeof __bannerMobileMedia.addEventListener === 'function') {
-    __bannerMobileMedia.addEventListener('change', refreshResponsiveBanners);
-  } else if (typeof __bannerMobileMedia.addListener === 'function') {
-    __bannerMobileMedia.addListener(refreshResponsiveBanners);
-  }
-}
-
 const loadAllBanners = async () => {
   const slotAliases = {
     index_main: ['index_main','main','hero','banner_principal','index-principal'],
@@ -1353,48 +1422,31 @@ const loadAllBanners = async () => {
 
     if (sectionEl) sectionEl.classList.remove('hidden');
     const href = banner.linkUrl || banner.href || banner.link || slot.defaultHref || '#';
-    const desktopImage = banner.imageUrl || banner.desktopImageUrl || banner.image || banner.url || banner.src || '';
-    const mobileImage = banner.mobileImageUrl || banner.mobileImage || banner.imageMobile || banner.mobileUrl || '';
-    const desktopAlt = String(banner.alt || slot.placeholderText || imgEl?.alt || 'Banner Ariana Móveis');
-    const mobileAlt = String(banner.mobileAlt || banner.altMobile || desktopAlt);
+    const image = banner.imageUrl || banner.image || banner.url || banner.src || '';
     if (linkEl) linkEl.href = href;
-    if (imgEl && desktopImage) {
-      if (slotKey === 'index_main') {
-        imgEl.loading = 'eager';
-        imgEl.fetchPriority = 'high';
-        imgEl.decoding = 'async';
-      }
-      imgEl.dataset.responsiveBanner = 'true';
-      imgEl.dataset.bannerDesktopSrc = desktopImage;
-      imgEl.dataset.bannerMobileSrc = mobileImage;
-      imgEl.dataset.bannerDesktopAlt = desktopAlt;
-      imgEl.dataset.bannerMobileAlt = mobileAlt;
-      __syncResponsiveBannerImage(imgEl);
+    if (imgEl && image) {
+      imgEl.src = image;
+      imgEl.alt = String(banner.alt || slot.placeholderText || imgEl.alt || 'Banner Ariana Móveis');
     }
   };
 
   try {
     const merged = [];
     try {
-      const home = await getHomeIndexData();
+      const direct = await apiRequest('/banners');
+      merged.push(...normalizeListResponse(direct));
+    } catch (_) {}
+    try {
+      const home = await apiRequest('/home/index-data');
       merged.push(...normalizeListResponse(home && home.banners ? home.banners : []));
     } catch (_) {}
-
-    // Fallback somente quando o índice da home não trouxe banners.
-    if (!merged.length) {
-      try {
-        merged.push(...normalizeListResponse(await apiRequest('/banners')));
-      } catch (_) {}
-    }
 
     Object.keys(bannerSlots).forEach((slotKey) => {
       const aliases = slotAliases[slotKey] || [slotKey];
       const banner = merged.find((b) => aliases.includes(String(b.slotId || b.tipo || b.slot || b.key || b.id || '').trim()));
       applyBanner(slotKey, banner ? {
         ...banner,
-        imageUrl: banner.imageUrl || banner.desktopImageUrl || banner.image || banner.url || banner.src || '',
-        mobileImageUrl: banner.mobileImageUrl || banner.mobileImage || banner.imageMobile || banner.mobileUrl || '',
-        mobileAlt: banner.mobileAlt || banner.altMobile || banner.alt || '',
+        imageUrl: banner.imageUrl || banner.image || banner.url || banner.src || '',
         linkUrl: banner.linkUrl || banner.href || banner.link || '',
         active: banner.active !== false
       } : null);
@@ -1524,11 +1576,10 @@ const loadCategories = async () => {
 
     let categories = [];
     try {
-      const home = await getHomeIndexData();
-      categories = normalizeListResponse(home && home.categories ? home.categories : []);
-      if (!categories.length) throw new Error('Categorias ausentes no índice da home.');
-    } catch (_) {
       categories = normalizeListResponse(await apiRequest('/categories'));
+    } catch (_) {
+      const home = await apiRequest('/home/index-data');
+      categories = normalizeListResponse(home && home.categories ? home.categories : []);
     }
 
     categories.forEach((category) => {
@@ -1758,14 +1809,13 @@ const loadProducts = async () => {
 
     let products = [];
     try {
-      const home = await getHomeIndexData();
-      products = normalizeListResponse(home && home.products ? home.products : []);
-      if (!products.length) throw new Error('Produtos ausentes no índice da home.');
+      products = normalizeListResponse(await apiRequest('/seller/products'));
     } catch (_) {
       try {
         products = normalizeListResponse(await apiRequest('/products'));
       } catch (_) {
-        products = normalizeListResponse(await apiRequest('/seller/products'));
+        const home = await apiRequest('/home/index-data');
+        products = normalizeListResponse(home && home.products ? home.products : []);
       }
     }
 
@@ -2452,15 +2502,9 @@ window.addEventListener('load', () => {
     modal?.setAttribute('aria-hidden','true');
   }
 
-  // O menu principal chama estas funções diretamente.
-  window.openCouponsWindow = openModal;
-  window.closeCouponsWindow = closeModal;
-  window.loadPublicCoupons = loadCoupons;
-
   openBtn?.addEventListener('click', openModal);
   closeBtn?.addEventListener('click', closeModal);
   modal?.addEventListener('click', (e)=>{ if(e.target === modal) closeModal(); });
-  document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeModal(); });
   list?.addEventListener('click', async (e)=>{
     const btn = e.target.closest?.('[data-code]');
     if(!btn) return;

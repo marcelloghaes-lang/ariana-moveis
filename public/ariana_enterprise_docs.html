@@ -6,82 +6,15 @@
   <title>Documentação Interativa | Ariana Enterprise</title>
   <style>
     :root{--blue:#0047AB;--blue2:#0ea5e9;--dark:#0f172a;--muted:#64748b;--bg:#f3f7fb;--card:#fff;--ok:#16a34a;--warn:#f59e0b;--danger:#dc2626;--border:#dbe5f0}
-    *{box-sizing:border-box}
-    html,body{width:100%;max-width:100%;overflow-x:hidden}
-    body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--dark)}
-    img,svg,video,canvas{max-width:100%;height:auto}
-    .hero{width:100%;max-width:100%;overflow:hidden;background:linear-gradient(135deg,var(--blue),var(--blue2));color:white;padding:42px 6vw;border-radius:0 0 32px 32px}
-    .hero h1{font-size:clamp(34px,5vw,46px);line-height:1.06;margin:8px 0}
-    .hero p{font-size:18px;line-height:1.55;max-width:850px}
-    .hero .top{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap}
-    .hero .top>div:last-child{display:flex;gap:8px;flex-wrap:wrap}
-    .brand{font-weight:900;letter-spacing:4px}
-    .btn{max-width:100%;border:0;background:var(--blue);color:white;border-radius:13px;padding:13px 16px;font-weight:900;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;text-align:center;white-space:normal;overflow-wrap:anywhere}
-    .btn.light{background:#eff6ff;color:var(--blue);border:1px solid #bfdbfe}.btn.white{background:white;color:var(--blue)}
-    .wrap{width:min(1220px,100%);max-width:100%;margin:28px auto;padding:0 20px}
-    .layout{display:grid;grid-template-columns:280px minmax(0,1fr);gap:20px;align-items:start}
-    .layout>*,.layout>section,.card,.grid>*,.tester>*{min-width:0;max-width:100%}
-    .side{position:sticky;top:16px;height:max-content;max-width:100%;background:white;border:1px solid var(--border);border-radius:22px;padding:16px;box-shadow:0 14px 35px rgba(15,23,42,.06)}
-    .side a{display:block;text-decoration:none;color:#334155;font-weight:800;padding:11px 12px;border-radius:12px}.side a:hover{background:#eff6ff;color:var(--blue)}
-    .card{width:100%;overflow:hidden;background:white;border:1px solid var(--border);border-radius:22px;padding:22px;margin-bottom:18px;box-shadow:0 14px 35px rgba(15,23,42,.06)}
-    h2{margin:0 0 12px;font-size:clamp(24px,4vw,28px);line-height:1.15}h3{margin:18px 0 8px}.muted{color:var(--muted)}
-    p,li,b,span{overflow-wrap:anywhere}
-    .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
-    .pill{display:inline-block;max-width:100%;background:#dcfce7;color:#166534;border-radius:999px;padding:7px 10px;font-weight:900;font-size:12px;margin:2px 2px 2px 0}.warn{background:#fef3c7;color:#92400e}
-    .code,pre,.result{display:block;width:100%;max-width:100%;min-width:0;background:#0b1220;color:white;border-radius:16px;padding:16px;font-family:Consolas,Monaco,'Courier New',monospace;font-size:13px;line-height:1.5;overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-inline:contain}
-    .code,pre{white-space:pre}
-    pre{margin:12px 0}
-    .result{min-height:260px;white-space:pre-wrap;word-break:break-word}
-    .endpoint{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(160px,.8fr);gap:12px;align-items:center;max-width:100%;border:1px solid #dbeafe;background:#f8fbff;border-radius:14px;padding:12px;margin:10px 0}
-    .endpoint>*{min-width:0;max-width:100%}
-    .endpoint b{overflow-wrap:anywhere;word-break:break-word}
-    .method{font-weight:900;color:white;border-radius:8px;padding:7px 10px;min-width:64px;text-align:center}.GET{background:#3b82f6}.POST{background:#22c55e}.PUT{background:#f59e0b}.DELETE{background:#ef4444}
-    .input,.select,textarea{display:block;width:100%;max-width:100%;min-width:0;border:1px solid #cbd5e1;border-radius:13px;padding:12px;font:inherit;background:white}
-    textarea{min-height:180px;font-family:Consolas,monospace}
-    .tester{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
-    .kbd{display:inline;max-width:100%;font-family:Consolas,monospace;background:#e2e8f0;border-radius:8px;padding:2px 6px;overflow-wrap:anywhere;word-break:break-word}
-    .toast{position:fixed;z-index:100;right:18px;bottom:18px;max-width:calc(100vw - 36px);background:#0f172a;color:white;padding:14px 16px;border-radius:14px;display:none}.toast.show{display:block}
-    .card[id^="sdk"] p:last-child{display:flex;gap:10px;flex-wrap:wrap}
-    section[id],.card[id]{scroll-margin-top:18px}
-    @media(max-width:900px){
-      .hero{padding:30px 20px;border-radius:0 0 26px 26px}
-      .hero .top{align-items:flex-start}
-      .hero .top>div:last-child{width:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-      .hero .top .btn{width:100%;padding:11px 8px;font-size:14px}
-      .hero p{font-size:17px}
-      .wrap{margin:20px auto;padding:0 14px}
-      .layout{grid-template-columns:minmax(0,1fr);gap:14px}
-      .side{position:relative;top:auto;display:flex;gap:8px;width:100%;overflow-x:auto;overflow-y:hidden;white-space:nowrap;padding:10px;border-radius:16px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
-      .side::-webkit-scrollbar{display:none}
-      .side a{flex:0 0 auto;display:inline-flex;align-items:center;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-size:14px}
-      .grid,.tester{grid-template-columns:minmax(0,1fr)}
-      .endpoint{grid-template-columns:auto minmax(0,1fr);align-items:start}
-      .endpoint .muted{grid-column:1/-1}
-      .card{padding:18px;border-radius:18px;margin-bottom:14px}
-      .code,pre,.result{border-radius:14px;padding:14px;font-size:12px}
-      .result{min-height:210px}
-      .card[id^="sdk"] p:last-child{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
-      .card[id^="sdk"] p:last-child .btn{width:100%}
-      #checklist p:last-child{display:flex;flex-wrap:wrap;gap:6px}
-    }
-    @media(max-width:480px){
-      .hero{padding:26px 16px 30px}
-      .hero h1{font-size:32px}
-      .hero p{font-size:16px}
-      .brand{font-size:15px;letter-spacing:3px}
-      .hero .top>div:last-child{grid-template-columns:repeat(3,minmax(0,1fr))}
-      .hero .top .btn{font-size:13px;padding:10px 6px;border-radius:11px}
-      .wrap{padding:0 10px}
-      .card{padding:16px}
-      h2{font-size:25px}
-      .endpoint{gap:8px;padding:10px}
-      .method{min-width:58px;padding:6px 8px}
-    }
+    *{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--dark)}
+    .hero{background:linear-gradient(135deg,var(--blue),var(--blue2));color:white;padding:42px 6vw;border-radius:0 0 32px 32px}.hero h1{font-size:46px;margin:8px 0}.hero p{font-size:18px;max-width:850px}.hero .top{display:flex;justify-content:space-between;gap:16px;align-items:center}.brand{font-weight:900;letter-spacing:4px}.btn{border:0;background:var(--blue);color:white;border-radius:13px;padding:13px 16px;font-weight:900;text-decoration:none;display:inline-block;cursor:pointer}.btn.light{background:#eff6ff;color:var(--blue);border:1px solid #bfdbfe}.btn.white{background:white;color:var(--blue)}
+    .wrap{max-width:1220px;margin:28px auto;padding:0 20px}.layout{display:grid;grid-template-columns:280px 1fr;gap:20px}.side{position:sticky;top:16px;height:max-content;background:white;border:1px solid var(--border);border-radius:22px;padding:16px;box-shadow:0 14px 35px rgba(15,23,42,.06)}.side a{display:block;text-decoration:none;color:#334155;font-weight:800;padding:11px 12px;border-radius:12px}.side a:hover{background:#eff6ff;color:var(--blue)}
+    .card{background:white;border:1px solid var(--border);border-radius:22px;padding:22px;margin-bottom:18px;box-shadow:0 14px 35px rgba(15,23,42,.06)}h2{margin:0 0 12px;font-size:28px}h3{margin:18px 0 8px}.muted{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.pill{display:inline-block;background:#dcfce7;color:#166534;border-radius:999px;padding:7px 10px;font-weight:900;font-size:12px}.warn{background:#fef3c7;color:#92400e}.code{background:#0b1220;color:white;border-radius:16px;padding:16px;overflow:auto;white-space:pre;font-family:Consolas,monospace;font-size:13px}.endpoint{display:flex;gap:12px;align-items:center;border:1px solid #dbeafe;background:#f8fbff;border-radius:14px;padding:12px;margin:10px 0}.method{font-weight:900;color:white;border-radius:8px;padding:7px 10px;min-width:64px;text-align:center}.GET{background:#3b82f6}.POST{background:#22c55e}.PUT{background:#f59e0b}.DELETE{background:#ef4444}.input,.select,textarea{width:100%;border:1px solid #cbd5e1;border-radius:13px;padding:12px;font:inherit;background:white}textarea{min-height:180px;font-family:Consolas,monospace}.tester{display:grid;grid-template-columns:1fr 1fr;gap:16px}.result{min-height:260px;background:#0b1220;color:white;border-radius:16px;padding:16px;white-space:pre-wrap;overflow:auto;font-family:Consolas,monospace}.kbd{font-family:Consolas,monospace;background:#e2e8f0;border-radius:8px;padding:2px 6px}.toast{position:fixed;right:18px;bottom:18px;background:#0f172a;color:white;padding:14px 16px;border-radius:14px;display:none}.toast.show{display:block}@media(max-width:900px){.layout{grid-template-columns:1fr}.side{position:relative}.grid,.tester{grid-template-columns:1fr}.hero h1{font-size:34px}}
   </style>
 </head>
 <body>
   <header class="hero">
-    <div class="top"><div class="brand">ARIANA ENTERPRISE</div><div><a class="btn white" href="/kit_fabricante_piloto.html">Kit do Piloto</a> <a class="btn white" href="/portal_fabricante.html">Portal</a> <a class="btn white" href="/enterprise_swagger.html">Swagger</a> <a class="btn white" href="/ariana_enterprise_sdk.html">SDK</a></div></div>
+    <div class="top"><div class="brand">ARIANA ENTERPRISE</div><div><a class="btn white" href="/portal_fabricante.html">Portal</a> <a class="btn white" href="/enterprise_swagger.html">Swagger</a> <a class="btn white" href="/ariana_enterprise_sdk.html">SDK</a></div></div>
     <h1>Documentação Interativa</h1>
     <p>Guia oficial para fabricantes, distribuidores e ERPs integrarem catálogo, estoque, preço, pedidos, NF-e, XML, DANFE, rastreio e webhooks na Ariana Enterprise.</p>
   </header>
@@ -90,24 +23,18 @@
       <a href="#inicio">Visão geral</a><a href="#autenticacao">Autenticação</a><a href="#ambientes">Ambientes</a><a href="#fluxo">Fluxo recomendado</a><a href="#endpoints">Endpoints</a><a href="#payloads">Payloads</a><a href="#webhooks">Webhooks</a><a href="#tester">Testador rápido</a><a href="#sdkphp">SDK PHP</a><a href="#sdkpython">SDK Python</a><a href="#sdkjava">SDK Java</a><a href="#erros">Erros</a><a href="#checklist">Checklist</a>
     </nav>
     <section>
-      <div class="card" id="inicio"><span class="pill">v1 estável</span> <span class="pill warn">v2 preview</span><h2>Comece por aqui</h2><p class="muted">A integração pode ser feita por API Key, OAuth 2.0 Client Credentials, SDK oficial ou chamadas HTTP diretas. Para produção, o fabricante precisa concluir a homologação real no Sandbox: o Ariana Enterprise valida evidências das chamadas executadas de verdade antes de permitir a liberação no Admin Enterprise.</p><div class="grid"><div><b>Sandbox</b><p class="muted">Coleções fisicamente separadas de produtos e pedidos. Testes não aparecem na operação real.</p></div><div><b>Produção</b><p class="muted">Operação real após aprovação.</p></div><div><b>SDK</b><p class="muted">Bibliotecas JavaScript, Node.js, PHP, Python e Java prontas para ERP.</p></div></div></div>
-      <div class="card" id="autenticacao"><h2>Autenticação</h2><p>Use <span class="kbd">x-ariana-key</span> ou <span class="kbd">Authorization: Bearer</span>.</p><div class="code">curl -H "x-ariana-key: ari_sbx_xxxxx" \
-  https://ariana-backend.onrender.com/api/v1/enterprise/health</div><h3>OAuth 2.0</h3><div class="code">POST /api/v1/enterprise/oauth/token
+      <div class="card" id="inicio"><span class="pill">v1 estável</span> <span class="pill warn">v2 preview</span><h2>Comece por aqui</h2><p class="muted">A integração pode ser feita por API Key, OAuth 2.0 Client Credentials, SDK oficial ou chamadas HTTP diretas. Para produção, o fabricante precisa concluir a homologação automática e receber a liberação no Admin Enterprise.</p><div class="grid"><div><b>Sandbox</b><p class="muted">Testes e homologação sem impacto real.</p></div><div><b>Produção</b><p class="muted">Operação real após aprovação.</p></div><div><b>SDK</b><p class="muted">Bibliotecas JavaScript, Node.js, PHP, Python e Java prontas para ERP.</p></div></div></div>
+      <div class="card" id="autenticacao"><h2>Autenticação</h2><p>Use <span class="kbd">x-ariana-key</span> ou <span class="kbd">Authorization: Bearer</span>.</p><div class="code">curl -H "x-ariana-key: ari_live_xxxxx" \
+  https://ariana-backend.onrender.com/api/v1/enterprise/health</div><h3>OAuth 2.0</h3><div class="code">POST /api/enterprise/oauth/token
 {
   "grant_type":"client_credentials",
   "client_id":"ari_client_xxxxx",
   "client_secret":"ari_secret_xxxxx"
 }</div></div>
       <div class="card" id="ambientes"><h2>Ambientes e versionamento</h2><p><b>Base estável:</b> <span class="kbd">/api/v1/enterprise</span></p><p><b>Próxima versão:</b> <span class="kbd">/api/v2/enterprise</span></p><p class="muted">Use v1 em produção. Use v2 apenas para testes e recursos futuros.</p></div>
-      <div class="card" id="fluxo"><h2>Fluxo recomendado</h2><ol><li>Solicitar homologação.</li><li>Receber API Key Sandbox.</li><li>Testar catálogo, estoque, preço, pedido, NF-e e rastreio.</li><li>Solicitar a verificação da homologação real; o sistema calcula o score pelas evidências registradas no Sandbox.</li><li>Receber liberação de produção.</li><li>Ativar webhooks e monitorar consumo.</li></ol></div>
+      <div class="card" id="fluxo"><h2>Fluxo recomendado</h2><ol><li>Solicitar homologação.</li><li>Receber API Key Sandbox.</li><li>Testar catálogo, estoque, preço, pedido, NF-e e rastreio.</li><li>Executar homologação automática.</li><li>Receber liberação de produção.</li><li>Ativar webhooks e monitorar consumo.</li></ol></div>
       <div class="card" id="endpoints"><h2>Endpoints principais</h2><div id="endpointList"></div></div>
-      <div class="card"><h2>Idempotência de pedidos</h2><p class="muted">Para impedir pedidos duplicados quando o ERP repete uma chamada após timeout, envie sempre <span class="kbd">externalOrderId</span> único ou o header <span class="kbd">Idempotency-Key</span>. A mesma chave com o mesmo payload devolve o pedido já criado; a mesma chave com payload diferente retorna conflito.</p><div class="code">Idempotency-Key: pedido-erp-2026-000123
-
-{
-  "externalOrderId": "ERP-000123",
-  "items": [...]
-}</div></div>
-<div class="card" id="payloads"><h2>Payloads essenciais</h2><h3>Catálogo</h3><div class="code">{
+      <div class="card" id="payloads"><h2>Payloads essenciais</h2><h3>Catálogo</h3><div class="code">{
   "manufacturer":"ariana_moveis",
   "products":[{"sku":"ARI-0001","name":"Produto Teste","price":2299,"stock":10}]
 }</div><h3>Pedido</h3><div class="code">{
@@ -116,55 +43,49 @@
   "customerName":"Cliente Teste",
   "items":[{"sku":"ARI-0001","qty":1,"unitPrice":2299}]
 }</div></div>
-      <div class="card" id="webhooks"><h2>Webhooks</h2><p class="muted">Eventos enviados ao ERP do fabricante com HTTPS, assinatura HMAC, delivery ID e timestamp. Em Produção, pedidos pagos podem ser entregues automaticamente ao webhook configurado no Portal. Falhas entram em fila persistente com retry automático e dead-letter após esgotar as tentativas.</p><div class="code">Eventos: order_created, payment_approved, invoice_received, tracking_updated, order_cancelled
+      <div class="card" id="webhooks"><h2>Webhooks</h2><p class="muted">Eventos enviados ao ERP do fabricante com assinatura HMAC quando configurado.</p><div class="code">Eventos: order_created, payment_approved, invoice_received, tracking_updated, order_cancelled</div></div>
+      <div class="card" id="tester"><h2>Testador rápido</h2><div class="tester"><div><label>Endpoint</label><select id="testEndpoint" class="select"><option value="/api/v1/enterprise/health">GET /v1/health</option><option value="/api/v2/enterprise/health">GET /v2/health</option><option value="/api/enterprise/versions">GET /versions</option><option value="/api/enterprise/sdk/manifest">GET /sdk/manifest</option><option value="/api/enterprise/sdk/php/manifest">GET /sdk/php/manifest</option><option value="/api/enterprise/sdk/python/manifest">GET /sdk/python/manifest</option><option value="/api/enterprise/developer/manifest">GET /developer/manifest</option></select><label>API Key opcional</label><input id="apiKey" class="input" placeholder="ari_sbx_... ou ari_live_..."><div style="margin-top:12px"><button class="btn" onclick="runTest()">Executar</button> <button class="btn light" onclick="copyCurl()">Copiar cURL</button></div></div><pre id="result" class="result">Clique em Executar para testar.</pre></div></div>
+      <div class="card" id="sdkphp"><h2>SDK PHP</h2><p class="muted">Instale o pacote PHP/Composer para integrar ERPs brasileiros sem montar HTTP manualmente.</p><pre>composer require ariana/enterprise-sdk</pre><pre>use ArianaEnterprise\\Client;
+$api = new Client(['apiKey' => 'ari_live_xxxxx', 'environment' => 'production']);
+$api->catalog()->push([['sku'=>'ARI-0001','name'=>'Produto Teste','price'=>2299,'stock'=>10]]);</pre><p><a class="btn" href="/sdk/php/ariana-enterprise-php-sdk.zip">Baixar SDK PHP</a> <a class="btn" href="/api/enterprise/sdk/php/manifest" target="_blank">Manifest PHP</a></p></div>
 
-Headers de segurança:
-X-Ariana-Delivery: evt_...
-X-Ariana-Timestamp: 1720000000
-X-Ariana-Signature-V2: sha256=...
+      <div class="card" id="sdkpython"><h2>SDK Python</h2><p class="muted">Instale o pacote Python/Pip para integrar ERPs, automações e pipelines de dados sem montar HTTP manualmente.</p><pre>pip install ariana-enterprise</pre><pre>from ariana_enterprise import ArianaEnterpriseClient
 
-Assinatura V2:
-HMAC-SHA256(secret, timestamp + "." + deliveryId + "." + rawBody)
-
-Retry automático:
-1 min → 5 min → 15 min → 1 h → 3 h → 6 h</div></div>
-      <div class="card" id="tester"><h2>Testador rápido</h2><div class="tester"><div><label>Endpoint</label><select id="testEndpoint" class="select"><option value="/v1/enterprise/health">GET /v1/health</option><option value="/v2/enterprise/health">GET /v2/health</option><option value="/enterprise/versions">GET /versions</option><option value="/enterprise/sdk/manifest">GET /sdk/manifest</option><option value="/enterprise/sdk/php/manifest">GET /sdk/php/manifest</option><option value="/enterprise/sdk/python/manifest">GET /sdk/python/manifest</option><option value="/enterprise/developer/manifest">GET /developer/manifest</option></select><label>API Key opcional</label><input id="apiKey" class="input" placeholder="ari_sbx_... ou ari_live_..."><div style="margin-top:12px"><button class="btn" onclick="runTest()">Executar</button> <button class="btn light" onclick="copyCurl()">Copiar cURL</button></div></div><pre id="result" class="result">Clique em Executar para testar.</pre></div></div>
-      <div class="card" id="sdkphp"><h2>SDK PHP</h2><p class="muted">Baixe o pacote ZIP oficial e adicione o SDK ao seu projeto. A publicação em registry público deve ser considerada disponível somente quando indicada oficialmente pela Ariana Enterprise.</p><pre>use ArianaEnterprise\\Client;
-$api = new Client(['apiKey' => 'ari_sbx_xxxxx', 'environment' => 'sandbox']);
-$api->catalog()->push([['sku'=>'ARI-0001','name'=>'Produto Teste','price'=>2299,'stock'=>10]]);</pre><p><a class="btn" href="/sdk/php/ariana-enterprise-php-sdk.zip">Baixar SDK PHP</a> <a class="btn" href="https://ariana-backend.onrender.com/api/enterprise/sdk/php/manifest" target="_blank">Manifest PHP</a></p></div>
-
-      <div class="card" id="sdkpython"><h2>SDK Python</h2><p class="muted">Baixe o pacote ZIP oficial e adicione o SDK ao seu projeto Python. A publicação em PyPI será informada oficialmente quando estiver disponível.</p><pre>from ariana_enterprise import ArianaEnterpriseClient
-
-api = ArianaEnterpriseClient(api_key='ari_sbx_xxxxx', environment='sandbox')
-api.catalog.push([{'sku':'ARI-0001','name':'Produto Teste','price':2299,'stock':10}])</pre><p><a class="btn" href="/sdk/python/ariana-enterprise-python-sdk.zip">Baixar SDK Python</a> <a class="btn" href="https://ariana-backend.onrender.com/api/enterprise/sdk/python/manifest" target="_blank">Manifest Python</a></p></div>
+api = ArianaEnterpriseClient(api_key='ari_live_xxxxx', environment='production')
+api.catalog.push([{'sku':'ARI-0001','name':'Produto Teste','price':2299,'stock':10}])</pre><p><a class="btn" href="/sdk/python/ariana-enterprise-python-sdk.zip">Baixar SDK Python</a> <a class="btn" href="/api/enterprise/sdk/python/manifest" target="_blank">Manifest Python</a></p></div>
       
-      <div class="card" id="sdkjava"><h2>SDK Java</h2><p class="muted">Baixe o ZIP oficial para integrar ERPs corporativos, Spring Boot, Jakarta EE e aplicações JVM. A publicação em Maven Central será informada oficialmente quando estiver disponível.</p><div class="code">ArianaEnterpriseClient ariana = ArianaEnterpriseClient.builder()
-    .apiKey("ari_sbx_xxxxx")
-    .environment("sandbox")
+      <div class="card" id="sdkjava"><h2>SDK Java</h2><p class="muted">Indicado para ERPs corporativos, Spring Boot, Jakarta EE e integrações JVM.</p><div class="code">&lt;dependency&gt;
+  &lt;groupId&gt;br.com.arianamoveis&lt;/groupId&gt;
+  &lt;artifactId&gt;ariana-enterprise-java&lt;/artifactId&gt;
+  &lt;version&gt;1.0.0&lt;/version&gt;
+&lt;/dependency&gt;</div><div class="code">ArianaEnterpriseClient ariana = ArianaEnterpriseClient.builder()
+    .apiKey("ari_live_xxxxx")
+    .environment("production")
     .build();
 
 ariana.catalog().push(List.of(
     Map.of("sku", "ARI-0001", "name", "Produto Teste", "price", 2299, "stock", 10)
-));</div><p><a class="btn" href="/sdk/java/ariana-enterprise-java-sdk.zip" download>Baixar SDK Java</a> <a class="btn light" href="https://ariana-backend.onrender.com/api/enterprise/sdk/java/manifest" target="_blank">Manifest Java</a></p></div>
+));</div><p><a class="btn" href="/sdk/java/ariana-enterprise-java-sdk.zip" download>Baixar SDK Java</a> <a class="btn light" href="/api/enterprise/sdk/java/manifest" target="_blank">Manifest Java</a></p></div>
 
-      <div class="card" id="sdkdotnet"><h2>SDK .NET</h2><p class="muted">Baixe o ZIP oficial para integrações C#, ASP.NET Core, Windows Service e ERPs corporativos Microsoft. A publicação em NuGet será informada oficialmente quando estiver disponível.</p><div class="code">using ArianaEnterprise;
+      <div class="card" id="sdkdotnet"><h2>SDK .NET</h2><p class="muted">SDK oficial para integrações C#, ASP.NET Core, Windows Service e ERPs corporativos Microsoft.</p><div class="code">dotnet add package ArianaEnterprise.Sdk --version 1.0.0
+
+using ArianaEnterprise;
 
 var ariana = new ArianaEnterpriseClient(new ArianaEnterpriseOptions {
-  ApiKey = "ari_sbx_xxxxx",
-  Environment = "sandbox"
+  ApiKey = "ari_live_xxxxx",
+  Environment = "production"
 });
 
-await ariana.Catalog.PushAsync(products);</div><p><a class="btn" href="/sdk/dotnet/ariana-enterprise-dotnet-sdk.zip" download>Baixar SDK .NET</a> <a class="btn light" href="https://ariana-backend.onrender.com/api/enterprise/sdk/dotnet/manifest" target="_blank">Manifest .NET</a></p></div>
+await ariana.Catalog.PushAsync(products);</div><p><a class="btn" href="/sdk/dotnet/ariana-enterprise-dotnet-sdk.zip" download>Baixar SDK .NET</a> <a class="btn light" href="/api/enterprise/sdk/dotnet/manifest" target="_blank">Manifest .NET</a></p></div>
       <div class="card" id="erros"><h2>Códigos de erro</h2><div class="endpoint"><span class="method DELETE">401</span><b>Chave ausente ou inválida</b></div><div class="endpoint"><span class="method PUT">429</span><b>Rate limit excedido</b></div><div class="endpoint"><span class="method DELETE">500</span><b>Erro interno ou falha temporária</b></div></div>
-      <div class="card" id="checklist"><h2>Checklist de homologação</h2><p>Antes da produção, validar:</p><p><span class="pill">Catálogo</span> <span class="pill">Estoque</span> <span class="pill">Preço</span> <span class="pill">Pedido</span> <span class="pill">NF-e</span> <span class="pill">XML</span> <span class="pill">DANFE</span> <span class="pill">Rastreio</span> <span class="pill">Webhook</span> <span class="pill">Cancelamento</span> <span class="pill">Devolução/RMA</span></p><p class="muted">A produção só é liberada com score 100%, calculado a partir de evidências reais da integração do parceiro.</p></div>
+      <div class="card" id="checklist"><h2>Checklist de homologação</h2><p>Antes da produção, validar:</p><p><span class="pill">Catálogo</span> <span class="pill">Estoque</span> <span class="pill">Preço</span> <span class="pill">Pedido</span> <span class="pill">NF-e</span> <span class="pill">XML</span> <span class="pill">DANFE</span> <span class="pill">Rastreio</span> <span class="pill">Webhook</span></p></div>
     </section>
   </main><div id="toast" class="toast"></div>
 <script>
-const API_BASE='https://ariana-backend.onrender.com/api';
-const endpoints=[['GET','/v1/enterprise/health','Disponibilidade da API'],['GET','/v1/enterprise/auth/check','Valida API Key'],['POST','/v1/enterprise/catalog/push','Cria ou atualiza catálogo'],['POST','/v1/enterprise/products/{sku}/sync','Atualiza estoque, preço e status'],['PUT','/v1/enterprise/products/{sku}/stock','Atualiza estoque'],['PUT','/v1/enterprise/products/{sku}/price','Atualiza preço'],['POST','/v1/enterprise/orders','Cria pedido'],['POST','/v1/enterprise/orders/{orderId}/invoice','Vincula NF-e/XML/DANFE'],['GET','/v1/enterprise/orders/{orderId}/xml','Valida e consulta XML'],['GET','/v1/enterprise/orders/{orderId}/danfe','Valida e consulta DANFE'],['POST','/v1/enterprise/orders/{orderId}/tracking','Atualiza rastreio'],['POST','/v1/enterprise/webhooks/test','Testa webhook'],['POST','/v1/enterprise/orders/{orderId}/rma','Abre devolução/RMA'],['POST','/v1/enterprise/orders/{orderId}/cancel','Cancela pedido']];
+const endpoints=[['GET','/enterprise/health','Disponibilidade da API'],['GET','/enterprise/auth/check','Valida API Key'],['POST','/enterprise/catalog/push','Cria ou atualiza catálogo'],['POST','/enterprise/products/{sku}/sync','Atualiza estoque, preço e status'],['PUT','/enterprise/products/{sku}/stock','Atualiza estoque'],['PUT','/enterprise/products/{sku}/price','Atualiza preço'],['POST','/enterprise/orders','Cria pedido'],['POST','/enterprise/orders/{orderId}/invoice','Vincula NF-e/XML/DANFE'],['POST','/enterprise/orders/{orderId}/tracking','Atualiza rastreio'],['POST','/enterprise/webhooks/test','Testa webhook']];
 document.getElementById('endpointList').innerHTML=endpoints.map(e=>`<div class="endpoint"><span class="method ${e[0]}">${e[0]}</span><b>${e[1]}</b><span class="muted">${e[2]}</span></div>`).join('');
 function show(t){const el=document.getElementById('toast');el.textContent=t;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2200)}
-async function runTest(){const path=document.getElementById('testEndpoint').value;const key=document.getElementById('apiKey').value.trim();const headers={}; if(key) headers['x-ariana-key']=key; const out=document.getElementById('result'); out.textContent='Executando...'; try{const t=performance.now(); const r=await fetch(API_BASE+path,{headers}); const txt=await r.text(); let body=txt; try{body=JSON.stringify(JSON.parse(txt),null,2)}catch(e){} out.textContent=`HTTP ${r.status} • ${Math.round(performance.now()-t)}ms\n\n${body}`;}catch(e){out.textContent='Erro: '+e.message}}
-function copyCurl(){const path=API_BASE+document.getElementById('testEndpoint').value;const key=document.getElementById('apiKey').value.trim();const c=`curl ${key?'-H "x-ariana-key: '+key+'" ':''}"${path}"`;navigator.clipboard.writeText(c);show('cURL copiado')}
+async function runTest(){const path=document.getElementById('testEndpoint').value;const key=document.getElementById('apiKey').value.trim();const headers={}; if(key) headers['x-ariana-key']=key; const out=document.getElementById('result'); out.textContent='Executando...'; try{const t=performance.now(); const r=await fetch(path,{headers}); const txt=await r.text(); let body=txt; try{body=JSON.stringify(JSON.parse(txt),null,2)}catch(e){} out.textContent=`HTTP ${r.status} • ${Math.round(performance.now()-t)}ms\n\n${body}`;}catch(e){out.textContent='Erro: '+e.message}}
+function copyCurl(){const path=location.origin+document.getElementById('testEndpoint').value;const key=document.getElementById('apiKey').value.trim();const c=`curl ${key?'-H "x-ariana-key: '+key+'" ':''}"${path}"`;navigator.clipboard.writeText(c);show('cURL copiado')}
 </script>
 </body></html>

@@ -20,7 +20,6 @@ import registerEnterpriseAdminPartnerRoutes from './enterprise/adminPartnerRoute
 import registerEnterpriseAdminProRoutes from './enterprise/adminEnterpriseProRoutes.js';
 import registerEnterpriseAdminAnalyticsRoutes from './enterprise/adminAnalyticsRoutes.js';
 import registerEnterpriseDeveloperRoutes from './enterprise/developerRoutes.js';
-import registerEnterpriseSdkRoutes from './enterprise/sdkRoutes.js';
 import registerEnterpriseCertificationRoutes from './enterprise/certificationRoutes.js';
 import registerEnterprisePartnerDashboardRoutes from './enterprise/partnerDashboardRoutes.js';
 import registerEnterpriseProductionRoutes from './enterprise/productionRoutes.js';
@@ -297,33 +296,6 @@ const EnterpriseHomologationRequestCompat =
   mongoose.models.EnterpriseHomologationRequest ||
   mongoose.model('EnterpriseHomologationRequest', enterpriseHomologationRequestCompatSchema);
 
-// Sandbox Enterprise usa coleções fisicamente separadas da operação real.
-// Nenhum produto/pedido de homologação é gravado nas coleções públicas.
-const EnterpriseSandboxProduct =
-  mongoose.models.EnterpriseSandboxProduct ||
-  mongoose.model('EnterpriseSandboxProduct', productSchema, 'enterprise_sandbox_products');
-
-const EnterpriseSandboxOrder =
-  mongoose.models.EnterpriseSandboxOrder ||
-  mongoose.model('EnterpriseSandboxOrder', orderSchema, 'enterprise_sandbox_orders');
-
-const enterpriseIdempotencySchema = new mongoose.Schema({
-  keyHash: { type: String, required: true, unique: true, index: true },
-  partnerId: { type: String, required: true, index: true },
-  environment: { type: String, required: true, index: true },
-  externalOrderId: { type: String, default: '', index: true },
-  requestHash: { type: String, required: true },
-  status: { type: String, default: 'processing', index: true },
-  orderId: { type: String, default: '', index: true },
-  response: mongoose.Schema.Types.Mixed,
-  lastError: { type: String, default: '' },
-  completedAt: { type: Date, default: null }
-}, { timestamps: true, versionKey: false });
-
-const EnterpriseIdempotencyRecord =
-  mongoose.models.EnterpriseIdempotencyRecord ||
-  mongoose.model('EnterpriseIdempotencyRecord', enterpriseIdempotencySchema, 'enterprise_idempotency_records');
-
 
 // ============================================================
 // ENTERPRISE PARTNER REQUEST ROUTES
@@ -365,13 +337,10 @@ const {
   getEnterpriseCompatKey,
   enterpriseCompatKeyQuery,
   enterpriseCompatEnvFromPartner,
-  enterpriseHashSecret,
-  enterpriseSecretMatches,
   enterpriseCompatAuth
 } = createEnterpriseAuth({
   EnterpriseHomologationRequestCompat,
-  enterpriseCompatApplyRateLimit,
-  crypto
+  enterpriseCompatApplyRateLimit
 });
 
 
@@ -385,10 +354,7 @@ const {
   enterpriseRequirePermission,
   enterpriseProductSkuFromBody,
   enterpriseFindProductBySkuForPartner,
-  enterpriseProductResponse,
-  enterpriseOrderModelForPartner,
-  enterpriseProductModelForPartner,
-  enterpriseProductModelForEnvironment
+  enterpriseProductResponse
 } = createEnterpriseOrder({
   getEnterpriseCompatKey,
   enterpriseCompatAuth,
@@ -397,8 +363,6 @@ const {
   normalizeObjectId,
   Order,
   Product,
-  EnterpriseSandboxOrder,
-  EnterpriseSandboxProduct,
   normalizeProductForResponse
 });
 
@@ -446,7 +410,6 @@ registerEnterpriseInvoiceRoutes(app, {
   enterpriseBillingNormalizeResponse,
   enterpriseNormalizeOrderForResponse,
   EnterpriseBillingRecord,
-  IntegrationAuditLog,
   ensureArray
 });
 
@@ -472,8 +435,6 @@ registerEnterpriseCatalogSyncRoutes(app, {
   enterpriseCompatNumber,
   enterpriseCompatProductPayload,
   Product,
-  EnterpriseSandboxProduct,
-  enterpriseProductModelForEnvironment,
   IntegrationAuditLog,
   redact,
   escapeRegex,
@@ -490,8 +451,6 @@ registerEnterpriseCatalogRoutes(app, {
   enterpriseCompatProductPayload,
   enterpriseBuildProductManufacturerQuery,
   Product,
-  EnterpriseSandboxProduct,
-  enterpriseProductModelForPartner,
   IntegrationAuditLog,
   redact
 });
@@ -512,8 +471,6 @@ registerEnterpriseProductRoutes(app, {
   normalizeImageEntry,
   IntegrationAuditLog,
   Product,
-  EnterpriseSandboxProduct,
-  enterpriseProductModelForPartner,
   redact,
   changedKeys
 });
@@ -531,10 +488,6 @@ registerEnterpriseOrderRoutes(app, {
   enterpriseCompatNumber,
   DEFAULT_CURRENCY,
   Order,
-  EnterpriseSandboxOrder,
-  enterpriseOrderModelForPartner,
-  EnterpriseIdempotencyRecord,
-  crypto,
   IntegrationAuditLog,
   redact
 });
@@ -565,7 +518,6 @@ registerEnterpriseTrackingRoutes(app, {
   enterpriseOrderOperationAuth,
   enterpriseCompatFindOrder,
   enterpriseNormalizeOrderForResponse,
-  IntegrationAuditLog,
   LogisticsLabel
 });
 
@@ -632,8 +584,6 @@ const {
   EnterpriseHomologationRequestCompat,
   enterpriseCompatEnvFromPartner,
   enterpriseCompatKeyQuery,
-  enterpriseHashSecret,
-  enterpriseSecretMatches,
   crypto,
   jwt,
   JWT_SECRET,
@@ -660,7 +610,6 @@ registerEnterpriseWebhookRoutes(app, {
   ...context,
   Setting,
   IntegrationAuditLog,
-  EnterpriseHomologationRequestCompat,
   axios,
   crypto,
   mongoose,
@@ -688,8 +637,6 @@ registerEnterprisePartnerAuthRoutes(app, {
   enterpriseOAuthRequired,
   enterprisePartnerRequired,
   enterpriseCompatFindPartnerByKey,
-  enterpriseSecretMatches,
-  enterpriseHashSecret,
   enterprisePartnerSign
 });
 
@@ -708,8 +655,7 @@ registerEnterprisePartnerCredentialsRoutes(app, {
   enterprisePartnerRequired,
   enterpriseCreateOAuthId,
   enterpriseRandomKey,
-  enterpriseCreateWebhookSecret,
-  enterpriseHashSecret
+  enterpriseCreateWebhookSecret
 });
 
 
@@ -793,9 +739,7 @@ registerEnterpriseAdminProRoutes(app, {
   redact,
   enterpriseCompatRateLimitConfig,
   enterprisePartnerGenerateKey,
-  enterprisePartnerEnvironmentPath,
-  enterpriseOAuthGenerateCredentials,
-  enterpriseHashSecret
+  enterpriseOAuthGenerateCredentials
 });
 
 
@@ -820,14 +764,6 @@ registerEnterpriseMonitorRoutes(app, {
   enterpriseVersionHeaders
 });
 
-
-// ============================================================
-// ENTERPRISE SDK / MANIFEST ROUTES
-// ============================================================
-registerEnterpriseSdkRoutes(app, {
-  ...context,
-  enterpriseVersionHeaders
-});
 
 // ============================================================
 // ENTERPRISE DEVELOPER PORTAL ROUTES
@@ -859,8 +795,7 @@ registerEnterpriseCertificationRoutes(app, {
   ...context,
   FRONTEND_URL,
   IntegrationAuditLog,
-  EnterprisePartner: EnterpriseHomologationRequestCompat,
-  adminRequired,
+  EnterprisePartner: context.EnterprisePartner,
   sanitizeIdPart,
   now
 });

@@ -36,7 +36,7 @@ export default function registerEnterpriseDeveloperRoutes(app, context = {}) {
       { name: 'Swagger / OpenAPI', type: 'openapi', url: '/enterprise_swagger.html' },
       { name: 'API Explorer', type: 'tester', url: '/enterprise_api_explorer.html' },
       { name: 'SDK Oficial', type: 'sdk', url: '/ariana_enterprise_sdk.html' },
-      { name: 'Solicitar Homologação', type: 'onboarding', url: '/solicitacao-homologacao.html' },
+      { name: 'Console Enterprise', type: 'monitoring', url: '/enterprise_console.html' },
       { name: 'Portal do Fabricante', type: 'portal', url: '/portal_fabricante.html' }
     ],
     sdks: [

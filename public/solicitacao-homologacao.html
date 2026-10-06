@@ -258,7 +258,7 @@
         <div class="actions">
           <button type="button" class="btn btn-success" id="copy-protocol-btn"><i class="fas fa-copy"></i> Copiar protocolo</button>
           <button type="button" class="btn btn-ghost" id="print-protocol-btn"><i class="fas fa-print"></i> Imprimir comprovante</button>
-          <button type="button" class="btn btn-secondary" id="new-request-btn"><i class="fas fa-plus"></i> Nova solicitação</button>\n          <a class="btn btn-secondary" href="/kit_fabricante_piloto.html"><i class="fas fa-route"></i> Ver próximos passos</a>
+          <button type="button" class="btn btn-secondary" id="new-request-btn"><i class="fas fa-plus"></i> Nova solicitação</button>
         </div>
         <div class="mini" style="margin-top:10px">Tempo estimado de análise: até 2 dias úteis.</div>
       `;
@@ -397,7 +397,7 @@
           payload.website = normalizeWebsite(payload.website || '');
           payload.source = 'developers_portal';
 
-          const res = await fetch(`${getApiBase()}/enterprise/partner-requests`, {
+          const res = await fetch(`${getApiBase()}/enterprise/homologation/request`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
