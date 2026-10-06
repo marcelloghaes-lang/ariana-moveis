@@ -4,14 +4,23 @@ const clean=(v='',m=500)=>String(v??'').trim().slice(0,m);
 const digits=(v='')=>String(v??'').replace(/\D/g,'');
 const stripAccents=(v='')=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 const nameKey=(v='')=>stripAccents(clean(v,220)).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
-const PERMANENT_COLLECTION_EXCLUSIONS=new Set([
-  'ana clara de souza carvalho'
+const OPERATOR_PAUSED_FINANCIAL_CONTACTS=new Set([
+  'ana clara de souza carvalho',
+  'andreia dos santos ferreira',
+  'cleuza da silva rosa ferreira',
+  'edilaine dos santos ferreira',
+  'marcio rogerio do carmo'
 ]);
+
+export function isFinancialContactPaused(input={}){
+  const name=nameKey(input.customerName||input.clientName||input.name||input.personName||'');
+  return Boolean(name&&OPERATOR_PAUSED_FINANCIAL_CONTACTS.has(name));
+}
 
 function excludedIdentity(input={}){
   const name=nameKey(input.customerName||input.clientName||input.name||input.personName||'');
-  return name&&PERMANENT_COLLECTION_EXCLUSIONS.has(name)
-    ? {source:'exclusao_permanente',reason:'Cliente retirado das cobranças pelo operador.',name}
+  return name&&OPERATOR_PAUSED_FINANCIAL_CONTACTS.has(name)
+    ? {source:'exclusao_operador',reason:'Lembretes e cobranças pausados pelo operador até nova autorização.',name}
     : null;
 }
 
@@ -114,7 +123,7 @@ export async function findMonthlyFinancialContact(context={},input={}){
   const range=monthRange(dateKey);
   const identity=monthlyContactIdentity(input);
   const excluded=excludedIdentity(input);
-  if(excluded)return{...excluded,key:'permanent:'+excluded.name,monthlyKey:'',identity};
+  if(excluded)return{...excluded,key:'operator-paused:'+excluded.name,monthlyKey:'',identity};
   if(!range||!identity.canonical)return null;
 
   const monthlyKey='erp_monthly_financial_contact:'+range.monthKey+':'+identity.canonical.replace(/[^a-z0-9:_-]+/gi,'_').slice(0,180);
@@ -137,7 +146,7 @@ export async function findMonthlyFinancialContact(context={},input={}){
 export async function claimMonthlyFinancialContact(context={},input={}){
   const identity=monthlyContactIdentity(input);
   const excluded=excludedIdentity(input);
-  if(excluded)return{claimed:false,prior:{...excluded,key:'permanent:'+excluded.name},identity,key:''};
+  if(excluded)return{claimed:false,prior:{...excluded,key:'operator-paused:'+excluded.name},identity,key:''};
   const Setting=context.Setting||mongoose.models.Setting||null;
   if(!Setting)return{claimed:true,guardUnavailable:true,key:'',identity};
   const prior=await findMonthlyFinancialContact({...context,Setting},input);
@@ -192,6 +201,7 @@ export async function releaseMonthlyFinancialContact(context={},claim={}){
 
 export default {
   monthlyContactIdentity,
+  isFinancialContactPaused,
   findMonthlyFinancialContact,
   claimMonthlyFinancialContact,
   confirmMonthlyFinancialContact,
