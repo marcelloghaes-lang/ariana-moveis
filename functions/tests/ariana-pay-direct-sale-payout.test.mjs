@@ -66,7 +66,7 @@ test('chargeback ativo bloqueia repasse mesmo apos 15 dias',()=>{
       orderId:'PED-3',
       deliveredAt:'2026-09-01T12:00:00.000Z',
       status:'delivered',
-      chargeback:{status:'opened',reason:'customer does not recognize the charge'}
+      chargeback:{status:'chargeback',reason:'customer does not recognize the charge'}
     },
     grossAmount:1000,
     now:new Date('2026-10-05T12:00:00.000Z')
