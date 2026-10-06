@@ -11,6 +11,7 @@ import createErpSigeFiscalHistoryRoutes from '../erp/erpSigeFiscalHistoryRoutes.
 import createErpSigeSaleParityRoutes from '../erp/erpSigeSaleParityRoutes.js';
 import createErpProductLookupRoutes from '../erp/erpProductLookupRoutes.js';
 import createErpDelinquencyReportRoutes from '../erp/erpDelinquencyReportRoutes.js';
+import createErpStockRecoveryRoutes from '../erp/erpStockRecoveryRoutes.js';
 import createArianaDocumentsErpRoutes from '../erp/arianaDocumentsErpRoutes.js';
 import { createErpOperationalRequired, erpAccessSummary } from '../../services/erp/erpAccessControl.js';
 import { createErpPdvRulesMiddleware } from '../../services/erp/erpPdvRulesMiddleware.js';
@@ -62,6 +63,9 @@ export default function createTelevendasRoutes(context={}){
 
   // Busca assistida vem antes da rota genérica para melhorar nome/SKU/EAN sem alterar o contrato /erp/products.
   router.use(createErpProductLookupRoutes(operationalContext));
+
+  // Recuperação de incidente protegida por autenticação administrativa e confirmação explícita.
+  router.use(createErpStockRecoveryRoutes(context));
 
   // Rotas operacionais do Ariana ERP usam a matriz granular de permissões.
   // Rotas administrativas do Televendas continuam negadas por padrão para colaboradores.
