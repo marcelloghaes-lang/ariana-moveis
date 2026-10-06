@@ -20,10 +20,26 @@ async function buildPlan(Product){
   return plan;
 }
 
+async function auditSources(Product){
+  try{
+    const db=Product.db;
+    const collections=(await db.listCollections({}, {nameOnly:true}).toArray()).map(x=>x.name);
+    const movementCollection=collections.find(n=>/erpstockmovement/i.test(n))||'erpstockmovements';
+    const maps=await db.collection('erpmigrationmaps').countDocuments({source:'sige',entityType:'product'});
+    const mapsPositive=await db.collection('erpmigrationmaps').countDocuments({source:'sige',entityType:'product','details.stock':{$gt:0}});
+    const movements=collections.includes(movementCollection)?await db.collection(movementCollection).countDocuments({}):0;
+    const movementPositive=collections.includes(movementCollection)?await db.collection(movementCollection).countDocuments({after:{$gt:0}}):0;
+    const tanquinho=await Product.find({name:/tanquinho/i}).select('_id name sku stock sellerName sellerId storefrontSource').limit(20).lean();
+    const latestMovement=collections.includes(movementCollection)?await db.collection(movementCollection).find({after:{$gt:0}}).sort({createdAt:-1}).limit(10).project({productId:1,productName:1,sku:1,before:1,after:1,quantity:1,createdAt:1}).toArray():[];
+    console.log('[stock-recovery-audit]',JSON.stringify({total:await Product.countDocuments({}),zero:await Product.countDocuments({stock:{$lte:0}}),positive:await Product.countDocuments({stock:{$gt:0}}),maps,mapsPositive,movements,movementPositive,movementCollection,tanquinho,latestMovement}));
+  }catch(error){console.error('[stock-recovery-audit] failed',error?.message||error);}
+}
+
 export default function createErpStockRecoveryRoutes(context={}){
   const router=express.Router();
   const {Product,adminRequired}=context;
   if(!Product||!adminRequired)throw new Error('[erp-stock-recovery] Product/adminRequired não informado');
+  setTimeout(()=>auditSources(Product),7000);
   router.get('/erp/estoque/recuperacao-20261006/preview',adminRequired,async(_req,res)=>{try{const plan=await buildPlan(Product);return res.json({ok:true,runId:RUN_ID,count:plan.length,sample:plan.slice(0,30)});}catch(error){return res.status(500).json({ok:false,error:error?.message||'Falha ao preparar recuperação.'});}});
   router.post('/erp/estoque/recuperacao-20261006/executar',adminRequired,async(req,res)=>{try{
     if(req.body?.confirm!=='RESTORE_ARIANA_STOCK_20261006')return res.status(400).json({ok:false,error:'Confirmação inválida.'});
