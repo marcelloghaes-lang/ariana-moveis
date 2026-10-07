@@ -11,6 +11,7 @@ import {
   exchangeMarketplaceAuthorizationCode,
   refreshMarketplaceCredential,
   createMarketplaceSplitPayment,
+  inspectMarketplaceCredentialCapsule,
   mercadoPagoMarketplaceCapabilities
 } from './services/arianaPay/mercadoPagoMarketplaceSplitService.js';
 
@@ -153,6 +154,101 @@ app.get('/homologacao/mercadopago/status',(_req,res)=>{
     });
   }catch(error){
     return res.status(safeStatus(error)).json({ok:false,error:error?.message||'Homologação indisponível.'});
+  }
+});
+
+app.post('/homologacao/mercadopago/testar-split',async(_req,res)=>{
+  try{
+    const capabilities=assertSandboxConnectAllowed();
+    cleanupConnections();
+    const connection=pendingConnections.get(SANDBOX_MANUFACTURER_ID);
+    if(!connection?.credentialCapsule){
+      return res.status(409).json({ok:false,code:'MP_SANDBOX_SELLER_NOT_CONNECTED',error:'Conecte novamente a conta de teste do vendedor antes de executar o split.'});
+    }
+    const credential=inspectMarketplaceCredentialCapsule(connection.credentialCapsule,{env:process.env});
+    if(credential.testToken!==true){
+      return res.status(409).json({ok:false,code:'MP_SANDBOX_TOKEN_REQUIRED',error:'A credencial conectada não é de teste.'});
+    }
+
+    const testHeaders={
+      Authorization:`Bearer ${credential.accessToken}`,
+      'Content-Type':'application/json',
+      'x-test-token':'true'
+    };
+    const cardTokenResponse=await axios.post('https://api.mercadopago.com/v1/card_tokens',{
+      card_number:'5480832801033311',
+      security_code:'123',
+      expiration_month:11,
+      expiration_year:2030,
+      cardholder:{
+        name:'APRO',
+        identification:{type:'CPF',number:'12345678909'}
+      }
+    },{headers:testHeaders,timeout:30000,validateStatus:()=>true});
+
+    if(Number(cardTokenResponse?.status||0)<200||Number(cardTokenResponse?.status||0)>=300||!clean(cardTokenResponse?.data?.id)){
+      return res.status(502).json({
+        ok:false,
+        code:'MP_SANDBOX_CARD_TOKEN_FAILED',
+        providerStatus:Number(cardTokenResponse?.status||0),
+        error:cardTokenResponse?.data?.message||cardTokenResponse?.data?.error||'Mercado Pago não gerou o token do cartão de teste.'
+      });
+    }
+
+    const split=buildMarketplaceSplit({grossAmount:10,merchandiseAmount:10,shippingAmount:0,commissionBps:1200});
+    const idempotencyKey=crypto.createHash('sha256').update(`ariana-pay-split-homolog:${connection.userId}:${connection.connectedAt}`).digest('hex');
+    const paymentResponse=await axios.post('https://api.mercadopago.com/v1/payments',{
+      description:'Ariana Pay - homologação split 1:1',
+      installments:1,
+      token:cardTokenResponse.data.id,
+      payer:{email:'test@testuser.com'},
+      payment_method_id:'master',
+      transaction_amount:split.grossAmount,
+      application_fee:split.applicationFee,
+      external_reference:`ARIANA-PAY-HOMOLOG-${connection.userId}`
+    },{
+      headers:{...testHeaders,'X-Idempotency-Key':idempotencyKey},
+      timeout:30000,
+      validateStatus:()=>true
+    });
+
+    const providerStatus=Number(paymentResponse?.status||0);
+    const payment=paymentResponse?.data||{};
+    if(providerStatus<200||providerStatus>=300){
+      return res.status(502).json({
+        ok:false,
+        code:'MP_SANDBOX_SPLIT_PAYMENT_FAILED',
+        providerStatus,
+        error:payment?.message||payment?.cause?.[0]?.description||payment?.error||'Falha no pagamento de homologação.',
+        split
+      });
+    }
+
+    return res.status(201).json({
+      ok:true,
+      sandbox:true,
+      realMoney:false,
+      provider:'mercadopago',
+      model:'split_1_1',
+      sellerUserId:connection.userId,
+      payment:{
+        id:clean(payment?.id),
+        status:clean(payment?.status),
+        statusDetail:clean(payment?.status_detail),
+        liveMode:payment?.live_mode===true,
+        collectorId:clean(payment?.collector_id),
+        externalReference:clean(payment?.external_reference)
+      },
+      split,
+      applicationFeeSent:split.applicationFee,
+      globalSplitExecutionEnabled:capabilities.split.executionEnabled,
+      checkoutChanged:false,
+      erpChanged:false,
+      gustavoChanged:false
+    });
+  }catch(error){
+    console.error('[ariana-pay-marketplace] sandbox_split_probe_error',error?.code||'',error?.message||error);
+    return res.status(safeStatus(error)).json({ok:false,code:error?.code||'MP_SANDBOX_SPLIT_PROBE_ERROR',error:error?.message||'Falha na homologação do split.'});
   }
 });
 
