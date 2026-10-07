@@ -37,11 +37,11 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           html=Path('public/erp_financeiro_completo.html').read_text(encoding='utf-8')
-          start=html.find('<script>\nconst API_LOCAL=')
-          end=html.rfind('\n</script>\n</body>')
+          start=html.find('<script>')
+          end=html.rfind('</script>')
           if start < 0 or end < 0 or end <= start:
               raise SystemExit('main script boundaries not found')
-          js=html[start+len('<script>\n'):end]
+          js=html[start+len('<script>'):end]
           Path('/tmp/erp_financeiro_completo.js').write_text(js,encoding='utf-8')
           PY
           node --check /tmp/erp_financeiro_completo.js
