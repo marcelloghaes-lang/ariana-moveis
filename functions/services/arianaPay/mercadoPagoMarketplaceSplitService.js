@@ -69,6 +69,7 @@ export function getMercadoPagoMarketplaceConfig(env=process.env){
   const clientSecret=clean(env.ARIANA_PAY_MP_CLIENT_SECRET||env.MP_CLIENT_SECRET||env.MERCADOPAGO_CLIENT_SECRET);
   const stateSecret=clean(env.ARIANA_PAY_MP_OAUTH_STATE_SECRET);
   const credentialSecret=clean(env.ARIANA_PAY_MP_CREDENTIALS_SECRET);
+  const testToken=flag(env.ARIANA_PAY_MP_TEST_TOKEN);
   return {
     apiBase:MP_API_BASE,
     authBase:MP_AUTH_BASE,
@@ -80,6 +81,7 @@ export function getMercadoPagoMarketplaceConfig(env=process.env){
     commissionBps:commissionBps(env),
     commissionPercent:commissionBps(env)/100,
     executionEnabled:flag(env.ARIANA_PAY_MP_SPLIT_EXECUTION_ENABLED),
+    testToken,
     oauthConfigured:Boolean(clientId&&clientSecret&&redirectUri&&stateSecret&&credentialSecret)
   };
 }
@@ -145,7 +147,8 @@ export function createMarketplaceOAuthAuthorization({manufacturerId,env=process.
     authorizationUrl:url.toString(),
     state,
     expiresAt:new Date(issuedAt+OAUTH_STATE_TTL_MS).toISOString(),
-    pkce:true
+    pkce:true,
+    testToken:config.testToken
   };
 }
 
@@ -185,7 +188,8 @@ export async function exchangeMarketplaceAuthorizationCode({axios,code,state,env
     grant_type:'authorization_code',
     code:authCode,
     redirect_uri:config.redirectUri,
-    code_verifier:parsed.codeVerifier
+    code_verifier:parsed.codeVerifier,
+    ...(config.testToken?{test_token:true}:{})
   },{headers:{'Content-Type':'application/json'},timeout:30000,validateStatus:()=>true});
   const status=Number(response?.status||0);
   if(status<200||status>=300){
@@ -214,6 +218,7 @@ export async function exchangeMarketplaceAuthorizationCode({axios,code,state,env
     refreshToken,
     publicKey:clean(token.public_key),
     scope:clean(token.scope),
+    testToken:config.testToken,
     issuedAt:now.toISOString(),
     expiresAt:expiresIn?new Date(now.getTime()+expiresIn*1000).toISOString():''
   };
@@ -221,6 +226,7 @@ export async function exchangeMarketplaceAuthorizationCode({axios,code,state,env
     manufacturerId:parsed.manufacturerId,
     userId:credential.userId,
     expiresAt:credential.expiresAt,
+    testToken:config.testToken,
     credentialCapsule:sealJson(credential,config.credentialSecret)
   };
 }
@@ -361,6 +367,7 @@ export function mercadoPagoMarketplaceCapabilities(env=process.env){
     oauth:{
       configured:config.oauthConfigured,
       pkce:true,
+      testToken:config.testToken,
       clientIdConfigured:Boolean(config.clientId),
       clientSecretConfigured:Boolean(config.clientSecret),
       redirectUriConfigured:Boolean(config.redirectUri),
