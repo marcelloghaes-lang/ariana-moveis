@@ -4,7 +4,7 @@ dotenv.config();
 import express from 'express';
 import axios from 'axios';
 import { assertArianaPaySandboxSafe } from './services/arianaPay/arianaPaySandboxGuardService.js';
-import { createMarketplaceOAuthAuthorization, mercadoPagoMarketplaceCapabilities } from './services/arianaPay/mercadoPagoMarketplaceSplitService.js';
+import { createMarketplaceOAuthAuthorization } from './services/arianaPay/mercadoPagoMarketplaceSplitService.js';
 
 const app=express();
 app.disable('x-powered-by');
@@ -12,6 +12,18 @@ app.use(express.json({limit:'128kb'}));
 
 function clean(value=''){
   return String(value??'').trim();
+}
+
+function flag(value){
+  return clean(value).toLowerCase()==='true';
+}
+
+function oauthStartReady(){
+  return Boolean(
+    clean(process.env.ARIANA_PAY_MP_CLIENT_ID||process.env.MP_CLIENT_ID||process.env.MERCADOPAGO_CLIENT_ID)&&
+    clean(process.env.ARIANA_PAY_MP_OAUTH_REDIRECT_URI||process.env.MP_OAUTH_REDIRECT_URI||process.env.MERCADOPAGO_OAUTH_REDIRECT_URI)&&
+    clean(process.env.ARIANA_PAY_MP_OAUTH_STATE_SECRET)
+  );
 }
 
 function allowedOrigins(){
@@ -97,7 +109,6 @@ function safeStatus(error={}){
 }
 
 export function runSellerOnboardingSelfCheck(){
-  const capabilities=mercadoPagoMarketplaceCapabilities(process.env);
   return {
     ok:true,
     provider:'mercadopago',
@@ -106,18 +117,18 @@ export function runSellerOnboardingSelfCheck(){
     passwordRequested:false,
     sellerLoginHandledByMercadoPago:true,
     oauthPkce:true,
-    sandbox:capabilities.oauth.testToken===true,
+    oauthStartReady:oauthStartReady(),
+    sandbox:flag(process.env.ARIANA_PAY_MP_TEST_TOKEN),
     realMoney:false
   };
 }
 
 app.get('/health',(_req,res)=>{
-  const capabilities=mercadoPagoMarketplaceCapabilities(process.env);
   return res.json({
     ok:true,
     service:'ariana-pay-seller-onboarding',
     mode:'isolated_onboarding_bridge',
-    readyForOAuth:capabilities.oauth.configured,
+    readyForOAuth:oauthStartReady(),
     internalStatusConfigured:Boolean(internalToken()),
     selfCheck:runSellerOnboardingSelfCheck(),
     checkoutChanged:false,
@@ -129,8 +140,7 @@ app.get('/health',(_req,res)=>{
 app.post('/api/v1/onboarding/mercadopago/session',async(req,res)=>{
   try{
     const seller=await resolveSeller(req);
-    const capabilities=mercadoPagoMarketplaceCapabilities(process.env);
-    if(!capabilities.oauth.configured){
+    if(!oauthStartReady()){
       return res.status(503).json({ok:false,code:'MP_MARKETPLACE_OAUTH_NOT_CONFIGURED',error:'Conexão Mercado Pago temporariamente indisponível.'});
     }
     const auth=createMarketplaceOAuthAuthorization({manufacturerId:seller.sellerId,env:process.env});
@@ -141,7 +151,7 @@ app.post('/api/v1/onboarding/mercadopago/session',async(req,res)=>{
       sellerName:seller.name,
       authorizationUrl:auth.authorizationUrl,
       expiresAt:auth.expiresAt,
-      sandbox:capabilities.oauth.testToken===true,
+      sandbox:flag(process.env.ARIANA_PAY_MP_TEST_TOKEN),
       realMoney:false,
       passwordRequested:false
     });
@@ -163,7 +173,7 @@ app.get('/api/v1/onboarding/mercadopago/status',async(req,res)=>{
       validateStatus:()=>true
     });
     if(Number(response.status)===404){
-      return res.json({ok:true,connected:false,provider:'mercadopago',sellerId:seller.sellerId,commissionPercent:12,realMoney:false});
+      return res.json({ok:true,connected:false,provider:'mercadopago',sellerId:seller.sellerId,commissionPercent:12,sandbox:flag(process.env.ARIANA_PAY_MP_TEST_TOKEN),realMoney:false});
     }
     if(Number(response.status)<200||Number(response.status)>=300){
       return res.status(502).json({ok:false,code:'ARIANA_PAY_MARKETPLACE_STATUS_FAILED',error:'Não foi possível consultar o vínculo Mercado Pago.'});
@@ -178,7 +188,7 @@ app.get('/api/v1/onboarding/mercadopago/status',async(req,res)=>{
       connectedAt:data.connectedAt||null,
       tokenExpiresAt:data.expiresAt||null,
       commissionPercent:12,
-      sandbox:mercadoPagoMarketplaceCapabilities(process.env).oauth.testToken===true,
+      sandbox:flag(process.env.ARIANA_PAY_MP_TEST_TOKEN),
       realMoney:false
     });
   }catch(error){
@@ -194,10 +204,9 @@ export function startArianaPaySellerOnboardingServer(){
   assertArianaPaySandboxSafe(process.env);
   const selfCheck=runSellerOnboardingSelfCheck();
   return app.listen(port,()=>{
-    const capabilities=mercadoPagoMarketplaceCapabilities(process.env);
     console.log(`[ariana-pay-onboarding] listening on port ${port}`);
     console.log(`[ariana-pay-onboarding] self_check=${selfCheck.ok?'ok':'failed'} one_click_oauth=true password_requested=false`);
-    console.log(`[ariana-pay-onboarding] oauth_configured=${capabilities.oauth.configured} oauth_test_token=${capabilities.oauth.testToken} split_execution=${capabilities.split.executionEnabled}`);
+    console.log(`[ariana-pay-onboarding] oauth_start_ready=${oauthStartReady()} oauth_test_token=${flag(process.env.ARIANA_PAY_MP_TEST_TOKEN)} split_execution=${flag(process.env.ARIANA_PAY_MP_SPLIT_EXECUTION_ENABLED)}`);
     console.log('[ariana-pay-onboarding] checkout_changed=false erp_changed=false gustavo_changed=false');
   });
 }
