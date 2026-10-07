@@ -27,6 +27,7 @@ app.use((_req,res,next)=>{
 
 const pendingConnections=new Map();
 const CONNECTION_TTL_MS=30*60*1000;
+const SANDBOX_MANUFACTURER_ID='homologacao-ariana';
 
 function clean(value=''){
   return String(value??'').trim();
@@ -61,6 +62,23 @@ function cleanupConnections(){
   for(const [key,value] of pendingConnections.entries()){
     if(Number(value?.expiresAtMs||0)<=now) pendingConnections.delete(key);
   }
+}
+
+function assertSandboxConnectAllowed(){
+  const capabilities=mercadoPagoMarketplaceCapabilities(process.env);
+  if(!capabilities.oauth.configured){
+    const error=new Error('OAuth Mercado Pago ainda não configurado.');
+    error.statusCode=503;
+    error.code='MP_MARKETPLACE_OAUTH_NOT_CONFIGURED';
+    throw error;
+  }
+  if(capabilities.oauth.testToken!==true||capabilities.split.executionEnabled===true){
+    const error=new Error('Rota de homologação disponível somente em sandbox com execução financeira desligada.');
+    error.statusCode=404;
+    error.code='MP_MARKETPLACE_SANDBOX_CONNECT_DISABLED';
+    throw error;
+  }
+  return capabilities;
 }
 
 export function runMarketplaceStartupSelfCheck(){
@@ -105,6 +123,37 @@ app.get('/health',(_req,res)=>{
     selfCheck:runMarketplaceStartupSelfCheck(),
     capabilities
   });
+});
+
+app.get('/homologacao/mercadopago/conectar',(req,res)=>{
+  try{
+    assertSandboxConnectAllowed();
+    const result=createMarketplaceOAuthAuthorization({manufacturerId:SANDBOX_MANUFACTURER_ID,env:process.env});
+    return res.redirect(302,result.authorizationUrl);
+  }catch(error){
+    return res.status(safeStatus(error)).send('Homologação Mercado Pago indisponível neste momento.');
+  }
+});
+
+app.get('/homologacao/mercadopago/status',(_req,res)=>{
+  try{
+    assertSandboxConnectAllowed();
+    cleanupConnections();
+    const connection=pendingConnections.get(SANDBOX_MANUFACTURER_ID);
+    return res.json({
+      ok:true,
+      sandbox:true,
+      connected:Boolean(connection),
+      manufacturerId:SANDBOX_MANUFACTURER_ID,
+      userId:connection?.userId||null,
+      connectedAt:connection?.connectedAt||null,
+      expiresAt:connection?.expiresAt||null,
+      credentialStoredInMemoryOnly:Boolean(connection),
+      splitExecutionEnabled:false
+    });
+  }catch(error){
+    return res.status(safeStatus(error)).json({ok:false,error:error?.message||'Homologação indisponível.'});
+  }
 });
 
 app.get('/api/v1/marketplace/capabilities',apiRequired,(_req,res)=>{
@@ -153,6 +202,7 @@ app.get('/api/v1/marketplace/mp/oauth/callback',async(req,res)=>{
     });
     return res.status(200).send(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ariana Pay</title><style>body{font-family:Arial,sans-serif;background:#07152e;color:white;min-height:100vh;display:flex;align-items:center;justify-content:center;margin:0;padding:24px}.card{max-width:560px;background:#0d2349;border-radius:20px;padding:28px;border:1px solid rgba(255,255,255,.12)}h1{color:#f4c542}p{line-height:1.5}</style></head><body><div class="card"><h1>Mercado Pago conectado</h1><p>A conta foi autorizada com sucesso para o marketplace Ariana.</p><p>Você pode fechar esta janela.</p></div></body></html>`);
   }catch(error){
+    console.error('[ariana-pay-marketplace] oauth_callback_error',error?.code||'',error?.providerStatus||'',error?.message||error);
     return res.status(safeStatus(error)).send('Não foi possível concluir a autorização do Mercado Pago.');
   }
 });
@@ -237,7 +287,7 @@ export function startArianaPayMarketplaceServer(){
     const capabilities=mercadoPagoMarketplaceCapabilities(process.env);
     console.log(`[ariana-pay-marketplace] listening on port ${port}`);
     console.log(`[ariana-pay-marketplace] self_check=${selfCheck.ok?'ok':'failed'} split=12% application_fee=true oauth_pkce=true`);
-    console.log(`[ariana-pay-marketplace] oauth_configured=${capabilities.oauth.configured} split_execution=${capabilities.split.executionEnabled}`);
+    console.log(`[ariana-pay-marketplace] oauth_configured=${capabilities.oauth.configured} oauth_test_token=${capabilities.oauth.testToken} split_execution=${capabilities.split.executionEnabled}`);
     console.log('[ariana-pay-marketplace] checkout_changed=false erp_changed=false gustavo_changed=false');
   });
 }
