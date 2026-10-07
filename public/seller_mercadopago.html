@@ -4,187 +4,30 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
   <title>Recebimentos | ARIANA MÓVEIS</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body{font-family:Inter,Arial,sans-serif;background:#F5F7FA}.sidebar-link{display:flex;align-items:center;gap:.75rem;padding:.8rem 1rem;border-radius:.9rem;color:#fff;opacity:.92}.sidebar-link:hover,.sidebar-link.active{background:rgba(255,255,255,.1);opacity:1}.card{background:#fff;border:1px solid #e5e7eb;border-radius:1.25rem;box-shadow:0 8px 24px rgba(15,23,42,.06)}.input{width:100%;border:1px solid #d1d5db;border-radius:1rem;padding:.85rem 1rem;outline:none;background:white}.input:focus{border-color:#2E6DA4;box-shadow:0 0 0 4px rgba(46,109,164,.12)}.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;border-radius:1rem;padding:.9rem 1.1rem;font-weight:900;transition:.2s}.btn-primary{background:#2E6DA4;color:#fff}.btn-primary:hover{filter:brightness(.96)}.btn-light{background:#f8fafc;color:#0f172a;border:1px solid #e5e7eb}.pill{display:inline-flex;align-items:center;padding:.38rem .8rem;border-radius:999px;font-size:.75rem;font-weight:900}.toast{position:fixed;right:1rem;top:1rem;z-index:90;color:#fff;border-radius:1rem;padding:.9rem 1.1rem;font-weight:900;box-shadow:0 10px 30px rgba(0,0,0,.16)}
-  
-
-/* PATCH: logo padrão Ariana Móveis igual ao Dashboard - somente logo */
-.am-sidebar-logo{
-  display:flex!important;
-  align-items:center!important;
-  justify-content:flex-start!important;
-  padding:0 1rem 20px 1rem!important;
-  margin:0 0 18px 0!important;
-  min-height:58px!important;
-  width:100%!important;
-  max-width:100%!important;
-  overflow:visible!important;
-  border-bottom:1px solid rgba(255,255,255,.13)!important;
-  text-decoration:none!important;
-}
-.am-logo-wordmark{
-  display:inline-flex!important;
-  align-items:flex-end!important;
-  gap:.34em!important;
-  line-height:.88!important;
-  white-space:nowrap!important;
-  font-family:Inter,Arial,sans-serif!important;
-  font-style:italic!important;
-  font-weight:1000!important;
-  letter-spacing:-.055em!important;
-  text-transform:uppercase!important;
-  font-size:28px!important;
-  width:auto!important;
-  max-width:none!important;
-  overflow:visible!important;
-  transform:none!important;
-}
-.am-logo-wordmark .am-logo-ariana{
-  color:#fff!important;
-  font-size:1em!important;
-  font-weight:1000!important;
-  line-height:.88!important;
-}
-.am-logo-wordmark .am-logo-moveis{
-  color:#56B5FF!important;
-  font-size:.50em!important;
-  font-weight:1000!important;
-  margin-bottom:.12em!important;
-  letter-spacing:-.035em!important;
-  line-height:.9!important;
-}
-aside#sidebar .am-logo-wordmark,
-.side .am-logo-wordmark,
-.sidebar .am-logo-wordmark,
-.bg-dark-bg .am-logo-wordmark{
-  font-size:28px!important;
-  transform:none!important;
-  overflow:visible!important;
-}
-aside#sidebar > a.am-sidebar-logo,
-aside#sidebar > a.text-white:first-of-type,
-.sidebar > a.am-sidebar-logo,
-.side > a.am-sidebar-logo{
-  display:flex!important;
-  align-items:center!important;
-  padding-left:1rem!important;
-  padding-right:1rem!important;
-  margin-bottom:1.15rem!important;
-  min-height:58px!important;
-  overflow:visible!important;
-}
-aside#sidebar .px-4:first-child::before,
-.side h1::before,
-.sidebar .brand-mark,
-.brand-mark{
-  content:none!important;
-  display:none!important;
-}
-
-</style>
-
-
-<!-- PATCH VISUAL PROFISSIONAL ARIANA MÓVEIS - 2026-07-09 -->
-<style id="ariana-seller-professional-ui">
-:root{
-  --am-blue:#0047AB!important;
-  --am-blue-2:#063b86!important;
-  --am-yellow:#ffd43b!important;
-  --am-bg:#f3f6fb!important;
-  --am-card:#ffffff!important;
-  --am-text:#0f172a!important;
-  --am-muted:#64748b!important;
-  --am-line:#e2e8f0!important;
-  --am-shadow:0 14px 34px rgba(15,23,42,.075)!important;
-}
-html,body{font-family:Inter,Arial,sans-serif!important;background:var(--am-bg)!important;color:var(--am-text)!important;}
-body{letter-spacing:-.01em;}
-/* Fundos antigos */
-.bg-gray-100,.bg-fundo,.bg-slate-50{background:var(--am-bg)!important}.text-primary-blue{color:var(--am-blue)!important}.bg-primary-blue{background:var(--am-blue)!important}.border-primary-blue{border-color:var(--am-blue)!important}
-/* Sidebar Seller/Admin */
-aside#sidebar, aside.sidebar, .side, .sidebar, .bg-dark-bg, .bg-dark-gray-bg{
-  background:linear-gradient(180deg,#0047AB 0%,#052b63 54%,#061f45 100%)!important;
-  box-shadow:14px 0 36px rgba(15,23,42,.12)!important;
-}
-aside#sidebar, .side, .sidebar{border-right:1px solid rgba(255,255,255,.08)!important;}
-aside#sidebar .px-4:first-child span, aside#sidebar .px-4:first-child, .side h1, .sidebar .brand, .sidebar h1{
-  color:#fff!important;letter-spacing:.01em!important;
-}
-aside#sidebar .px-4:first-child, .side h1{
-  padding-bottom:20px!important;margin-bottom:18px!important;border-bottom:1px solid rgba(255,255,255,.13)!important;
-}
-aside#sidebar nav a, .nav button, .sidebar-link, aside nav a{
-  display:flex!important;align-items:center!important;gap:12px!important;border-radius:16px!important;padding:12px 14px!important;color:rgba(255,255,255,.86)!important;font-weight:850!important;text-decoration:none!important;transition:.16s ease!important;background:transparent!important;box-shadow:none!important;
-}
-aside#sidebar nav a:hover, aside#sidebar nav a.active, .nav button:hover, .nav button.active, .sidebar-link:hover, .sidebar-link.active, aside nav a:hover{
-  background:rgba(255,255,255,.14)!important;color:#fff!important;transform:translateX(2px)!important;
-}
-#btn-sair, a[id*="sair"], a[href="#"][id*="logout"], #logout-btn{color:#fecaca!important;margin-top:18px!important;}
-/* Área principal */
-main, .main, .flex-1, .flex-grow{min-width:0!important;}
-.main, main.flex-grow, .flex-1.flex.flex-col, body>div.flex-1{background:linear-gradient(180deg,#eef5ff 0,#f7f9fc 330px,#f3f6fb 100%)!important;}
-header, .topbar, .top, .bg-white.border-b{
-  background:rgba(255,255,255,.92)!important;backdrop-filter:blur(14px)!important;border-color:rgba(226,232,240,.9)!important;
-}
-h1,h2,h3{color:var(--am-text)!important;line-height:1.12!important;}
-p,.help,.sub,.muted,.text-gray-600,.text-slate-500{color:var(--am-muted)!important;}
-/* Cards e painéis */
-.card,.box,.stat,.quick-card,.rounded-2xl.bg-white,.bg-white.rounded-2xl,.seller-form-card,section.bg-white,.shadow-soft,.receipt,.empty,[class*="shadow"]{
-  border:1px solid var(--am-line)!important;border-radius:24px!important;background:#fff!important;box-shadow:var(--am-shadow)!important;
-}
-.card{padding:20px!important;}
-.stat{padding:18px!important;}
-.stat small,.label,label,.text-xs.uppercase{font-size:11px!important;font-weight:950!important;text-transform:uppercase!important;letter-spacing:.055em!important;color:var(--am-muted)!important;}
-.stat b{font-size:30px!important;color:var(--am-blue)!important;}
-/* Botões */
-button,a[class*="bg-primary-blue"],.primary,.btn-primary,.green,.yellow,.light,.gray,.red,.small,
-button.bg-primary-blue,button.bg-blue-600,button.bg-green-600,button.bg-red-600{
-  border-radius:14px!important;min-height:42px!important;font-weight:900!important;transition:.16s ease!important;text-decoration:none!important;border:1px solid transparent!important;
-}
-button:hover,a[class*="bg-primary-blue"]:hover{transform:translateY(-1px)!important;filter:brightness(.98)!important;}
-.primary,button.bg-primary-blue,.bg-primary-blue,a.bg-primary-blue{background:var(--am-blue)!important;color:#fff!important;box-shadow:0 10px 22px rgba(0,71,171,.18)!important;}
-.light,.gray{background:#f8fafc!important;color:#10213f!important;border-color:#dbe3ee!important;}
-.green,button.bg-green-600{background:#16a34a!important;color:#fff!important;}
-.red,button.bg-red-600{background:#dc2626!important;color:#fff!important;}
-.yellow{background:var(--am-yellow)!important;color:#10213f!important;border-color:#facc15!important;}
-/* Inputs */
-input,select,textarea,.seller-input{
-  border:1px solid #d7dee9!important;border-radius:15px!important;background:#fff!important;min-height:44px!important;font-weight:650!important;color:#0f172a!important;
-}
-input:focus,select:focus,textarea:focus,.seller-input:focus{border-color:var(--am-blue)!important;box-shadow:0 0 0 4px rgba(0,71,171,.12)!important;}
-/* Tabelas/listas */
-table{border-collapse:separate!important;border-spacing:0 10px!important;width:100%!important;}
-thead th{font-size:11px!important;text-transform:uppercase!important;color:var(--am-muted)!important;letter-spacing:.05em!important;border:0!important;background:transparent!important;}
-tbody tr{background:#fff!important;box-shadow:0 8px 18px rgba(15,23,42,.04)!important;}
-tbody td{border-top:1px solid #edf2f7!important;border-bottom:1px solid #edf2f7!important;padding:14px!important;}
-tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 0 0 16px!important;}tbody td:last-child{border-right:1px solid #edf2f7!important;border-radius:0 16px 16px 0!important;}
-/* Badges */
-.pill,.badge,.status-novo,.status-respondido,[class*="status-"]{border-radius:999px!important;padding:6px 10px!important;font-size:11px!important;font-weight:950!important;}
-/* Grids comuns */
-.stats{gap:14px!important}.filters{gap:12px!important}.quick-grid{gap:14px!important}.form-grid{gap:12px!important}.action-bar{gap:10px!important;}
-/* Responsivo */
-@media(max-width:920px){
-  body{display:block!important;}
-  aside#sidebar,.side{position:static!important;width:100%!important;min-height:auto!important;height:auto!important;transform:none!important;padding:18px!important;}
-  aside#sidebar nav,.nav{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important;}
-  .main,main,.flex-1,.flex-grow{margin-left:0!important;max-width:none!important;width:100%!important;padding:14px!important;}
-  header,.top{position:sticky!important;top:0!important;z-index:20!important;padding:14px!important;}
-  .stats{grid-template-columns:1fr 1fr!important;}
-  .filters,.layout,.form-grid,.action-bar,.quick-grid{grid-template-columns:1fr!important;}
-  .card,.box{border-radius:20px!important;padding:16px!important;}
-  button,.primary,.light,.green,.red,.yellow,.gray{width:100%!important;}
-}
-@media(max-width:560px){.stats{grid-template-columns:1fr!important;} aside#sidebar nav,.nav{grid-template-columns:1fr!important;}}
-</style>
-
+    :root{--blue:#0047AB;--blue2:#063b86;--yellow:#ffd43b;--bg:#f3f6fb;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--green:#16a34a;--red:#dc2626}
+    *{box-sizing:border-box}body{font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    .sidebar{background:linear-gradient(180deg,var(--blue) 0%,#052b63 54%,#061f45 100%);box-shadow:14px 0 36px rgba(15,23,42,.12)}
+    .sidebar-link{display:flex;align-items:center;gap:.75rem;padding:.8rem 1rem;border-radius:.9rem;color:#fff;opacity:.9;font-weight:800}.sidebar-link:hover,.sidebar-link.active{background:rgba(255,255,255,.14);opacity:1}
+    .brand{display:flex;align-items:flex-end;gap:.32rem;padding:0 1rem 20px;border-bottom:1px solid rgba(255,255,255,.15);margin-bottom:18px;font-style:italic;font-weight:1000;text-decoration:none}.brand-a{color:#fff;font-size:28px;letter-spacing:-.055em}.brand-m{color:#56B5FF;font-size:14px;margin-bottom:3px}
+    .card{background:#fff;border:1px solid var(--line);border-radius:24px;box-shadow:0 14px 34px rgba(15,23,42,.075)}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:.65rem;border-radius:14px;min-height:48px;padding:.8rem 1.15rem;font-weight:900;transition:.16s;border:1px solid transparent}.btn:hover{transform:translateY(-1px);filter:brightness(.98)}.btn:disabled{opacity:.6;cursor:wait;transform:none}.btn-mp{background:#009ee3;color:#fff;box-shadow:0 10px 24px rgba(0,158,227,.22)}.btn-primary{background:var(--blue);color:#fff}.btn-light{background:#fff;color:#10213f;border-color:#dbe3ee}
+    .pill{display:inline-flex;align-items:center;gap:.4rem;padding:.38rem .8rem;border-radius:999px;font-size:.76rem;font-weight:900}.pill-ok{background:#dcfce7;color:#166534}.pill-warn{background:#fef3c7;color:#92400e}.pill-info{background:#dbeafe;color:#1e40af}
+    .input{width:100%;border:1px solid #d7dee9;border-radius:15px;background:#fff;min-height:46px;padding:.8rem .95rem;font-weight:650;color:#0f172a;outline:none}.input:focus{border-color:var(--blue);box-shadow:0 0 0 4px rgba(0,71,171,.12)}
+    .toast{position:fixed;right:1rem;top:1rem;z-index:90;color:#fff;border-radius:1rem;padding:.9rem 1.1rem;font-weight:900;box-shadow:0 10px 30px rgba(0,0,0,.16)}
+    .step{display:flex;gap:12px;align-items:flex-start}.step-n{flex:0 0 30px;height:30px;border-radius:999px;display:flex;align-items:center;justify-content:center;background:#e8f1ff;color:var(--blue);font-weight:900}
+    .status-dot{width:10px;height:10px;border-radius:999px;display:inline-block}.status-dot.ok{background:#16a34a;box-shadow:0 0 0 5px rgba(22,163,74,.12)}.status-dot.wait{background:#f59e0b;box-shadow:0 0 0 5px rgba(245,158,11,.12)}
+    details summary{cursor:pointer;list-style:none}details summary::-webkit-details-marker{display:none}
+    @media(max-width:767px){.sidebar{position:fixed;inset:0 auto 0 0;width:82vw;z-index:50;transform:translateX(-100%);transition:.2s}.sidebar.open{transform:translateX(0)}.main{padding:1rem!important}.btn{width:100%}}
+  </style>
 </head>
 <body class="min-h-screen flex">
-  <aside id="sidebar" class="bg-[#1D2B3A] w-64 space-y-6 py-7 px-3 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition z-50">
-        <a href="seller_dashboard.html" class="am-sidebar-logo"><span class="am-logo-wordmark" aria-label="Ariana Móveis"><span class="am-logo-ariana">ARIANA</span><span class="am-logo-moveis">MÓVEIS</span></span></a>
-        <nav class="flex flex-col gap-1">
+  <aside id="sidebar" class="sidebar w-64 min-h-screen space-y-5 py-7 px-3 md:relative">
+    <a href="seller_dashboard.html" class="brand"><span class="brand-a">ARIANA</span><span class="brand-m">MÓVEIS</span></a>
+    <nav class="flex flex-col gap-1">
       <a href="seller_dashboard.html" class="sidebar-link"><i class="fas fa-home w-5"></i><span>Dashboard</span></a>
       <a href="seller_produtos.html" class="sidebar-link"><i class="fas fa-box w-5"></i><span>Produtos</span></a>
       <a href="seller_pedidos.html" class="sidebar-link"><i class="fas fa-shopping-cart w-5"></i><span>Pedidos</span></a>
@@ -193,209 +36,170 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
       <a href="seller_mercadopago.html" class="sidebar-link active"><i class="fas fa-wallet w-5"></i><span>Recebimentos</span></a>
       <a href="seller_configuracoes.html" class="sidebar-link"><i class="fas fa-cog w-5"></i><span>Configurações</span></a>
       <a href="seller_extrato.html" class="sidebar-link"><i class="fas fa-receipt w-5"></i><span>Extrato</span></a>
-      <a href="#" id="btn-sair" class="sidebar-link text-red-400 mt-10"><i class="fas fa-sign-out-alt w-5"></i><span>Sair</span></a>
+      <a href="#" id="btn-sair" class="sidebar-link text-red-300 mt-8"><i class="fas fa-sign-out-alt w-5"></i><span>Sair</span></a>
     </nav>
   </aside>
 
   <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
-    <header class="flex items-center justify-between p-4 bg-white border-b shadow-sm">
+    <header class="flex items-center justify-between p-4 bg-white border-b border-slate-200 shadow-sm">
       <button id="sidebar-toggle" class="md:hidden text-gray-500"><i class="fas fa-bars text-xl"></i></button>
-      <h1 class="text-xl font-black text-gray-800">Recebimentos</h1>
-      <div class="flex items-center gap-2"><span id="user-display-name" class="text-sm font-bold text-gray-600">Carregando...</span><i class="fas fa-user-circle text-2xl text-[#2E6DA4]"></i></div>
+      <h1 class="text-xl font-black">Recebimentos</h1>
+      <div class="flex items-center gap-2"><span id="user-display-name" class="text-sm font-bold text-gray-600">Carregando...</span><i class="fas fa-user-circle text-2xl text-[#0047AB]"></i></div>
     </header>
 
-    <main class="flex-1 p-6 overflow-y-auto">
+    <main class="main flex-1 p-6 overflow-y-auto bg-gradient-to-b from-blue-50/70 to-slate-50">
       <div class="max-w-5xl mx-auto space-y-6">
-        <section class="card p-6">
-          <div class="flex items-start justify-between gap-4 flex-wrap">
-            <div>
-              <h2 class="text-2xl font-black text-slate-900">Conta de recebimento</h2>
-              <p class="text-sm text-gray-500 mt-2">Informe seus dados bancários para o repasse das vendas aprovadas. No momento, a Ariana Móveis recebe os pagamentos e realiza o repasse ao seller sem split automático.</p>
+        <section class="card p-6 md:p-8 overflow-hidden relative">
+          <div class="absolute -right-14 -top-14 w-56 h-56 rounded-full bg-sky-100 opacity-70"></div>
+          <div class="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div class="max-w-2xl">
+              <div class="flex items-center gap-3 flex-wrap mb-3">
+                <span class="pill pill-info"><i class="fas fa-shield-alt"></i> Conexão segura</span>
+                <span id="environment-pill" class="pill pill-warn">Homologação</span>
+              </div>
+              <h2 class="text-3xl md:text-4xl font-black tracking-tight">Receba suas vendas pelo Mercado Pago</h2>
+              <p class="text-slate-600 mt-3 text-base md:text-lg leading-relaxed">Conecte sua conta uma única vez. Você entra diretamente no Mercado Pago, autoriza a Ariana Marketplace e pronto. A Ariana nunca recebe sua senha.</p>
             </div>
-            <span id="recipient-pill" class="pill bg-gray-100 text-gray-700">Verificando</span>
-          </div>
-          <div class="grid md:grid-cols-3 gap-4 mt-5">
-            <div class="rounded-2xl bg-gray-50 p-4 border"><div class="text-xs uppercase font-black text-gray-500">Status</div><div id="status-view" class="text-xl font-black text-[#2E6DA4] mt-1">Carregando</div></div>
-            <div class="rounded-2xl bg-gray-50 p-4 border"><div class="text-xs uppercase font-black text-gray-500">Recebimento</div><div class="text-xl font-black text-[#2E6DA4] mt-1">Repasse pela Ariana</div></div>
-            <div class="rounded-2xl bg-gray-50 p-4 border"><div class="text-xs uppercase font-black text-gray-500">Split automático</div><div class="text-xl font-black text-amber-600 mt-1">Desativado</div></div>
+            <div class="min-w-[250px]">
+              <div id="mp-status-card" class="rounded-2xl border border-amber-200 bg-amber-50 p-4 mb-3">
+                <div class="flex items-center gap-3"><span id="mp-status-dot" class="status-dot wait"></span><div><div class="text-xs font-black uppercase text-slate-500">Mercado Pago</div><div id="mp-status-text" class="font-black text-amber-800">Conexão pendente</div></div></div>
+              </div>
+              <button id="btn-connect-mp" class="btn btn-mp w-full" type="button"><i class="fas fa-link"></i> Conectar Mercado Pago</button>
+            </div>
           </div>
         </section>
 
-        <form id="split-form" class="card p-6 space-y-6">
-          <div>
-            <h3 class="text-xl font-black text-slate-900">Dados bancários</h3>
-            <p class="text-sm text-gray-500 mt-1">Preencha os dados corretos do titular da conta ou uma chave PIX. Esses dados serão usados pela Ariana Móveis para realizar os repasses.</p>
-          </div>
+        <section class="grid md:grid-cols-3 gap-4">
+          <div class="card p-5"><div class="text-xs uppercase font-black text-slate-500">Comissão Ariana</div><div class="text-3xl font-black text-[#0047AB] mt-1">12%</div><p class="text-sm text-slate-500 mt-2">Aplicada automaticamente pelo Split Payments.</p></div>
+          <div class="card p-5"><div class="text-xs uppercase font-black text-slate-500">Recebimento</div><div id="receive-mode" class="text-xl font-black text-[#0047AB] mt-2">Mercado Pago</div><p class="text-sm text-slate-500 mt-2">O saldo do fabricante vai para a própria conta Mercado Pago.</p></div>
+          <div class="card p-5"><div class="text-xs uppercase font-black text-slate-500">Liberação do saldo</div><div class="text-xl font-black text-[#0047AB] mt-2">Conforme sua conta</div><p class="text-sm text-slate-500 mt-2">Segue o prazo de liberação contratado pelo vendedor com o Mercado Pago.</p></div>
+        </section>
 
-          <div class="grid md:grid-cols-2 gap-4">
-            <div><label class="text-xs font-black uppercase text-gray-500">Nome/Razão Social</label><input id="legalName" class="input" placeholder="Nome do seller ou razão social" autocomplete="name"></div>
-            <div><label class="text-xs font-black uppercase text-gray-500">CPF/CNPJ do seller</label><input id="document" class="input" placeholder="000.000.000-00 ou 00.000.000/0000-00" autocomplete="off"></div>
-            <div><label class="text-xs font-black uppercase text-gray-500">Nome do titular da conta</label><input id="bankHolderName" class="input" placeholder="Titular da conta bancária" autocomplete="off"></div>
-            <div><label class="text-xs font-black uppercase text-gray-500">CPF/CNPJ do titular</label><input id="bankHolderDocument" class="input" placeholder="Documento do titular" autocomplete="off"></div>
-            <div><label class="text-xs font-black uppercase text-gray-500">Banco</label><input id="bankName" class="input" placeholder="Ex: Banco do Brasil, Bradesco, Itaú" autocomplete="off"></div><div><label class="text-xs font-black uppercase text-gray-500">Código do banco</label><input id="bankCode" class="input" placeholder="Ex: 001, 237, 341, 104" inputmode="numeric" autocomplete="off"></div>
-            <div><label class="text-xs font-black uppercase text-gray-500">Tipo de conta</label><select id="accountType" class="input"><option value="checking">Conta corrente</option><option value="savings">Poupança</option></select></div>
-            <div><label class="text-xs font-black uppercase text-gray-500">Agência</label><input id="branchNumber" class="input" placeholder="Sem traço" inputmode="numeric" autocomplete="off"></div>
-            <div><label class="text-xs font-black uppercase text-gray-500">Dígito da agência</label><input id="branchCheckDigit" class="input" placeholder="Opcional" autocomplete="off"></div>
-            <div><label class="text-xs font-black uppercase text-gray-500">Conta</label><input id="accountNumber" class="input" placeholder="Sem traço" inputmode="numeric" autocomplete="off"></div>
-            <div><label class="text-xs font-black uppercase text-gray-500">Dígito da conta</label><input id="accountCheckDigit" class="input" placeholder="Se houver" autocomplete="off"></div><div class="md:col-span-2"><label class="text-xs font-black uppercase text-gray-500">Chave PIX para repasse</label><input id="pixKey" class="input" placeholder="CPF/CNPJ, e-mail, telefone ou chave aleatória" autocomplete="off"></div>
+        <section class="card p-6">
+          <div class="flex items-start justify-between gap-4 flex-wrap">
+            <div><h3 class="text-xl font-black">Como funciona</h3><p class="text-sm text-slate-500 mt-1">Sem formulários técnicos e sem compartilhar credenciais.</p></div>
+            <span id="mp-user-badge" class="pill pill-info hidden"></span>
           </div>
+          <div class="grid md:grid-cols-3 gap-5 mt-6">
+            <div class="step"><span class="step-n">1</span><div><div class="font-black">Clique em conectar</div><p class="text-sm text-slate-500 mt-1">Abrimos a autorização oficial do Mercado Pago.</p></div></div>
+            <div class="step"><span class="step-n">2</span><div><div class="font-black">Entre na sua conta</div><p class="text-sm text-slate-500 mt-1">Login e senha são informados somente ao Mercado Pago.</p></div></div>
+            <div class="step"><span class="step-n">3</span><div><div class="font-black">Autorize a Ariana</div><p class="text-sm text-slate-500 mt-1">O painel detecta a autorização e conclui o vínculo automaticamente.</p></div></div>
+          </div>
+          <div id="connection-detail" class="hidden mt-6 rounded-2xl bg-green-50 border border-green-200 p-4 text-green-900">
+            <div class="font-black"><i class="fas fa-check-circle mr-2"></i>Conta Mercado Pago conectada</div>
+            <div id="connection-detail-text" class="text-sm mt-1"></div>
+          </div>
+        </section>
 
-          <div id="recipient-note" class="rounded-2xl bg-blue-50 border border-blue-100 p-4 text-sm text-slate-700">
-            Os pagamentos dos clientes continuam sendo processados pela Ariana Móveis. Esta tela apenas registra os dados para o repasse ao seller; nenhum recipient ou split automático é criado.
-          </div>
-          <div id="bank-lock-note" class="hidden rounded-2xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800"></div>
-
-          <div class="flex flex-col md:flex-row gap-3 justify-end">
-            <button id="btn-save" class="btn btn-primary" type="submit"><i class="fas fa-save"></i> Salvar dados bancários</button>
-          </div>
-        </form>
+        <details class="card overflow-hidden" id="fallback-details">
+          <summary class="p-6 flex items-center justify-between gap-4">
+            <div><h3 class="text-lg font-black">Forma alternativa de repasse</h3><p class="text-sm text-slate-500 mt-1">Use dados bancários/Pix apenas quando o Mercado Pago não puder ser utilizado.</p></div>
+            <i class="fas fa-chevron-down text-slate-400"></i>
+          </summary>
+          <form id="bank-form" class="p-6 pt-0 border-t border-slate-100 space-y-5">
+            <div class="grid md:grid-cols-2 gap-4 mt-5">
+              <div><label class="text-xs font-black uppercase text-gray-500">Nome/Razão Social</label><input id="legalName" class="input" readonly></div>
+              <div><label class="text-xs font-black uppercase text-gray-500">CPF/CNPJ</label><input id="document" class="input" readonly></div>
+              <div><label class="text-xs font-black uppercase text-gray-500">Titular da conta</label><input id="bankHolderName" class="input"></div>
+              <div><label class="text-xs font-black uppercase text-gray-500">CPF/CNPJ do titular</label><input id="bankHolderDocument" class="input"></div>
+              <div><label class="text-xs font-black uppercase text-gray-500">Banco</label><input id="bankName" class="input" placeholder="Ex: Itaú"></div>
+              <div><label class="text-xs font-black uppercase text-gray-500">Código do banco</label><input id="bankCode" class="input" placeholder="Ex: 341"></div>
+              <div><label class="text-xs font-black uppercase text-gray-500">Agência</label><input id="branchNumber" class="input"></div>
+              <div><label class="text-xs font-black uppercase text-gray-500">Conta</label><input id="accountNumber" class="input"></div>
+              <div><label class="text-xs font-black uppercase text-gray-500">Dígito da conta</label><input id="accountCheckDigit" class="input"></div>
+              <div><label class="text-xs font-black uppercase text-gray-500">Tipo de conta</label><select id="accountType" class="input"><option value="checking">Conta corrente</option><option value="savings">Poupança</option></select></div>
+              <div class="md:col-span-2"><label class="text-xs font-black uppercase text-gray-500">Chave PIX</label><input id="pixKey" class="input" placeholder="CPF/CNPJ, e-mail, telefone ou chave aleatória"></div>
+            </div>
+            <div class="flex justify-end"><button id="btn-save-bank" class="btn btn-primary" type="submit"><i class="fas fa-save"></i> Salvar forma alternativa</button></div>
+          </form>
+        </details>
       </div>
     </main>
   </div>
+
 <script>
-const API_BASE = (window.API_BASE || ((location.hostname === '127.0.0.1' || location.hostname === 'localhost') ? 'http://localhost:3000/api' : 'https://ariana-backend.onrender.com/api')).replace(/\/+$/, '');
-const $ = (id) => document.getElementById(id);
-function getSellerToken(){return localStorage.getItem('seller_token')||''}
-function clearSellerSession(){localStorage.removeItem('seller_token');localStorage.removeItem('seller_profile');location.href='seller_login.html'}
-function authHeaders(extra={}){const t=getSellerToken();return t?{...extra,Authorization:`Bearer ${t}`}:{...extra}}
-function toast(msg,type='info'){const d=document.createElement('div');d.className='toast '+(type==='error'?'bg-red-600':type==='success'?'bg-green-600':'bg-[#2E6DA4]');d.textContent=msg;document.body.appendChild(d);setTimeout(()=>d.remove(),4200)}
+const API_BASE=((location.hostname==='127.0.0.1'||location.hostname==='localhost')?'http://localhost:3000/api':'https://ariana-backend.onrender.com/api').replace(/\/+$/,'');
+const ONBOARDING_BASE='https://ariana-pay-seller-onboarding-shadow.onrender.com';
+const $=(id)=>document.getElementById(id);
+let statusTimer=null;
+let statusDeadline=0;
+
+function token(){return localStorage.getItem('seller_token')||''}
+function authHeaders(extra={}){const t=token();return t?{...extra,Authorization:`Bearer ${t}`}:{...extra}}
+function clearSession(){localStorage.removeItem('seller_token');localStorage.removeItem('seller_profile');location.href='seller_login.html'}
 function onlyDigits(v){return String(v||'').replace(/\D/g,'')}
-function setPill(configured){const el=$('recipient-pill'); if(!el)return; el.className='pill '+(configured?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700'); el.textContent=configured?'Dados cadastrados':'Dados pendentes'}
-function setStatus(configured){$('status-view').textContent=configured?'Dados cadastrados':'Aguardando dados'; $('status-view').className='text-xl font-black mt-1 '+(configured?'text-green-700':'text-amber-700')}
-function readPayload(){
-  const payload={};
-  const canSend=(id)=>{const el=$(id);return !!el && el.dataset.lockedSaved!=='true'};
-  if(canSend('bankHolderName')) payload.bankHolderName=$('bankHolderName').value.trim();
-  if(canSend('bankHolderDocument')) payload.bankHolderDocument=onlyDigits($('bankHolderDocument').value);
-  if(canSend('bankName')) payload.bankName=$('bankName').value.trim();
-  if(canSend('bankCode')) payload.bankCode=onlyDigits($('bankCode').value);
-  if(canSend('accountType')) payload.accountType=$('accountType').value;
-  if(canSend('branchNumber')) payload.branchNumber=onlyDigits($('branchNumber').value);
-  if(canSend('branchCheckDigit')) payload.branchCheckDigit=onlyDigits($('branchCheckDigit').value);
-  if(canSend('accountNumber')) payload.accountNumber=onlyDigits($('accountNumber').value);
-  if(canSend('accountCheckDigit')) payload.accountCheckDigit=onlyDigits($('accountCheckDigit').value);
-  if(canSend('pixKey')) payload.pixKey=$('pixKey').value.trim();
-  return payload;
-}
-function fillBank(bank={}){
-  $('legalName').value=bank.legalName||'';
-  $('document').value=bank.document||'';
-  $('bankHolderName').value=bank.bankHolderName||bank.holderName||'';
-  $('bankHolderDocument').value=bank.bankHolderDocument||bank.holderDocument||'';
-  $('bankName').value=bank.bankName||bank.bank||'';
-  $('bankCode').value=bank.bankCode||'';
-  $('accountType').value=bank.accountType||'checking';
-  $('branchNumber').value=bank.branchNumber||bank.agency||'';
-  $('branchCheckDigit').value=bank.branchCheckDigit||bank.agencyDigit||'';
-  $('accountNumber').value=bank.accountNumber||bank.account||'';
-  $('accountCheckDigit').value=bank.accountCheckDigit||bank.accountDigit||'';
-  $('pixKey').value=bank.pixKey||'';
-}
-function lockSavedBankFields(sellerApproved=false,savedFields={}){
-  const fixedIdentity=['legalName','document'];
-  const bankFields=['bankHolderName','bankHolderDocument','bankName','bankCode','accountType','branchNumber','branchCheckDigit','accountNumber','accountCheckDigit','pixKey'];
-  let missing=0;
+function toast(msg,type='info'){const d=document.createElement('div');d.className='toast '+(type==='error'?'bg-red-600':type==='success'?'bg-green-600':'bg-[#0047AB]');d.textContent=msg;document.body.appendChild(d);setTimeout(()=>d.remove(),4200)}
+async function api(path,opts={}){const r=await fetch(API_BASE+path,{...opts,headers:authHeaders(opts.headers||{})});const d=await r.json().catch(()=>({}));if(r.status===401||r.status===403)clearSession();if(!r.ok)throw new Error(d.error||d.message||`HTTP ${r.status}`);return d}
+async function onboarding(path,opts={}){const r=await fetch(ONBOARDING_BASE+path,{...opts,headers:authHeaders(opts.headers||{})});const d=await r.json().catch(()=>({}));if(r.status===401||r.status===403)clearSession();if(!r.ok)throw new Error(d.error||d.message||`HTTP ${r.status}`);return d}
 
-  fixedIdentity.forEach((id)=>{
-    const el=$(id); if(!el)return;
-    el.readOnly=true;
-    el.disabled=false;
-    el.classList.add('bg-slate-100','text-slate-500','cursor-not-allowed');
-  });
-
-  bankFields.forEach((id)=>{
-    const el=$(id); if(!el)return;
-    const value=String(el.value||'').trim();
-    const wasPersisted=savedFields[id]===true;
-    const shouldLock=!!sellerApproved && wasPersisted && !!value;
-    if(el.tagName==='SELECT') el.disabled=shouldLock;
-    else el.readOnly=shouldLock;
-    el.dataset.lockedSaved=shouldLock?'true':'false';
-    el.classList.toggle('bg-slate-100',shouldLock);
-    el.classList.toggle('text-slate-500',shouldLock);
-    el.classList.toggle('cursor-not-allowed',shouldLock);
-    el.title=shouldLock?'Dado bancário já salvo e bloqueado. Para alterar, solicite ao administrador da Ariana Móveis.':'';
-    if(sellerApproved && !value) missing++;
-  });
-
-  const note=$('bank-lock-note');
-  if(note){
-    note.classList.toggle('hidden',!sellerApproved);
-    if(sellerApproved){
-      note.innerHTML=missing>0
-        ? '<i class="fas fa-lock mr-2"></i>Os dados bancários já salvos estão bloqueados. Preencha somente os campos que ainda estão vazios; depois de salvos, eles também serão bloqueados.'
-        : '<i class="fas fa-lock mr-2"></i>Dados bancários concluídos e bloqueados. Para alterar informações já salvas, solicite ao administrador da Ariana Móveis.';
-    }
-  }
-
-  const btn=$('btn-save');
-  if(btn){
-    if(sellerApproved && missing===0){
-      btn.disabled=true;
-      btn.innerHTML='<i class="fas fa-lock"></i> Dados bancários concluídos';
-    }else if(sellerApproved){
-      btn.disabled=false;
-      btn.innerHTML='<i class="fas fa-save"></i> Salvar dados faltantes';
-    }
-  }
+function connectedUI(data={}){
+  $('mp-status-card').className='rounded-2xl border border-green-200 bg-green-50 p-4 mb-3';
+  $('mp-status-dot').className='status-dot ok';
+  $('mp-status-text').textContent='Conectado';
+  $('mp-status-text').className='font-black text-green-800';
+  $('btn-connect-mp').innerHTML='<i class="fas fa-check-circle"></i> Mercado Pago conectado';
+  $('btn-connect-mp').disabled=true;
+  $('connection-detail').classList.remove('hidden');
+  const id=data.mercadoPagoUserId||'';
+  $('connection-detail-text').textContent=id?`Conta Mercado Pago ${id} autorizada para receber vendas da Ariana Marketplace.`:'Conta autorizada para receber vendas da Ariana Marketplace.';
+  if(id){$('mp-user-badge').textContent=`Conta MP ${id}`;$('mp-user-badge').classList.remove('hidden')}
+  if(data.sandbox===true){$('environment-pill').textContent='Homologação';$('environment-pill').className='pill pill-warn'}else{$('environment-pill').textContent='Produção';$('environment-pill').className='pill pill-ok'}
 }
-async function api(path, opts={}){const res=await fetch(API_BASE+path,{...opts,headers:authHeaders(opts.headers||{})});const data=await res.json().catch(()=>({}));if(res.status===401||res.status===403) clearSellerSession();if(!res.ok)throw new Error(data.error||data.message||`HTTP ${res.status}`);return data}
-async function load(){
-  if(!getSellerToken()) return clearSellerSession();
-  const data=await api('/seller/payment-split');
-  const configured=!!data.bank?.configured;
-  fillBank(data.bank||{});
-  lockSavedBankFields(data.sellerApproved===true,data.savedFields||{});
-  setPill(configured); setStatus(configured);
-  try{const p=JSON.parse(localStorage.getItem('seller_profile')||'{}');$('user-display-name').textContent='Bem-vindo, '+(p.factoryName||p.storeName||p.name||'Seller')+'!'}catch(_){ }
+function pendingUI(data={}){
+  $('mp-status-card').className='rounded-2xl border border-amber-200 bg-amber-50 p-4 mb-3';
+  $('mp-status-dot').className='status-dot wait';
+  $('mp-status-text').textContent='Conexão pendente';
+  $('mp-status-text').className='font-black text-amber-800';
+  $('btn-connect-mp').disabled=false;
+  $('btn-connect-mp').innerHTML='<i class="fas fa-link"></i> Conectar Mercado Pago';
+  if(data.sandbox===false){$('environment-pill').textContent='Produção';$('environment-pill').className='pill pill-ok'}
 }
-$('split-form').addEventListener('submit',async(e)=>{
-  e.preventDefault();
-  const btn=$('btn-save');
-  const old=btn.innerHTML;
-  btn.disabled=true;
-  btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Salvando...';
-  let refreshed=false;
+async function checkMpStatus(silent=false){
+  try{const data=await onboarding('/api/v1/onboarding/mercadopago/status');if(data.connected){connectedUI(data);stopPolling();return true}pendingUI(data);return false}catch(e){if(!silent)toast(e.message,'error');return false}
+}
+function stopPolling(){if(statusTimer){clearInterval(statusTimer);statusTimer=null}}
+function startPolling(){stopPolling();statusDeadline=Date.now()+120000;statusTimer=setInterval(async()=>{if(Date.now()>statusDeadline){stopPolling();$('btn-connect-mp').disabled=false;$('btn-connect-mp').innerHTML='<i class="fas fa-link"></i> Conectar Mercado Pago';return}await checkMpStatus(true)},2000)}
+
+$('btn-connect-mp').addEventListener('click',async()=>{
+  const btn=$('btn-connect-mp');
+  const popup=window.open('','arianaMpOAuth','width=620,height=760,resizable=yes,scrollbars=yes');
+  btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Abrindo Mercado Pago...';
   try{
-    const payload=readPayload();
-    const saved=await api('/seller/payment-split',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    if(saved.seller)localStorage.setItem('seller_profile',JSON.stringify(saved.seller));
-    toast('Dados para repasse salvos com sucesso.','success');
-    await load();
-    refreshed=true;
-  }catch(error){
-    toast(error.message||'Erro ao salvar dados bancários','error');
-  }finally{
-    if(!refreshed){
-      btn.disabled=false;
-      btn.innerHTML=old;
-    }
-  }
+    const data=await onboarding('/api/v1/onboarding/mercadopago/session',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    if(popup){popup.location.href=data.authorizationUrl;popup.focus()}else{window.location.href=data.authorizationUrl;return}
+    $('mp-status-text').textContent='Aguardando autorização';
+    startPolling();
+  }catch(e){if(popup)popup.close();btn.disabled=false;btn.innerHTML='<i class="fas fa-link"></i> Conectar Mercado Pago';toast(e.message||'Não foi possível abrir o Mercado Pago','error')}
 });
-$('btn-sair')?.addEventListener('click',(e)=>{e.preventDefault();clearSellerSession()});
-$('sidebar-toggle')?.addEventListener('click',()=>$('sidebar').classList.toggle('-translate-x-full'));
-if(document.readyState==='loading'){
-  document.addEventListener('DOMContentLoaded',()=>load().catch(e=>toast(e.message,'error')),{once:true});
-}else{
-  load().catch(e=>toast(e.message,'error'));
+
+function fillBank(bank={}){
+  $('legalName').value=bank.legalName||'';$('document').value=bank.document||'';
+  $('bankHolderName').value=bank.bankHolderName||bank.holderName||'';$('bankHolderDocument').value=bank.bankHolderDocument||bank.holderDocument||'';
+  $('bankName').value=bank.bankName||bank.bank||'';$('bankCode').value=bank.bankCode||'';$('branchNumber').value=bank.branchNumber||bank.agency||'';
+  $('accountNumber').value=bank.accountNumber||bank.account||'';$('accountCheckDigit').value=bank.accountCheckDigit||bank.accountDigit||'';$('accountType').value=bank.accountType||'checking';$('pixKey').value=bank.pixKey||'';
 }
-</script>
+function bankPayload(){return{bankHolderName:$('bankHolderName').value.trim(),bankHolderDocument:onlyDigits($('bankHolderDocument').value),bankName:$('bankName').value.trim(),bankCode:onlyDigits($('bankCode').value),branchNumber:onlyDigits($('branchNumber').value),accountNumber:onlyDigits($('accountNumber').value),accountCheckDigit:onlyDigits($('accountCheckDigit').value),accountType:$('accountType').value,pixKey:$('pixKey').value.trim()}}
+$('bank-form').addEventListener('submit',async(e)=>{e.preventDefault();const b=$('btn-save-bank');const old=b.innerHTML;b.disabled=true;b.innerHTML='<i class="fas fa-spinner fa-spin"></i> Salvando...';try{await api('/seller/payment-split',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(bankPayload())});toast('Forma alternativa salva com sucesso.','success')}catch(err){toast(err.message,'error')}finally{b.disabled=false;b.innerHTML=old}});
 
-
-<script id="ariana-seller-professional-ui-js">
-(function(){
+async function load(){
+  if(!token())return clearSession();
   try{
-    var page=(location.pathname.split('/').pop()||'').toLowerCase();
-    document.querySelectorAll('aside a, .side .nav button').forEach(function(el){
-      var href=(el.getAttribute('href')||'').toLowerCase();
-      if(href && href.indexOf(page)>=0){el.classList.add('active');}
-    });
-    document.querySelectorAll('aside#sidebar .px-4:first-child span').forEach(function(el){
-      if(/ariana/i.test(el.textContent||'')) el.textContent='ARIANA MÓVEIS';
-    });
-  }catch(e){}
-})();
-</script>
+    const me=await api('/seller/auth/me');
+    const seller=me.seller||{};
+    $('user-display-name').textContent='Bem-vindo, '+(seller.factoryName||seller.storeName||seller.name||'Seller')+'!';
+    localStorage.setItem('seller_profile',JSON.stringify(seller));
+  }catch(_){ }
+  try{const data=await api('/seller/payment-split');fillBank(data.bank||{})}catch(_){ }
+  await checkMpStatus(true);
+  const q=new URLSearchParams(location.search);
+  if(q.get('mp')==='connected'){toast('Mercado Pago conectado com sucesso.','success');history.replaceState({},'',location.pathname)}
+}
 
+$('btn-sair').addEventListener('click',(e)=>{e.preventDefault();clearSession()});
+$('sidebar-toggle').addEventListener('click',()=>$('sidebar').classList.toggle('open'));
+window.addEventListener('focus',()=>checkMpStatus(true));
+window.addEventListener('beforeunload',stopPolling);
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>load().catch(e=>toast(e.message,'error')),{once:true});else load().catch(e=>toast(e.message,'error'));
+</script>
 </body>
 </html>
