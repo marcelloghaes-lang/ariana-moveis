@@ -1,11 +1,7 @@
-// Ariana Pay — política central de liquidação.
-// Dois modos são suportados por fabricante:
-// 1) Mercado Pago Split 1:1: vendedor recebe na própria conta MP conforme o prazo fixo da conta.
-// 2) Repasse diferido: Ariana controla entrega + 15 dias e então executa payout.
-// O Split 1:1 NÃO garante entrega + 15 dias; essa diferença é sempre explicitada e validada.
-
-export const ARIANA_PAY_SETTLEMENT_HOLD_DAYS = 15;
-export const ARIANA_PAY_SETTLEMENT_TRIGGER = 'delivery_confirmed';
+// Ariana Pay — política central de liquidação do marketplace.
+// Regra vigente: seller e fabricante direto recebem exclusivamente por Mercado Pago Split 1:1.
+// Não há fallback operacional por Pix, Efí, Money Out ou repasse manual.
+// O prazo de liberação segue as condições fixas da própria conta Mercado Pago do recebedor.
 
 function clean(value=''){
   return String(value ?? '').trim();
@@ -25,7 +21,7 @@ function normalizeRelationship(value=''){
 function normalizeRequestedMode(value=''){
   const v=clean(value).toLowerCase();
   if(['mercadopago_native_split','mercadopago_split','mp_split','split','split_1_1','marketplace_split'].includes(v)) return 'mercadopago_native_split';
-  if(['deferred_supplier_payout','deferred','delivery_plus_15','delivery+15','repasse_diferido','efi','money_out'].includes(v)) return 'deferred_supplier_payout';
+  if(['deferred_supplier_payout','deferred','delivery_plus_15','delivery+15','repasse_diferido','efi','money_out','pix','manual_payout'].includes(v)) return 'unsupported_deferred_payout';
   return 'auto';
 }
 
@@ -58,14 +54,16 @@ function mercadoPagoReadiness(manufacturer={}){
 }
 
 export function getSettlementPolicyCapabilities(env=process.env){
-  const directSupplierMpSplitAllowed=flag(env.ARIANA_PAY_DIRECT_SUPPLIER_MP_SPLIT_ALLOWED);
+  const directSupplierMpSplitAllowed=clean(env.ARIANA_PAY_DIRECT_SUPPLIER_MP_SPLIT_ALLOWED)===''
+    ? true
+    : flag(env.ARIANA_PAY_DIRECT_SUPPLIER_MP_SPLIT_ALLOWED);
   const marketplaceMpSplitAllowed=clean(env.ARIANA_PAY_MARKETPLACE_MP_SPLIT_ALLOWED)===''
     ? true
     : flag(env.ARIANA_PAY_MARKETPLACE_MP_SPLIT_ALLOWED);
   const mpSplitExecutionEnabled=flag(env.ARIANA_PAY_MP_SPLIT_EXECUTION_ENABLED);
-  const moneyOutAuthorized=flag(env.ARIANA_PAY_MP_MONEY_OUT_AUTHORIZED);
 
   return {
+    policy:'mercadopago_split_only',
     modes:{
       mercadoPagoNativeSplit:{
         provider:'mercadopago',
@@ -81,25 +79,25 @@ export function getSettlementPolicyCapabilities(env=process.env){
         executionEnabled:mpSplitExecutionEnabled
       },
       deferredSupplierPayout:{
-        mode:'direct_sale_deferred_payout',
-        releaseEngine:'ariana_pay',
-        trigger:ARIANA_PAY_SETTLEMENT_TRIGGER,
-        holdDays:ARIANA_PAY_SETTLEMENT_HOLD_DAYS,
-        deliveryPlus15Guaranteed:true,
-        preferredPayoutRail:moneyOutAuthorized?'mercadopago_money_out':'efi_pix',
-        moneyOutCommercialAuthorizationRequired:true,
-        moneyOutAuthorized,
-        productionExecutionEnabled:flag(env.ARIANA_PAY_PAYOUT_EXECUTION_ENABLED)
+        enabled:false,
+        productionExecutionEnabled:false,
+        disabledReason:'mercadopago_split_only_policy',
+        pixFallback:false,
+        efiFallback:false,
+        moneyOutFallback:false,
+        manualPayoutFallback:false
       }
     },
     requiredControls:{
-      chargebackGuardRequired:true,
-      disputeGuardRequired:true,
+      oauthRequired:true,
+      kyc6Required:true,
       oauthCredentialPersistenceRequiredForProduction:true,
-      explicitReleasePolicyAcceptanceRequiredForNativeSplit:true
+      explicitReleasePolicyAcceptanceRequired:true
     },
     safety:{
       failClosed:true,
+      noMercadoPagoConnectionMeansNoSales:true,
+      pixFallback:false,
       checkoutChanged:false,
       erpChanged:false,
       gustavoChanged:false
@@ -126,36 +124,31 @@ function nativeSplitDecision({relationship,manufacturer,env}){
     routeReady,
     productionAllowed:routeReady&&capabilities.modes.mercadoPagoNativeSplit.executionEnabled,
     executionEnabled:capabilities.modes.mercadoPagoNativeSplit.executionEnabled,
-    holdDays:null,
-    trigger:'mercadopago_account_release',
     releasePolicy:'seller_account_fixed_terms',
     deliveryPlus15Guaranteed:false,
     requiresMerchantOfRecordModel:false,
     marketplaceCommissionPercent:12,
     mercadoPago:mp,
+    pixFallback:false,
     blockers:[...new Set(blockers)],
     reason:routeReady?'mercadopago_native_split_ready':'mercadopago_native_split_not_ready',
-    warning:'No Split 1:1, o prazo de liberação pertence à conta do vendedor e não é controlado por entrega + 15 dias.'
+    warning:'No Split 1:1, o prazo de liberação pertence à conta do vendedor/fabricante e não é controlado por entrega + 15 dias.'
   };
 }
 
-function deferredDecision({relationship,env}){
-  const capabilities=getSettlementPolicyCapabilities(env);
+function unsupportedPayoutDecision(relationship){
   return {
-    ok:true,
+    ok:false,
     relationship,
-    mode:'deferred_supplier_payout',
-    provider:capabilities.modes.deferredSupplierPayout.preferredPayoutRail,
-    routeReady:true,
-    productionAllowed:capabilities.modes.deferredSupplierPayout.productionExecutionEnabled,
-    executionEnabled:capabilities.modes.deferredSupplierPayout.productionExecutionEnabled,
-    holdDays:ARIANA_PAY_SETTLEMENT_HOLD_DAYS,
-    trigger:ARIANA_PAY_SETTLEMENT_TRIGGER,
-    releasePolicy:'delivery_plus_15_days',
-    deliveryPlus15Guaranteed:true,
-    requiresMerchantOfRecordModel:true,
+    mode:'blocked',
+    provider:null,
+    routeReady:false,
+    productionAllowed:false,
+    executionEnabled:false,
     marketplaceCommissionPercent:12,
-    reason:'ariana_controlled_delivery_plus_15_release'
+    pixFallback:false,
+    blockers:['deferred_payout_disabled_by_split_only_policy'],
+    reason:'mercadopago_split_only_policy'
   };
 }
 
@@ -179,26 +172,17 @@ export function chooseSettlementMode({relationshipType='',manufacturer={},env=pr
       mode:'blocked',
       provider:null,
       productionAllowed:false,
+      pixFallback:false,
       reason:'manufacturer_relationship_type_required'
     };
   }
 
-  if(requested==='deferred_supplier_payout'){
-    return deferredDecision({relationship,env});
+  if(requested==='unsupported_deferred_payout'){
+    return unsupportedPayoutDecision(relationship);
   }
 
-  if(requested==='mercadopago_native_split'){
-    return nativeSplitDecision({relationship,manufacturer,env});
-  }
-
-  // AUTO: fornecedor direto usa Split MP quando está completamente apto e aceitou
-  // o prazo fixo da conta. Caso contrário, mantém entrega + 15 dias no repasse diferido.
-  if(relationship==='direct_supplier'){
-    const mpDecision=nativeSplitDecision({relationship,manufacturer,env});
-    return mpDecision.ok?mpDecision:deferredDecision({relationship,env});
-  }
-
-  // Seller marketplace é naturalmente 1:1; se não estiver apto, falha fechado.
+  // AUTO e modo explícito usam exclusivamente o Split Mercado Pago.
+  // Se OAuth/KYC/aceite não estiverem prontos, o fabricante fica bloqueado em vez de cair em Pix.
   return nativeSplitDecision({relationship,manufacturer,env});
 }
 
@@ -221,8 +205,6 @@ export function assertMarketplaceNativeSplitReleaseSafe({manufacturer={},relatio
 export { mercadoPagoReadiness };
 
 export default {
-  ARIANA_PAY_SETTLEMENT_HOLD_DAYS,
-  ARIANA_PAY_SETTLEMENT_TRIGGER,
   getSettlementPolicyCapabilities,
   chooseSettlementMode,
   assertMarketplaceNativeSplitReleaseSafe,
