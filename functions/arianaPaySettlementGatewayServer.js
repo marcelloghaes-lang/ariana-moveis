@@ -3,7 +3,6 @@ dotenv.config();
 
 import crypto from 'crypto';
 import express from 'express';
-import axios from 'axios';
 
 import { assertArianaPaySandboxSafe } from './services/arianaPay/arianaPaySandboxGuardService.js';
 import {
@@ -12,15 +11,10 @@ import {
   assertMarketplaceNativeSplitReleaseSafe,
   mercadoPagoReadiness
 } from './services/arianaPay/arianaPaySettlementPolicyService.js';
-import {
-  buildDirectSalePayoutPlan,
-  directSalePayoutCapabilities,
-  executeDirectSalePayout
-} from './services/arianaPay/arianaPayDirectSalePayoutService.js';
 
 const app=express();
 app.disable('x-powered-by');
-app.use(express.json({limit:'512kb'}));
+app.use(express.json({limit:'256kb'}));
 app.use((_req,res,next)=>{
   res.setHeader('X-Content-Type-Options','nosniff');
   res.setHeader('X-Frame-Options','DENY');
@@ -37,10 +31,6 @@ function safeEqual(a='',b=''){
   const left=Buffer.from(clean(a),'utf8');
   const right=Buffer.from(clean(b),'utf8');
   return left.length>0&&left.length===right.length&&crypto.timingSafeEqual(left,right);
-}
-
-function bool(value){
-  return clean(value).toLowerCase()==='true';
 }
 
 function apiRequired(req,res,next){
@@ -61,23 +51,18 @@ function safeStatus(error={}){
   return value>=400&&value<600?value:500;
 }
 
-function commissionBps(){
-  const n=Number(process.env.ARIANA_PAY_DIRECT_SALE_COMMISSION_BPS||1200);
-  return Number.isInteger(n)&&n>=0&&n<=10000?n:1200;
-}
-
-function withSettlementMode(manufacturer={},mode=''){
+function withSplitMode(manufacturer={}){
   return {
     ...manufacturer,
     settlement:{
       ...(manufacturer.settlement||{}),
-      mode
+      mode:'mercadopago_native_split'
     }
   };
 }
 
-function oauthServiceUrl(){
-  return clean(process.env.ARIANA_PAY_MP_OAUTH_SERVICE_URL)||'https://ariana-pay-marketplace-shadow.onrender.com';
+function arianaPayAppUrl(){
+  return clean(process.env.ARIANA_PAY_APP_URL)||'https://ariana-pay-app-shadow.onrender.com';
 }
 
 export function runSettlementGatewaySelfCheck(){
@@ -92,56 +77,56 @@ export function runSettlementGatewaySelfCheck(){
       ARIANA_PAY_MP_SPLIT_EXECUTION_ENABLED:'false'
     }
   });
-  if(directSplit.ok!==true||directSplit.mode!=='mercadopago_native_split'||directSplit.deliveryPlus15Guaranteed!==false){
+  if(directSplit.ok!==true||directSplit.mode!=='mercadopago_native_split'||directSplit.pixFallback!==false){
     throw new Error('Settlement gateway self-check falhou no Split MP para fabricante direto.');
   }
 
-  const deferred=chooseSettlementMode({
+  const noOAuth=chooseSettlementMode({
     relationshipType:'direct_supplier',
-    manufacturer:{settlement:{mode:'deferred_supplier_payout'}},
-    env:{}
-  });
-  if(deferred.ok!==true||deferred.mode!=='deferred_supplier_payout'||deferred.holdDays!==15||deferred.deliveryPlus15Guaranteed!==true){
-    throw new Error('Settlement gateway self-check falhou na retenção entrega + 15 dias.');
-  }
-
-  const blocked=chooseSettlementMode({
-    relationshipType:'direct_supplier',
-    manufacturer:{settlement:{mode:'mercadopago_native_split',acceptsMercadoPagoFixedRelease:true}},
+    manufacturer:{settlement:{acceptsMercadoPagoFixedRelease:true}},
     env:{ARIANA_PAY_DIRECT_SUPPLIER_MP_SPLIT_ALLOWED:'true'}
   });
-  if(blocked.ok!==false||blocked.mode!=='blocked'||!blocked.blockers.includes('mercadopago_oauth_required')){
+  if(noOAuth.ok!==false||noOAuth.mode!=='blocked'||!noOAuth.blockers.includes('mercadopago_oauth_required')){
     throw new Error('Settlement gateway self-check falhou no bloqueio de fabricante sem OAuth.');
+  }
+
+  const forbiddenDeferred=chooseSettlementMode({
+    relationshipType:'direct_supplier',
+    manufacturer:{settlement:{mode:'deferred_supplier_payout'}},
+    env:{ARIANA_PAY_DIRECT_SUPPLIER_MP_SPLIT_ALLOWED:'true'}
+  });
+  if(forbiddenDeferred.ok!==false||!forbiddenDeferred.blockers.includes('deferred_payout_disabled_by_split_only_policy')){
+    throw new Error('Settlement gateway self-check falhou no bloqueio de repasse fora do Split MP.');
   }
 
   return {
     ok:true,
+    policy:'mercadopago_split_only',
     directSupplierMercadoPagoSplit:true,
-    directSupplierDeferredPayout:true,
-    deliveryPlus15OnlyOnDeferredMode:true,
-    nativeSplitUsesSellerFixedReleaseTerms:true,
-    chargebackGuardDelegatedToPayoutEngine:true
+    marketplaceSellerMercadoPagoSplit:true,
+    deferredPayout:false,
+    pixFallback:false,
+    efiFallback:false,
+    moneyOutFallback:false,
+    technicianNeedsMercadoPagoCredentials:false,
+    financialAuthorizationInsideArianaPay:true
   };
 }
 
 app.get('/health',(_req,res)=>{
   const policy=getSettlementPolicyCapabilities(process.env);
-  const payout=directSalePayoutCapabilities(process.env);
   return res.json({
     ok:true,
     service:'ariana-pay-settlement-gateway',
     mode:'isolated_settlement_control',
-    realMoneyEnabled:policy.modes.mercadoPagoNativeSplit.executionEnabled||payout.payout.executionEnabled,
+    policy:'mercadopago_split_only',
+    realMoneyEnabled:policy.modes.mercadoPagoNativeSplit.executionEnabled,
     directSupplierMercadoPagoSplitAllowed:policy.modes.mercadoPagoNativeSplit.directSupplierAllowed,
     nativeSplitExecutionEnabled:policy.modes.mercadoPagoNativeSplit.executionEnabled,
-    deferredPayoutExecutionEnabled:payout.payout.executionEnabled,
+    deferredPayoutExecutionEnabled:false,
+    pixFallback:false,
     selfCheck:runSettlementGatewaySelfCheck(),
-    policy,
-    payout:{
-      mode:payout.mode,
-      releasePolicy:payout.releasePolicy,
-      provider:payout.payout
-    },
+    policyDetails:policy,
     checkoutChanged:false,
     erpChanged:false,
     gustavoChanged:false
@@ -152,8 +137,7 @@ app.get('/api/v1/settlement/capabilities',apiRequired,(_req,res)=>{
   return res.json({
     ok:true,
     selfCheck:runSettlementGatewaySelfCheck(),
-    policy:getSettlementPolicyCapabilities(process.env),
-    directSupplier:directSalePayoutCapabilities(process.env)
+    policy:getSettlementPolicyCapabilities(process.env)
   });
 });
 
@@ -167,6 +151,8 @@ app.post('/api/v1/settlement/route',apiRequired,(req,res)=>{
   return res.status(decision.ok?200:409).json({
     ok:decision.ok,
     decision,
+    splitOnly:true,
+    pixFallback:false,
     checkoutChanged:false,
     erpChanged:false,
     gustavoChanged:false
@@ -175,7 +161,7 @@ app.post('/api/v1/settlement/route',apiRequired,(req,res)=>{
 
 app.post('/api/v1/settlement/direct-supplier/mp/readiness',apiRequired,(req,res)=>{
   try{
-    const manufacturer=withSettlementMode(req.body?.manufacturer||{},'mercadopago_native_split');
+    const manufacturer=withSplitMode(req.body?.manufacturer||{});
     const readiness=assertMarketplaceNativeSplitReleaseSafe({
       manufacturer,
       relationshipType:'direct_supplier',
@@ -185,7 +171,9 @@ app.post('/api/v1/settlement/direct-supplier/mp/readiness',apiRequired,(req,res)
       ok:true,
       routeReady:true,
       readiness,
-      releaseNotice:'O prazo de liberação é o prazo fixo da conta Mercado Pago do fabricante; entrega + 15 dias não é garantido neste modo.'
+      splitOnly:true,
+      pixFallback:false,
+      releaseNotice:'O prazo de liberação é o prazo fixo da conta Mercado Pago do fabricante; não existe repasse alternativo por Pix no marketplace.'
     });
   }catch(error){
     return res.status(safeStatus(error)).json({
@@ -193,14 +181,16 @@ app.post('/api/v1/settlement/direct-supplier/mp/readiness',apiRequired,(req,res)
       routeReady:false,
       code:error?.code||'ARIANA_PAY_MP_NATIVE_SPLIT_NOT_READY',
       error:error?.message||'Split Mercado Pago ainda não está pronto para este fabricante.',
-      decision:error?.decision||null
+      decision:error?.decision||null,
+      splitOnly:true,
+      pixFallback:false
     });
   }
 });
 
 app.post('/api/v1/settlement/direct-supplier/mp/onboarding-plan',apiRequired,(req,res)=>{
   const body=req.body||{};
-  const manufacturer=withSettlementMode(body.manufacturer||{},'mercadopago_native_split');
+  const manufacturer=withSplitMode(body.manufacturer||{});
   const manufacturerId=clean(
     body.manufacturerId||
     manufacturer.manufacturerId||
@@ -214,7 +204,6 @@ app.post('/api/v1/settlement/direct-supplier/mp/onboarding-plan',apiRequired,(re
 
   const mp=mercadoPagoReadiness(manufacturer);
   const decision=chooseSettlementMode({relationshipType:'direct_supplier',manufacturer,env:process.env});
-  const base=oauthServiceUrl();
   return res.status(decision.ok?200:202).json({
     ok:true,
     manufacturerId,
@@ -222,24 +211,26 @@ app.post('/api/v1/settlement/direct-supplier/mp/onboarding-plan',apiRequired,(re
     requestedMode:'mercadopago_native_split',
     mercadoPago:mp,
     decision,
-    oauth:{
+    financialAuthorization:{
       required:!mp.oauthConnected,
-      service:base,
-      backendEndpoint:`${base}/api/v1/marketplace/mp/oauth/url?manufacturerId=${encodeURIComponent(manufacturerId)}`,
-      authorization:'Ariana backend chama o endpoint protegido, recebe a authorizationUrl e envia o link ao fabricante.',
-      expectedResult:'OAuth retorna user_id do fabricante e access/refresh tokens criptografados para o Ariana Pay.'
+      location:'ariana_pay_app',
+      appUrl:arianaPayAppUrl(),
+      flow:'Ariana gera link seguro no Ariana Pay; dono ou responsável financeiro abre o link e autoriza a conta diretamente no Mercado Pago.',
+      technicianNeedsMercadoPagoCredentials:false,
+      passwordSharedWithAriana:false
     },
     requiredCommercialConfirmations:[
       'Conta Mercado Pago de vendedor ativa',
       'KYC nível 6 confirmado',
-      'OAuth autorizado pelo fabricante',
+      'OAuth autorizado pelo responsável financeiro',
       'Fabricante aceita o prazo fixo de liberação da própria conta Mercado Pago'
     ],
     releasePolicy:{
       type:'seller_account_fixed_terms',
-      deliveryPlus15Guaranteed:false,
-      note:'Se o contrato exigir entrega + 15 dias, selecionar deferred_supplier_payout em vez do Split 1:1.'
+      deliveryPlus15Guaranteed:false
     },
+    splitOnly:true,
+    pixFallback:false,
     checkoutChanged:false,
     erpChanged:false,
     gustavoChanged:false
@@ -255,105 +246,45 @@ app.get('/api/v1/settlement/marketplace/native-split/readiness',apiRequired,(_re
       marketplaceSellerAllowed:policy.modes.mercadoPagoNativeSplit.marketplaceSellerAllowed,
       executionEnabled:policy.modes.mercadoPagoNativeSplit.executionEnabled,
       releasePolicy:policy.modes.mercadoPagoNativeSplit.releasePolicy,
-      deliveryPlus15Guaranteed:false
+      splitOnly:true,
+      pixFallback:false
     },
     note:'A prontidão final é por fabricante e exige OAuth, KYC 6 e aceite do prazo fixo do Mercado Pago.'
   });
 });
 
-app.post('/api/v1/settlement/direct-supplier/payout-plan',apiRequired,(req,res)=>{
-  try{
-    const body=req.body||{};
-    const manufacturer=withSettlementMode(body.manufacturer||{},'deferred_supplier_payout');
-    const decision=chooseSettlementMode({
-      relationshipType:body.relationshipType||'direct_supplier',
-      manufacturer,
-      env:process.env
-    });
-    const plan=buildDirectSalePayoutPlan({
-      manufacturer,
-      order:body.order||{},
-      grossAmount:body.grossAmount,
-      commissionBps:commissionBps(),
-      now:body.now?new Date(body.now):new Date()
-    });
-    return res.json({
-      ok:true,
-      decision,
-      plan,
-      executionPerformed:false,
-      checkoutChanged:false,
-      erpChanged:false,
-      gustavoChanged:false
-    });
-  }catch(error){
-    return res.status(safeStatus(error)).json({ok:false,code:error?.code||'ARIANA_PAY_SETTLEMENT_PLAN_ERROR',error:error?.message||'Falha ao montar plano de liquidação.'});
-  }
-});
+function disabledPayoutResponse(res){
+  return res.status(410).json({
+    ok:false,
+    code:'ARIANA_PAY_DEFERRED_PAYOUT_DISABLED',
+    error:'Repasse por Pix/Efí/Money Out foi desativado. Ariana Marketplace opera exclusivamente com Mercado Pago Split 1:1.',
+    splitOnly:true,
+    pixFallback:false,
+    executionPerformed:false
+  });
+}
 
-app.post('/api/v1/settlement/direct-supplier/payouts/execute',apiRequired,async(req,res)=>{
-  try{
-    if(!bool(process.env.ARIANA_PAY_SETTLEMENT_DEFERRED_EXECUTION_ENABLED)){
-      return res.status(409).json({
-        ok:false,
-        code:'ARIANA_PAY_SETTLEMENT_DEFERRED_EXECUTION_DISABLED',
-        error:'Execução real de repasse diferido permanece desligada no gateway.'
-      });
-    }
-    const body=req.body||{};
-    const manufacturer=withSettlementMode(body.manufacturer||{},'deferred_supplier_payout');
-    const decision=chooseSettlementMode({
-      relationshipType:body.relationshipType||'direct_supplier',
-      manufacturer,
-      env:process.env
-    });
-    const result=await executeDirectSalePayout({
-      axios,
-      env:process.env,
-      manufacturer,
-      order:body.order||{},
-      grossAmount:body.grossAmount,
-      commissionBps:commissionBps(),
-      now:new Date()
-    });
-    return res.status(201).json({
-      ok:true,
-      decision,
-      ...result,
-      checkoutChanged:false,
-      erpChanged:false,
-      gustavoChanged:false
-    });
-  }catch(error){
-    return res.status(safeStatus(error)).json({
-      ok:false,
-      code:error?.code||'ARIANA_PAY_SETTLEMENT_PAYOUT_ERROR',
-      error:error?.message||'Falha no repasse diferido.',
-      providerStatus:error?.providerStatus||undefined,
-      idEnvio:error?.idEnvio||undefined,
-      plan:error?.plan||undefined
-    });
-  }
-});
+app.post('/api/v1/settlement/direct-supplier/payout-plan',apiRequired,(_req,res)=>disabledPayoutResponse(res));
+app.post('/api/v1/settlement/direct-supplier/payouts/execute',apiRequired,(_req,res)=>disabledPayoutResponse(res));
 
 app.use((_req,res)=>res.status(404).json({ok:false,error:'Rota não encontrada.'}));
 
 const port=Number(process.env.PORT||8120);
 
-export function startArianaPaySettlementGateway(){
+export function startArianaPaySettlementGatewayServer(){
   assertArianaPaySandboxSafe(process.env);
   const selfCheck=runSettlementGatewaySelfCheck();
   return app.listen(port,()=>{
     const policy=getSettlementPolicyCapabilities(process.env);
     console.log(`[ariana-pay-settlement] listening on port ${port}`);
-    console.log(`[ariana-pay-settlement] self_check=${selfCheck.ok?'ok':'failed'} direct_supplier_mp_split=true deferred_15d=true`);
-    console.log(`[ariana-pay-settlement] mp_direct_supplier_allowed=${policy.modes.mercadoPagoNativeSplit.directSupplierAllowed} mp_split_execution=${policy.modes.mercadoPagoNativeSplit.executionEnabled} deferred_execution=${bool(process.env.ARIANA_PAY_SETTLEMENT_DEFERRED_EXECUTION_ENABLED)}`);
+    console.log(`[ariana-pay-settlement] self_check=${selfCheck.ok?'ok':'failed'} policy=mercadopago_split_only direct_supplier_mp_split=true pix_fallback=false`);
+    console.log(`[ariana-pay-settlement] mp_split_execution=${policy.modes.mercadoPagoNativeSplit.executionEnabled} deferred_execution=false`);
     console.log('[ariana-pay-settlement] checkout_changed=false erp_changed=false gustavo_changed=false');
   });
 }
 
 if(process.argv[1]&&new URL(import.meta.url).pathname.endsWith(process.argv[1].replace(/\\/g,'/'))){
-  startArianaPaySettlementGateway();
+  startArianaPaySettlementGatewayServer();
 }
 
 export {app};
