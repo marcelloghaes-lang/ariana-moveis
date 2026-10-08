@@ -6,34 +6,74 @@ import axios from 'axios';
 
 const app=express();
 const port=Number(process.env.PORT||10000);
-const shadowBase=String(process.env.ARIANA_PAY_SHADOW_BASE_URL||'https://ariana-pay-shadow.onrender.com').replace(/\/$/,'');
+const shadowBase=String(process.env.ARIANA_PAY_SHADOW_BASE_URL||'https://ariana-pay-shadow.onrender.com').replace(/\/+$/,'');
+const backendBase=String(process.env.ARIANA_PAY_BACKEND_BASE_URL||'https://ariana-backend.onrender.com/api').replace(/\/+$/,'');
+const onboardingBase=String(process.env.ARIANA_PAY_ONBOARDING_BASE_URL||'https://ariana-pay-seller-onboarding-shadow.onrender.com').replace(/\/+$/,'');
+const icon192Base64='iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAIAAADdvvtQAAADI0lEQVR42u3dvVkCQRRGYZiH0L60AJuwCQKboAgtwMLINdSHAPnfud99T0jG7NkzdxbE9er5YwVcyrAEIBAIBAKBQACBQCAQCAQCCAQCgUAgEEAgEAgEAoEAAoFAIBAIBAIBBAKBQCAQCCAQCAQCgUAAgUAgEAgEAggEAoFAIBAIBBDohuy3u7Ne78zaD40fseTp/e3Ii1Cgk2QSHgW6dvM6QIQUCARaKD82NQKBQMvlR4QIxAYC0Y5AAR5wiED/4JEPgS5PyCn2NI+QAokQge6fn+MOdY7QYA8I9IhtS4QI5HoTaNGpWYQIdJujO4cUyJGeQJPlp2eEFEiECPTw/JimOwrk6E6giTYmEeol0L1nZwXCjaPVJEItBFoqPx0cUiBHegJNPP3ER2h0tkeECDTFte88TScL5MkhgcpsPW0jFCuQJ4cEikpaaoQyBZozP5EOjW72ONITqPA1zotQmkCLX6FuEepVoMdc3VbTdJRAju4EcqQnkPwokNlZhGxhs+cnw6EEgaa9Eh32zfwCLXsV4zey8gKZnQnkSE8g+elK4X84l/Q4rq7rtjA3Q0uBfGGeQEi4JYa1hgKJEIHkR4HYc/2JvdwbjNrCPDkkUIvNKylCm7D8ZERov91VeSOj0JombV4xu61jvP26gUCRn7pnREiBTNPpAvnSD4Ec3WMjNIJXH90FarJ5lY6QIdqRPlSgVrOz70SjaYRGxfWKnJ2LvqnhbjNN99rCHN0JJD85ERpJ64vuAvnYq1yEHOMd6VMEkp+Kb3a4q0QofwtrODv7Ur38tJimh3sRtQUyO5eOkGM8KgskP9UjtJlhdQzRdafDiX6l9UAj+SmxOMP9JDwhBfp7t5GpyrIU/qFx2MJAIBAIIBAIBAKBQACBQCAQCPnM8kv131+vLsZZrF8+FYg95RdtWAgOFRaIPdUX0BANAoFAIBAIBBAIBAKBTmOS5/F1WXwBhyVgT/ktjEN1F80fFsIQDQKBQCAQQCAQCAQCgQACgUAgEAgEEAgEAoFAIIBAIBAIBAKBQACBQCAQCAQCCAQCgUAgEEAgEAgEAoGAX34ASs9QijQHmxMAAAAASUVORK5CYII=';
+const icon512Base64='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';
 
 app.disable('x-powered-by');
+app.use(express.json({limit:'96kb'}));
 app.use((req,res,next)=>{
   res.setHeader('X-Content-Type-Options','nosniff');
   res.setHeader('X-Frame-Options','DENY');
   res.setHeader('Referrer-Policy','no-referrer');
   res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=(), payment=()');
-  res.setHeader('Content-Security-Policy',"default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'");
+  res.setHeader('Content-Security-Policy',"default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'");
   next();
 });
 
-const iconSvg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-<rect width="512" height="512" rx="112" fill="#0047AB"/>
-<path d="M114 327 215 129c17-33 65-33 82 0l101 198h-79l-20-43H211l-20 43h-77Zm124-100h35l-18-39-17 39Z" fill="#F4C542"/>
-<rect x="116" y="350" width="280" height="38" rx="19" fill="#fff" opacity=".96"/>
-</svg>`;
+function clean(value=''){
+  return String(value??'').trim();
+}
 
-const icon192Base64='iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAAEQUlEQVR42u3dMXYTMRSF4ZGOO9hXSg6FF8EmKNgEi0iRQ+l9QR0qGg7E8czYo6f7/SVQeKT33yvZiWnLaDw9vy6Yl8u5jfRymmFHshTN0CNZhmbwkSxCM/hIFqEZfCSL0Aw+kkXohh+l2HnGmsFHcht0w4/kNuiGH8kSdMOPZAm64UeyBN3wI1mCbviRLEE3/EiWoBt+JEvQDT+SJehWCcl06Y/kFuiGH8kSOALBEUj6I7UFNAA0gPRHagtoAGgA6Y/UFtAA0ADSH6ktoAGgAYBsARx/EHoM0gCI5mQJHs/Pr9//+ecfv32xOATIG/y//54ILsFxw7/232IbzQV4rOF3JNIAhl8TEAAkIIDhJQEBAALEH120AAEAAiRfXLUAAQACJKa/FiAAQIDk9NcCBAAIkJz+WoAA8cNPAgIABEhOfy1AAIAA0lcLEAAgQHbqagECAARITlstQACAAMkpqwUIED9cJCBAGXz7GwGkqtdLgOT01wIEkKZeNwGSz/5agABS1OsnQGL6awECxKTntSG/hwRagAAAAUZPfy1AABdHz0WApIvvI1sABIhPSS1AgOHTXwsQQDp6TgIkp78WIIBU9LwESE5/LUCAsmm499D6cIwAAAES018LEMBF0DoQIOni60JMAKlnPQgg/bUAAaSddSGA9NcCBJBy1ocA6emvBQgwTLodPYQ+HCMAsJq2PD2/Sn+kHrG64UfyujkCwSVYiiF1/TQANID0Quo6agBoAKmF1PXUANAA0gqp66oBoAGkFFLXt9scJK/zyXa+zQw/ECYYAhrAJltvdwDpP/VzEED6W3cCSE3PQwDpb/0JIC09V7QAM37LQ0UJKreABoAGkP5ZRwQtUFwAF1/74ggk/T1vogDS3/5oAGnouRMFkP72SQNIQc+fKID01wIaQPpZh0QBfOhVU4IKLeBdILgDSH+ktsCpyqa4BBPqHpT7L5K2iiD9rXGpBtAIEl8D7JRW0t+6lm8AjSDxNcCK5JL+1nLKBtAIEl8DXEkx6W/9YgUA3sKPQoAAAAEAAgBZTPE26K8fn+3kAXz49KIBDH8uM6x92bdBDb420ABAogDS377ECmD47Y0jEEAAgAAAAQACAAkCzPDx+6xU3JtuoZG8J45AiKb8r0T6YEzyRzeA45C139YAy7L4xXhEcjk3dwBEQwAQACAAECvA5dwsBdIuwBoAGsASgACOQQg8/mgAaID/mQHMnv4aABrgmiHArOmvAaAB3msKMFv6awBogFuNAWZJ/+sNQAJMPPyOQHAE2moQUDX9398AJMCEw3/bEYgEmGz4b78DkAATDf+6SzAJMMnwrxOABJhk+NcLQAJMMPzbBCABig//dgFIgMLDvyx/vht0L3zHKIoM/n4NoA1QdPj3bwBtgCKDf38BiIACp4rHHVmIgAGP048/sxMBA90jj720kgEHDP04ApDCsB/Mb3ep+3Gog3fDAAAAAElFTkSuQmCC';
-const icon512Base64='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';
+function bearer(req){
+  return clean(req.headers.authorization).replace(/^Bearer\s+/i,'');
+}
+
+function onboardingInternalToken(){
+  return clean(process.env.ARIANA_PAY_ONBOARDING_INTERNAL_TOKEN);
+}
+
+function safeStatus(status,fallback=502){
+  const n=Number(status||0);
+  return n>=400&&n<600?n:fallback;
+}
+
+async function backendRequest(path,options={}){
+  return axios({
+    url:backendBase+path,
+    timeout:18000,
+    validateStatus:()=>true,
+    headers:{'Accept-Encoding':'identity',...(options.headers||{})},
+    ...options
+  });
+}
+
+async function assertAdmin(req){
+  const token=bearer(req);
+  if(!token){
+    const error=new Error('Sessão administrativa ausente.');
+    error.statusCode=401;
+    throw error;
+  }
+  const response=await backendRequest('/admin/enterprise/pro/overview',{
+    method:'GET',
+    headers:{Authorization:'Bearer '+token}
+  });
+  if(Number(response.status)!==200){
+    const error=new Error('Sessão administrativa inválida ou expirada.');
+    error.statusCode=Number(response.status)===403?403:401;
+    throw error;
+  }
+  return token;
+}
 
 const manifest={
-  id:'ariana-pay-shadow',
   name:'Ariana Pay',
   short_name:'Ariana Pay',
-  description:'Aplicativo instalável do Ariana Pay em ambiente shadow seguro.',
+  description:'Central financeira segura da Ariana Móveis',
   start_url:'/',
-  scope:'/',
   display:'standalone',
   background_color:'#f4f7fb',
   theme_color:'#0047AB',
@@ -41,19 +81,13 @@ const manifest={
   categories:['business','finance'],
   icons:[
     {src:'/icon-192.png',sizes:'192x192',type:'image/png',purpose:'any maskable'},
-    {src:'/icon-512.png',sizes:'512x512',type:'image/png',purpose:'any maskable'},
-    {src:'/icon.svg',sizes:'any',type:'image/svg+xml',purpose:'any maskable'}
+    {src:'/icon-512.png',sizes:'512x512',type:'image/png',purpose:'any maskable'}
   ]
 };
 
 app.get('/manifest.webmanifest',(_req,res)=>{
   res.setHeader('Cache-Control','public, max-age=3600');
   res.type('application/manifest+json').send(JSON.stringify(manifest));
-});
-
-app.get('/icon.svg',(_req,res)=>{
-  res.setHeader('Cache-Control','public, max-age=86400');
-  res.type('image/svg+xml').send(iconSvg);
 });
 
 function sendPng(res,base64){
@@ -65,97 +99,188 @@ app.get('/icon-512.png',(_req,res)=>sendPng(res,icon512Base64));
 
 app.get('/sw.js',(_req,res)=>{
   res.setHeader('Cache-Control','no-cache, no-store, must-revalidate');
-  res.type('application/javascript').send(`
-const CACHE='ariana-pay-shell-v2';
-const SHELL=['/','/manifest.webmanifest','/icon.svg','/icon-192.png','/icon-512.png','/offline'];
-self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)));self.skipWaiting();});
-self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))));self.clients.claim();});
-self.addEventListener('fetch',event=>{
-  const url=new URL(event.request.url);
-  if(event.request.method!=='GET'||url.origin!==self.location.origin) return;
-  if(url.pathname.startsWith('/api/')){event.respondWith(fetch(event.request,{cache:'no-store'}));return;}
-  if(event.request.mode==='navigate'){
-    event.respondWith(fetch(event.request,{cache:'no-store'}).catch(()=>caches.match('/offline')));
-    return;
-  }
-  event.respondWith(caches.match(event.request).then(cached=>cached||fetch(event.request).then(response=>{
-    if(response.ok&&['/manifest.webmanifest','/icon.svg','/icon-192.png','/icon-512.png'].includes(url.pathname)){
-      const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(event.request,copy));
-    }
-    return response;
-  })));
-});
-`);
+  res.type('application/javascript').send("const CACHE='ariana-pay-shell-v3';const SHELL=['/','/manifest.webmanifest','/icon-192.png','/icon-512.png','/offline'];self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)));self.skipWaiting();});self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))));self.clients.claim();});self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||u.origin!==self.location.origin)return;if(u.pathname.startsWith('/api/')){e.respondWith(fetch(e.request,{cache:'no-store'}));return;}if(e.request.mode==='navigate'){e.respondWith(fetch(e.request,{cache:'no-store'}).catch(()=>caches.match('/offline')));return;}e.respondWith(caches.match(e.request).then(c=>c||fetch(e.request)));});");
 });
 
 app.get('/offline',(_req,res)=>{
-  res.setHeader('Cache-Control','public, max-age=3600');
-  res.type('html').send(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0047AB"><title>Ariana Pay — Offline</title><style>body{font-family:Arial,sans-serif;background:#f4f7fb;color:#17223b;display:grid;place-items:center;min-height:100vh;margin:0}.box{max-width:560px;margin:20px;background:#fff;border-radius:22px;padding:28px;box-shadow:0 12px 40px #001b4d1a}.tag{display:inline-block;background:#fff4c2;color:#684d00;padding:7px 10px;border-radius:999px;font-weight:800;font-size:12px}h1{color:#0047AB}</style></head><body><main class="box"><span class="tag">MODO OFFLINE</span><h1>Ariana Pay</h1><p>O aplicativo está sem conexão.</p><p>Por segurança, consultas financeiras, conciliação, pagamentos e qualquer operação sensível ficam indisponíveis offline.</p></main></body></html>`);
+  res.type('html').send('<!doctype html><html lang="pt-BR"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ariana Pay offline</title><style>body{font-family:Arial;background:#f4f7fb;color:#17223b;display:grid;place-items:center;min-height:100vh}.box{max-width:560px;background:#fff;border-radius:20px;padding:28px;box-shadow:0 12px 40px #001b4d1a}h1{color:#0047AB}</style><body><main class="box"><h1>Ariana Pay</h1><p>Sem conexão. Operações financeiras e autorizações permanecem indisponíveis offline.</p></main></body></html>');
+});
+
+app.post('/api/admin/login',async(req,res)=>{
+  const email=clean(req.body?.email);
+  const password=String(req.body?.password||'');
+  if(!email||!password) return res.status(400).json({ok:false,error:'Informe e-mail e senha.'});
+  try{
+    const response=await backendRequest('/admin/login',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      data:{email,password}
+    });
+    const data=response.data&&typeof response.data==='object'?response.data:{};
+    if(Number(response.status)<200||Number(response.status)>=300||!clean(data.token)){
+      return res.status(safeStatus(response.status,401)).json({ok:false,error:data.error||data.message||'Login inválido.'});
+    }
+    return res.json({ok:true,token:data.token,name:data.name||data.user?.name||'Administrador',email:data.email||data.user?.email||email});
+  }catch(_){
+    return res.status(503).json({ok:false,error:'Backend administrativo indisponível.'});
+  }
+});
+
+app.get('/api/admin/manufacturers',async(req,res)=>{
+  try{
+    const token=await assertAdmin(req);
+    const qs=new URLSearchParams({limit:'100'});
+    const q=clean(req.query?.q);
+    if(q) qs.set('q',q.slice(0,120));
+    const response=await backendRequest('/admin/enterprise/pro/partners?'+qs.toString(),{
+      method:'GET',headers:{Authorization:'Bearer '+token}
+    });
+    const data=response.data&&typeof response.data==='object'?response.data:{};
+    if(Number(response.status)<200||Number(response.status)>=300){
+      return res.status(safeStatus(response.status)).json({ok:false,error:data.error||'Não foi possível listar fabricantes.'});
+    }
+    const partners=Array.isArray(data.partners)?data.partners:[];
+    return res.json({ok:true,items:partners.map(p=>({
+      id:clean(p.id||p._id||p.requestId),
+      requestId:clean(p.requestId),
+      companyName:clean(p.companyName),
+      tradeName:clean(p.tradeName),
+      cnpj:clean(p.cnpj),
+      status:clean(p.status),
+      environment:clean(p.environment),
+      sandboxActive:p.sandbox?.active===true,
+      productionActive:p.production?.active===true
+    })).filter(p=>p.id)});
+  }catch(error){
+    return res.status(Number(error.statusCode||500)).json({ok:false,error:error.message||'Não foi possível listar fabricantes.'});
+  }
+});
+
+app.post('/api/admin/financial-authorization/link',async(req,res)=>{
+  try{
+    const token=await assertAdmin(req);
+    const partnerId=clean(req.body?.partnerId);
+    if(!partnerId) return res.status(422).json({ok:false,error:'Selecione um fabricante homologado.'});
+    const partnerResponse=await backendRequest('/admin/enterprise/pro/partners/'+encodeURIComponent(partnerId),{
+      method:'GET',headers:{Authorization:'Bearer '+token}
+    });
+    const partnerData=partnerResponse.data&&typeof partnerResponse.data==='object'?partnerResponse.data:{};
+    if(Number(partnerResponse.status)<200||Number(partnerResponse.status)>=300){
+      return res.status(safeStatus(partnerResponse.status)).json({ok:false,error:partnerData.error||'Fabricante não encontrado.'});
+    }
+    const p=partnerData.partner||{};
+    const manufacturerId=clean(p.requestId||p.id||p._id||partnerId);
+    const manufacturerName=clean(p.tradeName||p.companyName||manufacturerId);
+    const internal=onboardingInternalToken();
+    if(!internal) return res.status(503).json({ok:false,error:'Canal interno do Ariana Pay ainda não configurado.'});
+    const response=await axios.post(onboardingBase+'/api/v1/internal/financial-authorization-links',{
+      manufacturerId,manufacturerName,kind:'direct_manufacturer'
+    },{
+      headers:{Authorization:'Bearer '+internal,'Content-Type':'application/json','Accept-Encoding':'identity'},
+      timeout:15000,validateStatus:()=>true
+    });
+    const data=response.data&&typeof response.data==='object'?response.data:{};
+    if(Number(response.status)<200||Number(response.status)>=300){
+      return res.status(safeStatus(response.status)).json({ok:false,error:data.error||'Não foi possível gerar o link.'});
+    }
+    return res.status(201).json({
+      ok:true,manufacturerId:data.manufacturerId,manufacturerName:data.manufacturerName,
+      authorizationPageUrl:data.authorizationPageUrl,expiresAt:data.expiresAt,
+      provider:'mercadopago',model:'split_1_1',commissionPercent:12,pixFallback:false,realMoney:false
+    });
+  }catch(error){
+    return res.status(Number(error.statusCode||500)).json({ok:false,error:error.message||'Não foi possível gerar o link de autorização.'});
+  }
+});
+
+app.get('/api/financial-authorization/status',async(req,res)=>{
+  const token=clean(req.query?.token);
+  if(!token) return res.status(400).json({ok:false,error:'Link de autorização ausente.'});
+  try{
+    const response=await axios.get(onboardingBase+'/api/v1/public/financial-authorization/'+encodeURIComponent(token)+'/status',{
+      timeout:15000,validateStatus:()=>true,headers:{'Accept-Encoding':'identity'}
+    });
+    return res.status(safeStatus(response.status,200)).json(response.data||{ok:false,error:'Resposta inválida.'});
+  }catch(_){
+    return res.status(503).json({ok:false,error:'Serviço de autorização indisponível.'});
+  }
+});
+
+app.post('/api/financial-authorization/start',async(req,res)=>{
+  const token=clean(req.body?.token);
+  if(!token) return res.status(400).json({ok:false,error:'Link de autorização ausente.'});
+  try{
+    const response=await axios.post(onboardingBase+'/api/v1/public/financial-authorization/'+encodeURIComponent(token)+'/start',{}, {
+      timeout:15000,validateStatus:()=>true,headers:{'Content-Type':'application/json','Accept-Encoding':'identity'}
+    });
+    return res.status(safeStatus(response.status,200)).json(response.data||{ok:false,error:'Resposta inválida.'});
+  }catch(_){
+    return res.status(503).json({ok:false,error:'Serviço de autorização indisponível.'});
+  }
 });
 
 app.get('/api/app/status',async(_req,res)=>{
   res.setHeader('Cache-Control','no-store');
   try{
-    const response=await axios.get(`${shadowBase}/health`,{timeout:12000,validateStatus:()=>true});
+    const response=await axios.get(shadowBase+'/health',{timeout:12000,validateStatus:()=>true,headers:{'Accept-Encoding':'identity'}});
     const data=response?.data&&typeof response.data==='object'?response.data:{};
     return res.status(response.status>=200&&response.status<500?200:503).json({
       ok:response.status>=200&&response.status<300&&data.ok===true,
-      app:'ariana-pay-pwa',
-      mode:'isolated_shadow',
-      readyForRealMoney:false,
-      shadowOnline:response.status>=200&&response.status<500,
-      shadowReady:data.ok===true,
-      safetyViolations:Array.isArray(data.safetyViolations)?data.safetyViolations:[],
-      productionSampleAuditConfigured:data.productionSampleAuditConfigured===true
+      app:'ariana-pay-pwa',mode:'isolated_shadow',readyForRealMoney:false,
+      shadowOnline:response.status>=200&&response.status<500,shadowReady:data.ok===true,
+      financialOwnerFlow:true,technicianMercadoPagoCredentialsRequired:false,
+      splitOnly:true,pixFallback:false
     });
-  }catch(error){
-    return res.status(503).json({
-      ok:false,
-      app:'ariana-pay-pwa',
-      mode:'isolated_shadow',
-      readyForRealMoney:false,
-      shadowOnline:false,
-      error:'Ariana Pay shadow indisponível no momento.'
-    });
+  }catch(_){
+    return res.status(503).json({ok:false,app:'ariana-pay-pwa',mode:'isolated_shadow',readyForRealMoney:false,shadowOnline:false,financialOwnerFlow:true});
   }
 });
 
-app.get('/health',(_req,res)=>res.json({ok:true,service:'ariana-pay-app',mode:'isolated_shadow',readyForRealMoney:false}));
+app.get('/health',(_req,res)=>res.json({
+  ok:true,service:'ariana-pay-app',mode:'isolated_shadow',readyForRealMoney:false,
+  financialOwnerFlow:true,technicianMercadoPagoCredentialsRequired:false,splitOnly:true,pixFallback:false,
+  onboardingInternalConfigured:Boolean(onboardingInternalToken())
+}));
+
+function appStyles(){
+  return ':root{font-family:Inter,Arial,sans-serif;color:#17223b;background:#f4f7fb}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:linear-gradient(180deg,#0047AB 0 190px,#f4f7fb 190px);padding:18px 16px 30px}.top{max-width:900px;margin:auto;color:#fff;display:flex;align-items:center;gap:14px;padding:8px 4px 28px}.logo{width:54px;height:54px;border-radius:15px}.top h1{margin:0;font-size:25px}.top p{margin:4px 0 0;opacity:.88}.wrap{max-width:900px;margin:auto}.card{background:#fff;border-radius:22px;padding:22px;box-shadow:0 12px 35px #001b4d18;margin-bottom:15px}.badge{display:inline-flex;align-items:center;gap:7px;background:#fff3bf;color:#674d00;border-radius:999px;padding:7px 11px;font-weight:800;font-size:12px}.status{display:flex;justify-content:space-between;gap:14px;align-items:center}.muted{color:#64748b;font-size:14px;line-height:1.5}.safe{background:#eef6ff;border-left:4px solid #0047AB}.greenbox{background:#ecfdf3;border-left:4px solid #16803d}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.field{margin:12px 0}.field label{display:block;font-weight:800;font-size:12px;margin-bottom:6px}.field input,.field select{width:100%;min-height:45px;border:1px solid #ccd7e7;border-radius:12px;padding:10px 12px;font:inherit;background:#fff}.btn{border:0;border-radius:13px;background:#0047AB;color:#fff;font-weight:800;padding:13px 16px;cursor:pointer;font-size:14px}.btn.secondary{background:#fff;color:#0047AB;border:1px solid #aac0db}.btn:disabled{opacity:.55;cursor:wait}.full{width:100%}.hidden{display:none!important}.ok{color:#087443}.bad{color:#b42318}.linkbox{word-break:break-all;background:#f8fafc;border:1px solid #dbe3ee;border-radius:12px;padding:12px;font-size:12px;margin-top:12px}.install{margin-top:12px}.tools a{display:block;border:1px solid #e3e8f1;border-radius:15px;padding:14px;text-decoration:none;color:#17223b}.tools b{display:block;color:#0047AB;margin-bottom:5px}.foot{text-align:center;color:#748094;font-size:12px;padding:10px}@media(max-width:650px){body{background:linear-gradient(180deg,#0047AB 0 170px,#f4f7fb 170px)}.grid{grid-template-columns:1fr}.card{padding:18px}.top h1{font-size:22px}.status{align-items:flex-start;flex-direction:column}}';
+}
 
 app.get('/',(_req,res)=>{
   res.setHeader('Cache-Control','no-store');
-  res.type('html').send(`<!doctype html>
-<html lang="pt-BR"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0047AB"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="Ariana Pay">
-<link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon-192.png"><link rel="apple-touch-icon" href="/icon-192.png">
-<title>Ariana Pay</title>
-<style>
-:root{font-family:Inter,Arial,sans-serif;color:#17223b;background:#f4f7fb}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:linear-gradient(180deg,#0047AB 0 190px,#f4f7fb 190px);padding:max(18px,env(safe-area-inset-top)) 16px 28px}.top{max-width:850px;margin:auto;color:#fff;display:flex;align-items:center;gap:14px;padding:10px 4px 26px}.logo{width:54px;height:54px;border-radius:15px;background:#fff;padding:6px}.top h1{margin:0;font-size:25px}.top p{margin:4px 0 0;opacity:.88}.wrap{max-width:850px;margin:auto}.card{background:#fff;border-radius:22px;padding:22px;box-shadow:0 12px 35px #001b4d18;margin-bottom:15px}.badge{display:inline-flex;align-items:center;gap:7px;background:#fff3bf;color:#674d00;border-radius:999px;padding:7px 11px;font-weight:800;font-size:12px}.dot{width:9px;height:9px;border-radius:50%;background:#b88600}.status{display:flex;justify-content:space-between;gap:14px;align-items:center}.status strong{font-size:18px}.muted{color:#64748b;font-size:14px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}.tile{border:1px solid #e3e8f1;border-radius:16px;padding:15px;text-decoration:none;color:#17223b;background:#fff}.tile b{display:block;color:#0047AB;margin-bottom:5px}.safe{background:#eef6ff;border-left:4px solid #0047AB}.install{width:100%;border:0;border-radius:14px;background:#0047AB;color:#fff;font-weight:800;padding:14px 18px;font-size:15px;cursor:pointer;margin-top:14px}.install[hidden]{display:none}.refresh{border:1px solid #ccd7e7;background:#fff;border-radius:10px;padding:9px 12px;font-weight:700;cursor:pointer}.foot{text-align:center;color:#748094;font-size:12px;padding:10px}.ok{color:#087443}.bad{color:#b42318}@media(max-width:600px){body{background:linear-gradient(180deg,#0047AB 0 170px,#f4f7fb 170px)}.grid{grid-template-columns:1fr}.card{padding:18px}.top h1{font-size:22px}}
-</style></head><body>
-<header class="top"><img class="logo" src="/icon-192.png" alt="Ariana Pay"><div><h1>Ariana Pay</h1><p>Central segura de validação e operações financeiras</p></div></header>
+  res.type('html').send(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0047AB"><meta name="mobile-web-app-capable" content="yes"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon-192.png"><link rel="apple-touch-icon" href="/icon-192.png"><title>Ariana Pay</title><style>${appStyles()}</style></head><body>
+<header class="top"><img class="logo" src="/icon-192.png" alt="Ariana Pay"><div><h1>Ariana Pay</h1><p>Central financeira da Ariana Marketplace</p></div></header>
 <main class="wrap">
-<section class="card"><span class="badge"><span class="dot"></span> SHADOW / HOMOLOGAÇÃO</span><h2>Aplicativo Ariana Pay</h2><p class="muted">Esta instalação ainda não movimenta dinheiro real. A ativação financeira de produção continua bloqueada até autorização específica.</p><button id="install" class="install" hidden>Instalar Ariana Pay neste aparelho</button><p id="iosHelp" class="muted" hidden>No iPhone/iPad: abra no Safari, toque em Compartilhar e depois em “Adicionar à Tela de Início”.</p></section>
-<section class="card"><div class="status"><div><div class="muted">Estado do ambiente</div><strong id="state">Consultando...</strong></div><button class="refresh" id="refresh">Atualizar</button></div><div id="details" class="muted" style="margin-top:10px"></div></section>
-<section class="card safe"><b>Proteção ativa</b><p class="muted">O app não armazena telas financeiras para uso offline. APIs, conciliação, pagamentos e auditorias usam rede obrigatória e não entram no cache do aplicativo.</p></section>
-<section class="card"><h3>Ferramentas do Ariana Pay Shadow</h3><div class="grid">
-<a class="tile" href="${shadowBase}/3ds-test" target="_blank" rel="noopener"><b>3DS Sandbox</b><span class="muted">Validar autenticação do cartão.</span></a>
-<a class="tile" href="${shadowBase}/reconciliation-test" target="_blank" rel="noopener"><b>Conciliação</b><span class="muted">Comparar pagamento com provedor.</span></a>
-<a class="tile" href="${shadowBase}/dispute-test" target="_blank" rel="noopener"><b>Contestações</b><span class="muted">Simular responsabilidade sem movimentar dinheiro.</span></a>
-<a class="tile" href="${shadowBase}/production-sample-audit" target="_blank" rel="noopener"><b>Auditoria read-only</b><span class="muted">Analisar amostra real sem escrita no banco.</span></a>
-</div></section>
-<div class="foot">Ariana Pay · ambiente isolado · readyForRealMoney=false</div>
-</main>
+<section class="card"><span class="badge">SHADOW / HOMOLOGAÇÃO</span><h2>Mercado Pago Split 1:1</h2><p class="muted">Recebimento do marketplace exclusivamente por Split Mercado Pago. O técnico da integração não precisa conhecer login ou senha da conta financeira da fábrica.</p><button id="install" class="btn install hidden">Instalar Ariana Pay neste aparelho</button></section>
+<section class="card safe"><b>Fluxo separado por responsabilidade</b><p class="muted"><b>Técnico:</b> conclui a homologação da API e do catálogo. <b>Responsável financeiro:</b> recebe um link seguro do Ariana Pay e autoriza a conta Mercado Pago diretamente no ambiente oficial do provedor.</p></section>
+<section id="loginCard" class="card"><h3>Área administrativa do Ariana Pay</h3><p class="muted">Entre com o mesmo acesso administrativo da Ariana. A senha não é armazenada neste aplicativo.</p><form id="loginForm"><div class="field"><label>E-mail</label><input id="email" type="email" autocomplete="username" required></div><div class="field"><label>Senha</label><input id="password" type="password" autocomplete="current-password" required></div><button class="btn full" id="loginBtn" type="submit">Entrar no Ariana Pay</button></form><p id="loginMsg" class="muted"></p></section>
+<section id="manufacturerCard" class="card hidden"><div class="status"><div><h3 style="margin:0">Autorização financeira de fabricantes</h3><p class="muted" style="margin:6px 0 0">Gere o link somente depois que a fábrica estiver cadastrada/homologada tecnicamente.</p></div><button class="btn secondary" id="logoutBtn">Sair</button></div><div class="field"><label>Fabricante</label><select id="manufacturerSelect"><option value="">Carregando fabricantes...</option></select></div><button class="btn full" id="generateBtn">Gerar link para o responsável financeiro</button><div id="linkResult" class="hidden"><div class="greenbox card" style="box-shadow:none;margin-top:14px;margin-bottom:0"><b>Link pronto</b><p class="muted" id="linkMeta"></p><div id="linkValue" class="linkbox"></div><div class="grid" style="margin-top:12px"><button class="btn" id="copyBtn">Copiar link</button><button class="btn secondary" id="openBtn">Abrir para conferir</button></div></div></div><p id="manufacturerMsg" class="muted"></p></section>
+<section class="card"><div class="status"><div><div class="muted">Estado do ambiente</div><strong id="state">Consultando...</strong></div><button class="btn secondary" id="refresh">Atualizar</button></div><div id="details" class="muted" style="margin-top:10px"></div></section>
+<section class="card tools"><h3>Ferramentas Shadow</h3><div class="grid"><a href="${shadowBase}/3ds-test" target="_blank" rel="noopener"><b>3DS Sandbox</b><span class="muted">Autenticação de cartão.</span></a><a href="${shadowBase}/reconciliation-test" target="_blank" rel="noopener"><b>Conciliação</b><span class="muted">Conferência de pagamentos.</span></a></div></section>
+<div class="foot">Ariana Pay · Split Mercado Pago · dinheiro real desabilitado</div></main>
 <script>
-let deferredPrompt=null;
-const installButton=document.getElementById('install');
-window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredPrompt=event;installButton.hidden=false;});
-installButton.addEventListener('click',async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;installButton.hidden=true;});
-window.addEventListener('appinstalled',()=>{installButton.hidden=true;});
-const ua=navigator.userAgent||'';const isiOS=/iphone|ipad|ipod/i.test(ua);if(isiOS&&!window.matchMedia('(display-mode: standalone)').matches)document.getElementById('iosHelp').hidden=false;
-if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(()=>{}));
-async function refresh(){const state=document.getElementById('state');const details=document.getElementById('details');state.textContent='Consultando...';state.className='';try{const r=await fetch('/api/app/status',{cache:'no-store'});const j=await r.json();if(j.ok){state.textContent='Shadow protegido e online';state.className='ok';details.textContent='Dinheiro real continua desabilitado. Auditoria read-only: '+(j.productionSampleAuditConfigured?'configurada':'não configurada')+'.';}else{state.textContent='Shadow requer atenção';state.className='bad';details.textContent='Nenhuma operação financeira foi liberada. readyForRealMoney=false.';}}catch(_){state.textContent='Sem conexão';state.className='bad';details.textContent='Operações financeiras indisponíveis offline.';}}
-document.getElementById('refresh').addEventListener('click',refresh);refresh();
+if('serviceWorker' in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(function(){});});
+var deferredPrompt=null;var installButton=document.getElementById('install');window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();deferredPrompt=e;installButton.classList.remove('hidden');});installButton.addEventListener('click',async function(){if(!deferredPrompt)return;deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;installButton.classList.add('hidden');});
+var adminToken=sessionStorage.getItem('ariana_pay_admin_token')||'';var generatedUrl='';
+function showAdmin(){document.getElementById('loginCard').classList.toggle('hidden',!!adminToken);document.getElementById('manufacturerCard').classList.toggle('hidden',!adminToken);if(adminToken)loadManufacturers();}
+async function api(path,opt){opt=opt||{};opt.headers=opt.headers||{};if(adminToken)opt.headers.Authorization='Bearer '+adminToken;var r=await fetch(path,opt);var j=await r.json().catch(function(){return{ok:false,error:'Resposta inválida.'};});if(!r.ok||j.ok===false)throw new Error(j.error||'Falha na operação.');return j;}
+document.getElementById('loginForm').addEventListener('submit',async function(e){e.preventDefault();var btn=document.getElementById('loginBtn');btn.disabled=true;document.getElementById('loginMsg').textContent='Entrando...';try{var j=await api('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('email').value,password:document.getElementById('password').value})});adminToken=j.token;sessionStorage.setItem('ariana_pay_admin_token',adminToken);document.getElementById('password').value='';document.getElementById('loginMsg').textContent='';showAdmin();}catch(err){document.getElementById('loginMsg').textContent=err.message;}finally{btn.disabled=false;}});
+document.getElementById('logoutBtn').addEventListener('click',function(){adminToken='';sessionStorage.removeItem('ariana_pay_admin_token');showAdmin();});
+async function loadManufacturers(){var s=document.getElementById('manufacturerSelect');var msg=document.getElementById('manufacturerMsg');try{var j=await api('/api/admin/manufacturers');s.innerHTML='<option value="">Selecione...</option>'+j.items.map(function(p){var n=p.tradeName||p.companyName||p.requestId||p.id;var status=p.status?' — '+p.status:'';return '<option value="'+escapeHtml(p.id)+'">'+escapeHtml(n+status)+'</option>';}).join('');msg.textContent=j.items.length?'':'Nenhum fabricante encontrado na homologação Enterprise.';}catch(err){if(/sessão|sessao/i.test(err.message)){adminToken='';sessionStorage.removeItem('ariana_pay_admin_token');showAdmin();return;}s.innerHTML='<option value="">Não foi possível carregar</option>';msg.textContent=err.message;}}
+function escapeHtml(v){return String(v||'').replace(/[&<>"']/g,function(m){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];});}
+document.getElementById('generateBtn').addEventListener('click',async function(){var partnerId=document.getElementById('manufacturerSelect').value;var btn=this;var msg=document.getElementById('manufacturerMsg');if(!partnerId){msg.textContent='Selecione o fabricante.';return;}btn.disabled=true;msg.textContent='Gerando link seguro...';try{var j=await api('/api/admin/financial-authorization/link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({partnerId:partnerId})});generatedUrl=j.authorizationPageUrl;document.getElementById('linkValue').textContent=generatedUrl;document.getElementById('linkMeta').textContent=(j.manufacturerName||j.manufacturerId)+' · válido até '+new Date(j.expiresAt).toLocaleString('pt-BR')+' · comissão Ariana 12%';document.getElementById('linkResult').classList.remove('hidden');msg.textContent='Envie este link ao dono ou responsável financeiro da fábrica.';}catch(err){msg.textContent=err.message;}finally{btn.disabled=false;}});
+document.getElementById('copyBtn').addEventListener('click',async function(){if(!generatedUrl)return;try{await navigator.clipboard.writeText(generatedUrl);this.textContent='Copiado ✓';setTimeout(()=>this.textContent='Copiar link',1800);}catch(_){prompt('Copie o link:',generatedUrl);}});document.getElementById('openBtn').addEventListener('click',function(){if(generatedUrl)window.open(generatedUrl,'_blank','noopener');});
+async function refresh(){var state=document.getElementById('state'),details=document.getElementById('details');state.textContent='Consultando...';try{var r=await fetch('/api/app/status',{cache:'no-store'}),j=await r.json();if(j.ok){state.textContent='Shadow protegido e online';state.className='ok';details.textContent='Autorização financeira separada do técnico: ativa. Split Mercado Pago: único fluxo. Pix alternativo: desativado. Dinheiro real: desativado.';}else{state.textContent='Shadow requer atenção';state.className='bad';details.textContent='Nenhuma operação financeira foi liberada.';}}catch(_){state.textContent='Sem conexão';state.className='bad';details.textContent='Operações financeiras indisponíveis offline.';}}
+document.getElementById('refresh').addEventListener('click',refresh);showAdmin();refresh();
+</script></body></html>`);
+});
+
+app.get('/mercadopago/autorizar',(_req,res)=>{
+  res.setHeader('Cache-Control','no-store');
+  res.type('html').send(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0047AB"><title>Autorizar Mercado Pago · Ariana Pay</title><style>${appStyles()}</style></head><body><header class="top"><img class="logo" src="/icon-192.png" alt="Ariana Pay"><div><h1>Ariana Pay</h1><p>Autorização de recebimentos</p></div></header><main class="wrap"><section class="card"><span class="badge">AUTORIZAÇÃO FINANCEIRA</span><h2 id="title">Carregando fabricante...</h2><p class="muted">Esta etapa deve ser realizada pelo dono da conta ou responsável financeiro. A Ariana e o técnico da integração não terão acesso à sua senha do Mercado Pago.</p><div id="statusBox" class="safe card" style="box-shadow:none"><b id="statusTitle">Verificando...</b><p class="muted" id="statusText"></p></div><button class="btn full" id="connectBtn" disabled>Conectar Mercado Pago</button><button class="btn secondary full" id="verifyBtn" style="margin-top:10px">Já autorizei — verificar agora</button><p class="muted">Ao continuar, será aberta a tela oficial do Mercado Pago para login e consentimento. O recebimento será feito por Split Payments 1:1, com comissão Ariana de 12%.</p></section><section class="card safe"><b>Segurança</b><p class="muted">Não informe sua senha do Mercado Pago à Ariana, ao técnico ou a terceiros. Digite suas credenciais somente na página oficial aberta pelo Mercado Pago.</p></section><div class="foot">Ariana Pay · autorização segura do responsável financeiro</div></main><script>
+var params=new URLSearchParams(location.search);var token=params.get('token')||'';var poll=null;var connectBtn=document.getElementById('connectBtn');var verifyBtn=document.getElementById('verifyBtn');
+async function status(){if(!token){document.getElementById('statusTitle').textContent='Link inválido';document.getElementById('statusText').textContent='Solicite um novo link à Ariana.';return;}try{var r=await fetch('/api/financial-authorization/status?token='+encodeURIComponent(token),{cache:'no-store'}),j=await r.json();if(!r.ok||j.ok===false)throw new Error(j.error||'Não foi possível validar o link.');document.getElementById('title').textContent=j.manufacturerName||'Fabricante';if(j.connected){document.getElementById('statusBox').className='greenbox card';document.getElementById('statusTitle').textContent='Mercado Pago conectado ✓';document.getElementById('statusText').textContent='Conta autorizada com sucesso. Você pode fechar esta página.';connectBtn.disabled=true;connectBtn.textContent='Conectado';if(poll)clearInterval(poll);}else{document.getElementById('statusBox').className='safe card';document.getElementById('statusTitle').textContent='Autorização pendente';document.getElementById('statusText').textContent='Clique abaixo para entrar no Mercado Pago e autorizar a Ariana Marketplace.';connectBtn.disabled=false;}}catch(err){document.getElementById('statusBox').className='card';document.getElementById('statusTitle').textContent='Não foi possível validar';document.getElementById('statusText').textContent=err.message;connectBtn.disabled=true;}}
+connectBtn.addEventListener('click',async function(){this.disabled=true;this.textContent='Abrindo Mercado Pago...';try{var r=await fetch('/api/financial-authorization/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:token})}),j=await r.json();if(!r.ok||j.ok===false)throw new Error(j.error||'Não foi possível iniciar.');var w=window.open(j.authorizationUrl,'mercadopago_oauth');if(!w)location.href=j.authorizationUrl;else{this.textContent='Aguardando autorização...';poll=setInterval(status,3000);}}catch(err){document.getElementById('statusText').textContent=err.message;this.disabled=false;this.textContent='Conectar Mercado Pago';}});verifyBtn.addEventListener('click',status);status();
 </script></body></html>`);
 });
 
@@ -163,4 +288,5 @@ app.use((_req,res)=>res.status(404).json({ok:false,error:'Rota não encontrada.'
 
 app.listen(port,()=>{
   console.log(`[ariana-pay-app] installable PWA shadow on port ${port}; readyForRealMoney=false`);
+  console.log('[ariana-pay-app] financial_owner_flow=true technician_mp_credentials=false split_only=true pix_fallback=false');
 });
