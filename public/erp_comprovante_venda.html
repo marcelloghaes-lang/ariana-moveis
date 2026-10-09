@@ -2,6 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
+
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Comprovante de Compra | Ariana ERP</title>
 <style>
@@ -11,7 +12,22 @@
 .sheet{max-width:920px;margin:10px auto 22px;background:#fff;border:1px solid var(--line);box-shadow:0 8px 28px rgba(18,43,70,.12)}.brandbar{height:8px;background:var(--blue)}.header{display:grid;grid-template-columns:1.35fr .85fr;gap:20px;padding:22px 25px 18px;border-bottom:2px solid var(--blue)}.brand h1{margin:0;color:var(--blue);font-size:26px}.legal{font-size:11px;color:#526173;margin-top:3px}.company-lines{margin-top:10px;line-height:1.55;color:#344357}.docbox{text-align:right}.docbox h2{margin:0;font-size:18px}.code{font-size:14px;font-weight:700;color:var(--blue);margin-top:8px}.generated{margin-top:8px;color:var(--muted);font-size:11px;line-height:1.5}.content{padding:18px 25px 24px}.section{margin-top:15px}.section:first-child{margin-top:0}.section-title{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--blue);font-weight:700;border-bottom:1px solid #cfd9e6;padding-bottom:5px;margin-bottom:9px}.info-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px 24px}.wide{grid-column:1/-1}
 table{width:100%;border-collapse:collapse;margin-top:4px}th{background:#f3f6fa;color:#4f5f73;text-transform:uppercase;font-size:9px;letter-spacing:.04em;padding:8px 7px;border:1px solid #dbe3ec;text-align:left}td{padding:8px 7px;border:1px solid #e0e6ee;vertical-align:top}.right{text-align:right}.center{text-align:center}.sub{font-size:9px;color:#758195;margin-top:2px}.summary{width:360px;margin:10px 0 0 auto}.line{display:flex;justify-content:space-between;padding:4px 0}.line.total{font-size:17px;font-weight:700;color:var(--blue);border-top:2px solid var(--blue);padding-top:7px;margin-top:5px}.payment-box{display:grid;grid-template-columns:repeat(2,1fr);gap:8px 24px;padding:10px 12px;background:#f7f9fc;border:1px solid #dce4ed}.badge{display:inline-block;padding:3px 7px;border-radius:10px;background:#eef5ff;color:var(--blue);font-weight:700}.no-fiscal{text-align:center;margin-top:17px;padding:8px;border:1px dashed #bdc9d8;color:#68758a;font-size:10px}.note{margin-top:18px;padding-top:10px;border-top:1px solid #dce4ed;color:#5d697b;font-size:10px}.loading,.error{max-width:920px;margin:50px auto;background:#fff;border:1px solid var(--line);padding:28px;text-align:center;border-radius:12px}.error{color:#9a2f38}
 @media(max-width:700px){.toolbar{margin:8px}.sheet{margin:8px}.header{grid-template-columns:1fr}.docbox{text-align:left}.info-grid,.payment-box{grid-template-columns:1fr}.wide{grid-column:auto}.summary{width:100%}}
-@media print{@page{size:A4;margin:12mm}body{background:#fff}.toolbar{display:none!important}.sheet{margin:0;max-width:none;border:0;box-shadow:none}.section,table,tr{break-inside:avoid;page-break-inside:avoid}.header{padding-top:0}}
+@media print{
+@page{size:A4 portrait;margin:8mm}
+body{background:#fff!important;font-size:10px!important}
+.toolbar{display:none!important}
+.sheet{margin:0!important;max-width:none!important;border:0!important;box-shadow:none!important}
+.brandbar{height:5px!important}
+.header{gap:14px!important;padding:0 12px 8px!important}
+.brand h1{font-size:22px!important}.legal{font-size:9.5px!important;margin-top:2px!important}.company-lines{margin-top:5px!important;line-height:1.3!important;font-size:9.5px!important}
+.docbox h2{font-size:16px!important}.code{font-size:12px!important;margin-top:4px!important}.generated{margin-top:4px!important;font-size:9.5px!important;line-height:1.3!important}
+.content{padding:8px 12px 10px!important}.section{margin-top:7px!important;break-inside:avoid!important;page-break-inside:avoid!important}.section:first-child{margin-top:0!important}.section-title{font-size:9.5px!important;padding-bottom:3px!important;margin-bottom:4px!important}.info-grid{gap:3px 16px!important}
+table{margin-top:2px!important;break-inside:auto!important;page-break-inside:auto!important}th{font-size:8px!important;padding:3px 4px!important;line-height:1.05!important}td{padding:3px 4px!important;line-height:1.1!important}tr{break-inside:avoid!important;page-break-inside:avoid!important}
+.sub{font-size:8px!important;margin-top:1px!important}.summary{margin-top:5px!important;width:330px!important}.line{padding:2px 0!important}.line.total{font-size:14px!important;padding-top:3px!important;margin-top:2px!important}
+.payment-box{gap:3px 16px!important;padding:5px 8px!important}.badge{padding:2px 5px!important}
+#installments-section{margin-top:6px!important;break-inside:auto!important;page-break-inside:auto!important}#installments-section .section-title{margin-bottom:3px!important}#installments-section table{font-size:9.5px!important}#installments-section th,#installments-section td{padding:2.2px 4px!important;line-height:1.05!important}
+.no-fiscal{margin-top:6px!important;padding:3px!important;font-size:8px!important}.note{margin-top:5px!important;padding-top:4px!important;font-size:8px!important}
+}
 </style>
 <link rel="stylesheet" href="erp-theme.css?v=20260924-1">
 </head>
@@ -84,5 +100,5 @@ async function load(){
 $('print').onclick=()=>window.print();
 if(!token())location.replace('erp_login.html?return='+encodeURIComponent(location.pathname+location.search));else load();
 </script>
-</body>
-</html>
+
+</body></html>
