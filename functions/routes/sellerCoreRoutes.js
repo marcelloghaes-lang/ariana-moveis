@@ -1,4 +1,5 @@
 import registerSellerCoreRoutesImpl from './sellerCoreRoutesImpl.js';
+import createMarketplacePricingService from '../services/marketplacePricingService.js';
 
 function patchSellerOrderQuery(query = {}) {
   if (!query || typeof query !== 'object' || Array.isArray(query)) return query;
@@ -69,8 +70,12 @@ function createSellerScopedOrderModel(Order) {
 }
 
 export default function registerSellerCoreRoutes(app, context = {}) {
+  const pricing = createMarketplacePricingService(context);
+
   return registerSellerCoreRoutesImpl(app, {
     ...context,
-    Order: createSellerScopedOrderModel(context.Order)
+    Order: createSellerScopedOrderModel(context.Order),
+    buildProductBasePriceMapForOrders: context.buildProductBasePriceMapForOrders || pricing.buildProductBasePriceMapForOrders,
+    getSellerSettlementForOrder: context.getSellerSettlementForOrder || pricing.getSellerSettlementForOrder
   });
 }
