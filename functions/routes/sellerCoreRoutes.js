@@ -236,17 +236,6 @@ function sellerIdsForSellerRoute(orderDoc = {}) {
   return Array.from(ids);
 }
 
-function sellerOrderQuery(sellerId = '') {
-  const sid = String(sellerId || '').trim();
-  return {
-    $or: [
-      { sellerIds: sid },
-      { 'items.sellerId': sid },
-      { 'items.seller_id': sid }
-    ]
-  };
-}
-
 function sellerItemsForOrder(orderDoc = {}, sellerId = '') {
   const sid = String(sellerId || '').trim();
   const order = toJSON(orderDoc) || orderDoc || {};
@@ -451,6 +440,8 @@ app.post('/api/seller/products', sellerAuthRequired, async (req, res) => {
     if (!Number.isFinite(payload.stock) || payload.stock < 0) {
       return res.status(400).json({ ok: false, error: 'Estoque inválido' });
     }
+    // Seller novo não publica diretamente no marketplace: o produto entra para
+    // revisão da Ariana. Isso evita catálogo público sem moderação.
     payload.active = false;
     payload.specs = {
       ...(payload.specs && typeof payload.specs === 'object' ? payload.specs : {}),
@@ -479,10 +470,12 @@ app.post('/api/seller/products', sellerAuthRequired, async (req, res) => {
   }
 });
 
+// Upload de imagens do Seller para Cloudinary. O Mongo recebe somente os links.
 if (typeof uploadToCloudinary === 'function' && upload?.single) {
   app.post('/api/seller/uploads', sellerAuthRequired, upload.single('file'), uploadToCloudinary);
   app.post('/api/seller/products/upload', sellerAuthRequired, upload.single('file'), uploadToCloudinary);
 }
+
 
 function sellerSupportTicketForResponse(doc = {}) {
   const item = toJSON(doc) || doc || {};
@@ -523,14 +516,22 @@ async function sellerSupportTicketsForRequest(req) {
   const directTickets = await Ticket.find(directFilter).sort({ createdAt: -1 }).limit(250);
   const seen = new Map(directTickets.map((doc) => [String(doc._id), doc]));
 
-  const orderDocs = await Order.find(sellerOrderQuery(sid))
+  const orderDocs = await Order.find({
+    $or: [{ sellerIds: sid }, { 'items.sellerId': sid }, { 'items.seller_id': sid }]
+  })
     .select('_id id orderNumber numeroPedido orderId')
     .limit(1000);
 
   const refs = new Set();
   for (const orderDoc of orderDocs) {
     const order = toJSON(orderDoc) || {};
-    [order._id, order.id, order.orderNumber, order.numeroPedido, order.orderId].forEach((value) => {
+    [
+      order._id,
+      order.id,
+      order.orderNumber,
+      order.numeroPedido,
+      order.orderId
+    ].forEach((value) => {
       const clean = String(value || '').trim();
       if (clean) refs.add(clean);
     });
@@ -586,7 +587,7 @@ app.get('/api/seller/returns', sellerAuthRequired, async (req, res) => {
 
     const orders = await Order.find({
       $and: [
-        sellerOrderQuery(sid),
+        { $or: [{ sellerIds: sid }, { 'items.sellerId': sid }] },
         { $or: [
         { status: /devol/i },
         { status: /troca/i },
@@ -598,6 +599,9 @@ app.get('/api/seller/returns', sellerAuthRequired, async (req, res) => {
       ]
     }).sort({ updatedAt: -1, createdAt: -1 }).limit(100);
 
+    // Devoluções seguem a mesma regra de isolamento dos pedidos:
+    // o seller recebe somente os itens que pertencem a ele e nenhum detalhe
+    // interno de pagamento/gateway da Ariana.
     return res.json(orders.map((order) => sellerOrderForResponse(order, sid)));
   } catch (error) {
     return res.status(500).json({
@@ -607,6 +611,7 @@ app.get('/api/seller/returns', sellerAuthRequired, async (req, res) => {
   }
 });
 
+// ===== ROTAS SELLER CORRIGIDAS - ESPECÍFICAS ANTES DO CURINGA /api/seller/:sellerId =====
 async function sellerAuthRequired(req, res, next) {
   try {
     const h = req.headers.authorization || '';
@@ -636,16 +641,30 @@ async function sellerAuthRequired(req, res, next) {
 
     if (!seller && userRole === 'seller' && userEmail) {
       const legacySeller = await Seller.findOne({
-        $or: [{ email: userEmail }, { 'metadata.email': userEmail }]
+        $or: [
+          { email: userEmail },
+          { 'metadata.email': userEmail }
+        ]
       });
-      if (legacySeller && (!legacySeller.userId || String(legacySeller.userId) === String(user._id))) {
+
+      if (
+        legacySeller &&
+        (
+          !legacySeller.userId ||
+          String(legacySeller.userId) === String(user._id)
+        )
+      ) {
         seller = legacySeller;
         linkType = 'legacy_seller_email';
       }
     }
 
     if (!seller) {
-      return res.status(403).json({ ok: false, code: 'SELLER_ACCOUNT_NOT_LINKED', error: 'Esta conta não está vinculada a um seller.' });
+      return res.status(403).json({
+        ok: false,
+        code: 'SELLER_ACCOUNT_NOT_LINKED',
+        error: 'Esta conta não está vinculada a um seller.'
+      });
     }
 
     const sellerStatus = String(seller.status || seller.metadata?.status || '').trim().toLowerCase();
@@ -661,21 +680,38 @@ async function sellerAuthRequired(req, res, next) {
       });
     }
 
-    if (user.isActive === false) return res.status(403).json({ ok: false, code: 'SELLER_USER_INACTIVE', error: 'Usuário do seller está inativo.' });
+    if (user.isActive === false) {
+      return res.status(403).json({ ok: false, code: 'SELLER_USER_INACTIVE', error: 'Usuário do seller está inativo.' });
+    }
 
     const directLink =
       String(user.sellerId || '').trim() === String(seller.sellerId || '').trim() ||
       String(seller.userId || '') === String(user._id || '') ||
       linkType === 'legacy_seller_email';
 
-    if (!directLink) return res.status(403).json({ ok: false, code: 'SELLER_ACCOUNT_LINK_MISMATCH', error: 'A conta autenticada não corresponde a este seller.' });
+    if (!directLink) {
+      return res.status(403).json({
+        ok: false,
+        code: 'SELLER_ACCOUNT_LINK_MISMATCH',
+        error: 'A conta autenticada não corresponde a este seller.'
+      });
+    }
 
     let userChanged = false;
-    if (String(user.role || '').toLowerCase() !== 'seller') { user.role = 'seller'; userChanged = true; }
-    if (String(user.sellerId || '').trim() !== String(seller.sellerId || '').trim()) { user.sellerId = seller.sellerId; userChanged = true; }
+    if (String(user.role || '').toLowerCase() !== 'seller') {
+      user.role = 'seller';
+      userChanged = true;
+    }
+    if (String(user.sellerId || '').trim() !== String(seller.sellerId || '').trim()) {
+      user.sellerId = seller.sellerId;
+      userChanged = true;
+    }
     if (userChanged) await user.save();
 
-    if (!seller.userId && user._id) { seller.userId = user._id; await seller.save(); }
+    if (!seller.userId && user._id) {
+      seller.userId = user._id;
+      await seller.save();
+    }
 
     req.user = user;
     req.seller = seller;
@@ -686,7 +722,9 @@ async function sellerAuthRequired(req, res, next) {
   }
 }
 
-function cleanDigitsOnly(value = '') { return String(value || '').replace(/\D/g, ''); }
+function cleanDigitsOnly(value = '') {
+  return String(value || '').replace(/\D/g, '');
+}
 function normalizeSellerBankFields(raw = {}) {
   const bank = raw && typeof raw === 'object' ? raw : {};
   const fullAccountRaw = String(bank.account ?? bank.number ?? bank.bankAccount ?? bank.bankAccountNumber ?? bank.accountNumber ?? '').trim();
@@ -718,12 +756,30 @@ function normalizeSellerBankFields(raw = {}) {
 
 function sanitizeSellerMetadataForResponse(value = {}, depth = 0) {
   if (depth > 6) return null;
-  if (Array.isArray(value)) return value.map((item) => sanitizeSellerMetadataForResponse(item, depth + 1));
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeSellerMetadataForResponse(item, depth + 1));
+  }
   if (!value || typeof value !== 'object') return value;
+
   const out = {};
   for (const [key, item] of Object.entries(value)) {
     const normalizedKey = String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const sensitive = normalizedKey === 'password' || normalizedKey === 'senha' || normalizedKey === 'requestedtemppass' || normalizedKey === 'confirmpassword' || normalizedKey === 'passwordhash' || normalizedKey === 'resetpasswordtokenhash' || normalizedKey === 'resettoken' || normalizedKey === 'authtoken' || normalizedKey === 'accesstoken' || normalizedKey === 'refreshtoken' || normalizedKey === 'jwt' || normalizedKey === 'apikey' || normalizedKey.includes('secret') || normalizedKey.includes('privatekey');
+    const sensitive =
+      normalizedKey === 'password' ||
+      normalizedKey === 'senha' ||
+      normalizedKey === 'requestedtemppass' ||
+      normalizedKey === 'confirmpassword' ||
+      normalizedKey === 'passwordhash' ||
+      normalizedKey === 'resetpasswordtokenhash' ||
+      normalizedKey === 'resettoken' ||
+      normalizedKey === 'authtoken' ||
+      normalizedKey === 'accesstoken' ||
+      normalizedKey === 'refreshtoken' ||
+      normalizedKey === 'jwt' ||
+      normalizedKey === 'apikey' ||
+      normalizedKey.includes('secret') ||
+      normalizedKey.includes('privatekey');
+
     if (sensitive) continue;
     out[key] = sanitizeSellerMetadataForResponse(item, depth + 1);
   }
@@ -753,7 +809,9 @@ function sellerUserForResponse(user) {
 }
 
 function isApprovedSellerStatus(value = '') {
-  return ['approved', 'aprovado', 'active', 'ativo'].includes(String(value || '').trim().toLowerCase());
+  return ['approved', 'aprovado', 'active', 'ativo'].includes(
+    String(value || '').trim().toLowerCase()
+  );
 }
 
 function sellerFieldCanBeCompleted(isApproved, currentValue) {
@@ -761,9 +819,12 @@ function sellerFieldCanBeCompleted(isApproved, currentValue) {
   return !String(currentValue ?? '').trim();
 }
 
+
 function sellerProfile(s, u) {
   const o = toJSON(s) || {};
-  const meta = sanitizeSellerMetadataForResponse(o.metadata && typeof o.metadata === 'object' ? o.metadata : {});
+  const meta = sanitizeSellerMetadataForResponse(
+    o.metadata && typeof o.metadata === 'object' ? o.metadata : {}
+  );
   const rootBank = o.bankAccount && typeof o.bankAccount === 'object' ? o.bankAccount : {};
   const bankFromMeta = meta.bankAccount && typeof meta.bankAccount === 'object' ? meta.bankAccount : {};
   const legacyMetaBankAccount = meta.bankAccount && typeof meta.bankAccount !== 'object' ? String(meta.bankAccount) : '';
@@ -818,75 +879,167 @@ app.post('/api/seller/auth/login', async (req, res) => {
   try {
     const email = String(req.body?.email || '').trim().toLowerCase();
     const password = String(req.body?.password || '');
-    if (!email || !password) return res.status(400).json({ ok: false, error: 'E-mail e senha são obrigatórios' });
+
+    if (!email || !password) {
+      return res.status(400).json({ ok: false, error: 'E-mail e senha são obrigatórios' });
+    }
 
     let user = await User.findOne({ email });
     let seller = null;
     const userRole = String(user?.role || '').trim().toLowerCase();
+
     if (user?.sellerId) seller = await Seller.findOne({ sellerId: user.sellerId });
     if (!seller && user?._id) seller = await Seller.findOne({ userId: user._id });
-    if (!seller && (!user || userRole === 'seller')) seller = await Seller.findOne({ $or: [{ email }, { 'metadata.email': email }] });
-    if (!seller) return res.status(401).json({ ok: false, error: 'Credenciais inválidas' });
-    if (!user) return res.status(403).json({ ok: false, code: 'SELLER_CREDENTIALS_NOT_PROVISIONED', error: 'Seu cadastro existe, mas as credenciais de acesso ainda não foram provisionadas pela Ariana Móveis.' });
+
+    if (!seller && (!user || userRole === 'seller')) {
+      seller = await Seller.findOne({
+        $or: [
+          { email },
+          { 'metadata.email': email }
+        ]
+      });
+    }
+
+    if (!seller) {
+      return res.status(401).json({ ok: false, error: 'Credenciais inválidas' });
+    }
+
+    if (!user) {
+      return res.status(403).json({
+        ok: false,
+        code: 'SELLER_CREDENTIALS_NOT_PROVISIONED',
+        error: 'Seu cadastro existe, mas as credenciais de acesso ainda não foram provisionadas pela Ariana Móveis.'
+      });
+    }
 
     const lockUntil = user.lockedUntil ? new Date(user.lockedUntil) : null;
     if (lockUntil && Number.isFinite(lockUntil.getTime()) && lockUntil.getTime() > Date.now()) {
-      return res.status(429).json({ ok: false, code: 'SELLER_LOGIN_TEMPORARILY_LOCKED', error: 'Muitas tentativas de acesso. Aguarde alguns minutos antes de tentar novamente.' });
+      return res.status(429).json({
+        ok: false,
+        code: 'SELLER_LOGIN_TEMPORARILY_LOCKED',
+        error: 'Muitas tentativas de acesso. Aguarde alguns minutos antes de tentar novamente.'
+      });
     }
 
     let valid = false;
     if (user.passwordHash) {
-      try { valid = await bcrypt.compare(password, String(user.passwordHash || '')); } catch (_) { valid = false; }
+      try {
+        valid = await bcrypt.compare(password, String(user.passwordHash || ''));
+      } catch (_) {
+        valid = false;
+      }
+
+      // Migração única de credenciais muito antigas que ainda estavam em texto puro.
       if (!valid && String(user.passwordHash || '') === password) {
         valid = true;
         user.passwordHash = await bcrypt.hash(password, 10);
       }
     }
+
     if (!valid) {
       const attempts = Math.max(0, Number(user.failedLoginAttempts || 0)) + 1;
       user.failedLoginAttempts = attempts;
-      if (attempts >= 5) { user.lockedUntil = new Date(Date.now() + 15 * 60 * 1000); user.failedLoginAttempts = 0; }
+
+      if (attempts >= 5) {
+        user.lockedUntil = new Date(Date.now() + 15 * 60 * 1000);
+        user.failedLoginAttempts = 0;
+      }
+
       await user.save().catch(() => null);
+
       return res.status(attempts >= 5 ? 429 : 401).json({
         ok: false,
         code: attempts >= 5 ? 'SELLER_LOGIN_TEMPORARILY_LOCKED' : 'SELLER_INVALID_CREDENTIALS',
-        error: attempts >= 5 ? 'Muitas tentativas de acesso. Aguarde 15 minutos antes de tentar novamente.' : 'Credenciais inválidas'
+        error: attempts >= 5
+          ? 'Muitas tentativas de acesso. Aguarde 15 minutos antes de tentar novamente.'
+          : 'Credenciais inválidas'
       });
     }
 
     user.failedLoginAttempts = 0;
     user.lockedUntil = null;
+
     const sellerStatus = String(seller.status || seller.metadata?.status || '').trim().toLowerCase();
     const pendingStatuses = ['pending', 'pending_onboarding', 'pendente', 'aguardando_aprovacao'];
     const blockedStatuses = ['rejected', 'reprovado', 'blocked', 'bloqueado', 'suspended', 'suspenso', 'inactive', 'inativo'];
-    if (pendingStatuses.includes(sellerStatus)) { await user.save().catch(() => null); return res.status(403).json({ ok: false, code: 'SELLER_PENDING_APPROVAL', error: 'Seu cadastro ainda está aguardando aprovação da Ariana Móveis.' }); }
-    if (blockedStatuses.includes(sellerStatus)) { await user.save().catch(() => null); return res.status(403).json({ ok: false, code: 'SELLER_ACCESS_BLOCKED', error: 'Acesso do seller indisponível. Entre em contato com a Ariana Móveis.' }); }
-    if (user.isActive === false) { await user.save().catch(() => null); return res.status(403).json({ ok: false, code: 'SELLER_USER_INACTIVE', error: 'Usuário do seller está inativo.' }); }
 
-    const directAccountLink = String(user.sellerId || '').trim() === String(seller.sellerId || '').trim() || String(seller.userId || '') === String(user._id || '');
-    if (String(user.role || '').toLowerCase() !== 'seller' && !directAccountLink) return res.status(403).json({ ok: false, code: 'SELLER_ACCOUNT_LINK_MISMATCH', error: 'Este e-mail pertence a uma conta que não está vinculada ao seller.' });
-    if (String(user.role || '').toLowerCase() !== 'seller' || !user.sellerId) { user.role = 'seller'; user.sellerId = seller.sellerId || user.sellerId || uid('seller'); }
+    if (pendingStatuses.includes(sellerStatus)) {
+      await user.save().catch(() => null);
+      return res.status(403).json({
+        ok: false,
+        code: 'SELLER_PENDING_APPROVAL',
+        error: 'Seu cadastro ainda está aguardando aprovação da Ariana Móveis.'
+      });
+    }
+
+    if (blockedStatuses.includes(sellerStatus)) {
+      await user.save().catch(() => null);
+      return res.status(403).json({
+        ok: false,
+        code: 'SELLER_ACCESS_BLOCKED',
+        error: 'Acesso do seller indisponível. Entre em contato com a Ariana Móveis.'
+      });
+    }
+
+    if (user.isActive === false) {
+      await user.save().catch(() => null);
+      return res.status(403).json({
+        ok: false,
+        code: 'SELLER_USER_INACTIVE',
+        error: 'Usuário do seller está inativo.'
+      });
+    }
+
+    const directAccountLink =
+      String(user.sellerId || '').trim() === String(seller.sellerId || '').trim() ||
+      String(seller.userId || '') === String(user._id || '');
+
+    if (String(user.role || '').toLowerCase() !== 'seller' && !directAccountLink) {
+      return res.status(403).json({
+        ok: false,
+        code: 'SELLER_ACCOUNT_LINK_MISMATCH',
+        error: 'Este e-mail pertence a uma conta que não está vinculada ao seller.'
+      });
+    }
+
+    if (String(user.role || '').toLowerCase() !== 'seller' || !user.sellerId) {
+      user.role = 'seller';
+      user.sellerId = seller.sellerId || user.sellerId || uid('seller');
+    }
 
     user.lastLoginAt = now();
     user.lastLoginIp = String(req.ip || req.headers['x-forwarded-for'] || '').split(',')[0].trim().slice(0, 120);
     user.lastLoginUserAgent = String(req.headers['user-agent'] || '').slice(0, 1000);
     await user.save();
+
     if (!seller.sellerId) seller.sellerId = user.sellerId || uid('seller');
     if (!seller.userId) seller.userId = user._id;
+
+    // Remove definitivamente restos de senhas/tokens que possam existir em
+    // cadastros antigos antes da correção de onboarding.
     seller.metadata = sanitizeSellerMetadataForResponse(seller.metadata || {});
     seller.markModified('metadata');
     await seller.save();
 
-    return res.json({ ok: true, token: signToken(user), seller: sellerProfile(seller, user), user: sellerUserForResponse(user) });
+    return res.json({
+      ok: true,
+      token: signToken(user),
+      seller: sellerProfile(seller, user),
+      user: sellerUserForResponse(user)
+    });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro no login seller' });
   }
 });
 
 app.get('/api/seller/auth/me', sellerAuthRequired, (req, res) => res.json({ ok: true, seller: sellerProfile(req.seller, req.user), user: sellerUserForResponse(req.user) }));
+
 app.get('/api/seller/profile', sellerAuthRequired, async (req, res) => {
-  try { return res.json({ ok: true, seller: sellerProfile(req.seller, req.user), user: sellerUserForResponse(req.user) }); }
-  catch (e) { return res.status(500).json({ ok: false, error: e.message || 'Erro ao carregar dados cadastrais do seller' }); }
+  try {
+    return res.json({ ok: true, seller: sellerProfile(req.seller, req.user), user: sellerUserForResponse(req.user) });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || 'Erro ao carregar dados cadastrais do seller' });
+  }
 });
 
 async function saveSellerProfileSettings(req, res) {
@@ -894,8 +1047,10 @@ async function saveSellerProfileSettings(req, res) {
     const body = req.body || {};
     const sellerUpdates = {};
     const userUpdates = {};
+
     const sellerStatus = String(req.seller?.status || '').trim().toLowerCase();
     const sellerApproved = ['approved', 'aprovado', 'ativo', 'active'].includes(sellerStatus);
+
     const metadata = { ...(req.seller?.metadata || {}) };
 
     const incomingStoreName = body.factoryName ?? body.storeName;
@@ -908,11 +1063,15 @@ async function saveSellerProfileSettings(req, res) {
         metadata.storeName = name;
       }
     }
+
     const incomingDisplayName = body.displayName ?? body.name;
     if (incomingDisplayName !== undefined) {
       const currentDisplayName = req.seller?.displayName || req.user?.name || '';
-      if (sellerFieldCanBeCompleted(sellerApproved, currentDisplayName)) sellerUpdates.displayName = String(incomingDisplayName || '').trim();
+      if (sellerFieldCanBeCompleted(sellerApproved, currentDisplayName)) {
+        sellerUpdates.displayName = String(incomingDisplayName || '').trim();
+      }
     }
+
     const incomingDocument = body.cnpj ?? body.document ?? body.cpf;
     if (incomingDocument !== undefined) {
       const currentDocument = req.seller?.document || req.user?.cpf || metadata.document || metadata.cnpj || '';
@@ -924,6 +1083,7 @@ async function saveSellerProfileSettings(req, res) {
         metadata.document = doc;
       }
     }
+
     if (body.email !== undefined) {
       const currentEmail = req.seller?.email || req.user?.email || metadata.email || '';
       if (sellerFieldCanBeCompleted(sellerApproved, currentEmail)) {
@@ -933,6 +1093,7 @@ async function saveSellerProfileSettings(req, res) {
         metadata.email = email;
       }
     }
+
     if (body.phone !== undefined) {
       const currentPhone = req.seller?.phone || req.user?.phone || metadata.phone || '';
       if (sellerFieldCanBeCompleted(sellerApproved, currentPhone)) {
@@ -975,6 +1136,7 @@ async function saveSellerProfileSettings(req, res) {
         metadata.state = uf;
       }
     }
+
     if (body.bio !== undefined || body.description !== undefined || body.descricao !== undefined) {
       metadata.bio = String(body.bio ?? body.description ?? body.descricao ?? '').trim();
       metadata.description = metadata.bio;
@@ -1047,8 +1209,10 @@ async function saveSellerProfileSettings(req, res) {
 
     metadata.updatedFromSellerConfigAt = now();
     sellerUpdates.metadata = metadata;
+
     const seller = await Seller.findOneAndUpdate({ sellerId: req.sellerId }, { $set: sellerUpdates }, { new: true });
     const user = Object.keys(userUpdates).length ? await User.findByIdAndUpdate(req.user._id, { $set: userUpdates }, { new: true }) : req.user;
+
     return res.json({ ok: true, lockedLegalData: sellerApproved, seller: sellerProfile(seller, user), user: sellerUserForResponse(user) });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao salvar dados cadastrais do seller' });
@@ -1067,12 +1231,14 @@ app.get('/api/seller/dashboard', sellerAuthRequired, async (req, res) => {
     const produtosAtivos = await Product.countDocuments({ sellerId: sid, active: true });
     const produtosEmRevisao = await Product.countDocuments({ sellerId: sid, active: false, 'specs.sellerApproval.status': 'pending' });
     const produtosReprovados = await Product.countDocuments({ sellerId: sid, active: false, 'specs.sellerApproval.status': 'rejected' });
-    const orderQuery = sellerOrderQuery(sid);
+    const orderQuery = { $or: [{ sellerIds: sid }, { 'items.sellerId': sid }] };
     const orders = await Order.find(orderQuery).sort({ createdAt: -1 }).limit(20);
     const allSellerOrders = await Order.find(orderQuery).select('status statusLabel total items sellerIds createdAt');
     const pendingStatuses = new Set(['pendente', 'pending', 'processing', 'preparando', 'novo', 'new']);
     const approvedStatuses = ['pago', 'approved', 'aprovado', 'paid', 'pagamento_confirmado', 'pagamento confirmado', 'enviado', 'shipped', 'entregue', 'delivered'];
-    const productBaseMap = typeof buildProductBasePriceMapForOrders === 'function' ? await buildProductBasePriceMapForOrders(allSellerOrders) : new Map();
+    const productBaseMap = typeof buildProductBasePriceMapForOrders === 'function'
+      ? await buildProductBasePriceMapForOrders(allSellerOrders)
+      : new Map();
     let pedidosPendentes = 0;
     let vendasTotal = 0;
     for (const orderDoc of allSellerOrders) {
@@ -1080,10 +1246,14 @@ app.get('/api/seller/dashboard', sellerAuthRequired, async (req, res) => {
       const statusText = String(order.statusLabel || order.status || '').toLowerCase();
       if (pendingStatuses.has(String(order.status || '').toLowerCase())) pedidosPendentes += 1;
       if (approvedStatuses.some((s) => statusText.includes(s))) {
-        const settlement = typeof getSellerSettlementForOrder === 'function' ? getSellerSettlementForOrder(order, sid, productBaseMap) : null;
+        // Nunca creditar o total inteiro de um pedido multivendedor a um único seller.
+        // O Dashboard usa a mesma base de liquidação do Extrato/Vendas.
+        const settlement = typeof getSellerSettlementForOrder === 'function'
+          ? getSellerSettlementForOrder(order, sid, productBaseMap)
+          : null;
         if (settlement) vendasTotal += Number(settlement.gross || 0);
         else {
-          const sellerItems = ensureArray(order.items).filter((item) => String(item?.sellerId || item?.seller_id || '') === sid);
+          const sellerItems = ensureArray(order.items).filter((item) => String(item?.sellerId || '') === sid);
           vendasTotal += sellerItems.reduce((sum, item) => sum + Number(item.totalPrice || (Number(item.unitPrice || 0) * Number(item.qty || 1)) || 0), 0);
         }
       }
@@ -1099,7 +1269,9 @@ app.get('/api/seller/notifications', sellerAuthRequired, async (req, res) => {
     const sid = String(req.sellerId || '').trim();
     const rows = await Notification.find({ audience: 'seller', sellerId: sid }).sort({ createdAt: -1 }).limit(Math.min(Number(req.query.limit || 80), 200));
     return res.json(rows.map(toJSON));
-  } catch (e) { return res.status(500).json({ ok: false, error: e.message || 'Erro ao listar notificações do seller' }); }
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || 'Erro ao listar notificações do seller' });
+  }
 });
 app.patch('/api/seller/notifications/:id', sellerAuthRequired, async (req, res) => {
   try {
@@ -1109,21 +1281,25 @@ app.patch('/api/seller/notifications/:id', sellerAuthRequired, async (req, res) 
     const doc = await Notification.findOneAndUpdate({ _id: oid, audience: 'seller', sellerId: sid }, { $set: { status: req.body?.status || 'read' } }, { new: true });
     if (!doc) return res.status(404).json({ ok: false, error: 'Notificação não encontrada' });
     return res.json({ ok: true, notification: toJSON(doc) });
-  } catch (e) { return res.status(500).json({ ok: false, error: e.message || 'Erro ao atualizar notificação do seller' }); }
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || 'Erro ao atualizar notificação do seller' });
+  }
 });
 app.post('/api/seller/notifications/mark-read', sellerAuthRequired, async (req, res) => {
   try {
     const sid = String(req.sellerId || '').trim();
     await Notification.updateMany({ audience: 'seller', sellerId: sid, status: { $ne: 'read' } }, { $set: { status: 'read' } });
     return res.json({ ok: true });
-  } catch (e) { return res.status(500).json({ ok: false, error: e.message || 'Erro ao marcar notificações como lidas' }); }
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || 'Erro ao marcar notificações como lidas' });
+  }
 });
 
 app.get('/api/seller/extrato', sellerAuthRequired, async (req, res) => {
   try {
     const sid = String(req.sellerId || '').trim();
     const approvedStatuses = ['pago', 'paid', 'approved', 'aprovado', 'pagamento_confirmado', 'pagamento confirmado', 'enviado', 'shipped', 'entregue', 'delivered'];
-    const docs = await Order.find(sellerOrderQuery(sid)).sort({ createdAt: -1 }).limit(500);
+    const docs = await Order.find({ $or: [{ sellerIds: sid }, { 'items.sellerId': sid }] }).sort({ createdAt: -1 }).limit(500);
     const productBaseMap = typeof buildProductBasePriceMapForOrders === 'function' ? await buildProductBasePriceMapForOrders(docs) : new Map();
     const rows = docs.map((doc) => {
       const order = toJSON(doc);
@@ -1136,41 +1312,60 @@ app.get('/api/seller/extrato', sellerAuthRequired, async (req, res) => {
       const settlement = order.sellerSettlements && typeof order.sellerSettlements === 'object' ? (order.sellerSettlements[sid] || {}) : {};
       const settlementStatus = String(settlement.status || 'pending').toLowerCase();
       return {
-        id: String(order._id || order.id || ''), orderId: String(order._id || order.id || ''), createdAt: order.createdAt,
-        status: order.status, statusLabel: order.statusLabel, gross: st.gross, chargedGross: st.chargedGross, fee: st.fee,
-        commission: st.commission, label: st.label, net: st.net, commissionPercent: st.commissionPercent, settlementStatus,
-        payoutStatus: settlementStatus, paidAt: settlement.paidAt || null,
+        id: String(order._id || order.id || ''),
+        orderId: String(order._id || order.id || ''),
+        createdAt: order.createdAt,
+        status: order.status,
+        statusLabel: order.statusLabel,
+        gross: st.gross,
+        chargedGross: st.chargedGross,
+        fee: st.fee,
+        commission: st.commission,
+        label: st.label,
+        net: st.net,
+        commissionPercent: st.commissionPercent,
+        settlementStatus,
+        payoutStatus: settlementStatus,
+        paidAt: settlement.paidAt || null,
         paidAmount: settlementStatus === 'paid' ? Number(settlement.amount || st.net || 0) : 0,
         payoutReference: settlement.reference || ''
       };
     }).filter(Boolean);
     return res.json(rows);
-  } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar extrato' }); }
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar extrato' });
+  }
 });
 
 app.get('/api/seller/sales', sellerAuthRequired, async (req, res) => {
   try {
     const sid = String(req.sellerId || '').trim();
-    const docs = await Order.find(sellerOrderQuery(sid)).sort({ createdAt: -1 }).limit(500);
+    const docs = await Order.find({ $or: [{ sellerIds: sid }, { 'items.sellerId': sid }] }).sort({ createdAt: -1 }).limit(500);
     const productBaseMap = typeof buildProductBasePriceMapForOrders === 'function' ? await buildProductBasePriceMapForOrders(docs) : new Map();
     const rows = docs.map((doc) => {
       const order = toJSON(doc);
       const statusText = String(order.statusLabel || order.status || '').toLowerCase();
       const isApproved = ['pago', 'paid', 'approved', 'aprovado', 'pagamento_confirmado', 'pagamento confirmado', 'enviado', 'shipped', 'entregue', 'delivered'].some((s) => statusText.includes(s));
       if (!isApproved) return null;
-      const st = typeof getSellerSettlementForOrder === 'function' ? getSellerSettlementForOrder(order, sid, productBaseMap) : { gross: Number(order.total || 0), fee: 0, label: '', net: Number(order.total || 0) };
+      const st = typeof getSellerSettlementForOrder === 'function'
+        ? getSellerSettlementForOrder(order, sid, productBaseMap)
+        : { gross: Number(order.total || 0), fee: 0, label: '', net: Number(order.total || 0) };
       return { id: String(order._id || order.id || ''), createdAt: order.createdAt, status: order.status, statusLabel: order.statusLabel, total: st.gross, gross: st.gross, fee: st.fee, label: st.label, net: st.net };
     }).filter(Boolean);
     return res.json({ ok: true, items: rows, sales: rows });
-  } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar vendas' }); }
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar vendas' });
+  }
 });
 
 app.get('/api/seller/orders', sellerAuthRequired, async (req, res) => {
   try {
     const sid = req.sellerId;
-    const rows = await Order.find(sellerOrderQuery(sid)).sort({ createdAt: -1 }).limit(500);
+    const rows = await Order.find({ $or: [{ sellerIds: sid }, { 'items.sellerId': sid }] }).sort({ createdAt: -1 }).limit(500);
     return res.json(rows.map((order) => sellerOrderForResponse(order, sid)));
-  } catch (e) { return res.status(500).json({ ok: false, error: e.message || 'Erro ao listar pedidos' }); }
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || 'Erro ao listar pedidos' });
+  }
 });
 app.get('/api/seller/orders/:id', sellerAuthRequired, async (req, res) => {
   try {
@@ -1182,18 +1377,452 @@ app.get('/api/seller/orders/:id', sellerAuthRequired, async (req, res) => {
     const allowed = sellerIdsForSellerRoute(order).includes(sid);
     if (!allowed) return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
     return res.json({ ok: true, order: sellerOrderForResponse(order, sid) });
-  } catch (e) { return res.status(500).json({ ok: false, error: e.message || 'Erro ao carregar pedido' }); }
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || 'Erro ao carregar pedido' });
+  }
+});
+app.get('/api/seller/orders/:id/nfe', sellerAuthRequired, async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.id);
+    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+    const order = await Order.findById(oid);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
+    const sid = String(req.sellerId || '').trim();
+    if (!sellerIdsForSellerRoute(order).includes(sid)) return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
+    const raw = toJSON(order) || {};
+    const fiscalSellerDocs = raw.fiscal?.sellerDocuments && typeof raw.fiscal.sellerDocuments === 'object'
+      ? raw.fiscal.sellerDocuments
+      : {};
+    const legacySellerDocs = raw.sellerDocuments && typeof raw.sellerDocuments === 'object'
+      ? raw.sellerDocuments
+      : {};
+    const docs = fiscalSellerDocs[sid] || legacySellerDocs[sid] || {};
+    return res.json({
+      ok: true,
+      invoice: {
+        number: docs.number || '',
+        serie: docs.serie || '',
+        accessKey: docs.accessKey || '',
+        issuerDocument: docs.issuerDocument || '',
+        status: docs.status || (docs.number || docs.accessKey ? 'received' : 'pending'),
+        submittedAt: docs.submittedAt || null,
+        xmlUrl: docs.xmlUrl || '',
+        danfeUrl: docs.danfeUrl || ''
+      }
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || 'Erro ao consultar NF-e do seller' });
+  }
 });
 
+
+function sellerFiscalSafePart(value = '') {
+  return String(value || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .slice(0, 80) || 'seller';
+}
+
+function sellerFiscalFileIsValid(file, kind) {
+  if (!file) return false;
+  const name = String(file.originalname || '').toLowerCase();
+  const mime = String(file.mimetype || '').toLowerCase();
+
+  if (kind === 'xml') {
+    return name.endsWith('.xml') || mime.includes('xml');
+  }
+
+  if (kind === 'danfe') {
+    return name.endsWith('.pdf') || mime === 'application/pdf';
+  }
+
+  return false;
+}
+
+async function uploadSellerFiscalAsset(file, options = {}) {
+  if (!file?.path) throw new Error('Arquivo fiscal inválido.');
+  if (!cloudinary?.uploader?.upload) throw new Error('Cloudinary indisponível para documentos fiscais.');
+
+  const result = await cloudinary.uploader.upload(file.path, {
+    folder: options.folder,
+    public_id: options.publicId,
+    resource_type: 'raw',
+    overwrite: true,
+    invalidate: true
+  });
+
+  return {
+    url: String(result?.secure_url || result?.url || ''),
+    publicId: String(result?.public_id || ''),
+    bytes: Number(result?.bytes || 0),
+    format: String(result?.format || '')
+  };
+}
+
+if (upload?.fields && cloudinary?.uploader?.upload && fs) {
+  app.post(
+    '/api/seller/orders/:id/nfe',
+    sellerAuthRequired,
+    upload.fields([
+      { name: 'xml', maxCount: 1 },
+      { name: 'danfe', maxCount: 1 }
+    ]),
+    async (req, res) => {
+      const uploadedFiles = [
+        ...(Array.isArray(req.files?.xml) ? req.files.xml : []),
+        ...(Array.isArray(req.files?.danfe) ? req.files.danfe : [])
+      ];
+
+      try {
+        const oid = normalizeObjectId(req.params.id);
+        if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+
+        const order = await Order.findById(oid);
+        if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
+
+        const sid = String(req.sellerId || '').trim();
+        if (!sellerIdsForSellerRoute(order).includes(sid)) {
+          return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
+        }
+
+        const xmlFile = Array.isArray(req.files?.xml) ? req.files.xml[0] : null;
+        const danfeFile = Array.isArray(req.files?.danfe) ? req.files.danfe[0] : null;
+
+        if (!xmlFile && !danfeFile) {
+          return res.status(400).json({
+            ok: false,
+            error: 'Envie pelo menos o XML da NF-e ou o DANFE em PDF.'
+          });
+        }
+
+        if (xmlFile && !sellerFiscalFileIsValid(xmlFile, 'xml')) {
+          return res.status(400).json({ ok: false, error: 'O arquivo XML da NF-e é inválido.' });
+        }
+        if (danfeFile && !sellerFiscalFileIsValid(danfeFile, 'danfe')) {
+          return res.status(400).json({ ok: false, error: 'O DANFE deve ser enviado em PDF.' });
+        }
+
+        const orderId = String(order._id);
+        const folder = `ariana_moveis/seller_nfe/${sellerFiscalSafePart(sid)}/${sellerFiscalSafePart(orderId)}`;
+        const fiscal = order.fiscal && typeof order.fiscal === 'object'
+          ? { ...order.fiscal }
+          : {};
+        const sellerDocuments = fiscal.sellerDocuments && typeof fiscal.sellerDocuments === 'object'
+          ? { ...fiscal.sellerDocuments }
+          : {};
+        const existing = sellerDocuments[sid] && typeof sellerDocuments[sid] === 'object'
+          ? { ...sellerDocuments[sid] }
+          : {};
+
+        let xmlAsset = null;
+        let danfeAsset = null;
+
+        if (xmlFile) {
+          xmlAsset = await uploadSellerFiscalAsset(xmlFile, {
+            folder,
+            publicId: `nfe-${sellerFiscalSafePart(orderId)}.xml`
+          });
+        }
+
+        if (danfeFile) {
+          danfeAsset = await uploadSellerFiscalAsset(danfeFile, {
+            folder,
+            publicId: `danfe-${sellerFiscalSafePart(orderId)}.pdf`
+          });
+        }
+
+        const docs = {
+          ...existing,
+          number: String(req.body?.number || req.body?.numero || existing.number || '').trim(),
+          serie: String(req.body?.serie || existing.serie || '').trim(),
+          accessKey: String(req.body?.accessKey || req.body?.chave || existing.accessKey || '').replace(/\D/g, '').slice(0, 44),
+          issuerDocument: String(req.body?.issuerDocument || req.body?.cnpj || existing.issuerDocument || '').replace(/\D/g, '').slice(0, 14),
+          status: 'received',
+          submittedAt: now(),
+          submittedBySellerId: sid,
+          xmlUrl: xmlAsset?.url || existing.xmlUrl || '',
+          xmlPublicId: xmlAsset?.publicId || existing.xmlPublicId || '',
+          danfeUrl: danfeAsset?.url || existing.danfeUrl || '',
+          danfePublicId: danfeAsset?.publicId || existing.danfePublicId || ''
+        };
+
+        sellerDocuments[sid] = docs;
+        fiscal.sellerDocuments = sellerDocuments;
+        order.fiscal = fiscal;
+        order.markModified('fiscal');
+        await order.save();
+
+        await writeAuditLog({
+          scope: 'seller_nfe',
+          eventType: 'seller_invoice_uploaded',
+          orderId,
+          status: 'success',
+          metadata: {
+            sellerId: sid,
+            number: docs.number,
+            serie: docs.serie,
+            hasXml: Boolean(docs.xmlUrl),
+            hasDanfe: Boolean(docs.danfeUrl)
+          }
+        }).catch(() => null);
+
+        await createAdminNotification({
+          type: 'seller_nfe_uploaded',
+          title: 'NF-e enviada pelo seller',
+          message: `Seller ${req.seller?.storeName || req.seller?.displayName || sid} enviou documentos fiscais do pedido ${orderId}.`,
+          relatedId: orderId,
+          severity: 'info',
+          metadata: { sellerId: sid, number: docs.number, serie: docs.serie }
+        }).catch(() => null);
+
+        return res.json({
+          ok: true,
+          invoice: {
+            number: docs.number,
+            serie: docs.serie,
+            accessKey: docs.accessKey,
+            issuerDocument: docs.issuerDocument,
+            status: docs.status,
+            submittedAt: docs.submittedAt,
+            xmlUrl: docs.xmlUrl,
+            danfeUrl: docs.danfeUrl
+          }
+        });
+      } catch (error) {
+        return res.status(500).json({
+          ok: false,
+          error: error.message || 'Erro ao enviar documentos fiscais do seller'
+        });
+      } finally {
+        for (const file of uploadedFiles) {
+          try {
+            if (file?.path && fs.existsSync(file.path)) fs.unlinkSync(file.path);
+          } catch (_) {}
+        }
+      }
+    }
+  );
+}
+
+app.put('/api/seller/orders/:id/status', sellerAuthRequired, async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.id);
+    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+
+    const order = await Order.findById(oid);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
+
+    const beforeObj = toJSON(order);
+    const sid = String(req.sellerId || '').trim();
+    const sellerIds = sellerIdsForSellerRoute(beforeObj);
+
+    if (!sellerIds.includes(sid)) {
+      return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
+    }
+
+    const requestedStatus = String(req.body?.status || 'processing').trim().toLowerCase();
+    const currentStatus = String(beforeObj.status || beforeObj.statusLabel || '').trim().toLowerCase();
+    const blockedOrderStatuses = ['cancelled','canceled','cancelado','refunded','reembolsado','estornado','delivered','entregue'];
+
+    if (blockedOrderStatuses.some((status) => currentStatus.includes(status))) {
+      return res.status(409).json({
+        ok: false,
+        code: 'SELLER_ORDER_FINALIZED',
+        error: 'Este pedido já está cancelado, reembolsado ou finalizado e não pode ser alterado pelo seller.'
+      });
+    }
+
+    const fulfillableStatuses = ['pago','paid','approved','aprovado','pagamento_confirmado','pagamento confirmado','processing','preparando','shipped','enviado'];
+    if (!fulfillableStatuses.some((status) => currentStatus.includes(status))) {
+      return res.status(409).json({
+        ok: false,
+        code: 'SELLER_ORDER_NOT_PAID',
+        error: 'O seller só pode preparar ou enviar pedidos com pagamento confirmado.'
+      });
+    }
+
+    const allowedSellerStatuses = new Set(['processing', 'preparando', 'shipped', 'enviado']);
+    if (!allowedSellerStatuses.has(requestedStatus)) {
+      return res.status(400).json({
+        ok: false,
+        code: 'SELLER_STATUS_NOT_ALLOWED',
+        error: 'O seller pode alterar o pedido apenas para Em preparação ou Enviado.'
+      });
+    }
+
+    const shipped = ['shipped', 'enviado'].includes(requestedStatus);
+    const normalizedStatus = shipped ? 'shipped' : 'processing';
+    const statusLabel = shipped ? 'Enviado' : 'Em preparação';
+
+    applySellerFulfillment(order, sid, {
+      status: normalizedStatus,
+      statusLabel,
+      ...(shipped ? { shippedAt: now() } : {})
+    });
+
+    order.trackingHistory = ensureArray(order.trackingHistory);
+    order.trackingHistory.push({
+      sellerId: sid,
+      status: normalizedStatus,
+      label: `Seller: ${statusLabel}`,
+      date: now()
+    });
+
+    await order.save();
+
+    await createSellerOrderNotifications(order, {
+      type: 'seller_order_updated',
+      title: '📦 Pedido atualizado',
+      message: `Pedido #${String(order._id).slice(-8).toUpperCase()} atualizado pelo seller para ${statusLabel}`,
+      severity: 'info',
+      origin: 'seller_status_route'
+    });
+
+    await createAdminNotification({
+      type: 'seller_order_updated',
+      title: 'Seller atualizou pedido',
+      message: `Seller ${req.seller?.storeName || req.seller?.displayName || sid} atualizou a parte dele no pedido ${order._id} para ${statusLabel}`,
+      relatedId: String(order._id),
+      severity: 'info',
+      metadata: { sellerId: sid, origin: 'seller_status_route' }
+    });
+
+    const afterObj = toJSON(order);
+    const customerWhatsapp = await waMaybeNotifyOrderStatusChange(
+      String(order._id),
+      beforeObj,
+      afterObj,
+      'seller_status_route'
+    );
+    const adminWhatsapp = await waNotifyAdminOrderStatusChange(
+      String(order._id),
+      beforeObj,
+      afterObj,
+      'seller_status_route_admin'
+    );
+
+    return res.json({
+      ok: true,
+      order: sellerOrderForResponse(order, sid),
+      whatsapp: customerWhatsapp,
+      adminWhatsapp
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || 'Erro ao atualizar status' });
+  }
+});
+app.post('/api/seller/orders/:id/ship', sellerAuthRequired, async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.id);
+    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+
+    const trackingCode = String(req.body?.trackingCode || req.body?.tracking || '').trim();
+    const carrier = String(req.body?.carrier || '').trim();
+
+    const order = await Order.findById(oid);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
+
+    const beforeObj = toJSON(order);
+    const currentStatus = String(beforeObj.status || beforeObj.statusLabel || '').trim().toLowerCase();
+    const blockedOrderStatuses = ['cancelled','canceled','cancelado','refunded','reembolsado','estornado','delivered','entregue'];
+
+    if (blockedOrderStatuses.some((status) => currentStatus.includes(status))) {
+      return res.status(409).json({
+        ok: false,
+        code: 'SELLER_ORDER_FINALIZED',
+        error: 'Este pedido já está cancelado, reembolsado ou finalizado e não pode ser enviado pelo seller.'
+      });
+    }
+
+    const fulfillableStatuses = ['pago','paid','approved','aprovado','pagamento_confirmado','pagamento confirmado','processing','preparando','shipped','enviado'];
+    if (!fulfillableStatuses.some((status) => currentStatus.includes(status))) {
+      return res.status(409).json({
+        ok: false,
+        code: 'SELLER_ORDER_NOT_PAID',
+        error: 'O seller só pode enviar pedidos com pagamento confirmado.'
+      });
+    }
+
+    const sid = String(req.sellerId || '').trim();
+    const sellerIds = sellerIdsForSellerRoute(beforeObj);
+    if (!sellerIds.includes(sid)) {
+      return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
+    }
+
+    applySellerFulfillment(order, sid, {
+      status: 'shipped',
+      statusLabel: 'Enviado',
+      carrier,
+      trackingCode,
+      shippedAt: now()
+    });
+
+    order.trackingHistory = ensureArray(order.trackingHistory);
+    order.trackingHistory.push({
+      sellerId: sid,
+      status: 'shipped',
+      label: 'Pedido enviado pelo seller',
+      carrier,
+      trackingCode,
+      date: now()
+    });
+
+    await order.save();
+    const afterObj = toJSON(order);
+
+    await createSellerOrderNotifications(order, {
+      type: 'seller_order_shipped',
+      title: 'Pedido marcado como enviado',
+      message: `Pedido #${String(order._id).slice(-8).toUpperCase()} enviado pelo seller${trackingCode ? ` - Rastreio: ${trackingCode}` : ''}`,
+      severity: 'success',
+      origin: 'seller_ship_route'
+    });
+
+    await createAdminNotification({
+      type: 'seller_order_shipped',
+      title: 'Seller marcou pedido como enviado',
+      message: `Seller ${req.seller?.storeName || req.seller?.displayName || sid} marcou a parte dele no pedido ${order._id} como enviada${trackingCode ? ` - Rastreio: ${trackingCode}` : ''}`,
+      relatedId: String(order._id),
+      severity: 'success',
+      metadata: { sellerId: sid, origin: 'seller_ship_route' }
+    });
+
+    const customerWhatsapp = await waMaybeNotifyOrderStatusChange(
+      String(order._id),
+      beforeObj,
+      afterObj,
+      'seller_ship_route'
+    );
+    const adminWhatsapp = await waNotifyAdminOrderStatusChange(
+      String(order._id),
+      beforeObj,
+      afterObj,
+      'seller_ship_route_admin'
+    );
+
+    return res.json({
+      ok: true,
+      order: sellerOrderForResponse(order, sid),
+      whatsapp: customerWhatsapp,
+      adminWhatsapp
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || 'Erro ao marcar enviado' });
+  }
+});
+// ===== ROTAS DE PRODUTOS DO SELLER - DEVEM VIR ANTES DE /api/seller/:sellerId =====
 app.get('/api/seller/products', sellerAuthRequired, async (req, res) => {
   try {
     const query = sellerProductQuery(req);
     if (!query.$or?.length) return res.status(403).json({ ok: false, error: 'Seller não identificado' });
     if (req.query.active !== undefined) query.active = String(req.query.active) !== 'false';
+
     const rows = await Product.find(query).sort({ createdAt: -1, updatedAt: -1 });
     const products = rows.map(normalizeSellerProductForResponse);
     return res.json({ ok: true, items: products, products });
-  } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar produtos do seller' }); }
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar produtos do seller' });
+  }
 });
 
 app.get('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
@@ -1202,13 +1831,17 @@ app.get('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
     const oid = normalizeObjectId(id);
     const ownerQuery = sellerProductQuery(req);
     const idQuery = oid ? { _id: oid } : { $or: [{ sku: id }, { slug: id }, { id }] };
+
     let row = null;
     if (oid) row = await Product.findOne({ $and: [idQuery, ownerQuery] });
     if (!row) row = await Product.findOne({ $and: [idQuery, ownerQuery] });
+
     if (!row) return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
     const product = normalizeSellerProductForResponse(row);
     return res.json({ ok: true, product, item: product, ...product });
-  } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar produto do seller' }); }
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar produto do seller' });
+  }
 });
 
 app.delete('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
@@ -1219,14 +1852,31 @@ app.delete('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
     const idQuery = oid ? { _id: oid } : { $or: [{ sku: id }, { slug: id }, { id }] };
     const existing = await Product.findOne({ $and: [idQuery, ownerQuery] });
     if (!existing) return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
+
+    // Não apagar fisicamente produto que já pode estar referenciado por pedido,
+    // devolução, NF-e ou auditoria. O seller apenas retira o anúncio da vitrine.
     const archived = await Product.findOneAndUpdate(
       { $and: [idQuery, ownerQuery] },
-      { $set: { active: false, 'specs.sellerApproval.status': 'archived', 'specs.sellerApproval.archivedAt': now(), 'specs.sellerApproval.archivedBy': 'seller' } },
+      {
+        $set: {
+          active: false,
+          'specs.sellerApproval.status': 'archived',
+          'specs.sellerApproval.archivedAt': now(),
+          'specs.sellerApproval.archivedBy': 'seller'
+        }
+      },
       { new: true }
     );
-    await writeAuditLog({ scope: 'seller_products', eventType: 'seller_product_archived', status: 'success', metadata: { sellerId: req.sellerId, productId: String(archived?._id || existing._id || '') } }).catch(() => null);
+    await writeAuditLog({
+      scope: 'seller_products',
+      eventType: 'seller_product_archived',
+      status: 'success',
+      metadata: { sellerId: req.sellerId, productId: String(archived?._id || existing._id || '') }
+    }).catch(() => null);
     return res.json({ ok: true, deleted: true, archived: true, id: String(archived?._id || existing._id || '') });
-  } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao excluir produto' }); }
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao excluir produto' });
+  }
 });
 
 app.put('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
@@ -1234,18 +1884,191 @@ app.put('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
     const id = String(req.params.id || '').trim();
     const oid = normalizeObjectId(id);
     if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+
     const ownerQuery = sellerProductQuery(req);
     const existing = await Product.findOne({ $and: [{ _id: oid }, ownerQuery] });
     if (!existing) return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
+
     const payload = buildSellerProductPayload(req, existing);
-    if (!payload.name || !Number.isFinite(payload.price) || payload.price <= 0) return res.status(400).json({ ok: false, error: 'Nome e preço válido são obrigatórios' });
-    if (!Number.isFinite(payload.stock) || payload.stock < 0) return res.status(400).json({ ok: false, error: 'Estoque inválido' });
+    if (!payload.name || !Number.isFinite(payload.price) || payload.price <= 0) {
+      return res.status(400).json({ ok: false, error: 'Nome e preço válido são obrigatórios' });
+    }
+    if (!Number.isFinite(payload.stock) || payload.stock < 0) {
+      return res.status(400).json({ ok: false, error: 'Estoque inválido' });
+    }
+    // Alterações comerciais feitas pelo seller voltam para revisão. O seller
+    // não pode autoaprovar/reativar produto por payload manipulado.
     payload.active = false;
-    payload.specs = { ...(payload.specs && typeof payload.specs === 'object' ? payload.specs : {}), sellerApproval: { status: 'pending', submittedAt: now(), sellerId: req.sellerId } };
-    const updated = await Product.findOneAndUpdate({ $and: [{ _id: oid }, ownerQuery] }, { $set: payload }, { new: true });
+    payload.specs = {
+      ...(payload.specs && typeof payload.specs === 'object' ? payload.specs : {}),
+      sellerApproval: {
+        status: 'pending',
+        submittedAt: now(),
+        sellerId: req.sellerId
+      }
+    };
+    const updated = await Product.findOneAndUpdate(
+      { $and: [{ _id: oid }, ownerQuery] },
+      { $set: payload },
+      { new: true }
+    );
     const product = normalizeSellerProductForResponse(updated);
     return res.json({ ok: true, product, item: product });
-  } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar produto' }); }
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar produto' });
+  }
+});
+
+// Recebimentos do seller - operação atual sem split automático.
+// A Ariana recebe do cliente (Cielo no cartão; Mercado Pago no PIX/boleto)
+// e mantém o valor líquido do seller no extrato para repasse manual.
+app.get('/api/seller/payment-split', sellerAuthRequired, async (req, res) => {
+  try {
+    const seller = req.seller || {};
+    const meta = seller.metadata || {};
+    const profile = sellerProfile(seller, req.user);
+    const bank = profile.bankAccount || {};
+    const configuredCommission = meta.commissionPercent ?? meta.marketplaceCommissionPercent ?? seller.commissionPercent ?? seller.marketplaceCommissionPercent;
+    const commissionPercent = Number.isFinite(Number(configuredCommission)) ? Number(configuredCommission) : null;
+    const transferRouteReady = Boolean(
+      String(bank.pixKey || '').trim() ||
+      (String(bank.bankCode || bank.bank || '').trim() &&
+       String(bank.agency || bank.branchNumber || '').trim() &&
+       String(bank.account || bank.accountNumber || '').trim())
+    );
+    const holderReady = Boolean(
+      String(bank.holderName || '').trim() &&
+      String(bank.holderDocument || '').trim()
+    );
+    const hasBankData = transferRouteReady && holderReady;
+    const rawBank = meta.bankAccount && typeof meta.bankAccount === 'object' ? meta.bankAccount : {};
+    const savedFields = {
+      bankHolderName: Boolean(String(rawBank.holderName || rawBank.bankHolderName || meta.bankHolderName || meta.holderName || '').trim()),
+      bankHolderDocument: Boolean(String(rawBank.holderDocument || rawBank.bankHolderDocument || meta.bankHolderDocument || meta.holderDocument || '').trim()),
+      bankName: Boolean(String(rawBank.bankName || rawBank.bank || meta.bankName || meta.bank || '').trim()),
+      bankCode: Boolean(String(rawBank.bankCode || meta.bankCode || '').trim()),
+      accountType: Boolean(String(rawBank.accountType || rawBank.bankAccountType || meta.accountType || meta.bankAccountType || '').trim()),
+      branchNumber: Boolean(String(rawBank.branchNumber || rawBank.agency || meta.branchNumber || meta.bankAgency || meta.agency || '').trim()),
+      branchCheckDigit: Boolean(String(rawBank.branchCheckDigit || rawBank.agencyDigit || meta.branchCheckDigit || meta.agencyDigit || '').trim()),
+      accountNumber: Boolean(String(rawBank.accountNumber || rawBank.account || meta.accountNumber || meta.bankAccountNumber || '').trim()),
+      accountCheckDigit: Boolean(String(rawBank.accountCheckDigit || rawBank.accountDigit || meta.accountCheckDigit || meta.accountDigit || '').trim()),
+      pixKey: Boolean(String(rawBank.pixKey || meta.pixKey || '').trim())
+    };
+
+    return res.json({
+      ok: true,
+      mode: 'manual_settlement',
+      gateway: 'manual',
+      splitRequired: false,
+      manualTransferEnabled: true,
+      sellerApproved: profile.active === true,
+      savedFields,
+      commissionPercent,
+      checkoutGateways: { card: 'cielo', pix: 'mercado_pago', boleto: 'mercado_pago' },
+      bank: {
+        configured: hasBankData,
+        bank: bank.bank || bank.bankName || '',
+        bankName: bank.bankName || bank.bank || '',
+        bankCode: bank.bankCode || '',
+        agency: bank.agency || bank.branchNumber || '',
+        branchNumber: bank.branchNumber || bank.agency || '',
+        agencyDigit: bank.agencyDigit || bank.branchCheckDigit || '',
+        branchCheckDigit: bank.branchCheckDigit || bank.agencyDigit || '',
+        account: bank.account || bank.accountNumber || '',
+        accountNumber: bank.accountNumber || bank.account || '',
+        accountDigit: bank.accountDigit || bank.accountCheckDigit || '',
+        accountCheckDigit: bank.accountCheckDigit || bank.accountDigit || '',
+        accountType: bank.accountType || 'checking',
+        pixKey: bank.pixKey || '',
+        holderName: bank.holderName || '',
+        holderDocument: bank.holderDocument || '',
+        bankHolderName: bank.holderName || '',
+        bankHolderDocument: bank.holderDocument || '',
+        legalName: profile.storeName || profile.displayName || profile.name || '',
+        document: profile.document || profile.cnpj || ''
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar dados de recebimento do seller' });
+  }
+});
+
+app.put('/api/seller/payment-split', sellerAuthRequired, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const meta = { ...(req.seller.metadata || {}) };
+    const current = sellerProfile(req.seller, req.user).bankAccount || {};
+    const sellerApproved = isApprovedSellerStatus(req.seller?.status || meta.status || '');
+    const keepOrComplete = (currentValue, incomingValue, fallback = '') => {
+      if (!sellerFieldCanBeCompleted(sellerApproved, currentValue)) return currentValue;
+      return incomingValue !== undefined && incomingValue !== null ? incomingValue : (currentValue ?? fallback);
+    };
+    const bank = normalizeSellerBankFields({
+      ...current,
+      bank: keepOrComplete(current.bank || current.bankName || '', body.bankName ?? body.bank, ''),
+      bankName: keepOrComplete(current.bankName || current.bank || '', body.bankName ?? body.bank, ''),
+      bankCode: keepOrComplete(current.bankCode || '', body.bankCode, ''),
+      agency: keepOrComplete(current.agency || current.branchNumber || '', body.branchNumber ?? body.agency, ''),
+      agencyDigit: keepOrComplete(current.agencyDigit || current.branchCheckDigit || '', body.branchCheckDigit ?? body.agencyDigit, ''),
+      account: keepOrComplete(current.accountNumber || current.account || '', body.accountNumber ?? body.account, ''),
+      accountDigit: keepOrComplete(current.accountDigit || current.accountCheckDigit || '', body.accountCheckDigit ?? body.accountDigit, ''),
+      accountType: keepOrComplete(
+        String(meta.bankAccount?.accountType || meta.bankAccount?.bankAccountType || meta.accountType || meta.bankAccountType || ''),
+        body.accountType,
+        'checking'
+      ),
+      pixKey: keepOrComplete(current.pixKey || '', body.pixKey, ''),
+      holderName: keepOrComplete(current.holderName || '', body.bankHolderName ?? body.holderName, ''),
+      holderDocument: keepOrComplete(current.holderDocument || '', body.bankHolderDocument ?? body.holderDocument, '')
+    });
+
+    meta.paymentGateway = 'manual';
+    meta.marketplaceSplitRequired = false;
+    meta.manualTransferEnabled = true;
+    meta.bankAccount = bank;
+    meta.bank = bank.bank || bank.bankName || '';
+    meta.bankName = bank.bankName || bank.bank || '';
+    meta.bankCode = bank.bankCode || '';
+    meta.bankAgency = bank.agency || '';
+    meta.branchNumber = bank.branchNumber || bank.agency || '';
+    meta.branchCheckDigit = bank.branchCheckDigit || bank.agencyDigit || '';
+    meta.accountNumber = bank.accountNumber || '';
+    meta.accountCheckDigit = bank.accountCheckDigit || '';
+    meta.accountType = bank.accountType || 'checking';
+    meta.pixKey = bank.pixKey || '';
+    meta.bankHolderName = bank.holderName || '';
+    meta.bankHolderDocument = bank.holderDocument || '';
+
+    // A comissão é definida exclusivamente pela Ariana Móveis no administrativo.
+    // Nunca aceitar alteração de commissionPercent enviada pelo seller.
+
+    const seller = await Seller.findByIdAndUpdate(
+      req.seller._id,
+      { $set: { metadata: meta, bankAccount: bank } },
+      { new: true }
+    );
+
+    await writeAuditLog({
+      scope: 'seller_receivables',
+      eventType: 'seller_manual_settlement_bank_updated',
+      status: 'success',
+      metadata: { sellerId: seller.sellerId || String(seller._id), splitRequired: false }
+    }).catch(() => null);
+
+    return res.json({ ok: true, mode: 'manual_settlement', splitRequired: false, manualTransferEnabled: true, seller: sellerProfile(seller, req.user) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar dados de recebimento do seller' });
+  }
+});
+
+// Endpoint legado mantido para compatibilidade, mas Pagar.me não faz mais parte
+// da operação atual da Ariana. Não cria recipients nem chama gateway externo.
+app.post('/api/seller/payment-split/pagarme/recipient', sellerAuthRequired, async (_req, res) => {
+  return res.status(410).json({
+    ok: false,
+    code: 'PAGARME_DISABLED',
+    error: 'Pagar.me está desativado. O seller opera com repasse manual, sem split automático.'
+  });
 });
 
 function publicSellerProfile(seller) {
