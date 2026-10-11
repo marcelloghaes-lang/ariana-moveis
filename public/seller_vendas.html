@@ -310,7 +310,7 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
     function sellerAmount(order = {}) { return Number(order.sellerGross || order.sellerTotal || order.subtotal || order.total || 0); }
     function sellerCommission(order = {}) { return Number(order.sellerCommission || order.commission || (sellerAmount(order) * COMMISSION_RATE) || 0); }
     function sellerLabelFee(order = {}) { return Number(order.marketplaceLabelFee || order.labelFee || order.etiquetaAriana || order.shippingLabelCost || 0); }
-    function sellerNet(order = {}) { return Number(order.sellerNet || (sellerAmount(order) - sellerCommission(order) - sellerLabelFee(order)) || 0); }
+    function sellerNet(order = {}) { return Number(order.sellerNet || (sellerAmount(order) - sellerCommission(order)) || 0); }
     const $ = (id) => document.getElementById(id);
 
     
@@ -400,11 +400,10 @@ function applySellerHeaderName() {
             rows.forEach(o => {
                 const brute = Number(o.gross || 0);
                 const fee = Number(o.fee || o.commission || 0);
-                const labelFee = Number(o.label || 0);
                 const net = Number(o.net || 0);
 
                 totalGross += brute;
-                totalFee += fee + labelFee;
+                totalFee += fee;
                 totalNet += net;
 
                 const id = String(o.orderId || o.id || "");
@@ -415,7 +414,7 @@ function applySellerHeaderName() {
                         <td class="py-4 px-3 font-bold text-primary-blue">#${id.substring(0,8).toUpperCase()}</td>
                         <td class="py-4 px-3 text-gray-500">${date}</td>
                         <td class="py-4 px-3 text-right font-bold text-dark-bg">${moneyBR(brute)}</td>
-                        <td class="py-4 px-3 text-right text-error-red">${moneyBR(fee + labelFee)}</td>
+                        <td class="py-4 px-3 text-right text-error-red">${moneyBR(fee)}</td>
                         <td class="py-4 px-3 text-right font-black text-success-green">${moneyBR(net)}</td>
                     </tr>
                 `;
