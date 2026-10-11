@@ -83,6 +83,15 @@ const SELLER_ORDER_RESPONSE_PATHS = new Set([
   '/api/seller/orders/:id/ship'
 ]);
 
+const SELLER_IMAGE_UPLOAD_PATHS = new Set([
+  '/api/seller/uploads',
+  '/api/seller/products/upload'
+]);
+
+const SELLER_FISCAL_RESPONSE_PATHS = new Set([
+  '/api/seller/orders/:id/nfe'
+]);
+
 const APPROVED_SELLER_LOGISTICS_FIELDS = [
   'cepColeta',
   'pickupCep',
@@ -481,6 +490,209 @@ function createSecureSellerSupportReadHandler(context = {}) {
   };
 }
 
+function safeSellerFilePart(value = '') {
+  return String(value || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .slice(0, 80) || 'seller';
+}
+
+function cleanupSellerTempFile(context = {}, file = null) {
+  try {
+    if (file?.path && context.fs?.existsSync?.(file.path)) context.fs.unlinkSync(file.path);
+  } catch (_) {}
+}
+
+function wrapSellerImageUploadHandler(handler, context = {}) {
+  if (typeof handler !== 'function') return handler;
+
+  return async function isolatedSellerImageUpload(req, res, next) {
+    const sid = String(req.sellerId || req.user?.sellerId || req.seller?.sellerId || '').trim();
+    if (!sid) {
+      cleanupSellerTempFile(context, req.file);
+      return res.status(403).json({ ok: false, error: 'Seller não identificado.' });
+    }
+
+    const mime = String(req.file?.mimetype || '').trim().toLowerCase();
+    const allowedMime = /^image\/(jpeg|png|webp|avif|gif|heic|heif)$/.test(mime);
+    if (req.file && !allowedMime) {
+      cleanupSellerTempFile(context, req.file);
+      return res.status(415).json({ ok: false, error: 'Envie uma imagem JPG, PNG, WebP, AVIF, GIF, HEIC ou HEIF.' });
+    }
+
+    req.body = {
+      ...(req.body && typeof req.body === 'object' ? req.body : {}),
+      path: `seller_products/${safeSellerFilePart(sid)}`
+    };
+
+    return handler(req, res, next);
+  };
+}
+
+function sellerFiscalDocsForOrder(orderValue = {}, sellerId = '') {
+  const raw = toPlain(orderValue);
+  const sid = String(sellerId || '').trim();
+  const fiscalDocs = raw.fiscal?.sellerDocuments && typeof raw.fiscal.sellerDocuments === 'object'
+    ? raw.fiscal.sellerDocuments
+    : {};
+  const legacyDocs = raw.sellerDocuments && typeof raw.sellerDocuments === 'object'
+    ? raw.sellerDocuments
+    : {};
+  return fiscalDocs[sid] || legacyDocs[sid] || {};
+}
+
+function sellerFiscalDownloadToken(context = {}, req = {}, kind = '') {
+  if (!context.jwt?.sign || !context.JWT_SECRET) return '';
+  const sid = String(req.sellerId || '').trim();
+  const orderId = String(req.params?.id || '').trim();
+  if (!sid || !orderId || !['xml', 'danfe'].includes(kind)) return '';
+
+  return context.jwt.sign(
+    {
+      scope: 'seller_fiscal_download',
+      sellerId: sid,
+      orderId,
+      kind
+    },
+    context.JWT_SECRET,
+    {
+      expiresIn: '5m',
+      issuer: 'ariana-backend',
+      audience: 'seller-fiscal'
+    }
+  );
+}
+
+function sellerFiscalDownloadUrl(context = {}, req = {}, kind = '') {
+  const token = sellerFiscalDownloadToken(context, req, kind);
+  if (!token) return '';
+  const proto = String(req.headers?.['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim() || 'https';
+  const host = String(req.headers?.['x-forwarded-host'] || req.get?.('host') || req.headers?.host || '').split(',')[0].trim();
+  if (!host) return '';
+  const orderId = encodeURIComponent(String(req.params?.id || '').trim());
+  return `${proto}://${host}/api/seller/orders/${orderId}/nfe/${kind}/file?access=${encodeURIComponent(token)}`;
+}
+
+function sanitizeSellerFiscalPayload(context = {}, req = {}, payload) {
+  if (!payload || typeof payload !== 'object' || !payload.invoice) return payload;
+  const invoice = { ...payload.invoice };
+
+  if (invoice.xmlUrl) invoice.xmlUrl = sellerFiscalDownloadUrl(context, req, 'xml');
+  if (invoice.danfeUrl) invoice.danfeUrl = sellerFiscalDownloadUrl(context, req, 'danfe');
+
+  return { ...payload, invoice };
+}
+
+function wrapSellerFiscalResponseHandler(handler, context = {}) {
+  if (typeof handler !== 'function') return handler;
+
+  return async function protectedSellerFiscalResponse(req, res, next) {
+    const originalJson = res.json.bind(res);
+    res.json = function protectedSellerFiscalJson(payload) {
+      return originalJson(sanitizeSellerFiscalPayload(context, req, payload));
+    };
+
+    try {
+      return await handler(req, res, next);
+    } finally {
+      res.json = originalJson;
+    }
+  };
+}
+
+function validSellerFiscalAssetUrl(urlValue = '', publicId = '', sellerId = '', orderId = '') {
+  try {
+    const url = new URL(String(urlValue || ''));
+    if (url.protocol !== 'https:' || String(url.hostname || '').toLowerCase() !== 'res.cloudinary.com') return false;
+    const sid = safeSellerFilePart(sellerId);
+    const oid = safeSellerFilePart(orderId);
+    const expectedPrefix = `ariana_moveis/seller_nfe/${sid}/${oid}/`;
+    const cleanPublicId = String(publicId || '').replace(/^\/+/, '');
+    if (cleanPublicId && !cleanPublicId.startsWith(expectedPrefix)) return false;
+    const decodedPath = decodeURIComponent(url.pathname || '');
+    if (!decodedPath.includes('/raw/upload/')) return false;
+    if (!cleanPublicId && !decodedPath.includes(`/${expectedPrefix}`)) return false;
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function registerSellerFiscalDownloadRoute(app, context = {}) {
+  if (!app?.get || !context.Order || !context.jwt?.verify || !context.JWT_SECRET) return;
+
+  app.get('/api/seller/orders/:id/nfe/:kind/file', async (req, res) => {
+    try {
+      const kind = String(req.params.kind || '').trim().toLowerCase();
+      if (!['xml', 'danfe'].includes(kind)) return res.status(404).json({ ok: false, error: 'Documento não encontrado.' });
+
+      const access = String(req.query?.access || '').trim();
+      if (!access) return res.status(401).json({ ok: false, error: 'Link fiscal ausente ou expirado.' });
+
+      let claims;
+      try {
+        claims = context.jwt.verify(access, context.JWT_SECRET, {
+          issuer: 'ariana-backend',
+          audience: 'seller-fiscal'
+        });
+      } catch (_) {
+        return res.status(401).json({ ok: false, error: 'Link fiscal inválido ou expirado.' });
+      }
+
+      const orderId = String(req.params.id || '').trim();
+      const sid = String(claims?.sellerId || '').trim();
+      if (
+        claims?.scope !== 'seller_fiscal_download' ||
+        String(claims?.orderId || '').trim() !== orderId ||
+        String(claims?.kind || '').trim() !== kind ||
+        !sid
+      ) {
+        return res.status(403).json({ ok: false, error: 'Link fiscal sem permissão para este documento.' });
+      }
+
+      const oid = context.normalizeObjectId ? context.normalizeObjectId(orderId) : orderId;
+      if (!oid) return res.status(400).json({ ok: false, error: 'Pedido inválido.' });
+      const order = await context.Order.findById(oid);
+      if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado.' });
+      if (!sellerIdsFromOrder(order).includes(sid)) return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido.' });
+
+      const docs = sellerFiscalDocsForOrder(order, sid);
+      const assetUrl = kind === 'xml' ? docs.xmlUrl : docs.danfeUrl;
+      const publicId = kind === 'xml' ? docs.xmlPublicId : docs.danfePublicId;
+      if (!assetUrl || !validSellerFiscalAssetUrl(assetUrl, publicId, sid, orderId)) {
+        return res.status(404).json({ ok: false, error: 'Documento fiscal não encontrado ou fora do escopo do Seller.' });
+      }
+
+      const upstream = await fetch(assetUrl, {
+        method: 'GET',
+        redirect: 'error',
+        signal: AbortSignal.timeout(15000)
+      });
+      if (!upstream.ok) return res.status(502).json({ ok: false, error: 'Não foi possível carregar o documento fiscal.' });
+
+      const declaredLength = Number(upstream.headers.get('content-length') || 0);
+      if (declaredLength > 20 * 1024 * 1024) {
+        return res.status(413).json({ ok: false, error: 'Documento fiscal excede o limite permitido.' });
+      }
+
+      const data = Buffer.from(await upstream.arrayBuffer());
+      if (data.length > 20 * 1024 * 1024) {
+        return res.status(413).json({ ok: false, error: 'Documento fiscal excede o limite permitido.' });
+      }
+
+      const suffix = String(orderId).slice(-8).toUpperCase() || 'PEDIDO';
+      res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Type', kind === 'xml' ? 'application/xml; charset=utf-8' : 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${kind === 'xml' ? 'nfe' : 'danfe'}-${suffix}.${kind === 'xml' ? 'xml' : 'pdf'}"`);
+      return res.send(data);
+    } catch (error) {
+      console.error('Erro ao entregar documento fiscal protegido do Seller:', error);
+      return res.status(500).json({ ok: false, error: 'Erro ao entregar documento fiscal do Seller.' });
+    }
+  });
+}
+
 function createSellerScopedApp(app, context = {}) {
   if (!app) return app;
 
@@ -521,6 +733,20 @@ function createSellerScopedApp(app, context = {}) {
             handlers[lastIndex] = wrapSellerOrderResponseHandler(routePath, handlers[lastIndex]);
           }
 
+          // Upload de produto do Seller sempre fica na pasta do próprio Seller.
+          // Qualquer path enviado pelo navegador é ignorado no boundary do Seller.
+          if (property === 'post' && SELLER_IMAGE_UPLOAD_PATHS.has(routePath) && handlers.length) {
+            const lastIndex = handlers.length - 1;
+            handlers[lastIndex] = wrapSellerImageUploadHandler(handlers[lastIndex], context);
+          }
+
+          // XML/DANFE nunca devolvem a URL bruta do Cloudinary ao navegador.
+          // A resposta recebe um link temporário assinado para o proxy protegido.
+          if (SELLER_FISCAL_RESPONSE_PATHS.has(routePath) && handlers.length) {
+            const lastIndex = handlers.length - 1;
+            handlers[lastIndex] = wrapSellerFiscalResponseHandler(handlers[lastIndex], context);
+          }
+
           return target[property].call(target, path, ...handlers);
         };
       }
@@ -533,11 +759,15 @@ function createSellerScopedApp(app, context = {}) {
 
 export default function registerSellerCoreRoutes(app, context = {}) {
   const pricing = createMarketplacePricingService(context);
+  const scopedApp = createSellerScopedApp(app, context);
 
-  return registerSellerCoreRoutesImpl(createSellerScopedApp(app, context), {
+  const result = registerSellerCoreRoutesImpl(scopedApp, {
     ...context,
     Order: createSellerScopedOrderModel(context.Order),
     buildProductBasePriceMapForOrders: context.buildProductBasePriceMapForOrders || pricing.buildProductBasePriceMapForOrders,
     getSellerSettlementForOrder: context.getSellerSettlementForOrder || pricing.getSellerSettlementForOrder
   });
+
+  registerSellerFiscalDownloadRoute(app, context);
+  return result;
 }
