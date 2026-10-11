@@ -74,6 +74,15 @@ const SELLER_PROFILE_MUTATION_PATHS = new Set([
   '/api/seller/update'
 ]);
 
+const SELLER_ORDER_RESPONSE_PATHS = new Set([
+  '/api/seller/orders',
+  '/api/seller/orders/:id',
+  '/api/seller/returns',
+  '/api/seller/dashboard',
+  '/api/seller/orders/:id/status',
+  '/api/seller/orders/:id/ship'
+]);
+
 const APPROVED_SELLER_LOGISTICS_FIELDS = [
   'cepColeta',
   'pickupCep',
@@ -118,6 +127,187 @@ function toPlain(value) {
   if (!value) return {};
   if (typeof value.toObject === 'function') return value.toObject({ virtuals: true });
   return value;
+}
+
+function firstDefined(...values) {
+  for (const value of values) {
+    if (value !== undefined && value !== null && value !== '') return value;
+  }
+  return undefined;
+}
+
+function sanitizeSellerAddress(value) {
+  if (!value) return null;
+  if (typeof value === 'string') return String(value).slice(0, 600);
+  if (typeof value !== 'object' || Array.isArray(value)) return null;
+
+  const address = {
+    label: firstDefined(value.label, value.nome, value.title),
+    recipient: firstDefined(value.recipient, value.receiverName, value.nomeDestinatario),
+    logradouro: firstDefined(value.logradouro, value.street, value.rua, value.address),
+    street: firstDefined(value.street, value.logradouro, value.rua, value.address),
+    numero: firstDefined(value.numero, value.number),
+    number: firstDefined(value.number, value.numero),
+    complemento: firstDefined(value.complemento, value.complement),
+    complement: firstDefined(value.complement, value.complemento),
+    bairro: firstDefined(value.bairro, value.neighborhood),
+    neighborhood: firstDefined(value.neighborhood, value.bairro),
+    cidade: firstDefined(value.cidade, value.city),
+    city: firstDefined(value.city, value.cidade),
+    uf: firstDefined(value.uf, value.state),
+    state: firstDefined(value.state, value.uf),
+    cep: firstDefined(value.cep, value.zip, value.zipCode, value.postalCode),
+    zip: firstDefined(value.zip, value.cep, value.zipCode, value.postalCode),
+    reference: firstDefined(value.reference, value.referencia)
+  };
+
+  return Object.fromEntries(
+    Object.entries(address).filter(([, fieldValue]) => fieldValue !== undefined && fieldValue !== null && fieldValue !== '')
+  );
+}
+
+function sanitizeSellerShipping(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+
+  const shipping = {
+    carrier: firstDefined(value.carrier, value.transportadora),
+    trackingCode: firstDefined(value.trackingCode, value.tracking, value.codigoRastreio),
+    service: firstDefined(value.service, value.servico),
+    name: firstDefined(value.name, value.label),
+    status: value.status,
+    statusLabel: value.statusLabel,
+    shippedAt: value.shippedAt,
+    estimatedDelivery: firstDefined(value.estimatedDelivery, value.deliveryEstimate, value.previsaoEntrega),
+    estimatedDays: firstDefined(value.estimatedDays, value.deliveryDays, value.prazoDias)
+  };
+
+  return Object.fromEntries(
+    Object.entries(shipping).filter(([, fieldValue]) => fieldValue !== undefined && fieldValue !== null && fieldValue !== '')
+  );
+}
+
+function sanitizeSellerOrderItem(itemValue = {}) {
+  const item = toPlain(itemValue);
+  const quantity = Math.max(1, Number(firstDefined(item.qty, item.quantity, item.quantidade, 1)) || 1);
+  const unitPrice = Number(firstDefined(item.sellerBaseUnitPrice, item.seller_base_unit_price, item.unitPrice, item.price, item.preco, 0)) || 0;
+  const totalPrice = Number(firstDefined(item.sellerBaseTotal, item.seller_base_total, item.totalPrice, item.total, unitPrice * quantity)) || 0;
+
+  return {
+    _id: item._id ? String(item._id) : undefined,
+    id: item.id ? String(item.id) : undefined,
+    productId: String(firstDefined(item.productId, item.product_id, item._id, item.id, '') || ''),
+    sellerId: String(firstDefined(item.sellerId, item.seller_id, '') || ''),
+    name: String(firstDefined(item.name, item.nome, item.productName, '') || ''),
+    productName: String(firstDefined(item.productName, item.name, item.nome, '') || ''),
+    sku: String(item.sku || ''),
+    qty: quantity,
+    quantity,
+    unitPrice,
+    price: unitPrice,
+    totalPrice,
+    sellerBaseUnitPrice: Number(firstDefined(item.sellerBaseUnitPrice, item.seller_base_unit_price, unitPrice)) || unitPrice,
+    sellerBaseTotal: Number(firstDefined(item.sellerBaseTotal, item.seller_base_total, totalPrice)) || totalPrice,
+    image: String(firstDefined(item.image, item.imageUrl, item.imagem, '') || ''),
+    imageUrl: String(firstDefined(item.imageUrl, item.image, item.imagem, '') || ''),
+    variation: firstDefined(item.variation, item.variacao, item.variant),
+    color: firstDefined(item.color, item.cor),
+    size: firstDefined(item.size, item.tamanho)
+  };
+}
+
+function sanitizeSellerOrderForResponse(orderValue = {}) {
+  const order = toPlain(orderValue);
+  const customer = order.customer && typeof order.customer === 'object' ? order.customer : {};
+  const shippingAddress = sanitizeSellerAddress(firstDefined(order.shippingAddress, order.deliveryAddress, order.enderecoEntrega, order.address));
+  const customerDocument = String(firstDefined(
+    order.customerDocument,
+    order.customerCpf,
+    order.customerCnpj,
+    customer.document,
+    customer.cpf,
+    customer.cnpj,
+    ''
+  ) || '').replace(/[^0-9]/g, '').slice(0, 14);
+
+  const safe = {
+    _id: order._id ? String(order._id) : undefined,
+    id: String(firstDefined(order.id, order._id, '') || ''),
+    orderId: String(firstDefined(order.orderId, order._id, order.id, '') || ''),
+    orderNumber: firstDefined(order.orderNumber, order.numeroPedido),
+    numeroPedido: firstDefined(order.numeroPedido, order.orderNumber),
+    createdAt: order.createdAt || null,
+    updatedAt: order.updatedAt || null,
+    status: String(order.status || ''),
+    statusLabel: String(order.statusLabel || ''),
+    customerName: String(firstDefined(order.customerName, customer.name, customer.nome, 'Cliente') || 'Cliente'),
+    customerEmail: String(firstDefined(order.customerEmail, customer.email, '') || ''),
+    customerPhone: String(firstDefined(order.customerPhone, customer.phone, customer.telefone, '') || ''),
+    customerDocument: customerDocument || undefined,
+    shippingAddress,
+    address: shippingAddress,
+    items: (Array.isArray(order.items) ? order.items : []).map(sanitizeSellerOrderItem),
+    sellerIds: Array.isArray(order.sellerIds) ? order.sellerIds.map((value) => String(value || '')).filter(Boolean) : [],
+    sellerOrderPartial: order.sellerOrderPartial === true,
+    sellerGross: Number(order.sellerGross || 0),
+    subtotal: Number(order.subtotal || 0),
+    total: Number(order.total || 0),
+    shippingCost: Number(order.shippingCost || 0),
+    paymentMethod: String(firstDefined(order.paymentMethod, order.payment_method, '') || ''),
+    paymentMethodLabel: String(firstDefined(order.paymentMethodLabel, order.payment_method_label, '') || ''),
+    trackingCode: String(firstDefined(order.trackingCode, order.shipping?.trackingCode, '') || ''),
+    shipping: sanitizeSellerShipping(order.shipping),
+    sellerFulfillment: sanitizeSellerShipping(order.sellerFulfillment),
+    returnReason: String(firstDefined(order.returnReason, order.reason, order.motivo, '') || ''),
+    reason: String(firstDefined(order.reason, order.returnReason, order.motivo, '') || '')
+  };
+
+  return Object.fromEntries(
+    Object.entries(safe).filter(([, value]) => value !== undefined)
+  );
+}
+
+function sanitizeSellerOrderPayload(routePath, payload) {
+  if (routePath === '/api/seller/orders' || routePath === '/api/seller/returns') {
+    return Array.isArray(payload) ? payload.map(sanitizeSellerOrderForResponse) : payload;
+  }
+
+  if (routePath === '/api/seller/dashboard' && payload && typeof payload === 'object') {
+    return {
+      ...payload,
+      recentOrders: Array.isArray(payload.recentOrders)
+        ? payload.recentOrders.map(sanitizeSellerOrderForResponse)
+        : []
+    };
+  }
+
+  if (
+    routePath === '/api/seller/orders/:id' ||
+    routePath === '/api/seller/orders/:id/status' ||
+    routePath === '/api/seller/orders/:id/ship'
+  ) {
+    if (payload && typeof payload === 'object' && payload.order) {
+      return { ...payload, order: sanitizeSellerOrderForResponse(payload.order) };
+    }
+  }
+
+  return payload;
+}
+
+function wrapSellerOrderResponseHandler(routePath, handler) {
+  if (typeof handler !== 'function') return handler;
+
+  return async function sellerOrderPrivacyBoundary(req, res, next) {
+    const originalJson = res.json.bind(res);
+    res.json = function sellerOrderPrivacyJson(payload) {
+      return originalJson(sanitizeSellerOrderPayload(routePath, payload));
+    };
+
+    try {
+      return await handler(req, res, next);
+    } finally {
+      res.json = originalJson;
+    }
+  };
 }
 
 function sellerIdsFromOrder(orderValue = {}) {
@@ -296,7 +486,7 @@ function createSellerScopedApp(app, context = {}) {
 
   return new Proxy(app, {
     get(target, property, receiver) {
-      if (property === 'get' || property === 'patch' || property === 'put') {
+      if (property === 'get' || property === 'post' || property === 'patch' || property === 'put') {
         return function sellerScopedRoute(path, ...handlers) {
           const routePath = String(path || '');
 
@@ -321,6 +511,14 @@ function createSellerScopedApp(app, context = {}) {
 
           if (property === 'patch' && routePath === '/api/seller/support/:id/read' && handlers.length) {
             handlers[handlers.length - 1] = createSecureSellerSupportReadHandler(context);
+          }
+
+          // Fronteira de privacidade dos pedidos do Seller. A implementação legada
+          // continua responsável por autenticação, propriedade e regras de negócio;
+          // aqui apenas reduzimos a resposta a um conjunto explícito de campos.
+          if (SELLER_ORDER_RESPONSE_PATHS.has(routePath) && handlers.length) {
+            const lastIndex = handlers.length - 1;
+            handlers[lastIndex] = wrapSellerOrderResponseHandler(routePath, handlers[lastIndex]);
           }
 
           return target[property].call(target, path, ...handlers);
