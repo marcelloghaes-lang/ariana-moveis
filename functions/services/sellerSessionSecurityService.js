@@ -49,6 +49,54 @@ function revokedAtMs(seller = {}) {
   return Number.isFinite(value) ? value : 0;
 }
 
+function isSellerNotificationPath(req = {}) {
+  const path = clean(req.path || req.originalUrl).split('?')[0];
+  return path === '/api/seller/notifications' || path.startsWith('/api/seller/notifications/');
+}
+
+function sanitizeSellerNotification(value = {}) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  if (clean(value.audience).toLowerCase() !== 'seller') return value;
+
+  const metadata = value.metadata && typeof value.metadata === 'object' && !Array.isArray(value.metadata)
+    ? { ...value.metadata }
+    : value.metadata;
+
+  if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
+    delete metadata.total;
+  }
+
+  if (clean(value.type) === 'seller_order_paid') {
+    const orderId = clean(value.relatedId || metadata?.orderId);
+    const shortId = orderId ? orderId.slice(-8).toUpperCase() : '';
+    return {
+      ...value,
+      message: shortId
+        ? `Pedido #${shortId} com pagamento aprovado.`
+        : 'Pagamento do pedido aprovado.',
+      metadata
+    };
+  }
+
+  return { ...value, metadata };
+}
+
+function sanitizeSellerNotificationPayload(payload) {
+  if (Array.isArray(payload)) return payload.map(sanitizeSellerNotification);
+  if (payload && typeof payload === 'object' && Array.isArray(payload.items)) {
+    return { ...payload, items: payload.items.map(sanitizeSellerNotification) };
+  }
+  return sanitizeSellerNotification(payload);
+}
+
+function installSellerNotificationPrivacyBoundary(req = {}, res = {}) {
+  if (!isSellerNotificationPath(req) || typeof res.json !== 'function') return;
+  const originalJson = res.json.bind(res);
+  res.json = function sellerNotificationPrivacyJson(payload) {
+    return originalJson(sanitizeSellerNotificationPayload(payload));
+  };
+}
+
 export function createSellerSignToken(context = {}) {
   return function signSellerToken(user = {}) {
     if (!context.jwt?.sign || !context.JWT_SECRET) {
@@ -139,6 +187,7 @@ export function createSellerSessionBoundary(context = {}) {
       req.sellerSessionClaims = claims;
       req.sellerSessionUser = user;
       req.sellerSessionSeller = seller;
+      installSellerNotificationPrivacyBoundary(req, res);
       return next();
     } catch (error) {
       console.error('[seller-session] Falha ao validar sessão:', error);
