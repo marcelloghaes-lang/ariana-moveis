@@ -1,5 +1,11 @@
 import registerSellerCoreRoutesImpl from './sellerCoreRoutesImpl.js';
 import createMarketplacePricingService from '../services/marketplacePricingService.js';
+import {
+  createSellerSignToken,
+  createSellerSessionBoundary,
+  routeUsesSellerAuth,
+  registerSellerLogoutRoute
+} from '../services/sellerSessionSecurityService.js';
 
 function patchSellerOrderQuery(query = {}) {
   if (!query || typeof query !== 'object' || Array.isArray(query)) return query;
@@ -702,6 +708,12 @@ function createSellerScopedApp(app, context = {}) {
         return function sellerScopedRoute(path, ...handlers) {
           const routePath = String(path || '');
 
+          // Toda rota protegida do Seller recebe uma segunda fronteira de sessão.
+          // Ela vincula o JWT à senha atual do usuário e permite revogação explícita.
+          if (routeUsesSellerAuth(handlers)) {
+            handlers.unshift(createSellerSessionBoundary(context));
+          }
+
           if ((property === 'patch' || property === 'put') && SELLER_PROFILE_MUTATION_PATHS.has(routePath) && handlers.length) {
             const lastIndex = handlers.length - 1;
             const finalHandler = handlers[lastIndex];
@@ -763,11 +775,13 @@ export default function registerSellerCoreRoutes(app, context = {}) {
 
   const result = registerSellerCoreRoutesImpl(scopedApp, {
     ...context,
+    signToken: createSellerSignToken(context),
     Order: createSellerScopedOrderModel(context.Order),
     buildProductBasePriceMapForOrders: context.buildProductBasePriceMapForOrders || pricing.buildProductBasePriceMapForOrders,
     getSellerSettlementForOrder: context.getSellerSettlementForOrder || pricing.getSellerSettlementForOrder
   });
 
+  registerSellerLogoutRoute(app, context);
   registerSellerFiscalDownloadRoute(app, context);
   return result;
 }
