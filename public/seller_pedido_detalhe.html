@@ -291,6 +291,12 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
         <option value="processing">Em Preparação</option>
         <option value="shipped">Enviado</option>
       </select>
+      <div id="shipping-fields" class="hidden mt-3 space-y-2 rounded-2xl border border-blue-100 bg-blue-50 p-3">
+        <div class="text-xs font-black uppercase text-primary-blue">Dados obrigatórios do envio</div>
+        <input id="shipping-carrier" class="input" placeholder="Transportadora (ex.: Correios, Rodocap)">
+        <input id="shipping-tracking" class="input" placeholder="Código de rastreio / conhecimento">
+        <p class="text-xs text-gray-500">Para marcar como enviado, informe transportadora e código de rastreio.</p>
+      </div>
       <button id="btn-save-status" class="btn btn-primary w-full mt-3">Salvar status</button>
     </div>
   </div>
@@ -452,14 +458,22 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
     if (!sid) return true;
     return String(it.sellerId || it.seller_id || it.vendorId || '').trim() === sid;
   }
+  function sellerFulfillment(data = {}) {
+    return data.sellerFulfillment && typeof data.sellerFulfillment === 'object' ? data.sellerFulfillment : {};
+  }
+  function toggleShippingFields() {
+    const shouldShow = $('status-select')?.value === 'shipped';
+    $('shipping-fields')?.classList.toggle('hidden', !shouldShow);
+  }
 
   function fillOrder(data, seller) {
     const items = Array.isArray(data.items) ? data.items : [];
     const myItems = items.filter(it => sellerMatchesItem(it, seller));
+    const fulfillment = sellerFulfillment(data);
 
     $('order-id').textContent = `#${data._id.substring(0,8).toUpperCase()}`;
     $('order-date').textContent = new Date(data.createdAt).toLocaleString('pt-BR');
-    $('order-status').textContent = data.status || 'pendente';
+    $('order-status').textContent = fulfillment.statusLabel || data.statusLabel || fulfillment.status || data.status || 'pendente';
     $('items-count').textContent = `${myItems.length} item(ns)`;
     $('subtotal').textContent = moneyBR(myItems.reduce((acc, it) => acc + (getItemUnitPrice(it) * getItemQty(it)), 0));
     
@@ -477,11 +491,17 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
     // O seller não recebe detalhes internos do gateway/cartão da Ariana.
     // Exibe somente a forma de pagamento pública quando ela vier sanitizada pela API.
     $('payment').textContent = data.paymentMethod || data.paymentMethodLabel || 'Pagamento processado pela Ariana';
-    $('tracking-view').textContent = data.trackingCode || data.shipping?.trackingCode || '—';
+    const trackingCode = fulfillment.trackingCode || data.trackingCode || data.shipping?.trackingCode || '';
+    const carrier = fulfillment.carrier || data.shipping?.carrier || '';
+    $('tracking-view').textContent = trackingCode ? `${carrier ? carrier + ' · ' : ''}${trackingCode}` : '—';
     $('buyer').textContent = data.customerName || 'Cliente';
     const a = data.shippingAddress || data.address || {};
     $('address').textContent = typeof a === 'string' ? a : [a.logradouro || a.street, a.numero || a.number, a.bairro || a.neighborhood, a.cidade || a.city, a.uf || a.state, a.cep || a.zip].filter(Boolean).join(', ') || 'Endereço não informado';
-    $('status-select').value = data.status || 'processing';
+    const currentStatus = String(fulfillment.status || data.status || '').toLowerCase();
+    $('status-select').value = ['shipped', 'enviado', 'delivered', 'entregue'].includes(currentStatus) ? 'shipped' : 'processing';
+    $('shipping-carrier').value = carrier;
+    $('shipping-tracking').value = trackingCode;
+    toggleShippingFields();
 
     const fiscalModel = String(seller?.metadata?.fiscalOperationModel || 'marketplace_intermediation').toLowerCase();
     const typeSelect = $('seller-nfe-type');
@@ -513,11 +533,28 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
     }
   }
 
+  $('status-select').addEventListener('change', toggleShippingFields);
+  $('ship-link').addEventListener('click', (event) => {
+    event.preventDefault();
+    $('status-select').value = 'shipped';
+    toggleShippingFields();
+    $('shipping-carrier')?.focus();
+  });
+
   $('btn-save-status').addEventListener('click', async () => {
     try {
       const status = $('status-select').value;
-      await apiFetch(`/seller/orders/${state.orderId}/status`, { method: 'PUT', body: JSON.stringify({ status }) });
-      toast('Status atualizado!', 'success');
+      if (status === 'shipped') {
+        const carrier = $('shipping-carrier').value.trim();
+        const trackingCode = $('shipping-tracking').value.trim();
+        if (!carrier) return toast('Informe a transportadora antes de marcar como enviado.', 'error');
+        if (!trackingCode) return toast('Informe o código de rastreio antes de marcar como enviado.', 'error');
+        await apiFetch(`/seller/orders/${state.orderId}/ship`, { method: 'POST', body: JSON.stringify({ carrier, trackingCode }) });
+        toast('Pedido marcado como enviado com rastreio!', 'success');
+      } else {
+        await apiFetch(`/seller/orders/${state.orderId}/status`, { method: 'PUT', body: JSON.stringify({ status }) });
+        toast('Status atualizado!', 'success');
+      }
       loadOrder();
     } catch (e) { toast(e.message || 'Erro ao salvar status.', 'error'); }
   });
