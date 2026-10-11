@@ -69,10 +69,84 @@ function createSellerScopedOrderModel(Order) {
   });
 }
 
+const SELLER_PROFILE_MUTATION_PATHS = new Set([
+  '/api/seller/profile',
+  '/api/seller/update'
+]);
+
+const APPROVED_SELLER_LOGISTICS_FIELDS = [
+  'cepColeta',
+  'pickupCep',
+  'cep_coleta',
+  'tipoLogistica',
+  'shippingType',
+  'transpPropria',
+  'ownCarrier',
+  'transportadoraPropria',
+  'transportadoraNome',
+  'carrierName',
+  'transportadoraTelefone',
+  'carrierPhone',
+  'transportadoraPrazo',
+  'carrierDeadline',
+  'freteObs',
+  'shippingNotes'
+];
+
+function isApprovedSellerRequest(req = {}) {
+  const status = String(
+    req.seller?.status ||
+    req.seller?.metadata?.status ||
+    req.seller?.metadata?.approvalStatus ||
+    ''
+  ).trim().toLowerCase();
+
+  return ['approved', 'aprovado', 'ativo', 'active'].includes(status);
+}
+
+function sanitizeApprovedSellerProfileMutation(req = {}) {
+  if (!isApprovedSellerRequest(req) || !req.body || typeof req.body !== 'object') return;
+
+  const safeBody = { ...req.body };
+  for (const field of APPROVED_SELLER_LOGISTICS_FIELDS) {
+    delete safeBody[field];
+  }
+  req.body = safeBody;
+}
+
+function createSellerScopedApp(app) {
+  if (!app) return app;
+
+  return new Proxy(app, {
+    get(target, property, receiver) {
+      if (property === 'patch' || property === 'put') {
+        return function sellerScopedProfileMutation(path, ...handlers) {
+          if (SELLER_PROFILE_MUTATION_PATHS.has(String(path || '')) && handlers.length) {
+            const lastIndex = handlers.length - 1;
+            const finalHandler = handlers[lastIndex];
+
+            if (typeof finalHandler === 'function') {
+              handlers[lastIndex] = function guardedSellerProfileMutation(req, res, next) {
+                sanitizeApprovedSellerProfileMutation(req);
+                return finalHandler(req, res, next);
+              };
+            }
+          }
+
+          return target[property].call(target, path, ...handlers);
+        };
+      }
+
+      const value = Reflect.get(target, property, receiver);
+      return typeof value === 'function' ? value.bind(target) : value;
+    }
+  });
+}
+
 export default function registerSellerCoreRoutes(app, context = {}) {
   const pricing = createMarketplacePricingService(context);
 
-  return registerSellerCoreRoutesImpl(app, {
+  return registerSellerCoreRoutesImpl(createSellerScopedApp(app), {
     ...context,
     Order: createSellerScopedOrderModel(context.Order),
     buildProductBasePriceMapForOrders: context.buildProductBasePriceMapForOrders || pricing.buildProductBasePriceMapForOrders,
