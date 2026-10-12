@@ -49,8 +49,12 @@ function revokedAtMs(seller = {}) {
   return Number.isFinite(value) ? value : 0;
 }
 
+function sellerNotificationPath(req = {}) {
+  return clean(req.path || req.originalUrl).split('?')[0];
+}
+
 function isSellerNotificationPath(req = {}) {
-  const path = clean(req.path || req.originalUrl).split('?')[0];
+  const path = sellerNotificationPath(req);
   return path === '/api/seller/notifications' || path.startsWith('/api/seller/notifications/');
 }
 
@@ -58,27 +62,43 @@ function sanitizeSellerNotification(value = {}) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
   if (clean(value.audience).toLowerCase() !== 'seller') return value;
 
-  const metadata = value.metadata && typeof value.metadata === 'object' && !Array.isArray(value.metadata)
-    ? { ...value.metadata }
-    : value.metadata;
+  const rawMetadata = value.metadata && typeof value.metadata === 'object' && !Array.isArray(value.metadata)
+    ? value.metadata
+    : {};
+  const metadata = {};
+  const orderId = clean(value.relatedId || rawMetadata.orderId);
+  const statusLabel = clean(rawMetadata.statusLabel);
+  const orderStatus = clean(rawMetadata.status);
+  if (orderId) metadata.orderId = orderId;
+  if (statusLabel) metadata.statusLabel = statusLabel;
+  if (orderStatus) metadata.status = orderStatus;
 
-  if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
-    delete metadata.total;
-  }
+  const type = clean(value.type);
+  const safe = {
+    _id: value._id ? String(value._id) : undefined,
+    id: value.id ? String(value.id) : (value._id ? String(value._id) : undefined),
+    audience: 'seller',
+    sellerId: clean(value.sellerId) || undefined,
+    type,
+    title: clean(value.title) || 'Notificação',
+    message: clean(value.message),
+    status: clean(value.status).toLowerCase() === 'read' ? 'read' : 'unread',
+    relatedId: orderId || undefined,
+    metadata,
+    createdAt: value.createdAt || undefined,
+    updatedAt: value.updatedAt || undefined
+  };
 
-  if (clean(value.type) === 'seller_order_paid') {
-    const orderId = clean(value.relatedId || metadata?.orderId);
+  if (type === 'seller_order_paid') {
     const shortId = orderId ? orderId.slice(-8).toUpperCase() : '';
-    return {
-      ...value,
-      message: shortId
-        ? `Pedido #${shortId} com pagamento aprovado.`
-        : 'Pagamento do pedido aprovado.',
-      metadata
-    };
+    safe.message = shortId
+      ? `Pedido #${shortId} com pagamento aprovado.`
+      : 'Pagamento do pedido aprovado.';
   }
 
-  return { ...value, metadata };
+  return Object.fromEntries(
+    Object.entries(safe).filter(([, fieldValue]) => fieldValue !== undefined)
+  );
 }
 
 function sanitizeSellerNotificationPayload(payload) {
@@ -86,11 +106,26 @@ function sanitizeSellerNotificationPayload(payload) {
   if (payload && typeof payload === 'object' && Array.isArray(payload.items)) {
     return { ...payload, items: payload.items.map(sanitizeSellerNotification) };
   }
+  if (payload && typeof payload === 'object' && payload.notification) {
+    return { ...payload, notification: sanitizeSellerNotification(payload.notification) };
+  }
   return sanitizeSellerNotification(payload);
 }
 
 function installSellerNotificationPrivacyBoundary(req = {}, res = {}) {
   if (!isSellerNotificationPath(req) || typeof res.json !== 'function') return;
+
+  // O único estado que o Seller pode gravar em uma notificação é "read".
+  // Isso impede manipulação direta de status arbitrários via PATCH.
+  const path = sellerNotificationPath(req);
+  const method = clean(req.method).toUpperCase();
+  if (method === 'PATCH' && path !== '/api/seller/notifications/mark-read') {
+    req.body = {
+      ...(req.body && typeof req.body === 'object' ? req.body : {}),
+      status: 'read'
+    };
+  }
+
   const originalJson = res.json.bind(res);
   res.json = function sellerNotificationPrivacyJson(payload) {
     return originalJson(sanitizeSellerNotificationPayload(payload));
