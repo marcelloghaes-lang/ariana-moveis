@@ -132,6 +132,22 @@ function installSellerNotificationPrivacyBoundary(req = {}, res = {}) {
   };
 }
 
+function installSellerPrivateCacheBoundary(res = {}) {
+  if (typeof res.setHeader !== 'function') return;
+  res.setHeader('Cache-Control', 'private, no-store, no-cache, must-revalidate, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
+  const currentVary = clean(typeof res.getHeader === 'function' ? res.getHeader('Vary') : '');
+  const varyParts = currentVary
+    ? currentVary.split(',').map((value) => clean(value)).filter(Boolean)
+    : [];
+  if (!varyParts.some((value) => value.toLowerCase() === 'authorization')) {
+    varyParts.push('Authorization');
+  }
+  res.setHeader('Vary', varyParts.join(', '));
+}
+
 export function createSellerSignToken(context = {}) {
   return function signSellerToken(user = {}) {
     if (!context.jwt?.sign || !context.JWT_SECRET) {
@@ -159,6 +175,8 @@ export function createSellerSignToken(context = {}) {
 export function createSellerSessionBoundary(context = {}) {
   return async function sellerSessionBoundary(req, res, next) {
     try {
+      installSellerPrivateCacheBoundary(res);
+
       const header = clean(req.headers?.authorization || req.headers?.Authorization);
       const token = header.startsWith('Bearer ') ? clean(header.slice(7)) : '';
       if (!token) {
