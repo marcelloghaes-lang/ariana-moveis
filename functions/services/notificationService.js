@@ -36,6 +36,21 @@ export async function createAdminNotification(data = {}) {
   }
 }
 
+function sellerNotificationMetadata(value = {}) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+
+  const metadata = {};
+  const orderId = String(value.orderId || '').trim();
+  const status = String(value.status || '').trim();
+  const statusLabel = String(value.statusLabel || '').trim();
+
+  if (orderId) metadata.orderId = orderId;
+  if (status) metadata.status = status;
+  if (statusLabel) metadata.statusLabel = statusLabel;
+
+  return Object.keys(metadata).length ? metadata : null;
+}
+
 export async function createSellerNotification(data = {}) {
   try {
     const sellerId = String(data.sellerId || '').trim();
@@ -52,7 +67,7 @@ export async function createSellerNotification(data = {}) {
       severity: data.severity || 'info',
       audience: 'seller',
       sellerId,
-      metadata: data.metadata || null
+      metadata: sellerNotificationMetadata(data.metadata)
     });
   } catch (error) {
     console.error('Erro ao criar notificação do seller:', error.message || error);
@@ -101,10 +116,7 @@ export async function createSellerOrderNotifications(orderDoc = {}, data = {}) {
       metadata: {
         orderId,
         status: order.status || '',
-        statusLabel: order.statusLabel || '',
-        trackingCode: order.trackingCode || '',
-        origin: data.origin || '',
-        total: order.total || 0
+        statusLabel: order.statusLabel || ''
       }
     });
     if (doc) results.push(doc);
