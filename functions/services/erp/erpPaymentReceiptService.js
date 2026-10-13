@@ -5,6 +5,7 @@ import { historicalSaleProduct, historicalInstallmentTotal, historicalInstallmen
 const clean=(v='',m=500)=>String(v??'').trim().slice(0,m);
 const digits=(v='')=>String(v??'').replace(/\D/g,'');
 const money=v=>Math.round((Number(v||0)+Number.EPSILON)*100)/100;
+let requestedRetryWorkerStarted=false;
 
 function methodLabel(value=''){
   const raw=clean(value,80).toLowerCase();
@@ -143,6 +144,36 @@ export function createErpPaymentReceiptService(context={}){
       }
     }
     throw financeError||new Error('Nenhum canal de WhatsApp disponível para o comprovante.');
+  }
+
+  async function retryRequestedReceipts(){
+    if(!enabled||!CrediarioRecibo)return;
+    const rows=await CrediarioRecibo.find({enviadoWhatsapp:{$ne:true},origem:'ariana_erp_baixa','whatsappResultado.retryRequested':true}).sort({createdAt:1}).limit(20);
+    for(const receipt of rows){
+      try{
+        receipt.whatsappResultado={...(receipt.whatsappResultado||{}),retryRequested:false,retrying:true};
+        await receipt.save();
+        const whatsapp=await sendReceiptWhatsapp(receipt);
+        if(!whatsapp||whatsapp.ok===false)throw new Error(whatsapp?.error||whatsapp?.message||'Evolution API não confirmou o reenvio.');
+        receipt.enviadoWhatsapp=true;
+        receipt.enviadoWhatsappEm=typeof now==='function'?now():new Date();
+        receipt.whatsappResultado=typeof redact==='function'?redact({...whatsapp,retrying:false,retried:true}):{...whatsapp,retrying:false,retried:true};
+        await receipt.save();
+        console.log('[erp-payment-receipt/retry] comprovante reenviado',{recibo:receipt.recibo});
+      }catch(error){
+        const failed={ok:false,error:error?.message||String(error),retryRequested:false,retrying:false,retried:true};
+        receipt.enviadoWhatsapp=false;
+        receipt.whatsappResultado=typeof redact==='function'?redact(failed):failed;
+        await receipt.save().catch(()=>null);
+        console.warn('[erp-payment-receipt/retry] falha no reenvio',{recibo:receipt.recibo,error:failed.error});
+      }
+    }
+  }
+
+  if(enabled&&!requestedRetryWorkerStarted){
+    requestedRetryWorkerStarted=true;
+    const timer=setTimeout(()=>retryRequestedReceipts().catch(error=>console.warn('[erp-payment-receipt/retry]',error?.message||error)),7000);
+    timer.unref?.();
   }
 
   function fallbackReceiptNumber(){
