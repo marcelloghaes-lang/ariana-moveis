@@ -126,7 +126,8 @@ function collectReceiptDeliveries(result,fallbackReference=''){
 function presentReceiptDeliveries(list=[]){
   const deliveries=(Array.isArray(list)?list:[]).filter(Boolean);
   const missing=deliveries.filter(d=>d.requiresPhone===true&&d.phonePrompt?.receiptId);
-  const failed=deliveries.filter(d=>!d.requiresPhone&&d.whatsappEnviado!==true&&d.whatsapp?.ok===false);
+  const pending=deliveries.filter(d=>d.whatsapp?.pending===true&&d.whatsappEnviado!==true).length;
+  const failed=deliveries.filter(d=>!d.requiresPhone&&d.whatsappEnviado!==true&&d.whatsapp?.ok===false&&d.whatsapp?.pending!==true);
   const sent=deliveries.filter(d=>d.whatsappEnviado===true).length;
   if(missing.length){
     const dedup=new Map();
@@ -143,7 +144,7 @@ function presentReceiptDeliveries(list=[]){
     openModal('receipt-phone-modal');
     setTimeout(()=>$('receipt-phone-input')?.focus(),80);
   }
-  return{sent,missing:missing.length,failed:failed.length,failedRows:failed};
+  return{sent,pending,missing:missing.length,failed:failed.length,failedRows:failed};
 }
 async function saveReceiptPhoneAndSend(){
   const phone=String($('receipt-phone-input').value||'').replace(/\D/g,'');
@@ -243,16 +244,33 @@ async function saveReceive(){
       result=await api(`/erp/financeiro/lancamentos/${encodeURIComponent(entryId)}/quitar`,{method:'POST',body:JSON.stringify(body)});
     }
     closeModal('receive-modal');
+    const targetBeforeClear=receiveTarget;
+    const originalRemaining=Number(targetBeforeClear?.row?.remaining||0);
     const receiptState=presentReceiptDeliveries(collectReceiptDeliveries(result,reference));
-    if(receiptState.missing)toast('Pagamento registrado. Informe o WhatsApp do cliente para enviar o comprovante.');
-    else if(receiptState.failed)toast('Pagamento registrado, mas o comprovante não pôde ser enviado pelo WhatsApp.');
-    else if(receiptState.sent)toast(amount+0.009>=Number(receiveTarget.row.remaining||0)?'Parcela recebida e comprovante enviado pelo WhatsApp.':'Recebimento parcial registrado e comprovante enviado pelo WhatsApp.');
-    else toast(amount+0.009>=Number(receiveTarget.row.remaining||0)?'Parcela recebida com sucesso.':'Recebimento parcial registrado.');
+    if(targetBeforeClear?.row){
+      targetBeforeClear.row.receivedAmount=Math.round((Number(targetBeforeClear.row.receivedAmount||0)+amount)*100)/100;
+      targetBeforeClear.row.remaining=Math.max(0,Math.round((originalRemaining-amount)*100)/100);
+      targetBeforeClear.row.status=targetBeforeClear.row.remaining<=0.009?'recebido':'parcial';
+      if(targetBeforeClear.type==='sale'||targetBeforeClear.type==='ledger')renderCollections();
+    }
     receiveTarget=null;
-    await Promise.all([loadCollections(),loadEntries(),loadPayments(),loadMetrics()]);
+    saveBtn.disabled=false;saveBtn.textContent='Registrar';
+    if(receiptState.missing)toast('Pagamento registrado. Informe o WhatsApp do cliente para enviar o comprovante.');
+    else if(receiptState.pending)toast('Pagamento registrado. Comprovante sendo enviado pelo WhatsApp.');
+    else if(receiptState.failed)toast('Pagamento registrado, mas o comprovante não pôde ser enviado pelo WhatsApp.');
+    else if(receiptState.sent)toast(amount+0.009>=originalRemaining?'Parcela recebida e comprovante enviado pelo WhatsApp.':'Recebimento parcial registrado e comprovante enviado pelo WhatsApp.');
+    else toast(amount+0.009>=originalRemaining?'Parcela recebida com sucesso.':'Recebimento parcial registrado.');
+    const refreshJobs=[loadCollections(),loadMetrics()];
+    if($('entries')?.classList.contains('active'))refreshJobs.push(loadEntries());
+    if($('payments')?.classList.contains('active'))refreshJobs.push(loadPayments());
+    Promise.allSettled(refreshJobs).catch(()=>{});
   }catch(e){
+    closeModal('receive-modal');
+    if(receiveTarget?.row){receiveTarget.row.status='confirmando';if(receiveTarget.type==='sale'||receiveTarget.type==='ledger')renderCollections()}
+    receiveTarget=null;
+    saveBtn.disabled=false;saveBtn.textContent='Registrar';
     toast(e.message==='Failed to fetch'?'Não foi possível confirmar a resposta do servidor. Atualizando o financeiro para evitar baixa duplicada…':e.message);
-    try{await Promise.all([loadCollections(),loadEntries(),loadPayments(),loadMetrics()])}catch{}
+    Promise.allSettled([loadCollections(),loadMetrics()]).catch(()=>{});
   }finally{saveBtn.disabled=false;saveBtn.textContent='Registrar'}
 }
 function historicalPurchaseDetailHtml(sale={}){
