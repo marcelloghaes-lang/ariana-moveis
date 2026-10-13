@@ -3371,6 +3371,37 @@ async function notifySaleAfterPaymentApproved(orderDoc, origin = 'payment_approv
   }
 }
 
+// E2E administrativo: permite homologar SOMENTE pedidos/produtos TESTE-E2E sem
+// alterar o status real do gateway. A aprovação usa a mesma rotina de notificação
+// acionada por um pagamento Mercado Pago aprovado em produção.
+app.post('/api/admin/e2e/orders/:orderId/approve-payment', adminRequired, async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.orderId);
+    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+    const order = await Order.findById(oid);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
+    const obj = toJSON(order) || {};
+    const testOnly = (obj.items || []).length > 0 && (obj.items || []).every((item) =>
+      /^TESTE[-_ ]?E2E/i.test(String(item?.sku || '')) || /^TESTE E2E/i.test(String(item?.name || ''))
+    );
+    if (!testOnly) return res.status(403).json({ ok: false, code: 'E2E_TEST_ORDER_REQUIRED', error: 'Rota permitida somente para pedidos TESTE-E2E.' });
+    const gatewayStatus = String(obj.payment?.status || obj.paymentStatus || '').toLowerCase();
+    if (gatewayStatus === 'approved' && !obj.payment?.e2eSimulation) {
+      return res.status(409).json({ ok: false, error: 'Pagamento real já aprovado; simulação recusada.' });
+    }
+    order.status = 'pago';
+    order.statusLabel = 'Pagamento aprovado';
+    order.paymentStatus = 'approved';
+    order.payment = { ...(obj.payment || {}), e2eSimulation: true, e2eGatewayStatus: gatewayStatus || 'pending', e2eApprovedAt: now(), e2eNote: 'Homologação controlada; gateway real não foi alterado.' };
+    await order.save();
+    const notification = await notifySaleAfterPaymentApproved(order, 'e2e_controlled_payment_approved');
+    const fresh = await Order.findById(oid);
+    return res.json({ ok: true, e2e: true, gatewayRealStatus: gatewayStatus || 'pending', order: toJSON(fresh), notification });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'e2e_approve_failed' });
+  }
+});
+
 async function updateOrderPaymentFromMercadoPago(orderId, method, mpData = {}, extra = {}) {
   try {
     const oid = normalizeObjectId(orderId);
