@@ -2741,3 +2741,16 @@ window.advanceSellerE2E = async function(stage){
   try { const data=await apiRequest('/admin/e2e/orders/6acd7a68ff96c9c483d3cbe6/stage',{method:'POST',body:JSON.stringify({stage})}); alert(data?.ok?'E2E atualizado: '+data.statusLabel:'Falha E2E: '+(data?.error||'erro desconhecido')); }
   catch(e){ alert('Falha E2E: '+(e?.message||e)); }
 };
+
+window.runSellerE2EFullCycle = async function(){
+  const btn=document.getElementById('e2e-run-full-cycle');
+  if(!confirm('Executar EM PREPARAÇÃO → DESPACHADO → ENTREGUE somente no pedido TESTE-E2E?')) return;
+  try {
+    if(btn){btn.disabled=true;btn.textContent='E2E: EXECUTANDO...';}
+    for (const stage of ['processing','shipped','delivered']) {
+      await apiRequest('/admin/e2e/orders/6acd7a68ff96c9c483d3cbe6/stage',{method:'POST',body:JSON.stringify({stage})});
+    }
+    alert('E2E concluído: preparação, despacho e entrega executados.');
+  } catch(e) { alert('Falha E2E: '+(e?.message||e)); }
+  finally { if(btn){btn.disabled=false;btn.textContent='E2E: EXECUTAR CICLO COMPLETO';} }
+};
