@@ -67,6 +67,8 @@ export function createErpAdvancedFinanceReportService(context={}){
     const revenueMov=movements.filter(x=>x.direction==='receivable'),expenseMov=movements.filter(x=>x.direction==='payable');
     const revenue=sum(revenueMov,x=>x.value),expense=sum(expenseMov,x=>x.value),result=money(revenue-expense);
     const expectedRevenue=sum(competence.filter(x=>x.direction==='receivable'),x=>x.value),expectedExpense=sum(competence.filter(x=>x.direction==='payable'),x=>x.value);
+    // Fluxo previsto deve seguir a data de vencimento. A competência continua separada para DRE.
+    const dueRevenue=sum(due.filter(x=>x.direction==='receivable'),x=>x.value),dueExpense=sum(due.filter(x=>x.direction==='payable'),x=>x.value);
 
     const categoriesMap=new Map();
     for(const m of movements){const k=`${m.direction}|${m.categoryName}`,x=categoriesMap.get(k)||{direction:m.direction,category:m.categoryName,value:0};x.value+=Number(m.value||0);categoriesMap.set(k,x)}
@@ -93,7 +95,7 @@ export function createErpAdvancedFinanceReportService(context={}){
     for(const m of movements){const k=m.bankAccountName||'Sem conta',x=bankMap.get(k)||{account:k,inflow:0,outflow:0,count:0};x.count++;if(m.direction==='receivable')x.inflow+=Number(m.value||0);else x.outflow+=Number(m.value||0);bankMap.set(k,x)}
     const banks=[...bankMap.values()].map(x=>({...x,inflow:money(x.inflow),outflow:money(x.outflow),net:money(x.inflow-x.outflow)})).sort((a,b)=>Math.abs(b.net)-Math.abs(a.net));
 
-    return{period:{from,to},summary:{revenue,expense,result,expectedRevenue,expectedExpense,expectedResult:money(expectedRevenue-expectedExpense),overdueReceivables:sum(overdue,x=>openValue(x)),overdueCount:overdue.length},dre,centers,overdueBuckets,debtors,forecast,monthly,banks,bankStatement:movements.slice(0,5000)};
+    return{period:{from,to},summary:{revenue,expense,result,expectedRevenue,expectedExpense,expectedResult:money(expectedRevenue-expectedExpense),dueRevenue,dueExpense,dueResult:money(dueRevenue-dueExpense),overdueReceivables:sum(overdue,x=>openValue(x)),overdueCount:overdue.length},dre,centers,overdueBuckets,debtors,forecast,monthly,banks,bankStatement:movements.slice(0,5000)};
   }
 
   return{report};
