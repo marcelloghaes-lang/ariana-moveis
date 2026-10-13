@@ -80,14 +80,12 @@ export function createErpFinanceService(context={}){
   order.payment={...(order.payment||{}),status:all?'approved':some?'partial':'pending',received:all,receivedAt:all?new Date():order.payment?.receivedAt};
   order.televendas={...(order.televendas||{}),erp:{...erp,receivables,financialStatus:all?'settled':some?'partial':'generated',financialSettledAt:all?new Date():null,timeline:[...array(erp.timeline),{status:'recebimento',label:`Parcela ${n}/${receivables[idx].installments}: ${paid?'quitada':'pagamento parcial'} de ${cashTotal.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`,at:new Date(),by:actorName(actor)}]}};
   await order.save();
-  await audit(paid?'erp.receivable.received':'erp.receivable.partial',order,{message:paid?`Parcela ${n} quitada`:`Pagamento parcial na parcela ${n}`,number:n,principal,cashTotal,remaining:newRemaining});
-  const receiptDelivery=await paymentReceipts.afterSaleReceive({
-    order,
-    number:n,
-    receivable:receivables[idx],
-    payment,
-    actor
-  }).catch(error=>({whatsappEnviado:false,requiresPhone:false,whatsapp:{ok:false,error:error?.message||String(error)}}));
+  void audit(paid?'erp.receivable.received':'erp.receivable.partial',order,{message:paid?`Parcela ${n} quitada`:`Pagamento parcial na parcela ${n}`,number:n,principal,cashTotal,remaining:newRemaining});
+  const deliveryPromise=paymentReceipts.afterSaleReceive({order,number:n,receivable:receivables[idx],payment,actor}).catch(error=>({whatsappEnviado:false,requiresPhone:false,whatsapp:{ok:false,error:error?.message||String(error)}}));
+  const receiptDelivery=await Promise.race([
+    deliveryPromise,
+    new Promise(resolve=>setTimeout(()=>resolve({whatsappEnviado:false,requiresPhone:false,whatsapp:{ok:false,pending:true,error:'O comprovante continua sendo processado em segundo plano.'}}),8000))
+  ]);
   return{order:serial(order),receivable:{...receivables[idx],status:state(receivables[idx]),remaining:newRemaining,receivedAmount:got},payment,receiptDelivery}
  }
  async function resolveSelection(items=[]){
