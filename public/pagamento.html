@@ -1368,7 +1368,12 @@
         info.className = "mt-3 text-sm text-green-600 font-bold text-right";
         const label = normalized === "card" && couponDiscount > 0 ? "Cupom aplicado" : "Desconto aplicado";
         info.innerHTML = `${label}: - ${fmt.format(visibleDiscount)}<br><span class="text-slate-400 font-medium">De ${fmt.format(original)} por</span>`;
-        box.insertBefore(info, totalEl?.parentElement || null);
+        const totalRow = totalEl?.parentElement || null;
+        if (totalRow?.parentElement) {
+          totalRow.parentElement.insertBefore(info, totalRow);
+        } else {
+          box.appendChild(info);
+        }
       }
     }
 
