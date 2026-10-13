@@ -2723,34 +2723,3 @@ async function testPix(){ try{ const data=await apiRequest('/payments/mp/pix',{m
 async function loadDashboardSafe(){ if(currentView==='dashboard') await renderDashboardView(); }
 
 document.addEventListener('DOMContentLoaded', init);
-
-window.approveSellerE2ETestOrder = async function(){
-  const btn=document.getElementById('e2e-approve-test-order');
-  if(!confirm('Simular pagamento aprovado SOMENTE no pedido TESTE-E2E? O Mercado Pago real não será alterado.')) return;
-  try {
-    if(btn){btn.disabled=true;btn.textContent='E2E: PROCESSANDO...';}
-    const data=await apiRequest('/admin/e2e/orders/6acd7a68ff96c9c483d3cbe6/approve-payment',{method:'POST'});
-    alert(data?.ok ? 'E2E aprovado. Seller notificado sem WhatsApp/ERP/repasse externo.' : 'Falha E2E: '+(data?.error||'erro desconhecido'));
-  } catch(e) { alert('Falha E2E: '+(e?.message||e)); }
-  finally { if(btn){btn.disabled=false;btn.textContent='E2E: APROVAR PEDIDO TESTE';} }
-};
-
-window.advanceSellerE2E = async function(stage){
-  const labels={processing:'EM PREPARAÇÃO',shipped:'DESPACHADO',delivered:'ENTREGUE'};
-  if(!confirm('Avançar SOMENTE o pedido TESTE-E2E para '+(labels[stage]||stage)+'?')) return;
-  try { const data=await apiRequest('/admin/e2e/orders/6acd7a68ff96c9c483d3cbe6/stage',{method:'POST',body:JSON.stringify({stage})}); alert(data?.ok?'E2E atualizado: '+data.statusLabel:'Falha E2E: '+(data?.error||'erro desconhecido')); }
-  catch(e){ alert('Falha E2E: '+(e?.message||e)); }
-};
-
-window.runSellerE2EFullCycle = async function(){
-  const btn=document.getElementById('e2e-run-full-cycle');
-  if(!confirm('Executar EM PREPARAÇÃO → DESPACHADO → ENTREGUE somente no pedido TESTE-E2E?')) return;
-  try {
-    if(btn){btn.disabled=true;btn.textContent='E2E: EXECUTANDO...';}
-    for (const stage of ['processing','shipped','delivered']) {
-      await apiRequest('/admin/e2e/orders/6acd7a68ff96c9c483d3cbe6/stage',{method:'POST',body:JSON.stringify({stage})});
-    }
-    alert('E2E concluído: preparação, despacho e entrega executados.');
-  } catch(e) { alert('Falha E2E: '+(e?.message||e)); }
-  finally { if(btn){btn.disabled=false;btn.textContent='E2E: EXECUTAR CICLO COMPLETO';} }
-};
