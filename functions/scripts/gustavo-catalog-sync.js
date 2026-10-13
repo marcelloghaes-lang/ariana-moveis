@@ -1,8 +1,5 @@
 import fs from 'fs';
-import {
-  buildGustavoCatalog,
-  GUSTAVO_CATALOG_PRICING
-} from '../lib/gustavoCatalog.js';
+import { buildGustavoCatalog } from '../lib/gustavoCatalog.js';
 
 const BACKEND_URL = String(process.env.ARIANA_BACKEND_URL || 'https://ariana-backend.onrender.com').replace(/\/$/, '');
 const OUTPUT_FILE = String(process.env.GUSTAVO_CATALOG_FILE || '/root/gustavo-catalog.json');
@@ -26,7 +23,6 @@ function extractProducts(payload) {
 async function fetchSiteProducts() {
   const candidates = ['/api/products', '/api/produtos'];
   let lastError = null;
-
   for (const path of candidates) {
     try {
       const response = await fetch(`${BACKEND_URL}${path}`, { headers: headers() });
@@ -38,7 +34,6 @@ async function fetchSiteProducts() {
       lastError = error;
     }
   }
-
   throw lastError || new Error('Não foi possível carregar o catálogo do site.');
 }
 
@@ -52,11 +47,10 @@ async function main() {
   const siteProducts = await fetchSiteProducts();
   const products = buildGustavoCatalog(siteProducts);
   const payload = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: new Date().toISOString(),
-    source: `${BACKEND_URL}/api/products`,
+    source: 'Ariana Móveis',
     readOnlySource: true,
-    pricing: GUSTAVO_CATALOG_PRICING,
     siteProductsRead: siteProducts.length,
     arianaProductsSaved: products.length,
     products
@@ -67,8 +61,7 @@ async function main() {
     ok: true,
     output: OUTPUT_FILE,
     siteProductsRead: siteProducts.length,
-    arianaProductsSaved: products.length,
-    pricing: GUSTAVO_CATALOG_PRICING
+    arianaProductsSaved: products.length
   }));
 }
 
