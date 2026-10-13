@@ -68,6 +68,8 @@ export function createErpPaymentReceiptService(context={}){
     normalizePhone,
     makeReciboNumber,
     sendCrediarioReceiptWhatsapp,
+    getWhatsappSettings,
+    axios,
     redact,
     now,
     createAdminNotification
@@ -80,7 +82,8 @@ export function createErpPaymentReceiptService(context={}){
     console.warn('[erp-payment-receipt] contato do cliente indisponível:',error?.message||error);
   }
 
-  const enabled=Boolean(CrediarioRecibo&&typeof sendCrediarioReceiptWhatsapp==='function');
+  const directSenderAvailable=Boolean(axios?.post&&typeof getWhatsappSettings==='function');
+  const enabled=Boolean(CrediarioRecibo&&(typeof sendCrediarioReceiptWhatsapp==='function'||directSenderAvailable));
   const db=context.mongoose||null;
   const phoneOf=value=>{
     const raw=clean(value,80);
@@ -96,6 +99,51 @@ export function createErpPaymentReceiptService(context={}){
     if((n.length===10||n.length===11)&&!n.startsWith('55'))n='55'+n;
     return n;
   };
+
+  function receiptMessage(receipt={}){
+    const r=receiptRow(receipt);
+    const date=r.dataPagamento?new Date(r.dataPagamento):new Date();
+    const dateText=Number.isNaN(date.getTime())?'Não informada':date.toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo'});
+    return `✅ Pagamento registrado com sucesso\n\nOlá, ${r.clienteNome||'cliente'}! 👋\n\nRecebemos o pagamento da sua parcela na Ariana Móveis.\n\n🧾 Recibo: ${r.recibo||'—'}\n📦 Produto: ${r.produto||'Compra na loja'}\n💰 Valor pago: ${money(r.valorPago).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}\n💳 Forma de pagamento: ${r.formaPagamento||'Não informada'}\n📅 Data: ${dateText}\n📌 Parcela: ${r.parcela||'Não informada'}\n\nObrigado pela preferência! 😊\nAriana Móveis`;
+  }
+
+  async function sendViaFinanceInstance(receipt={}){
+    if(!directSenderAvailable)throw new Error('Canal financeiro direto indisponível.');
+    const settings=await getWhatsappSettings();
+    if(settings?.enabled===false)throw new Error('WhatsApp desativado nas configurações.');
+    const apiUrl=String(settings?.apiUrl||'').trim().replace(/\/+$/,'');
+    const apiKey=String(settings?.apiKey||'').trim();
+    const instanceName=String(process.env.EVOLUTION_RECEIPT_INSTANCE||process.env.EVOLUTION_INSTANCE_FINANCEIRO||'Ariana_Financeiro').trim();
+    const number=phoneOf(receipt?.telefone||'');
+    if(!apiUrl)throw new Error('URL da Evolution API não configurada.');
+    if(!apiKey)throw new Error('Chave da Evolution API não configurada.');
+    if(!instanceName)throw new Error('Instância financeira do WhatsApp não configurada.');
+    if(!number)throw new Error('Telefone do cliente inválido para envio do recibo.');
+    const response=await axios.post(`${apiUrl}/message/sendText/${encodeURIComponent(instanceName)}`,{number,text:receiptMessage(receipt),delay:0},{headers:{'Content-Type':'application/json',apikey:apiKey},timeout:10000,validateStatus:()=>true});
+    if(response.status<200||response.status>=300){
+      const providerMessage=clean(response?.data?.message||response?.data?.error||response?.statusText||'',300);
+      throw new Error(`Evolution ${instanceName} recusou o envio (HTTP ${response.status})${providerMessage?`: ${providerMessage}`:''}`);
+    }
+    return{ok:true,provider:'evolution',instanceName,status:response.status,data:response.data};
+  }
+
+  async function sendReceiptWhatsapp(receipt={}){
+    let financeError=null;
+    if(directSenderAvailable){
+      try{return await sendViaFinanceInstance(receipt)}catch(error){financeError=error;console.warn('[erp-payment-receipt] falha no canal financeiro:',error?.message||error)}
+    }
+    if(typeof sendCrediarioReceiptWhatsapp==='function'){
+      try{
+        const fallback=await sendCrediarioReceiptWhatsapp(receipt);
+        if(fallback&&fallback.ok!==false)return fallback;
+        throw new Error(fallback?.error||fallback?.message||'Evolution API não confirmou o envio do comprovante.');
+      }catch(error){
+        const first=financeError?.message?`Financeiro: ${financeError.message}. `:'';
+        throw new Error(`${first}Notificações: ${error?.message||String(error)}`);
+      }
+    }
+    throw financeError||new Error('Nenhum canal de WhatsApp disponível para o comprovante.');
+  }
 
   function fallbackReceiptNumber(){
     const d=new Date(),y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');
@@ -296,7 +344,7 @@ export function createErpPaymentReceiptService(context={}){
 
     let whatsapp=null;
     try{
-      whatsapp=await sendCrediarioReceiptWhatsapp(receipt);
+      whatsapp=await sendReceiptWhatsapp(receipt);
       if(!whatsapp||whatsapp.ok===false)throw new Error(whatsapp?.error||whatsapp?.message||'Evolution API não confirmou o envio do comprovante.');
       receipt.enviadoWhatsapp=true;
       receipt.enviadoWhatsappEm=typeof now==='function'?now():new Date();
@@ -432,7 +480,7 @@ export function createErpPaymentReceiptService(context={}){
       return{receipt:receiptRow(receipt),whatsappEnviado:true,whatsapp:{ok:true,alreadySent:true}};
     }
 
-    const whatsapp=await sendCrediarioReceiptWhatsapp(receipt);
+    const whatsapp=await sendReceiptWhatsapp(receipt);
     if(!whatsapp||whatsapp.ok===false){
       receipt.enviadoWhatsapp=false;
       receipt.whatsappResultado=typeof redact==='function'?redact(whatsapp||{}):(whatsapp||{});
