@@ -1,4 +1,4 @@
-name: ERP sequential receipt hotfix
+name: ERP client receipt charges hotfix
 
 on:
   push:
@@ -17,48 +17,117 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-      - name: Patch ERP finance receipt UI
+      - name: Patch receive-by-client flow
         shell: python
         run: |
           from pathlib import Path
+
           p = Path('public/erp_financeiro_completo.html')
           s = p.read_text(encoding='utf-8')
 
-          old1 = """  const missing=deliveries.filter(d=>d.requiresPhone===true&&d.phonePrompt?.receiptId);\n  const failed=deliveries.filter(d=>!d.requiresPhone&&d.whatsappEnviado!==true&&d.whatsapp?.ok===false);\n  const sent=deliveries.filter(d=>d.whatsappEnviado===true).length;"""
-          new1 = """  const missing=deliveries.filter(d=>d.requiresPhone===true&&d.phonePrompt?.receiptId);\n  const pending=deliveries.filter(d=>d.whatsapp?.pending===true&&d.whatsappEnviado!==true).length;\n  const failed=deliveries.filter(d=>!d.requiresPhone&&d.whatsappEnviado!==true&&d.whatsapp?.ok===false&&d.whatsapp?.pending!==true);\n  const sent=deliveries.filter(d=>d.whatsappEnviado===true).length;"""
-          if old1 not in s:
-              raise SystemExit('presentReceiptDeliveries pattern not found')
-          s = s.replace(old1, new1, 1)
+          label_old = '<label>Valor recebido</label><input id="sr-amount" type="number" min="0.01" step="0.01">'
+          label_new = '<label>Valor recebido (total pago)</label><input id="sr-amount" type="number" min="0.01" step="0.01">'
+          if label_old not in s:
+              raise SystemExit('simple receive amount label pattern not found')
+          s = s.replace(label_old, label_new, 1)
 
-          old2 = "return{sent,missing:missing.length,failed:failed.length,failedRows:failed};"
-          new2 = "return{sent,pending,missing:missing.length,failed:failed.length,failedRows:failed};"
-          if old2 not in s:
-              raise SystemExit('receipt state return pattern not found')
-          s = s.replace(old2, new2, 1)
+          summary_start = s.index('function simpleChargeSummary(){')
+          summary_end = s.index('\nfunction toast', summary_start)
+          new_summary = r'''function simpleMoneyRound(v=0){const n=Number(v||0);return Number.isFinite(n)?Math.round((n+Number.EPSILON)*100)/100:0}
+          function simpleReceiveBreakdown(rows=[],paidAt=today(),waive=false){let principal=0,fine=0,interest=0,overdueCount=0;for(const row of rows){const p=Math.max(0,Number(row.remaining||0));if(p<=0.009)continue;const calc=calculateLateCharges(row,p,paidAt,waive);principal+=p;fine+=Number(calc.fine||0);interest+=Number(calc.interest||0);if(calc.days>0)overdueCount++;}principal=simpleMoneyRound(principal);fine=simpleMoneyRound(fine);interest=simpleMoneyRound(interest);return{principal,fine,interest,total:simpleMoneyRound(principal+fine+interest),overdueCount}}
+          function simpleAllocationForCash(row,cash,paidAt=today(),waive=false){const budget=simpleMoneyRound(cash),maxPrincipal=simpleMoneyRound(Math.max(0,Number(row.remaining||0)));if(budget<=0.009||maxPrincipal<=0.009)return{principal:0,fine:0,interest:0,total:0};const full=calculateLateCharges(row,maxPrincipal,paidAt,waive),fullTotal=simpleMoneyRound(full.total);if(budget+0.009>=fullTotal)return{principal:maxPrincipal,fine:simpleMoneyRound(full.fine),interest:simpleMoneyRound(full.interest),total:fullTotal};let lo=1,hi=Math.max(0,Math.round(maxPrincipal*100)),best={principal:0,fine:0,interest:0,total:0};while(lo<=hi){const mid=Math.floor((lo+hi)/2),principal=mid/100,calc=calculateLateCharges(row,principal,paidAt,waive),total=simpleMoneyRound(calc.total);if(total<=budget+0.0001){best={principal:simpleMoneyRound(principal),fine:simpleMoneyRound(calc.fine),interest:simpleMoneyRound(calc.interest),total};lo=mid+1}else hi=mid-1}return best}
+          function simpleChargeSummary(){if(!simpleClient)return;const waive=$('sr-waive-charges')?.checked===true,paidAt=$('sr-date')?.value||today(),x=simpleReceiveBreakdown(simpleClient.rows,paidAt,waive);$('sr-amount').max=x.total.toFixed(2);$('sr-charge-summary').innerHTML=waive?`Encargos dispensados. <b>Total sem multa/juros: ${money(x.principal)}</b>`:`${x.overdueCount} parcela(s) vencida(s). Multa ${money(x.fine)} + juros ${money(x.interest)}. <b>Total com encargos: ${money(x.total)}</b>`;}'''
+          s = s[:summary_start] + new_summary + s[summary_end:]
 
-          old3 = """    closeModal('receive-modal');\n    const receiptState=presentReceiptDeliveries(collectReceiptDeliveries(result,reference));\n    if(receiptState.missing)toast('Pagamento registrado. Informe o WhatsApp do cliente para enviar o comprovante.');\n    else if(receiptState.failed)toast('Pagamento registrado, mas o comprovante não pôde ser enviado pelo WhatsApp.');\n    else if(receiptState.sent)toast(amount+0.009>=Number(receiveTarget.row.remaining||0)?'Parcela recebida e comprovante enviado pelo WhatsApp.':'Recebimento parcial registrado e comprovante enviado pelo WhatsApp.');\n    else toast(amount+0.009>=Number(receiveTarget.row.remaining||0)?'Parcela recebida com sucesso.':'Recebimento parcial registrado.');\n    receiveTarget=null;\n    await Promise.all([loadCollections(),loadEntries(),loadPayments(),loadMetrics()]);"""
-          new3 = """    closeModal('receive-modal');\n    const targetBeforeClear=receiveTarget;\n    const originalRemaining=Number(targetBeforeClear?.row?.remaining||0);\n    const receiptState=presentReceiptDeliveries(collectReceiptDeliveries(result,reference));\n    if(targetBeforeClear?.row){\n      targetBeforeClear.row.receivedAmount=Math.round((Number(targetBeforeClear.row.receivedAmount||0)+amount)*100)/100;\n      targetBeforeClear.row.remaining=Math.max(0,Math.round((originalRemaining-amount)*100)/100);\n      targetBeforeClear.row.status=targetBeforeClear.row.remaining<=0.009?'recebido':'parcial';\n      if(targetBeforeClear.type==='sale'||targetBeforeClear.type==='ledger')renderCollections();\n    }\n    receiveTarget=null;\n    saveBtn.disabled=false;saveBtn.textContent='Registrar';\n    if(receiptState.missing)toast('Pagamento registrado. Informe o WhatsApp do cliente para enviar o comprovante.');\n    else if(receiptState.pending)toast('Pagamento registrado. Comprovante sendo enviado pelo WhatsApp.');\n    else if(receiptState.failed)toast('Pagamento registrado, mas o comprovante não pôde ser enviado pelo WhatsApp.');\n    else if(receiptState.sent)toast(amount+0.009>=originalRemaining?'Parcela recebida e comprovante enviado pelo WhatsApp.':'Recebimento parcial registrado e comprovante enviado pelo WhatsApp.');\n    else toast(amount+0.009>=originalRemaining?'Parcela recebida com sucesso.':'Recebimento parcial registrado.');\n    const refreshJobs=[loadCollections(),loadMetrics()];\n    if($('entries')?.classList.contains('active'))refreshJobs.push(loadEntries());\n    if($('payments')?.classList.contains('active'))refreshJobs.push(loadPayments());\n    Promise.allSettled(refreshJobs).catch(()=>{});"""
-          if old3 not in s:
-              raise SystemExit('saveReceive success block pattern not found')
-          s = s.replace(old3, new3, 1)
+          confirm_start = s.index('async function confirmSimpleReceive(){')
+          confirm_end = s.index('\n\nfunction entryStatus', confirm_start)
+          new_confirm = r'''async function confirmSimpleReceive(){
+            if(!simpleClient)return;
+            const amount=simpleMoneyRound(Number($('sr-amount').value)),waive=$('sr-waive-charges')?.checked===true,paidAt=$('sr-date').value||today(),totals=simpleReceiveBreakdown(simpleClient.rows,paidAt,waive);
+            if(!Number.isFinite(amount)||amount<=0)return toast('Informe um valor recebido válido.');
+            if(amount-totals.total>0.009)return toast(`O valor recebido não pode ultrapassar o total atualizado do cliente (${money(totals.total)}).`);
+            const name=simpleClient.name,bankId=$('sr-bank').value,bankName=banks.find(b=>String(b._id)===String(bankId))?.name||'',method=$('sr-method').value,note=$('sr-note').value.trim();
+            const chargeText=waive?'sem multa e juros':'com multa e juros calculados nas parcelas vencidas';
+            if(!confirm(`Confirmar recebimento de ${money(amount)} de ${name}?\n\nO Ariana ERP aplicará o valor nos débitos mais antigos deste cliente, ${chargeText}.`))return;
+            const btn=$('sr-confirm');btn.disabled=true;btn.textContent='Registrando...';
+            let available=amount,appliedCash=0,appliedPrincipal=0,appliedCharges=0,processed=0,failure=null;
+            const batch='REC-ERP-'+Date.now(),deliveries=[];
+            const rows=[...simpleClient.rows].sort((a,b)=>{const ad=a.dueAt?new Date(a.dueAt).getTime():Number.MAX_SAFE_INTEGER,bd=b.dueAt?new Date(b.dueAt).getTime():Number.MAX_SAFE_INTEGER;return ad-bd});
+            try{
+              for(const row of rows){
+                if(available<=0.009)break;
+                const alloc=simpleAllocationForCash(row,available,paidAt,waive);
+                if(alloc.principal<=0.009)break;
+                const body={amount:alloc.principal,principal:alloc.principal,fine:alloc.fine,interest:alloc.interest,discount:0,waiveCharges:waive,chargePolicy:'2pct_fine_1pct_monthly_prorata',paidAt,paymentMethod:method,method,bankAccountId:bankId,bankAccountName:bankName,document:batch+'-'+String(processed+1).padStart(3,'0'),note:['Recebimento consolidado por cliente no Ariana ERP.',note].filter(Boolean).join(' ')};
+                try{
+                  let result=null,reference='';
+                  if(row.sourceType==='sale'){
+                    reference=`ERP_${row.orderId}_${row.number}`;
+                    result=await api(`/erp/orders/${encodeURIComponent(row.orderId)}/receivables/${row.number}/receive`,{method:'POST',body:JSON.stringify(body)});
+                  }else{
+                    reference=`LEDGER_${row.entryId}`;
+                    result=await api(`/erp/financeiro/lancamentos/${encodeURIComponent(row.entryId)}/quitar`,{method:'POST',body:JSON.stringify(body)});
+                  }
+                  deliveries.push(...collectReceiptDeliveries(result,reference));
+                  appliedPrincipal=simpleMoneyRound(appliedPrincipal+alloc.principal);
+                  appliedCharges=simpleMoneyRound(appliedCharges+alloc.fine+alloc.interest);
+                  appliedCash=simpleMoneyRound(appliedCash+alloc.total);
+                  available=Math.max(0,simpleMoneyRound(available-alloc.total));
+                  row.receivedAmount=simpleMoneyRound(Number(row.receivedAmount||0)+alloc.principal);
+                  row.remaining=Math.max(0,simpleMoneyRound(Number(row.remaining||0)-alloc.principal));
+                  row.status=row.remaining<=0.009?'recebido':'parcial';
+                  processed++;
+                }catch(e){failure=e;break}
+              }
+              if(!failure&&available>0.009)failure=new Error(`Não foi possível distribuir ${money(available)} do valor informado com segurança.`);
+              closeModal('simple-receive-modal');
+              renderSimpleClient();
+              btn.disabled=false;btn.textContent='Confirmar recebimento';
+              const receiptState=presentReceiptDeliveries(deliveries);
+              if(failure){
+                const confirmed=appliedCash>0?`Valor confirmado até aqui: ${money(appliedCash)} (principal ${money(appliedPrincipal)} + encargos ${money(appliedCharges)}).`:'Nenhuma baixa teve resposta confirmada nesta operação.';
+                alert(`O Ariana ERP encontrou um problema durante o recebimento.\n\n${confirmed}\n\nA carteira será atualizada automaticamente para conferir o saldo. Não repita o valor enquanto a atualização não terminar, para evitar baixa duplicada.\n\nDetalhe: ${failure.message}`);
+                toast(appliedCash>0?'Recebimento registrado parcialmente. Atualizando o saldo...':'Recebimento não confirmado. Atualizando o saldo...');
+              }else if(receiptState.missing){
+                toast('Recebimento registrado. Informe o WhatsApp do cliente para enviar o(s) comprovante(s).');
+              }else if(receiptState.pending){
+                toast('Recebimento registrado. Comprovante(s) sendo enviado(s) pelo WhatsApp.');
+              }else if(receiptState.failed){
+                toast('Recebimento registrado, mas houve falha no envio de comprovante pelo WhatsApp.');
+              }else if(receiptState.sent){
+                toast(receiptState.sent===1?`Recebimento de ${money(appliedCash)} registrado e comprovante enviado.`:`Recebimento de ${money(appliedCash)} registrado e ${receiptState.sent} comprovantes enviados.`);
+              }else{
+                toast(`Recebimento de ${money(appliedCash)} registrado no Ariana ERP.`);
+              }
+              Promise.resolve().then(async()=>{
+                await Promise.allSettled([loadCollections(),loadMetrics()]);
+                try{await searchSimpleClient(name)}catch{}
+                if($('payments')?.classList.contains('active'))await Promise.allSettled([loadPayments()]);
+              }).catch(()=>{});
+            }finally{btn.disabled=false;btn.textContent='Confirmar recebimento'}
+          }'''
+          s = s[:confirm_start] + new_confirm + s[confirm_end:]
 
-          old4 = """  }catch(e){\n    toast(e.message==='Failed to fetch'?'Não foi possível confirmar a resposta do servidor. Atualizando o financeiro para evitar baixa duplicada…':e.message);\n    try{await Promise.all([loadCollections(),loadEntries(),loadPayments(),loadMetrics()])}catch{}\n  }finally{saveBtn.disabled=false;saveBtn.textContent='Registrar'}"""
-          new4 = """  }catch(e){\n    closeModal('receive-modal');\n    if(receiveTarget?.row){receiveTarget.row.status='confirmando';if(receiveTarget.type==='sale'||receiveTarget.type==='ledger')renderCollections()}\n    receiveTarget=null;\n    saveBtn.disabled=false;saveBtn.textContent='Registrar';\n    toast(e.message==='Failed to fetch'?'Não foi possível confirmar a resposta do servidor. Atualizando o financeiro para evitar baixa duplicada…':e.message);\n    Promise.allSettled([loadCollections(),loadMetrics()]).catch(()=>{});\n  }finally{saveBtn.disabled=false;saveBtn.textContent='Registrar'}"""
-          if old4 not in s:
-              raise SystemExit('saveReceive catch block pattern not found')
-          s = s.replace(old4, new4, 1)
+          fill_old = "$('sr-fill').onclick=()=>{if(simpleClient)$('sr-amount').value=simpleClient.rows.reduce((s,r)=>s+Number(r.remaining||0),0).toFixed(2)};"
+          fill_new = "$('sr-fill').onclick=()=>{if(simpleClient){const x=simpleReceiveBreakdown(simpleClient.rows,$('sr-date')?.value||today(),$('sr-waive-charges')?.checked===true);$('sr-amount').value=x.total.toFixed(2)}};"
+          if fill_old not in s:
+              raise SystemExit('simple receive fill handler pattern not found')
+          s = s.replace(fill_old, fill_new, 1)
 
           p.write_text(s, encoding='utf-8')
       - name: Verify patch
         run: |
-          grep -F "whatsapp?.pending!==true" public/erp_financeiro_completo.html
-          grep -F "Comprovante sendo enviado pelo WhatsApp" public/erp_financeiro_completo.html
-          grep -F "Promise.allSettled(refreshJobs)" public/erp_financeiro_completo.html
+          grep -F "Valor recebido (total pago)" public/erp_financeiro_completo.html
+          grep -F "simpleAllocationForCash" public/erp_financeiro_completo.html
+          grep -F "total atualizado do cliente" public/erp_financeiro_completo.html
+          grep -F "Comprovante(s) sendo enviado(s) pelo WhatsApp" public/erp_financeiro_completo.html
+          grep -F "Promise.resolve().then(async()=>" public/erp_financeiro_completo.html
+          git diff --check
       - name: Commit hotfix
         run: |
           git config user.name "Ariana ERP Hotfix"
           git config user.email "actions@users.noreply.github.com"
           git add public/erp_financeiro_completo.html
           git diff --cached --check
-          git commit -m "fix sequential ERP receipts and pending WhatsApp status"
+          git commit -m "fix client receipt charges and unblock confirmation UI"
           git push origin main
