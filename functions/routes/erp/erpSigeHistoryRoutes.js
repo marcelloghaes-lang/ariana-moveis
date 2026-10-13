@@ -16,7 +16,12 @@ export default function createErpSigeHistoryRoutes(context={}){
  router.get('/erp/migracao/sige/compras/:sourceSaleId',context.adminRequired,async(req,res)=>{try{return res.json({ok:true,purchase:await enrichment.purchase(req.params.sourceSaleId)})}catch(e){return res.status(Number(e?.statusCode||500)).json({ok:false,error:e?.message||'Compra histórica não encontrada.',code:e?.code||'ERP_SIGE_ENRICHMENT_ERROR'})}});
  router.post('/erp/migracao/sige/compras/sincronizar',context.adminRequired,async(req,res)=>{try{if(String(req.body?.confirmation||'')!=='ENRIQUECER_COMPRAS_SIGE')return res.status(409).json({ok:false,error:'Confirmação inválida.',code:'ERP_SIGE_ENRICHMENT_CONFIRMATION_REQUIRED'});const started=await enrichment.startInBackground({force:req.body?.force===true,actor:actor(req)?.name||actor(req)?.email||'Administrador'});return res.status(202).json({ok:true,result:started})}catch(e){return res.status(Number(e?.statusCode||500)).json({ok:false,error:e?.message||'Erro ao iniciar sincronização das compras.',code:e?.code||'ERP_SIGE_ENRICHMENT_ERROR'})}});
  router.use((error,_req,res,next)=>{if(!(error instanceof multer.MulterError))return next(error);return res.status(error.code==='LIMIT_FILE_SIZE'?413:400).json({ok:false,error:error.code==='LIMIT_FILE_SIZE'?'O ZIP histórico excede 8 MB.':'Falha ao receber o pacote histórico.',code:`SIGE_HISTORY_UPLOAD_${error.code||'ERROR'}`})});
- const autoTimer=setTimeout(()=>{enrichment.startInBackground({actor:'Ariana ERP - sincronização automática'}).catch(error=>console.error('[erp-sige-enrichment] não foi possível iniciar:',error?.message||error))},30000);
- autoTimer.unref?.();
+ // O enriquecimento histórico é pesado e não deve competir automaticamente com baixas,
+ // caixa, cobrança ou emissão de comprovantes. Continua disponível pela rota manual acima.
+ const autoEnabled=String(process.env.ERP_SIGE_ENRICHMENT_AUTO||'false').trim().toLowerCase()==='true';
+ if(autoEnabled){
+  const autoTimer=setTimeout(()=>{enrichment.startInBackground({actor:'Ariana ERP - sincronização automática'}).catch(error=>console.error('[erp-sige-enrichment] não foi possível iniciar:',error?.message||error))},30000);
+  autoTimer.unref?.();
+ }
  return router;
 }
