@@ -206,8 +206,8 @@ export function createErpLedgerService(context={}){
     }
   }
 
-  // A baixa financeira nunca pode ficar presa aguardando indefinidamente o
-  // provedor de WhatsApp. A tentativa de comprovante continua limitada no tempo.
+  // A baixa financeira deve ser confirmada imediatamente; o comprovante de
+  // WhatsApp continua em segundo plano e nunca pode segurar a próxima parcela.
   const deliveryPromise=paymentReceipts.afterLedgerReceive({
     entry:receiptEntry,
     payment,
@@ -219,7 +219,7 @@ export function createErpLedgerService(context={}){
       whatsappEnviado:false,
       requiresPhone:false,
       whatsapp:{ok:false,pending:true,error:'O comprovante continua sendo processado em segundo plano.'}
-    }),12000))
+    }),1000))
   ]);
   return{...decorated,receiptDelivery}
  }
