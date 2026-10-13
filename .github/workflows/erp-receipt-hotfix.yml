@@ -1,0 +1,64 @@
+name: ERP sequential receipt hotfix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/erp-receipt-hotfix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Patch ERP finance receipt UI
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('public/erp_financeiro_completo.html')
+          s = p.read_text(encoding='utf-8')
+
+          old1 = """  const missing=deliveries.filter(d=>d.requiresPhone===true&&d.phonePrompt?.receiptId);\n  const failed=deliveries.filter(d=>!d.requiresPhone&&d.whatsappEnviado!==true&&d.whatsapp?.ok===false);\n  const sent=deliveries.filter(d=>d.whatsappEnviado===true).length;"""
+          new1 = """  const missing=deliveries.filter(d=>d.requiresPhone===true&&d.phonePrompt?.receiptId);\n  const pending=deliveries.filter(d=>d.whatsapp?.pending===true&&d.whatsappEnviado!==true).length;\n  const failed=deliveries.filter(d=>!d.requiresPhone&&d.whatsappEnviado!==true&&d.whatsapp?.ok===false&&d.whatsapp?.pending!==true);\n  const sent=deliveries.filter(d=>d.whatsappEnviado===true).length;"""
+          if old1 not in s:
+              raise SystemExit('presentReceiptDeliveries pattern not found')
+          s = s.replace(old1, new1, 1)
+
+          old2 = "return{sent,missing:missing.length,failed:failed.length,failedRows:failed};"
+          new2 = "return{sent,pending,missing:missing.length,failed:failed.length,failedRows:failed};"
+          if old2 not in s:
+              raise SystemExit('receipt state return pattern not found')
+          s = s.replace(old2, new2, 1)
+
+          old3 = """    closeModal('receive-modal');\n    const receiptState=presentReceiptDeliveries(collectReceiptDeliveries(result,reference));\n    if(receiptState.missing)toast('Pagamento registrado. Informe o WhatsApp do cliente para enviar o comprovante.');\n    else if(receiptState.failed)toast('Pagamento registrado, mas o comprovante não pôde ser enviado pelo WhatsApp.');\n    else if(receiptState.sent)toast(amount+0.009>=Number(receiveTarget.row.remaining||0)?'Parcela recebida e comprovante enviado pelo WhatsApp.':'Recebimento parcial registrado e comprovante enviado pelo WhatsApp.');\n    else toast(amount+0.009>=Number(receiveTarget.row.remaining||0)?'Parcela recebida com sucesso.':'Recebimento parcial registrado.');\n    receiveTarget=null;\n    await Promise.all([loadCollections(),loadEntries(),loadPayments(),loadMetrics()]);"""
+          new3 = """    closeModal('receive-modal');\n    const targetBeforeClear=receiveTarget;\n    const originalRemaining=Number(targetBeforeClear?.row?.remaining||0);\n    const receiptState=presentReceiptDeliveries(collectReceiptDeliveries(result,reference));\n    if(targetBeforeClear?.row){\n      targetBeforeClear.row.receivedAmount=Math.round((Number(targetBeforeClear.row.receivedAmount||0)+amount)*100)/100;\n      targetBeforeClear.row.remaining=Math.max(0,Math.round((originalRemaining-amount)*100)/100);\n      targetBeforeClear.row.status=targetBeforeClear.row.remaining<=0.009?'recebido':'parcial';\n      if(targetBeforeClear.type==='sale'||targetBeforeClear.type==='ledger')renderCollections();\n    }\n    receiveTarget=null;\n    saveBtn.disabled=false;saveBtn.textContent='Registrar';\n    if(receiptState.missing)toast('Pagamento registrado. Informe o WhatsApp do cliente para enviar o comprovante.');\n    else if(receiptState.pending)toast('Pagamento registrado. Comprovante sendo enviado pelo WhatsApp.');\n    else if(receiptState.failed)toast('Pagamento registrado, mas o comprovante não pôde ser enviado pelo WhatsApp.');\n    else if(receiptState.sent)toast(amount+0.009>=originalRemaining?'Parcela recebida e comprovante enviado pelo WhatsApp.':'Recebimento parcial registrado e comprovante enviado pelo WhatsApp.');\n    else toast(amount+0.009>=originalRemaining?'Parcela recebida com sucesso.':'Recebimento parcial registrado.');\n    const refreshJobs=[loadCollections(),loadMetrics()];\n    if($('entries')?.classList.contains('active'))refreshJobs.push(loadEntries());\n    if($('payments')?.classList.contains('active'))refreshJobs.push(loadPayments());\n    Promise.allSettled(refreshJobs).catch(()=>{});"""
+          if old3 not in s:
+              raise SystemExit('saveReceive success block pattern not found')
+          s = s.replace(old3, new3, 1)
+
+          old4 = """  }catch(e){\n    toast(e.message==='Failed to fetch'?'Não foi possível confirmar a resposta do servidor. Atualizando o financeiro para evitar baixa duplicada…':e.message);\n    try{await Promise.all([loadCollections(),loadEntries(),loadPayments(),loadMetrics()])}catch{}\n  }finally{saveBtn.disabled=false;saveBtn.textContent='Registrar'}"""
+          new4 = """  }catch(e){\n    closeModal('receive-modal');\n    if(receiveTarget?.row){receiveTarget.row.status='confirmando';if(receiveTarget.type==='sale'||receiveTarget.type==='ledger')renderCollections()}\n    receiveTarget=null;\n    saveBtn.disabled=false;saveBtn.textContent='Registrar';\n    toast(e.message==='Failed to fetch'?'Não foi possível confirmar a resposta do servidor. Atualizando o financeiro para evitar baixa duplicada…':e.message);\n    Promise.allSettled([loadCollections(),loadMetrics()]).catch(()=>{});\n  }finally{saveBtn.disabled=false;saveBtn.textContent='Registrar'}"""
+          if old4 not in s:
+              raise SystemExit('saveReceive catch block pattern not found')
+          s = s.replace(old4, new4, 1)
+
+          p.write_text(s, encoding='utf-8')
+      - name: Verify patch
+        run: |
+          grep -F "whatsapp?.pending!==true" public/erp_financeiro_completo.html
+          grep -F "Comprovante sendo enviado pelo WhatsApp" public/erp_financeiro_completo.html
+          grep -F "Promise.allSettled(refreshJobs)" public/erp_financeiro_completo.html
+      - name: Commit hotfix
+        run: |
+          git config user.name "Ariana ERP Hotfix"
+          git config user.email "actions@users.noreply.github.com"
+          git add public/erp_financeiro_completo.html
+          git diff --cached --check
+          git commit -m "fix sequential ERP receipts and pending WhatsApp status"
+          git push origin main
