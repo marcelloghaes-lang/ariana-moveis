@@ -45,6 +45,8 @@ const orderSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.
   paymentStartedAt: { type: Date, default: null },
   customerViewedAt: { type: Date, default: null },
   approvedAt: { type: Date, default: null },
+  deliveredAt: { type: Date, default: null, index: true },
+  sellerSettlements: { type: mongoose.Schema.Types.Mixed, default: {} },
   televendas: { type: mongoose.Schema.Types.Mixed, default: null }
 }, baseOptions);
 orderSchema.index({ origin: 1, createdAt: -1 });

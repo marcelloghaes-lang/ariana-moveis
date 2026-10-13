@@ -1651,8 +1651,16 @@ app.put('/api/seller/orders/:id/status', sellerAuthRequired, async (req, res) =>
     }
 
     const shipped = ['shipped', 'enviado'].includes(requestedStatus);
-    const normalizedStatus = shipped ? 'shipped' : 'processing';
+    if (shipped) return res.status(400).json({ ok: false, code: 'SELLER_USE_SHIP_ROUTE', error: 'Para enviar o pedido, informe transportadora e rastreio pela operação de despacho.' });
+    const normalizedStatus = 'processing';
     const statusLabel = shipped ? 'Enviado' : 'Em preparação';
+    const sellerCurrentStatus = String(beforeObj.shipping?.sellers?.[sid]?.status || currentStatus).trim().toLowerCase();
+    if (['shipped', 'enviado'].includes(sellerCurrentStatus) && normalizedStatus === 'processing') {
+      return res.status(409).json({ ok: false, code: 'SELLER_STATUS_REGRESSION', error: 'Pedido já enviado não pode voltar para Em preparação.' });
+    }
+    if ((normalizedStatus === 'processing' && ['processing', 'preparando'].includes(sellerCurrentStatus)) || (normalizedStatus === 'shipped' && ['shipped', 'enviado'].includes(sellerCurrentStatus))) {
+      return res.json({ ok: true, idempotent: true, order: sellerOrderForResponse(order, sid) });
+    }
 
     applySellerFulfillment(order, sid, {
       status: normalizedStatus,
@@ -1718,6 +1726,7 @@ app.post('/api/seller/orders/:id/ship', sellerAuthRequired, async (req, res) => 
 
     const trackingCode = String(req.body?.trackingCode || req.body?.tracking || '').trim();
     const carrier = String(req.body?.carrier || '').trim();
+    if (!trackingCode || !carrier) return res.status(400).json({ ok: false, code: 'SELLER_SHIPPING_DATA_REQUIRED', error: 'Informe transportadora e código de rastreio antes de marcar o pedido como enviado.' });
 
     const order = await Order.findById(oid);
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
@@ -1747,6 +1756,13 @@ app.post('/api/seller/orders/:id/ship', sellerAuthRequired, async (req, res) => 
     const sellerIds = sellerIdsForSellerRoute(beforeObj);
     if (!sellerIds.includes(sid)) {
       return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
+    }
+    const sellerCurrentStatus = String(beforeObj.shipping?.sellers?.[sid]?.status || currentStatus).trim().toLowerCase();
+    if (['shipped', 'enviado'].includes(sellerCurrentStatus)) {
+      const currentTracking = String(beforeObj.shipping?.sellers?.[sid]?.trackingCode || beforeObj.trackingCode || '').trim();
+      const currentCarrier = String(beforeObj.shipping?.sellers?.[sid]?.carrier || beforeObj.shipping?.carrier || '').trim();
+      if (currentTracking === trackingCode && currentCarrier === carrier) return res.json({ ok: true, idempotent: true, order: sellerOrderForResponse(order, sid) });
+      return res.status(409).json({ ok: false, code: 'SELLER_ORDER_ALREADY_SHIPPED', error: 'Pedido já foi enviado. Rastreio não pode ser substituído por esta operação.' });
     }
 
     applySellerFulfillment(order, sid, {

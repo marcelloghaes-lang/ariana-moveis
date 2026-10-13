@@ -1945,6 +1945,10 @@ app.get('/api/admin/seller-settlements', adminRequired, async (req, res) => {
           paidBy: entry.paidBy || '',
           reference: entry.reference || '',
           note: entry.note || '',
+          deliveredAt: entry.deliveredAt || order.deliveredAt || order.shipping?.sellers?.[sid]?.deliveredAt || null,
+          eligibleAt: entry.eligibleAt || null,
+          eligible: !!entry.eligibleAt && new Date(entry.eligibleAt).getTime() <= Date.now(),
+          holdDays: Number(entry.holdDays || 15),
           createdAt: order.createdAt
         });
       });
@@ -1966,6 +1970,13 @@ app.post('/api/admin/orders/:orderId/seller-settlements/:sellerId/paid', adminRe
     const belongs = ensureArray(orderObj.sellerIds).map(String).includes(sid) || ensureArray(orderObj.items).some((item) => String(item?.sellerId || '') === sid);
     if (!belongs) return res.status(404).json({ ok: false, error: 'Seller não pertence a este pedido' });
 
+    const existingSettlement = orderObj.sellerSettlements?.[sid] || {};
+    const deliveredAtRaw = existingSettlement.deliveredAt || orderObj.shipping?.sellers?.[sid]?.deliveredAt || orderObj.deliveredAt || null;
+    if (!deliveredAtRaw) return res.status(409).json({ ok: false, code: 'SELLER_PAYOUT_DELIVERY_REQUIRED', error: 'Repasse bloqueado: pedido ainda não possui entrega confirmada.' });
+    const deliveredAt = new Date(deliveredAtRaw);
+    const eligibleAt = existingSettlement.eligibleAt ? new Date(existingSettlement.eligibleAt) : new Date(deliveredAt.getTime() + (15 * 24 * 60 * 60 * 1000));
+    if (!Number.isFinite(eligibleAt.getTime()) || eligibleAt.getTime() > Date.now()) return res.status(409).json({ ok: false, code: 'SELLER_PAYOUT_HOLD_ACTIVE', error: 'Repasse bloqueado até 15 dias após a entrega.', eligibleAt });
+    if (String(existingSettlement.status || '').toLowerCase() === 'paid') return res.status(409).json({ ok: false, code: 'SELLER_PAYOUT_ALREADY_PAID', error: 'Repasse já registrado para este seller.' });
     const amount = Number(req.body?.amount);
     if (!Number.isFinite(amount) || amount < 0) return res.status(400).json({ ok: false, error: 'Informe o valor efetivamente repassado' });
     const key = `sellerSettlements.${sid}`;
@@ -2224,10 +2235,24 @@ app.patch('/api/admin/:collection/:id', adminRequired, async (req, res, next) =>
     if (!existingDoc) return res.status(404).json({ ok: false, error: 'not_found' });
     const beforeObj = toJSON(existingDoc);
     const payload = key === 'products' ? productPayloadFromBody({ ...(req.body || {}) }, existingDoc) : (req.body || {});
-    const doc = await Model.findByIdAndUpdate(oid, { $set: payload }, { new: true, runValidators: true });
+    let doc = await Model.findByIdAndUpdate(oid, { $set: payload }, { new: true, runValidators: true });
 
     if (key === 'orders') {
-      const afterObj = toJSON(doc);
+      let afterObj = toJSON(doc);
+      const deliveredNow = ['delivered', 'entregue'].includes(String(afterObj.status || afterObj.statusLabel || '').trim().toLowerCase());
+      if (deliveredNow) {
+        const deliveredAt = afterObj.deliveredAt ? new Date(afterObj.deliveredAt) : now();
+        const eligibleAt = new Date(deliveredAt.getTime() + (15 * 24 * 60 * 60 * 1000));
+        const sellerIds = [...new Set(ensureArray(afterObj.sellerIds).concat(ensureArray(afterObj.items).map((item) => item?.sellerId)).map((v) => String(v || '').trim()).filter(Boolean))];
+        const settlementSet = { deliveredAt };
+        for (const sid of sellerIds) {
+          const current = afterObj.sellerSettlements?.[sid] || {};
+          if (String(current.status || '').toLowerCase() === 'paid') continue;
+          settlementSet[`sellerSettlements.${sid}`] = { ...current, status: 'pending', deliveredAt, eligibleAt, holdDays: 15, mode: current.mode || 'manual_after_delivery' };
+        }
+        doc = await Order.findByIdAndUpdate(oid, { $set: settlementSet }, { new: true });
+        afterObj = toJSON(doc);
+      }
 
       await syncStockReservationForPayment({
         Order,

@@ -3425,6 +3425,13 @@ app.post('/api/admin/e2e/orders/:orderId/stage', adminRequired, async (req, res)
     const shipping = obj.shipping && typeof obj.shipping === 'object' ? { ...obj.shipping } : {};
     const sellers = shipping.sellers && typeof shipping.sellers === 'object' ? { ...shipping.sellers } : {};
     const current = sellers[sid] && typeof sellers[sid] === 'object' ? { ...sellers[sid] } : {};
+    const currentStage = String(current.status || obj.status || '').toLowerCase();
+    const stageRank = { pago:0, paid:0, approved:0, processing:1, preparando:1, shipped:2, enviado:2, delivered:3, entregue:3 };
+    const requestedRank = { processing:1, shipped:2, delivered:3 }[stage];
+    const currentRank = stageRank[currentStage] ?? 0;
+    if (requestedRank == null) return res.status(400).json({ ok:false, error:'Etapa E2E inválida.' });
+    if (currentRank >= requestedRank) return res.json({ ok:true, e2e:true, idempotent:true, stage, orderId:String(order._id), status:order.status, statusLabel:order.statusLabel });
+    if (requestedRank !== currentRank + 1) return res.status(409).json({ ok:false, code:'E2E_STAGE_SEQUENCE_REQUIRED', error:'Etapas E2E devem seguir a sequência preparação, envio e entrega.' });
     let type='seller_order_updated', title='📦 Pedido atualizado', status='', statusLabel='';
     if (stage === 'processing') { status='processing'; statusLabel='Em preparação'; }
     else if (stage === 'shipped') { status='shipped'; statusLabel='Enviado'; shipping.carrier='TESTE E2E'; shipping.trackingCode='TESTE-E2E-RASTREIO'; shipping.shippedAt=now(); order.trackingCode='TESTE-E2E-RASTREIO'; type='seller_order_shipped'; title='Pedido marcado como enviado'; }
@@ -3432,6 +3439,16 @@ app.post('/api/admin/e2e/orders/:orderId/stage', adminRequired, async (req, res)
     else return res.status(400).json({ ok:false, error:'Etapa E2E inválida.' });
     sellers[sid] = { ...current, sellerId:sid, status, statusLabel, ...(stage==='shipped'?{carrier:'TESTE E2E',trackingCode:'TESTE-E2E-RASTREIO',shippedAt:now()}:{}), ...(stage==='delivered'?{deliveredAt:now()}:{}), updatedAt:now() };
     shipping.sellers=sellers; order.shipping=shipping; order.status=status; order.statusLabel=statusLabel;
+    if (stage === 'delivered') {
+      const deliveredAt = order.deliveredAt || now();
+      order.deliveredAt = deliveredAt;
+      const settlements = obj.sellerSettlements && typeof obj.sellerSettlements === 'object' ? { ...obj.sellerSettlements } : {};
+      const existingSettlement = settlements[sid] && typeof settlements[sid] === 'object' ? { ...settlements[sid] } : {};
+      if (String(existingSettlement.status || '').toLowerCase() !== 'paid') {
+        settlements[sid] = { ...existingSettlement, status:'pending', deliveredAt, eligibleAt:new Date(new Date(deliveredAt).getTime() + (15*24*60*60*1000)), holdDays:15, mode:existingSettlement.mode || 'manual_after_delivery' };
+        order.sellerSettlements = settlements;
+      }
+    }
     order.trackingHistory=ensureArray(order.trackingHistory); order.trackingHistory.push({sellerId:sid,status,label:`E2E: ${statusLabel}`,date:now(),...(stage==='shipped'?{carrier:'TESTE E2E',trackingCode:'TESTE-E2E-RASTREIO'}:{})});
     await order.save();
     await createSellerOrderNotifications(order,{type,title,message:`Pedido #${String(order._id).slice(-8).toUpperCase()} - ${statusLabel}`,severity:'info',origin:`e2e_controlled_${stage}`});
