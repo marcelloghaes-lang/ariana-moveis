@@ -2734,3 +2734,10 @@ window.approveSellerE2ETestOrder = async function(){
   } catch(e) { alert('Falha E2E: '+(e?.message||e)); }
   finally { if(btn){btn.disabled=false;btn.textContent='E2E: APROVAR PEDIDO TESTE';} }
 };
+
+window.advanceSellerE2E = async function(stage){
+  const labels={processing:'EM PREPARAÇÃO',shipped:'DESPACHADO',delivered:'ENTREGUE'};
+  if(!confirm('Avançar SOMENTE o pedido TESTE-E2E para '+(labels[stage]||stage)+'?')) return;
+  try { const data=await apiRequest('/admin/e2e/orders/6acd7a68ff96c9c483d3cbe6/stage',{method:'POST',body:JSON.stringify({stage})}); alert(data?.ok?'E2E atualizado: '+data.statusLabel:'Falha E2E: '+(data?.error||'erro desconhecido')); }
+  catch(e){ alert('Falha E2E: '+(e?.message||e)); }
+};

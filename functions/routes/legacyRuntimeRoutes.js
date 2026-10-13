@@ -3408,6 +3408,37 @@ app.post('/api/admin/e2e/orders/:orderId/approve-payment', adminRequired, async 
   }
 });
 
+app.post('/api/admin/e2e/orders/:orderId/stage', adminRequired, async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.orderId);
+    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+    const order = await Order.findById(oid);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
+    const obj = toJSON(order) || {};
+    const testOnly = (obj.items || []).length > 0 && (obj.items || []).every((item) =>
+      /^TESTE[-_ ]?E2E/i.test(String(item?.sku || '')) || /^TESTE E2E/i.test(String(item?.name || ''))
+    );
+    if (!testOnly || !obj.payment?.e2eSimulation) return res.status(403).json({ ok: false, error: 'Somente pedido TESTE-E2E previamente aprovado.' });
+    const stage = String(req.body?.stage || '').toLowerCase();
+    const sid = String((obj.sellerIds || [])[0] || obj.items?.[0]?.sellerId || '').trim();
+    if (!sid) return res.status(400).json({ ok: false, error: 'Seller do teste não encontrado.' });
+    const shipping = obj.shipping && typeof obj.shipping === 'object' ? { ...obj.shipping } : {};
+    const sellers = shipping.sellers && typeof shipping.sellers === 'object' ? { ...shipping.sellers } : {};
+    const current = sellers[sid] && typeof sellers[sid] === 'object' ? { ...sellers[sid] } : {};
+    let type='seller_order_updated', title='📦 Pedido atualizado', status='', statusLabel='';
+    if (stage === 'processing') { status='processing'; statusLabel='Em preparação'; }
+    else if (stage === 'shipped') { status='shipped'; statusLabel='Enviado'; shipping.carrier='TESTE E2E'; shipping.trackingCode='TESTE-E2E-RASTREIO'; shipping.shippedAt=now(); order.trackingCode='TESTE-E2E-RASTREIO'; type='seller_order_shipped'; title='Pedido marcado como enviado'; }
+    else if (stage === 'delivered') { status='delivered'; statusLabel='Entregue'; order.deliveredAt=now(); type='seller_order_updated'; title='Pedido entregue'; }
+    else return res.status(400).json({ ok:false, error:'Etapa E2E inválida.' });
+    sellers[sid] = { ...current, sellerId:sid, status, statusLabel, ...(stage==='shipped'?{carrier:'TESTE E2E',trackingCode:'TESTE-E2E-RASTREIO',shippedAt:now()}:{}), ...(stage==='delivered'?{deliveredAt:now()}:{}), updatedAt:now() };
+    shipping.sellers=sellers; order.shipping=shipping; order.status=status; order.statusLabel=statusLabel;
+    order.trackingHistory=ensureArray(order.trackingHistory); order.trackingHistory.push({sellerId:sid,status,label:`E2E: ${statusLabel}`,date:now(),...(stage==='shipped'?{carrier:'TESTE E2E',trackingCode:'TESTE-E2E-RASTREIO'}:{})});
+    await order.save();
+    await createSellerOrderNotifications(order,{type,title,message:`Pedido #${String(order._id).slice(-8).toUpperCase()} - ${statusLabel}`,severity:'info',origin:`e2e_controlled_${stage}`});
+    return res.json({ok:true,e2e:true,stage,orderId:String(order._id),status:order.status,statusLabel:order.statusLabel});
+  } catch(error) { return res.status(500).json({ok:false,error:error.message||'e2e_stage_failed'}); }
+});
+
 async function updateOrderPaymentFromMercadoPago(orderId, method, mpData = {}, extra = {}) {
   try {
     const oid = normalizeObjectId(orderId);

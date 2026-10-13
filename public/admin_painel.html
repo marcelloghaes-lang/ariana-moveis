@@ -240,7 +240,7 @@ img[src^="$%7B"],img[src*="%7D"]{display:none!important}
 </div>
 </div>
 </div>
-<button id="e2e-approve-test-order" type="button" onclick="window.approveSellerE2ETestOrder()" class="fixed bottom-4 right-4 z-[10000] bg-amber-500 hover:bg-amber-600 text-white font-black px-4 py-3 rounded-xl shadow-xl">E2E: APROVAR PEDIDO TESTE</button>
+<div class="fixed bottom-4 right-4 z-[10000] flex flex-col gap-2 items-end"><button id="e2e-approve-test-order" type="button" onclick="window.approveSellerE2ETestOrder()" class="bg-amber-500 hover:bg-amber-600 text-white font-black px-4 py-3 rounded-xl shadow-xl">E2E: APROVAR PEDIDO TESTE</button><button type="button" onclick="window.advanceSellerE2E('processing')" class="bg-blue-600 text-white font-black px-4 py-3 rounded-xl shadow-xl">E2E: EM PREPARAÇÃO</button><button type="button" onclick="window.advanceSellerE2E('shipped')" class="bg-indigo-600 text-white font-black px-4 py-3 rounded-xl shadow-xl">E2E: DESPACHADO</button><button type="button" onclick="window.advanceSellerE2E('delivered')" class="bg-green-600 text-white font-black px-4 py-3 rounded-xl shadow-xl">E2E: ENTREGUE</button></div>
 <script src="js/api-config.js"></script>
 <script src="js/admin_painel.js?v=20260918-specs-readable"></script>
 <script src="js/admin_access_control.js?v=20260722-phase6"></script>
