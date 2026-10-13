@@ -41,6 +41,8 @@ const schema=new mongoose.Schema({
 },base);
 
 const Settings=mongoose.models.ErpOperationalSettings||mongoose.model('ErpOperationalSettings',schema);
+let settingsSnapshotCache=null,settingsSnapshotCacheAt=0;
+const SETTINGS_CACHE_TTL_MS=30000;
 
 function fail(message,statusCode=400,code='ERP_SETTINGS_ERROR',details=undefined){const e=new Error(message);e.statusCode=statusCode;e.code=code;if(details)e.details=details;return e}
 function bool(v,fallback=false){return v===undefined?fallback:Boolean(v)}
@@ -50,10 +52,18 @@ function normalizedStatus(v=''){return clean(v,30).toLowerCase().normalize('NFD'
 function paymentPrincipal(row={}){const ps=Array.isArray(row.payments)?row.payments:[];if(ps.length)return money(ps.reduce((s,p)=>s+Number(p?.principalApplied??p?.principal??0),0));return money(row.principalPaid??(row.status==='paid'?row.value:0))}
 function receivableOpen(row={}){return Math.max(0,money(Number(row.value||0)-paymentPrincipal(row)))}
 
-async function row(){return Settings.findOneAndUpdate({key:'default'},{$setOnInsert:{key:'default'}},{upsert:true,new:true,setDefaultsOnInsert:true})}
+async function row(){
+ let current=await Settings.findOne({key:'default'});
+ if(current)return current;
+ return Settings.findOneAndUpdate({key:'default'},{$setOnInsert:{key:'default'}},{upsert:true,new:true,setDefaultsOnInsert:true})
+}
 function publicRow(x){const o=x?.toObject?x.toObject():x||{};return{general:o.general||{},sales:o.sales||{},finance:o.finance||{},pdv:o.pdv||{},updatedAt:o.updatedAt||null,updatedBy:o.updatedBy||''}}
 
-export async function getErpSettingsSnapshot(){return publicRow(await row())}
+export async function getErpSettingsSnapshot(){
+ const now=Date.now();
+ if(settingsSnapshotCache&&now-settingsSnapshotCacheAt<SETTINGS_CACHE_TTL_MS)return settingsSnapshotCache;
+ settingsSnapshotCache=publicRow(await row());settingsSnapshotCacheAt=now;return settingsSnapshotCache
+}
 
 export function createErpSettingsService(context={}){
  const {IntegrationAuditLog,redact,Order}=context;
@@ -67,6 +77,7 @@ export function createErpSettingsService(context={}){
   if(payload.pdv){set.pdv={...current.pdv?.toObject?.()||current.pdv||{},defaultPaymentMethod:clean(p.defaultPaymentMethod??current.pdv?.defaultPaymentMethod??'pix',80),defaultBankAccountId:clean(p.defaultBankAccountId??current.pdv?.defaultBankAccountId,120),requireOpenCashForBilling:bool(p.requireOpenCashForBilling,current.pdv?.requireOpenCashForBilling??true)}}
   set.updatedBy=actorName(actor);
   const x=await Settings.findOneAndUpdate({key:'default'},{$set:set,$setOnInsert:{key:'default'}},{upsert:true,new:true,setDefaultsOnInsert:true});
+  settingsSnapshotCache=publicRow(x);settingsSnapshotCacheAt=Date.now();
   await audit({by:set.updatedBy,sections:Object.keys(payload).filter(k=>['general','sales','finance','pdv'].includes(k))});
   return publicRow(x)
  }
