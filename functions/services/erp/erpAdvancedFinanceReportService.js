@@ -50,11 +50,14 @@ export function createErpAdvancedFinanceReportService(context={}){
   async function report(q={}){
     const {from,to}=period(q),all=await rows(),now=new Date();now.setHours(0,0,0,0);
     const inPeriod=v=>{const d=new Date(v||0);return!Number.isNaN(d.getTime())&&d>=from&&d<=to};
-    const competence=all.filter(r=>inPeriod(r.competenceAt||r.dueAt));
-    const due=all.filter(r=>inPeriod(r.dueAt));
+    // Descarta importações claramente corrompidas (ex.: R$ 999 milhões) para não contaminar previsão, DRE e fluxo.
+    const valid=all.filter(r=>Math.abs(Number(r.value||0))<=anomalyLimit);
+    const ignoredAnomalies=all.length-valid.length;
+    const competence=valid.filter(r=>inPeriod(r.competenceAt||r.dueAt));
+    const due=valid.filter(r=>inPeriod(r.dueAt));
 
     const movements=[];
-    for(const r of all){
+    for(const r of valid){
       const ps=arr(r.payments);
       if(ps.length){
         for(const p of ps){const at=paymentDate(p,r);if(!inPeriod(at))continue;movements.push({date:at,direction:r.direction,personName:r.personName||'',description:r.description||'',categoryName:r.categoryName||'Sem categoria',centerCostName:r.centerCostName||'Sem centro de custo',bankAccountName:p.bankAccountName||r.bankAccountName||'Sem conta',paymentMethod:p.method||r.paymentMethod||'',principal:money(p.principalApplied??p.amount??0),fine:money(p.fine||0),interest:money(p.interest||0),discount:money(p.discount||0),value:money(p.totalPaid??p.principalApplied??p.amount??0),origin:r.origin||''});}
@@ -79,23 +82,26 @@ export function createErpAdvancedFinanceReportService(context={}){
     for(const m of movements){const k=m.centerCostName||'Sem centro de custo',x=centerMap.get(k)||{center:k,receivableExpected:0,payableExpected:0,receivableRealized:0,payableRealized:0};if(m.direction==='receivable')x.receivableRealized+=Number(m.value||0);else x.payableRealized+=Number(m.value||0);centerMap.set(k,x)}
     const centers=[...centerMap.values()].map(x=>({...x,receivableExpected:money(x.receivableExpected),payableExpected:money(x.payableExpected),receivableRealized:money(x.receivableRealized),payableRealized:money(x.payableRealized),resultExpected:money(x.receivableExpected-x.payableExpected),resultRealized:money(x.receivableRealized-x.payableRealized)})).sort((a,b)=>b.payableRealized-a.payableRealized);
 
-    const overdue=all.filter(r=>r.direction==='receivable'&&r.status!=='paid'&&new Date(r.dueAt)<now&&openValue(r)>0);
+    const overdue=valid.filter(r=>r.direction==='receivable'&&r.status!=='paid'&&new Date(r.dueAt)<now&&openValue(r)>0);
     const overdueBuckets=[['Até 30 dias',0,30],['31 a 60 dias',31,60],['61 a 90 dias',61,90],['Acima de 90 dias',91,999999]].map(([label,min,max])=>{const rs=overdue.filter(r=>{const d=Math.floor((now-new Date(r.dueAt))/86400000);return d>=min&&d<=max});return{label,count:rs.length,value:sum(rs,x=>openValue(x))}});
     const debtorsMap=new Map();
     for(const r of overdue){const k=(r.personDocument||r.personName||'sem-identificacao').toLowerCase(),x=debtorsMap.get(k)||{personName:r.personName||'Sem identificação',document:r.personDocument||'',count:0,value:0,oldestDue:r.dueAt};x.count++;x.value+=openValue(r);if(new Date(r.dueAt)<new Date(x.oldestDue))x.oldestDue=r.dueAt;debtorsMap.set(k,x)}
     const debtors=[...debtorsMap.values()].map(x=>({...x,value:money(x.value),daysOverdue:Math.max(0,Math.floor((now-new Date(x.oldestDue))/86400000))})).sort((a,b)=>b.value-a.value).slice(0,100);
 
-    const forecast=[];for(let i=0;i<13;i++){const s=new Date(now);s.setDate(s.getDate()+i*7);const e=new Date(s);e.setDate(e.getDate()+6);e.setHours(23,59,59,999);const rs=all.filter(r=>r.status!=='paid'&&openValue(r)>0&&new Date(r.dueAt)>=s&&new Date(r.dueAt)<=e);forecast.push({from:s,to:e,receivable:sum(rs.filter(x=>x.direction==='receivable'),x=>openValue(x)),payable:sum(rs.filter(x=>x.direction==='payable'),x=>openValue(x))});}forecast.forEach(x=>x.net=money(x.receivable-x.payable));
+    const forecast=[];for(let i=0;i<13;i++){const s=new Date(now);s.setDate(s.getDate()+i*7);const e=new Date(s);e.setDate(e.getDate()+6);e.setHours(23,59,59,999);const rs=valid.filter(r=>r.status!=='paid'&&openValue(r)>0&&new Date(r.dueAt)>=s&&new Date(r.dueAt)<=e);forecast.push({from:s,to:e,receivable:sum(rs.filter(x=>x.direction==='receivable'),x=>openValue(x)),payable:sum(rs.filter(x=>x.direction==='payable'),x=>openValue(x))});}forecast.forEach(x=>x.net=money(x.receivable-x.payable));
 
+    // Série mensal: realizado pela data do pagamento; previsto pela data REAL de vencimento.
     const monthlyMap=new Map();
-    for(const m of movements){const k=monthKey(m.date);if(!k)continue;const x=monthlyMap.get(k)||{month:k,revenue:0,expense:0};if(m.direction==='receivable')x.revenue+=Number(m.value||0);else x.expense+=Number(m.value||0);monthlyMap.set(k,x)}
-    const monthly=[...monthlyMap.values()].sort((a,b)=>a.month.localeCompare(b.month)).map(x=>({...x,revenue:money(x.revenue),expense:money(x.expense),result:money(x.revenue-x.expense)}));
+    const monthRow=k=>{let x=monthlyMap.get(k);if(!x){x={month:k,revenue:0,expense:0,expectedRevenue:0,expectedExpense:0,openReceivable:0,openPayable:0};monthlyMap.set(k,x)}return x};
+    for(const m of movements){const k=monthKey(m.date);if(!k)continue;const x=monthRow(k);if(m.direction==='receivable')x.revenue+=Number(m.value||0);else x.expense+=Number(m.value||0)}
+    for(const r of due){const k=monthKey(r.dueAt);if(!k)continue;const x=monthRow(k),value=Number(r.value||0),open=openValue(r);if(r.direction==='receivable'){x.expectedRevenue+=value;x.openReceivable+=open}else{x.expectedExpense+=value;x.openPayable+=open}}
+    const monthly=[...monthlyMap.values()].sort((a,b)=>a.month.localeCompare(b.month)).map(x=>({...x,revenue:money(x.revenue),expense:money(x.expense),result:money(x.revenue-x.expense),expectedRevenue:money(x.expectedRevenue),expectedExpense:money(x.expectedExpense),expectedResult:money(x.expectedRevenue-x.expectedExpense),openReceivable:money(x.openReceivable),openPayable:money(x.openPayable)}));
 
     const bankMap=new Map();
     for(const m of movements){const k=m.bankAccountName||'Sem conta',x=bankMap.get(k)||{account:k,inflow:0,outflow:0,count:0};x.count++;if(m.direction==='receivable')x.inflow+=Number(m.value||0);else x.outflow+=Number(m.value||0);bankMap.set(k,x)}
     const banks=[...bankMap.values()].map(x=>({...x,inflow:money(x.inflow),outflow:money(x.outflow),net:money(x.inflow-x.outflow)})).sort((a,b)=>Math.abs(b.net)-Math.abs(a.net));
 
-    return{period:{from,to},summary:{revenue,expense,result,expectedRevenue,expectedExpense,expectedResult:money(expectedRevenue-expectedExpense),dueRevenue,dueExpense,dueResult:money(dueRevenue-dueExpense),overdueReceivables:sum(overdue,x=>openValue(x)),overdueCount:overdue.length},dre,centers,overdueBuckets,debtors,forecast,monthly,banks,bankStatement:movements.slice(0,5000)};
+    return{period:{from,to},summary:{revenue,expense,result,expectedRevenue,expectedExpense,expectedResult:money(expectedRevenue-expectedExpense),dueRevenue,dueExpense,dueResult:money(dueRevenue-dueExpense),overdueReceivables:sum(overdue,x=>openValue(x)),overdueCount:overdue.length,ignoredAnomalies},dre,centers,overdueBuckets,debtors,forecast,monthly,banks,bankStatement:movements.slice(0,5000)};
   }
 
   return{report};
