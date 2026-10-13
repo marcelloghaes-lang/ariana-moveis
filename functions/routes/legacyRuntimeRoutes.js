@@ -3318,7 +3318,7 @@ function normalizeMercadoPagoPaymentResponse(data = {}) {
 
 
 
-async function notifySaleAfterPaymentApproved(orderDoc, origin = 'payment_approved') {
+async function notifySaleAfterPaymentApproved(orderDoc, origin = 'payment_approved', options = {}) {
   try {
     if (!orderDoc) return { skipped: true, reason: 'missing_order' };
     const oid = orderDoc._id || orderDoc.id;
@@ -3355,15 +3355,21 @@ async function notifySaleAfterPaymentApproved(orderDoc, origin = 'payment_approv
       origin
     });
 
-    let queue = { skipped: true, reason: 'enqueue_disabled' };
-    try { queue = await enqueueManufacturerDispatch(updated); } catch (e) { queue = { ok: false, error: e.message || String(e) }; }
+    let queue = { skipped: true, reason: options.suppressExternalSideEffects ? 'e2e_suppressed' : 'enqueue_disabled' };
+    if (!options.suppressExternalSideEffects) {
+      try { queue = await enqueueManufacturerDispatch(updated); } catch (e) { queue = { ok: false, error: e.message || String(e) }; }
+    }
 
     // SIGE da Ariana: envia automaticamente somente produtos vendidos pela Ariana Móveis.
     // Vendas de sellers/fabricantes ficam fora do SIGE da Ariana e seguem pelo fluxo do parceiro.
-    let sige = { skipped: true, reason: 'not_attempted' };
-    try { sige = await arianaSigeSyncOwnOrderAfterPayment(updated, origin); } catch (e) { sige = { ok: false, error: e.message || String(e) }; }
+    let sige = { skipped: true, reason: options.suppressExternalSideEffects ? 'e2e_suppressed' : 'not_attempted' };
+    if (!options.suppressExternalSideEffects) {
+      try { sige = await arianaSigeSyncOwnOrderAfterPayment(updated, origin); } catch (e) { sige = { ok: false, error: e.message || String(e) }; }
+    }
 
-    const adminWhatsapp = await waNotifyAdminNewOrder(updated, origin);
+    const adminWhatsapp = options.suppressExternalSideEffects
+      ? { skipped: true, reason: 'e2e_suppressed' }
+      : await waNotifyAdminNewOrder(updated, origin);
     return { ok: true, adminWhatsapp, queue, sige };
   } catch (error) {
     console.error('Erro ao notificar venda aprovada:', error.message || error);
@@ -3394,7 +3400,7 @@ app.post('/api/admin/e2e/orders/:orderId/approve-payment', adminRequired, async 
     order.paymentStatus = 'approved';
     order.payment = { ...(obj.payment || {}), e2eSimulation: true, e2eGatewayStatus: gatewayStatus || 'pending', e2eApprovedAt: now(), e2eNote: 'Homologação controlada; gateway real não foi alterado.' };
     await order.save();
-    const notification = await notifySaleAfterPaymentApproved(order, 'e2e_controlled_payment_approved');
+    const notification = await notifySaleAfterPaymentApproved(order, 'e2e_controlled_payment_approved', { suppressExternalSideEffects: true });
     const fresh = await Order.findById(oid);
     return res.json({ ok: true, e2e: true, gatewayRealStatus: gatewayStatus || 'pending', order: toJSON(fresh), notification });
   } catch (error) {
