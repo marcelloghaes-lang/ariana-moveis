@@ -270,28 +270,93 @@ export function createErpCarneCoraService(context = {}) {
 
   function coraEligibility(data = {}) {
     const today = new Date().toISOString().slice(0, 10);
-    const openItems = arr(data.items)
-      .filter(item => !item?.settled && Number(item?.open || 0) > 0.009)
+    const allItems = arr(data.items)
+      .slice()
       .sort((a, b) => Number(a.number || 0) - Number(b.number || 0));
+    const openItems = allItems
+      .filter(item => !item?.settled && Number(item?.open || 0) > 0.009);
     const reasons = [];
     if (openItems.length < 2) reasons.push('A Cora exige pelo menos 2 parcelas em aberto para emitir um carnê.');
     if (openItems.length > 24) reasons.push('A Cora aceita no máximo 24 parcelas por carnê.');
     const dueDates = openItems.map(item => isoDay(item.dueAt));
     if (dueDates.some(value => !value)) reasons.push('Há parcela sem vencimento válido.');
     if (dueDates.some(value => value && value < today)) reasons.push('Há parcela vencida. A Cora não cria um novo carnê com vencimento retroativo; use o carnê da loja ou formalize uma renegociação com novos vencimentos.');
-    const amounts = openItems.map(item => money(item.open));
-    if (amounts.length > 1 && Math.max(...amounts) - Math.min(...amounts) > 0.01) {
-      reasons.push('As parcelas em aberto possuem valores diferentes; a emissão em carnê Cora precisa manter parcelas uniformes.');
+
+    const amountCents = openItems.map(item => Math.round(Number(item.open || 0) * 100));
+    let roundingRepairRequired = false;
+    if (amountCents.length > 1 && Math.max(...amountCents) - Math.min(...amountCents) > 1) {
+      const totalCents = amountCents.reduce((sum, value) => sum + value, 0);
+      const baseCents = Math.floor(totalCents / amountCents.length);
+      const legacyLastCents = totalCents - (baseCents * (amountCents.length - 1));
+      const untouchedOrder = String(data.targetId || '').startsWith('order:')
+        && allItems.length === openItems.length
+        && allItems.every(item => !item?.settled
+          && Math.round(Number(item?.paid || 0) * 100) === 0
+          && Math.round(Number(item?.open || 0) * 100) === Math.round(Number(item?.original || 0) * 100));
+      const legacyFloorPattern = untouchedOrder
+        && amountCents.every((value, index) => value === (index === amountCents.length - 1 ? legacyLastCents : baseCents));
+
+      if (legacyFloorPattern) {
+        // Vendas antigas do próprio Ariana ERP concentravam toda a sobra de centavos
+        // na última parcela. É seguro corrigir somente quando ainda não houve baixa.
+        roundingRepairRequired = true;
+      } else {
+        reasons.push('As parcelas em aberto possuem valores diferentes; a emissão em carnê Cora precisa manter parcelas uniformes.');
+      }
     }
     return {
       eligible: reasons.length === 0,
       reasons,
+      roundingRepairRequired,
       openInstallments: openItems.length,
       dueDates,
       openAmount: money(openItems.reduce((sum, item) => sum + Number(item.open || 0), 0)),
       firstOriginalNumber: Number(openItems[0]?.number || 0),
       items: openItems
     };
+  }
+
+  async function repairLegacyRoundingIfNeeded(targetId, eligibility, actor = {}) {
+    if (!eligibility?.roundingRepairRequired || !Order) return false;
+    const id = clean(targetId, 300);
+    if (!id.startsWith('order:')) return false;
+    const orderId = id.slice('order:'.length);
+    if (!mongoose.isValidObjectId(orderId)) return false;
+
+    const order = await Order.findById(orderId);
+    if (!order || order.origin !== 'erp_ariana') return false;
+    const rows = arr(order.televendas?.erp?.receivables);
+    if (rows.length !== eligibility.items.length || rows.length < 2) return false;
+
+    const hasFinancialActivity = rows.some(row => {
+      const status = clean(row?.status || '', 40).toLowerCase();
+      return ['recebido', 'paid', 'settled', 'quitado', 'parcial', 'partial'].includes(status)
+        || arr(row?.payments).length > 0
+        || Number(row?.receivedAmount || row?.principalPaid || row?.paidValue || 0) > 0.009;
+    });
+    if (hasFinancialActivity) return false;
+
+    const totalCents = rows.reduce((sum, row) => sum + Math.round(Number(row?.value || 0) * 100), 0);
+    const baseCents = Math.floor(totalCents / rows.length);
+    const remainderCents = totalCents - (baseCents * rows.length);
+    const balanced = rows.map((_row, index) => baseCents + (index < remainderCents ? 1 : 0));
+    const current = rows.map(row => Math.round(Number(row?.value || 0) * 100));
+    if (current.every((value, index) => value === balanced[index])) return false;
+
+    rows.forEach((row, index) => { row.value = balanced[index] / 100; });
+    if (order.payment) order.payment.installmentValue = balanced[0] / 100;
+    const timeline = arr(order.televendas?.erp?.timeline);
+    timeline.push({
+      status: clean(order.status || 'pedido', 40),
+      label: 'Parcelas ajustadas por centavos para emissão Cora',
+      at: new Date(),
+      by: actorName(actor)
+    });
+    order.televendas.erp.timeline = timeline;
+    order.markModified?.('televendas');
+    order.markModified?.('payment');
+    await order.save();
+    return true;
   }
 
   function providerView(charge = null) {
@@ -621,7 +686,7 @@ export function createErpCarneCoraService(context = {}) {
   }
 
   async function emit(targetId, payload = {}, actor = {}) {
-    const baseData = await base.preview(targetId, 'primeira');
+    let baseData = await base.preview(targetId, 'primeira');
 
     const existing = await findLinkedCharge(baseData);
     if (existing) {
@@ -641,7 +706,14 @@ export function createErpCarneCoraService(context = {}) {
       return { reused: true, created: false, coraEligibility: coraEligibility(baseData), ...data };
     }
 
-    const eligibility = coraEligibility(baseData);
+    let eligibility = coraEligibility(baseData);
+    if (eligibility.roundingRepairRequired) {
+      const repaired = await repairLegacyRoundingIfNeeded(targetId, eligibility, actor);
+      if (repaired) {
+        baseData = await base.preview(targetId, 'primeira');
+        eligibility = coraEligibility(baseData);
+      }
+    }
     if (!eligibility.eligible) {
       throw fail(eligibility.reasons.join(' '), 409, 'ERP_CARNE_CORA_NOT_ELIGIBLE');
     }

@@ -86,13 +86,15 @@ export function buildReceivables(total, payment = {}) {
 
   if (Number.isNaN(firstDue.getTime())) throw fail('Data do primeiro vencimento inválida.', 400, 'INVALID_DUE_DATE');
 
-  const base = Math.floor((money(total) * 100) / installments) / 100;
-  let accumulated = 0;
+  const totalCents = Math.round(money(total) * 100);
+  const baseCents = Math.floor(totalCents / installments);
+  const remainderCents = totalCents - (baseCents * installments);
 
   return Array.from({ length: installments }, (_, index) => {
-    const isLast = index === installments - 1;
-    const value = isLast ? money(total - accumulated) : money(base);
-    accumulated = money(accumulated + value);
+    // Distribui a sobra de centavos entre as primeiras parcelas. Assim a diferença
+    // entre qualquer parcela é no máximo R$ 0,01 e a soma continua exatamente igual
+    // ao total da venda. Isso também mantém o carnê compatível com a Cora.
+    const value = money((baseCents + (index < remainderCents ? 1 : 0)) / 100);
     const dueAt = financed ? addMonthsSafe(firstDue, index) : new Date(firstDue);
     return {
       number: index + 1,
