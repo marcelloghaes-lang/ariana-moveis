@@ -1704,6 +1704,42 @@ async function quoteShippingForSelectedAddress(addrObj) {
       } catch (_) {}
     }
 
+    function cartMatchesPendingOrder(order, cartItems) {
+      const orderItems = Array.isArray(order?.items) ? order.items : [];
+      const currentItems = Array.isArray(cartItems) ? cartItems : [];
+      if (!orderItems.length || orderItems.length !== currentItems.length) return false;
+
+      const key = (item) => String(item?.productId || item?._id || item?.id || item?.sku || '').trim();
+      const qty = (item) => Math.max(1, Number(item?.qty || item?.quantity || 1) || 1);
+      const expected = orderItems.map((item) => `${key(item)}:${qty(item)}`).sort();
+      const current = currentItems.map((item) => `${key(item)}:${qty(item)}`).sort();
+      return expected.every((value, index) => value && value === current[index]);
+    }
+
+    async function resumeMatchingPendingOrder(cartItems, paymentMethod) {
+      let lastOrderId = '';
+      try { lastOrderId = String(localStorage.getItem('arianaLastOrderId') || '').trim(); } catch (_) {}
+      if (!lastOrderId) return false;
+
+      try {
+        const response = await apiGet(`/orders/${encodeURIComponent(lastOrderId)}`);
+        const order = response?.order || response?.pedido || response?.data || response;
+        const status = String(order?.status || '').toLowerCase();
+        const paymentStatus = String(order?.paymentStatus || order?.payment_status || '').toLowerCase();
+        const orderMethod = String(order?.payment?.method || order?.paymentMethod || order?.totals?.paymentMethod || '').toLowerCase();
+        const requestedMethod = String(paymentMethod || '').toLowerCase();
+        const pending = status === 'pending_payment' || status === 'pending' || paymentStatus === 'pending' || paymentStatus === 'awaiting_payment';
+
+        if (!pending || orderMethod !== requestedMethod || !cartMatchesPendingOrder(order, cartItems)) return false;
+
+        persistLastOrder(lastOrderId, requestedMethod, response);
+        window.location.href = `pagamento.html?orderId=${encodeURIComponent(lastOrderId)}&method=${encodeURIComponent(requestedMethod)}`;
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+
     const LARGE_SUPPLIER_KEYWORDS = [
       'WHIRLPOOL', 'SAMSUNG', 'MOTOROLA', 'ELECTROLUX', 'ELETROLUX', 'BRASTEMP',
       'CONSUL', 'LG', 'PHILCO', 'MONDIAL', 'MAGALU', 'MAGAZINE LUIZA', 'AMERICANAS',
@@ -1763,6 +1799,10 @@ async function quoteShippingForSelectedAddress(addrObj) {
         window.location.href = "login_cadastro.html";
         return;
       }
+
+      // Se este carrinho já gerou um pedido pendente, retoma o mesmo pedido.
+      // Isso evita reservar o estoque uma segunda vez quando o cliente volta ao checkout.
+      if (await resumeMatchingPendingOrder(cart, selectedPayCode)) return;
 
       let cpfToUse = "";
       if (customerProfile && customerProfile.cpf) {
