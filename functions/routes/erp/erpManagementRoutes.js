@@ -57,6 +57,7 @@ export default function createErpManagementRoutes(context={}){
  router.patch('/erp/financeiro/recorrencias/:id/ativo',context.adminRequired,handle(async req=>{adminOnly(req);return{recurrence:await recurringFinance.setActive(req.params.id,req.body?.active!==false,identity(req))}}));
  router.get('/erp/relatorios/financeiro',context.adminRequired,handle(async req=>{adminOnly(req);return{report:await reports.financial(req.query||{})}}));
  router.get('/erp/relatorios/financeiro-avancado',context.adminRequired,handle(async req=>{adminOnly(req);return{report:await advancedFinance.report(req.query||{})}}));
+ router.get('/erp/dashboard/financeiro',context.adminRequired,handle(async req=>{adminOnly(req);return{dashboard:await advancedFinance.dashboardSnapshot(req.query||{})}}));
  router.get('/erp/produtos/custos',context.adminRequired,handle(async req=>{adminOnly(req);return await profitability.listCosts(req.query||{})}));
  router.patch('/erp/produtos/:id/custo',context.adminRequired,handle(async req=>{adminOnly(req);return{product:await profitability.setCost(req.params.id,req.body||{},identity(req))}}));
  router.get('/erp/relatorios/rentabilidade',context.adminRequired,handle(async req=>{adminOnly(req);return{report:await profitability.report(req.query||{})}}));
