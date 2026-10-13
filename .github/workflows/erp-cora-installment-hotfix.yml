@@ -1,0 +1,95 @@
+name: ERP Cora installment rounding hotfix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/erp-cora-installment-hotfix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Patch ERP installment rounding and Cora compatibility
+        shell: python
+        run: |
+          from pathlib import Path
+
+          # 1) Future ERP sales: distribute cent remainders across installments,
+          # instead of concentrating the whole remainder in the last installment.
+          p = Path('functions/services/erp/erpService.js')
+          s = p.read_text(encoding='utf-8')
+          old = """  const base = Math.floor((money(total) * 100) / installments) / 100;\n  let accumulated = 0;\n\n  return Array.from({ length: installments }, (_, index) => {\n    const isLast = index === installments - 1;\n    const value = isLast ? money(total - accumulated) : money(base);\n    accumulated = money(accumulated + value);\n    const dueAt = financed ? addMonthsSafe(firstDue, index) : new Date(firstDue);"""
+          new = """  const totalCents = Math.round(money(total) * 100);\n  const baseCents = Math.floor(totalCents / installments);\n  const remainderCents = totalCents - (baseCents * installments);\n\n  return Array.from({ length: installments }, (_, index) => {\n    // Distribui a sobra de centavos entre as primeiras parcelas. Assim a diferença\n    // entre qualquer parcela é no máximo R$ 0,01 e a soma continua exatamente igual\n    // ao total da venda. Isso também mantém o carnê compatível com a Cora.\n    const value = money((baseCents + (index < remainderCents ? 1 : 0)) / 100);\n    const dueAt = financed ? addMonthsSafe(firstDue, index) : new Date(firstDue);"""
+          if old not in s:
+              raise SystemExit('buildReceivables rounding pattern not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+
+          # 2) Existing ERP sales: recognize the exact legacy floor+last-remainder
+          # pattern as safe to repair, then rebalance it immediately before Cora emission.
+          p = Path('functions/services/erp/erpCarneCoraService.js')
+          s = p.read_text(encoding='utf-8')
+
+          old_elig = """  function coraEligibility(data = {}) {\n    const today = new Date().toISOString().slice(0, 10);\n    const openItems = arr(data.items)\n      .filter(item => !item?.settled && Number(item?.open || 0) > 0.009)\n      .sort((a, b) => Number(a.number || 0) - Number(b.number || 0));\n    const reasons = [];\n    if (openItems.length < 2) reasons.push('A Cora exige pelo menos 2 parcelas em aberto para emitir um carnê.');\n    if (openItems.length > 24) reasons.push('A Cora aceita no máximo 24 parcelas por carnê.');\n    const dueDates = openItems.map(item => isoDay(item.dueAt));\n    if (dueDates.some(value => !value)) reasons.push('Há parcela sem vencimento válido.');\n    if (dueDates.some(value => value && value < today)) reasons.push('Há parcela vencida. A Cora não cria um novo carnê com vencimento retroativo; use o carnê da loja ou formalize uma renegociação com novos vencimentos.');\n    const amounts = openItems.map(item => money(item.open));\n    if (amounts.length > 1 && Math.max(...amounts) - Math.min(...amounts) > 0.01) {\n      reasons.push('As parcelas em aberto possuem valores diferentes; a emissão em carnê Cora precisa manter parcelas uniformes.');\n    }\n    return {\n      eligible: reasons.length === 0,\n      reasons,\n      openInstallments: openItems.length,\n      dueDates,\n      openAmount: money(openItems.reduce((sum, item) => sum + Number(item.open || 0), 0)),\n      firstOriginalNumber: Number(openItems[0]?.number || 0),\n      items: openItems\n    };\n  }"""
+
+          new_elig = """  function coraEligibility(data = {}) {\n    const today = new Date().toISOString().slice(0, 10);\n    const allItems = arr(data.items)\n      .slice()\n      .sort((a, b) => Number(a.number || 0) - Number(b.number || 0));\n    const openItems = allItems\n      .filter(item => !item?.settled && Number(item?.open || 0) > 0.009);\n    const reasons = [];\n    if (openItems.length < 2) reasons.push('A Cora exige pelo menos 2 parcelas em aberto para emitir um carnê.');\n    if (openItems.length > 24) reasons.push('A Cora aceita no máximo 24 parcelas por carnê.');\n    const dueDates = openItems.map(item => isoDay(item.dueAt));\n    if (dueDates.some(value => !value)) reasons.push('Há parcela sem vencimento válido.');\n    if (dueDates.some(value => value && value < today)) reasons.push('Há parcela vencida. A Cora não cria um novo carnê com vencimento retroativo; use o carnê da loja ou formalize uma renegociação com novos vencimentos.');\n\n    const amountCents = openItems.map(item => Math.round(Number(item.open || 0) * 100));\n    let roundingRepairRequired = false;\n    if (amountCents.length > 1 && Math.max(...amountCents) - Math.min(...amountCents) > 1) {\n      const totalCents = amountCents.reduce((sum, value) => sum + value, 0);\n      const baseCents = Math.floor(totalCents / amountCents.length);\n      const legacyLastCents = totalCents - (baseCents * (amountCents.length - 1));\n      const untouchedOrder = String(data.targetId || '').startsWith('order:')\n        && allItems.length === openItems.length\n        && allItems.every(item => !item?.settled\n          && Math.round(Number(item?.paid || 0) * 100) === 0\n          && Math.round(Number(item?.open || 0) * 100) === Math.round(Number(item?.original || 0) * 100));\n      const legacyFloorPattern = untouchedOrder\n        && amountCents.every((value, index) => value === (index === amountCents.length - 1 ? legacyLastCents : baseCents));\n\n      if (legacyFloorPattern) {\n        // Vendas antigas do próprio Ariana ERP concentravam toda a sobra de centavos\n        // na última parcela. É seguro corrigir somente quando ainda não houve baixa.\n        roundingRepairRequired = true;\n      } else {\n        reasons.push('As parcelas em aberto possuem valores diferentes; a emissão em carnê Cora precisa manter parcelas uniformes.');\n      }\n    }\n    return {\n      eligible: reasons.length === 0,\n      reasons,\n      roundingRepairRequired,\n      openInstallments: openItems.length,\n      dueDates,\n      openAmount: money(openItems.reduce((sum, item) => sum + Number(item.open || 0), 0)),\n      firstOriginalNumber: Number(openItems[0]?.number || 0),\n      items: openItems\n    };\n  }"""
+          if old_elig not in s:
+              raise SystemExit('coraEligibility pattern not found')
+          s = s.replace(old_elig, new_elig, 1)
+
+          marker = """  function providerView(charge = null) {"""
+          repair = """  async function repairLegacyRoundingIfNeeded(targetId, eligibility, actor = {}) {\n    if (!eligibility?.roundingRepairRequired || !Order) return false;\n    const id = clean(targetId, 300);\n    if (!id.startsWith('order:')) return false;\n    const orderId = id.slice('order:'.length);\n    if (!mongoose.isValidObjectId(orderId)) return false;\n\n    const order = await Order.findById(orderId);\n    if (!order || order.origin !== 'erp_ariana') return false;\n    const rows = arr(order.televendas?.erp?.receivables);\n    if (rows.length !== eligibility.items.length || rows.length < 2) return false;\n\n    const hasFinancialActivity = rows.some(row => {\n      const status = clean(row?.status || '', 40).toLowerCase();\n      return ['recebido', 'paid', 'settled', 'quitado', 'parcial', 'partial'].includes(status)\n        || arr(row?.payments).length > 0\n        || Number(row?.receivedAmount || row?.principalPaid || row?.paidValue || 0) > 0.009;\n    });\n    if (hasFinancialActivity) return false;\n\n    const totalCents = rows.reduce((sum, row) => sum + Math.round(Number(row?.value || 0) * 100), 0);\n    const baseCents = Math.floor(totalCents / rows.length);\n    const remainderCents = totalCents - (baseCents * rows.length);\n    const balanced = rows.map((_row, index) => baseCents + (index < remainderCents ? 1 : 0));\n    const current = rows.map(row => Math.round(Number(row?.value || 0) * 100));\n    if (current.every((value, index) => value === balanced[index])) return false;\n\n    rows.forEach((row, index) => { row.value = balanced[index] / 100; });\n    if (order.payment) order.payment.installmentValue = balanced[0] / 100;\n    const timeline = arr(order.televendas?.erp?.timeline);\n    timeline.push({\n      status: clean(order.status || 'pedido', 40),\n      label: 'Parcelas ajustadas por centavos para emissão Cora',\n      at: new Date(),\n      by: actorName(actor)\n    });\n    order.televendas.erp.timeline = timeline;\n    order.markModified?.('televendas');\n    order.markModified?.('payment');\n    await order.save();\n    return true;\n  }\n\n""" + marker
+          if marker not in s:
+              raise SystemExit('providerView marker not found')
+          s = s.replace(marker, repair, 1)
+
+          old_emit = """  async function emit(targetId, payload = {}, actor = {}) {\n    const baseData = await base.preview(targetId, 'primeira');\n\n    const existing = await findLinkedCharge(baseData);"""
+          new_emit = """  async function emit(targetId, payload = {}, actor = {}) {\n    let baseData = await base.preview(targetId, 'primeira');\n\n    const existing = await findLinkedCharge(baseData);"""
+          if old_emit not in s:
+              raise SystemExit('emit baseData pattern not found')
+          s = s.replace(old_emit, new_emit, 1)
+
+          old_gate = """    const eligibility = coraEligibility(baseData);\n    if (!eligibility.eligible) {\n      throw fail(eligibility.reasons.join(' '), 409, 'ERP_CARNE_CORA_NOT_ELIGIBLE');\n    }"""
+          new_gate = """    let eligibility = coraEligibility(baseData);\n    if (eligibility.roundingRepairRequired) {\n      const repaired = await repairLegacyRoundingIfNeeded(targetId, eligibility, actor);\n      if (repaired) {\n        baseData = await base.preview(targetId, 'primeira');\n        eligibility = coraEligibility(baseData);\n      }\n    }\n    if (!eligibility.eligible) {\n      throw fail(eligibility.reasons.join(' '), 409, 'ERP_CARNE_CORA_NOT_ELIGIBLE');\n    }"""
+          if old_gate not in s:
+              raise SystemExit('emit eligibility gate pattern not found')
+          s = s.replace(old_gate, new_gate, 1)
+
+          p.write_text(s, encoding='utf-8')
+
+      - name: Verify hotfix
+        run: |
+          node --check functions/services/erp/erpService.js
+          node --check functions/services/erp/erpCarneCoraService.js
+          node --input-type=module - <<'NODE'
+          import { buildReceivables } from './functions/services/erp/erpService.js';
+          const rows = buildReceivables(1667.38, { method: 'crediario', installments: 12, firstDueDate: '2026-11-13' });
+          const cents = rows.map(row => Math.round(Number(row.value) * 100));
+          const sum = cents.reduce((a, b) => a + b, 0);
+          if (sum !== 166738) throw new Error(`sum mismatch: ${sum}`);
+          if (Math.max(...cents) - Math.min(...cents) > 1) throw new Error(`variance too large: ${cents.join(',')}`);
+          if (cents.filter(v => v === 13895).length !== 10 || cents.filter(v => v === 13894).length !== 2) {
+            throw new Error(`unexpected cent distribution: ${cents.join(',')}`);
+          }
+          console.log('OK:', cents.join(','));
+          NODE
+          grep -F "roundingRepairRequired" functions/services/erp/erpCarneCoraService.js
+          grep -F "Parcelas ajustadas por centavos para emissão Cora" functions/services/erp/erpCarneCoraService.js
+
+      - name: Commit hotfix
+        run: |
+          git config user.name "Ariana ERP Hotfix"
+          git config user.email "actions@users.noreply.github.com"
+          git add functions/services/erp/erpService.js functions/services/erp/erpCarneCoraService.js
+          git diff --cached --check
+          git commit -m "fix Cora installment rounding and legacy ERP schedules"
+          git push origin main
