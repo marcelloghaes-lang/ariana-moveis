@@ -114,7 +114,7 @@ export function createErpPaymentReceiptService(context={}){
     if(settings?.enabled===false)throw new Error('WhatsApp desativado nas configurações.');
     const apiUrl=String(settings?.apiUrl||'').trim().replace(/\/+$/,'');
     const apiKey=String(settings?.apiKey||'').trim();
-    const instanceName=String(process.env.EVOLUTION_INSTANCE_NOTIFICACOES||'Ariana_Notificacoes').trim();
+    const instanceName=String(process.env.ERP_PAYMENT_RECEIPT_EVOLUTION_INSTANCE||process.env.EVOLUTION_INSTANCE_FINANCEIRO||'Ariana_Financeiro').trim();
     const number=phoneOf(receipt?.telefone||'');
     if(!apiUrl)throw new Error('URL da Evolution API não configurada.');
     if(!apiKey)throw new Error('Chave da Evolution API não configurada.');
