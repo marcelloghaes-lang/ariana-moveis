@@ -21,13 +21,10 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
-
           p = Path('functions/services/erp/erpParityAnalyticsService.js')
           s = p.read_text(encoding='utf-8')
           anchor = "function normalizeLedgerRow(r={}){const ps=array(r.payments),principal=money(ps.length?ps.reduce((s,p)=>s+Number(p.principalApplied??0),0):Number(r.principalPaid??(r.status==='paid'?r.value:0))),cash=money(ps.length?ps.reduce((s,p)=>s+Number(p.totalPaid??p.principalApplied??0),0):Number(r.paidValue||0));return{...r,id:String(r._id),source:r.origin==='sige_import'?'historico':'financeiro',principalPaid:principal,paidValue:cash,outstanding:r.status==='paid'?0:Math.max(0,money(Number(r.value||0)-principal)),partial:r.status!=='paid'&&principal>0}}\n"
-          if anchor not in s:
-              raise SystemExit('normalizeLedgerRow anchor not found')
-          helper = r'''async function enrichHistoricalInstallments(rows=[],Entry){
+          helper = """async function enrichHistoricalInstallments(rows=[],Entry){
            const saleIds=[...new Set(rows.map(r=>clean(r?.migration?.sourceSaleId||r?.historicalSourceSaleId,120)).filter(Boolean))];
            if(!saleIds.length)return rows;
            const Historical=mongoose.models.ErpSigeHistoricalSale||null;
@@ -45,25 +42,22 @@ jobs:
            }
            return rows.map(r=>{const x=byEntry.get(String(r._id||r.id||''));return x?{...r,historicalInstallmentNumber:x.number,historicalInstallments:x.installments,historicalSourceSaleId:x.sourceSaleId}:r})
           }
-'''
+          """
           if 'async function enrichHistoricalInstallments(' not in s:
+              if anchor not in s: raise SystemExit('normalizeLedgerRow anchor not found')
               s = s.replace(anchor, anchor + helper, 1)
           old = "  let base=(await Entry.collection.find(filter).sort({dueAt:1}).limit(30000).toArray()).map(normalizeLedgerRow);\n  if(!q.direction||q.direction==='receivable')base.push(...await currentReceivables());"
           new = "  let base=(await Entry.collection.find(filter).sort({dueAt:1}).limit(30000).toArray()).map(normalizeLedgerRow);\n  base=await enrichHistoricalInstallments(base,Entry);\n  if(!q.direction||q.direction==='receivable')base.push(...await currentReceivables());"
-          if old not in s and 'base=await enrichHistoricalInstallments(base,Entry);' not in s:
-              raise SystemExit('finance base pattern not found')
-          if old in s:
-              s = s.replace(old,new,1)
+          if old in s: s = s.replace(old,new,1)
+          elif 'base=await enrichHistoricalInstallments(base,Entry);' not in s: raise SystemExit('finance base pattern not found')
           p.write_text(s,encoding='utf-8')
 
           p = Path('public/erp_financeiro_completo.html')
           s = p.read_text(encoding='utf-8')
           old = "function prepareCollections(rows){const normalized=rows.map(normalizeCollection),groups=new Map();for(const r of normalized){if(!groups.has(r.purchaseKey))groups.set(r.purchaseKey,[]);groups.get(r.purchaseKey).push(r)}for(const list of groups.values()){list.sort((a,b)=>new Date(a.dueAt||0)-new Date(b.dueAt||0));if(list[0]?.sourceType==='ledger'){let knownTotal=Math.max(0,...list.map(r=>Number(r.installments||0)));if(!knownTotal){const dueDates=[...new Set(list.map(r=>String(r.dueAt||'').slice(0,10)).filter(Boolean))];knownTotal=dueDates.length}if(knownTotal>0){list.forEach((r,i)=>{if(!Number(r.number))r.number=i+1;r.installments=knownTotal})}}}return normalized}"
           new = "function prepareCollections(rows){return rows.map(normalizeCollection)}\nfunction installmentLabel(r){const n=Number(r?.number||0),t=Number(r?.installments||0);return n>0&&t>0?`${n}/${t}`:'A conferir'}"
-          if old in s:
-              s = s.replace(old,new,1)
-          elif 'function installmentLabel(r)' not in s:
-              raise SystemExit('prepareCollections pattern not found')
+          if old in s: s = s.replace(old,new,1)
+          elif 'function installmentLabel(r)' not in s: raise SystemExit('prepareCollections pattern not found')
           s = s.replace('<td>${r.number}/${r.installments}</td>','<td>${installmentLabel(r)}</td>')
           p.write_text(s,encoding='utf-8')
       - name: Verify patch
