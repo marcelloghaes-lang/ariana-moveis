@@ -215,10 +215,14 @@ function reportGroupsFromRows(rows=[]){const clients=new Map();for(const r of ro
 async function reportHistoricalInfo(p){if(!String(p.key||'').startsWith('sige:'))return{installments:0,items:[]};const sid=String(p.key).slice(5);try{const d=await api('/erp/migracao/sige/compras/'+encodeURIComponent(sid)),sale=d.purchase||{},live=sale?.metadata?.sigeLive||{},payments=live.payments||[],items=(live.items?.length?live.items:sale.items)||[];return{installments:Number(live.numberOfInstallments||payments[0]?.installments||sale.numberOfInstallments||0),items:items.map(x=>String(x.description||x.name||x.productName||'').trim()).filter(Boolean)}}catch{return{installments:0,items:[]}}}
 async function clientReportFor(key){
  const base=collectionGroups().find(x=>x.key===key);if(!base)return null;
- const localRows=collections.filter(r=>customerKey(r)===key);
- let sourceRows=localRows.length?localRows:collections;
- try{const q=base.cpf||base.name,p=new URLSearchParams({direction:'receivable',q});const d=await api('/erp/financeiro/completo?'+p);const all=prepareCollections(d.entries||[]).filter(r=>customerKey(r)===key);if(all.length){const merged=new Map();for(const r of [...localRows,...all])merged.set(collectionKey(r),r);sourceRows=[...merged.values()]}}catch{}
- const c=reportGroupsFromRows(sourceRows).find(x=>x.key===key)||base;
+ const normName=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/\s+/g,' '),normDoc=v=>String(v||'').replace(/\D/g,'');
+ const baseName=normName(base.name),baseDoc=normDoc(base.cpf);
+ const belongs=r=>{const d=normDoc(r.customerCpf),n=normName(r.customerName);return Boolean((baseDoc&&d&&d===baseDoc)||(baseName&&n&&n===baseName));};
+ const merged=new Map();for(const r of collections.filter(belongs))merged.set(collectionKey(r),r);
+ try{const queries=[base.cpf,base.name].map(v=>String(v||'').trim()).filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);for(const q of queries){const params=new URLSearchParams({direction:'receivable',q});const d=await api('/erp/financeiro/completo?'+params);for(const r of prepareCollections(d.entries||[]).filter(belongs))merged.set(collectionKey(r),r)}}catch{}
+ const sourceRows=[...merged.values()];
+ const purchases=new Map();for(const r of sourceRows){if(!purchases.has(r.purchaseKey))purchases.set(r.purchaseKey,{key:r.purchaseKey,ref:r.purchaseRef,sourceType:r.sourceType,orderId:r.orderId,rows:[]});purchases.get(r.purchaseKey).rows.push(r)}
+ const c={...base,name:base.name,cpf:base.cpf,phone:base.phone,email:base.email,purchases:[...purchases.values()]};
  const now=today(),sections=[];let totalPrincipal=0,totalFine=0,totalInterest=0,totalUpdated=0,totalOpen=0,totalOverdue=0;
  for(const p of c.purchases){
   const openRows=p.rows.filter(r=>['pendente','parcial'].includes(r.status)&&Number(r.remaining||0)>0.009).sort((a,b)=>new Date(a.dueAt||0)-new Date(b.dueAt||0));
