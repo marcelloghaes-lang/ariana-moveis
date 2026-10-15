@@ -4,34 +4,146 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: storefront-live-smoke-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  patch-finance-report:
+  smoke:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
+    env:
+      SITE: https://arianamoveis.com.br
+      BACKEND: https://ariana-backend.onrender.com
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Apply client receivables report patch
+      - name: Check backend entrypoint guards
         shell: bash
         run: |
           set -euo pipefail
-          echo 'ZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCnAgPSBQYXRoKCJwdWJsaWMvZXJwX2ZpbmFuY2Vpcm9fY29tcGxldG8uaHRtbCIpCnMgPSBwLnJlYWRfdGV4dCgpCmlmICdkYXRhLWNsaWVudC1yZXBvcnQ9JyBpbiBzIGFuZCAnZnVuY3Rpb24gY2xpZW50UmVwb3J0Rm9yKGtleSknIGluIHM6CiAgICBwcmludCgnY2xpZW50IHJlcG9ydCBhbHJlYWR5IGFwcGxpZWQnKQogICAgcmFpc2UgU3lzdGVtRXhpdCgwKQoKb2xkID0gJzxkaXYgY2xhc3M9ImNsaWVudC1iYWxhbmNlIj48c21hbGw+U2FsZG8gZW5jb250cmFkbzwvc21hbGw+PGI+JHttb25leShjbGllbnRCYWxhbmNlKX08L2I+PC9kaXY+JwpuZXcgPSAnPGRpdiBjbGFzcz0iY2xpZW50LWJhbGFuY2UiPjxzbWFsbD5TYWxkbyBlbmNvbnRyYWRvPC9zbWFsbD48Yj4ke21vbmV5KGNsaWVudEJhbGFuY2UpfTwvYj48YnV0dG9uIGNsYXNzPSJidG4gcHJpbWFyeSIgZGF0YS1jbGllbnQtcmVwb3J0PSIke2VzYyhjLmtleSl9IiBzdHlsZT0ibWFyZ2luLXRvcDo4cHgiPkdlcmFyIHJlbGF0w7NyaW88L2J1dHRvbj48L2Rpdj4nCmlmIG9sZCBub3QgaW4gczoKICAgIHJhaXNlIFN5c3RlbUV4aXQoJ2NsaWVudCBiYWxhbmNlIHRhcmdldCBub3QgZm91bmQnKQpzID0gcy5yZXBsYWNlKG9sZCwgbmV3LCAxKQoKb2xkID0gJzxkaXYgY2xhc3M9InRvYXN0IiBpZD0idG9hc3QiPjwvZGl2PicKbmV3ID0gJycnPGRpdiBjbGFzcz0ibW9kYWxiYWNrIiBpZD0iY2xpZW50LXJlcG9ydC1tb2RhbCI+PGRpdiBjbGFzcz0ibW9kYWwiIHN0eWxlPSJtYXgtd2lkdGg6OTgwcHgiPjxkaXYgY2xhc3M9Im1vZGFsaGVhZCI+PGRpdj48aDM+UmVsYXTDs3JpbyBkbyBjb250YXMgYSByZWNlYmVyPC9oMz48ZGl2IGNsYXNzPSJzdWIiIGlkPSJjbGllbnQtcmVwb3J0LXN1YiI+Q29tcHJhcyBlbSBhYmVydG8gZG8gY2xpZW50ZSwgc2VwYXJhZGFzIHBvciBjb21wcmEgZSBhdHVhbGl6YWRhcyBjb20gZW5jYXJnb3Mgc29tZW50ZSBuYXMgcGFyY2VsYXMgdmVuY2lkYXMuPC9kaXY+PC9kaXY+PGJ1dHRvbiBjbGFzcz0ieCIgZGF0YS1jbG9zZT0iY2xpZW50LXJlcG9ydC1tb2RhbCI+w5c8L2J1dHRvbj48L2Rpdj48ZGl2IGNsYXNzPSJub3RpY2UiPjxiPlJlZ3JhIGZpbmFuY2VpcmE6PC9iPiBtdWx0YSBkZSAyJSBhbyBtw6pzICsganVyb3MgZGUgMSUgYW8gbcOqcywgcHJvcG9yY2lvbmFpcyBhb3MgZGlhcyBkZSBhdHJhc28uIFBhcmNlbGFzIGFpbmRhIG7Do28gdmVuY2lkYXMgZW50cmFtIG5vIHNhbGRvIHByaW5jaXBhbCwgc2VtIG11bHRhIGUgc2VtIGp1cm9zLjwvZGl2PjxwcmUgaWQ9ImNsaWVudC1yZXBvcnQtdGV4dCIgc3R5bGU9Im1hcmdpbjoxNHB4IDAgMDt3aGl0ZS1zcGFjZTpwcmUtd3JhcDtmb250OjE1cHgvMS41NSBBcmlhbCxzYW5zLXNlcmlmO2JvcmRlcjoxcHggZGFzaGVkICNiOGM4ZGM7Ym9yZGVyLXJhZGl1czoxMHB4O3BhZGRpbmc6MThweDtiYWNrZ3JvdW5kOiNmZmY7bWluLWhlaWdodDoyNjBweCI+PC9wcmU+PGRpdiBjbGFzcz0ibW9kYWxmb290Ij48YnV0dG9uIGNsYXNzPSJidG4iIGRhdGEtY2xvc2U9ImNsaWVudC1yZXBvcnQtbW9kYWwiPkZlY2hhcjwvYnV0dG9uPjxidXR0b24gY2xhc3M9ImJ0biIgaWQ9ImNsaWVudC1yZXBvcnQtY29weSI+Q29waWFyIHBhcmEgV29yZCAvIEdvb2dsZSBEb2NzPC9idXR0b24+PGJ1dHRvbiBjbGFzcz0iYnRuIHByaW1hcnkiIGlkPSJjbGllbnQtcmVwb3J0LXByaW50Ij5JbXByaW1pciAvIFNhbHZhciBQREY8L2J1dHRvbj48L2Rpdj48L2Rpdj48L2Rpdj4KPGRpdiBjbGFzcz0idG9hc3QiIGlkPSJ0b2FzdCI+PC9kaXY+JycnCmlmIG9sZCBub3QgaW4gczoKICAgIHJhaXNlIFN5c3RlbUV4aXQoJ3RvYXN0IHRhcmdldCBub3QgZm91bmQnKQpzID0gcy5yZXBsYWNlKG9sZCwgbmV3LCAxKQoKbWFya2VyID0gJ2Z1bmN0aW9uIHNlbGVjdGVkUm93cygpeycKaW5zZXJ0ID0gcicnJ2Z1bmN0aW9uIHJlcG9ydFBhZCh2LG4pe3Y9U3RyaW5nKHY/PycnKTtyZXR1cm4gdi5sZW5ndGg+PW4/djp2KycgJy5yZXBlYXQobi12Lmxlbmd0aCl9CmZ1bmN0aW9uIGNsaWVudFJlcG9ydEZvcihrZXkpewogY29uc3QgYz1jb2xsZWN0aW9uR3JvdXBzKCkuZmluZCh4PT54LmtleT09PWtleSk7aWYoIWMpcmV0dXJuIG51bGw7CiBjb25zdCBub3c9dG9kYXkoKSxsaW5lcz1bXSxwdXJjaGFzZUJsb2Nrcz1bXTtsZXQgdG90YWxQcmluY2lwYWw9MCx0b3RhbEZpbmU9MCx0b3RhbEludGVyZXN0PTAsdG90YWxVcGRhdGVkPTAsdG90YWxPcGVuPTAsdG90YWxPdmVyZHVlPTA7CiBmb3IoY29uc3QgcCBvZiBjLnB1cmNoYXNlcyl7CiAgY29uc3Qgb3BlblJvd3M9cC5yb3dzLmZpbHRlcihyPT5bJ3BlbmRlbnRlJywncGFyY2lhbCddLmluY2x1ZGVzKHIuc3RhdHVzKSYmTnVtYmVyKHIucmVtYWluaW5nfHwwKT4wLjAwOSkuc29ydCgoYSxiKT0+bmV3IERhdGUoYS5kdWVBdHx8MCktbmV3IERhdGUoYi5kdWVBdHx8MCkpOwogIGlmKCFvcGVuUm93cy5sZW5ndGgpY29udGludWU7CiAgbGV0IHByaW5jaXBhbD0wLGZpbmU9MCxpbnRlcmVzdD0wLHVwZGF0ZWQ9MCxvdmVyZHVlQ291bnQ9MDsKICBjb25zdCBib2R5PVtdOwogIGJvZHkucHVzaChyZXBvcnRQYWQoJ1BhcmNlbGEnLDEyKStyZXBvcnRQYWQoJ1ZlbmNpbWVudG8nLDE0KStyZXBvcnRQYWQoJ1ByaW5jaXBhbCcsMTYpK3JlcG9ydFBhZCgnTXVsdGEnLDE0KStyZXBvcnRQYWQoJ0p1cm9zJywxNCkrcmVwb3J0UGFkKCdBdHVhbGl6YWRvJywxNykrJ1NpdHVhw6fDo28nKTsKICBmb3IoY29uc3QgciBvZiBvcGVuUm93cyl7CiAgIGNvbnN0IHB2YWw9TWF0aC5tYXgoMCxOdW1iZXIoci5yZW1haW5pbmd8fDApKSxjYWxjPWNhbGN1bGF0ZUxhdGVDaGFyZ2VzKHIscHZhbCxub3csZmFsc2UpLGlzT3Zlcj1jYWxjLmRheXM+MDsKICAgcHJpbmNpcGFsKz1wdmFsO2ZpbmUrPU51bWJlcihjYWxjLmZpbmV8fDApO2ludGVyZXN0Kz1OdW1iZXIoY2FsYy5pbnRlcmVzdHx8MCk7dXBkYXRlZCs9TnVtYmVyKGNhbGMudG90YWx8fHB2YWwpO2lmKGlzT3ZlcilvdmVyZHVlQ291bnQrKzsKICAgYm9keS5wdXNoKHJlcG9ydFBhZCgoci5udW1iZXJ8fDApKycvJysoci5pbnN0YWxsbWVudHN8fDApLDEyKStyZXBvcnRQYWQoZGF0ZShyLmR1ZUF0KSwxNCkrcmVwb3J0UGFkKG1vbmV5KHB2YWwpLDE2KStyZXBvcnRQYWQobW9uZXkoY2FsYy5maW5lfHwwKSwxNCkrcmVwb3J0UGFkKG1vbmV5KGNhbGMuaW50ZXJlc3R8fDApLDE0KStyZXBvcnRQYWQobW9uZXkoY2FsYy50b3RhbHx8cHZhbCksMTcpKyhpc092ZXI/J1ZFTkNJREEnOidFTSBBQkVSVE8nKSk7CiAgfQogIHRvdGFsUHJpbmNpcGFsKz1wcmluY2lwYWw7dG90YWxGaW5lKz1maW5lO3RvdGFsSW50ZXJlc3QrPWludGVyZXN0O3RvdGFsVXBkYXRlZCs9dXBkYXRlZDt0b3RhbE9wZW4rPW9wZW5Sb3dzLmxlbmd0aDt0b3RhbE92ZXJkdWUrPW92ZXJkdWVDb3VudDsKICBwdXJjaGFzZUJsb2Nrcy5wdXNoKFsnQ09NUFJBICcrKHB1cmNoYXNlQmxvY2tzLmxlbmd0aCsxKSsnIOKAlCAnKyhwLnJlZnx8J0NvbXByYScpLGJvZHkuam9pbignXG4nKSwnU3VidG90YWwgcHJpbmNpcGFsOiAnK21vbmV5KHByaW5jaXBhbCksJ011bHRhOiAnK21vbmV5KGZpbmUpLCdKdXJvczogJyttb25leShpbnRlcmVzdCksJ1N1YnRvdGFsIGF0dWFsaXphZG86ICcrbW9uZXkodXBkYXRlZCldLmpvaW4oJ1xuJykpOwogfQogaWYoIXB1cmNoYXNlQmxvY2tzLmxlbmd0aClyZXR1cm57Y2xpZW50OmMsdGV4dDonJ307CiBsaW5lcy5wdXNoKCdBUklBTkEgTcOTVkVJUycpOwogbGluZXMucHVzaCgnUkVMQVTDk1JJTyBERSBDT05UQVMgQSBSRUNFQkVSJyk7CiBsaW5lcy5wdXNoKCcnKTsKIGxpbmVzLnB1c2goJ0NsaWVudGU6ICcrYy5uYW1lKTsKIGlmKGMuY3BmKWxpbmVzLnB1c2goJ0NQRi9DTlBKOiAnK2MuY3BmKTsKIGlmKGMucGhvbmUpbGluZXMucHVzaCgnVGVsZWZvbmU6ICcrYy5waG9uZSk7CiBsaW5lcy5wdXNoKCdBdHVhbGl6YWRvIGVtOiAnK25ldyBEYXRlKCkudG9Mb2NhbGVTdHJpbmcoJ3B0LUJSJykpOwogbGluZXMucHVzaCgnUmVncmE6IG11bHRhIGRlIDIlIGFvIG3DqnMgKyBqdXJvcyBkZSAxJSBhbyBtw6pzLCBwcm9wb3JjaW9uYWlzIGFvcyBkaWFzIGRlIGF0cmFzbywgc29tZW50ZSBuYXMgcGFyY2VsYXMgdmVuY2lkYXMuJyk7CiBsaW5lcy5wdXNoKCcnKTsKIGxpbmVzLnB1c2gocHVyY2hhc2VCbG9ja3Muam9pbignXG5cbi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLVxuXG4nKSk7CiBsaW5lcy5wdXNoKCcnKTtsaW5lcy5wdXNoKCc9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0nKTsKIGxpbmVzLnB1c2goJ1JFU1VNTyBHRVJBTCcpOwogbGluZXMucHVzaCgnUGFyY2VsYXMgZW0gYWJlcnRvOiAnK3RvdGFsT3Blbik7CiBsaW5lcy5wdXNoKCdQYXJjZWxhcyB2ZW5jaWRhczogJyt0b3RhbE92ZXJkdWUpOwogbGluZXMucHVzaCgnUHJpbmNpcGFsIGVtIGFiZXJ0bzogJyttb25leSh0b3RhbFByaW5jaXBhbCkpOwogbGluZXMucHVzaCgnTXVsdGEgc29icmUgcGFyY2VsYXMgdmVuY2lkYXM6ICcrbW9uZXkodG90YWxGaW5lKSk7CiBsaW5lcy5wdXNoKCdKdXJvcyBzb2JyZSBwYXJjZWxhcyB2ZW5jaWRhczogJyttb25leSh0b3RhbEludGVyZXN0KSk7CiBsaW5lcy5wdXNoKCdUT1RBTCBBVFVBTElaQURPOiAnK21vbmV5KHRvdGFsVXBkYXRlZCkpOwogcmV0dXJue2NsaWVudDpjLHRleHQ6bGluZXMuam9pbignXG4nKX07Cn0KZnVuY3Rpb24gb3BlbkNsaWVudFJlcG9ydChrZXkpe2NvbnN0IHI9Y2xpZW50UmVwb3J0Rm9yKGtleSk7aWYoIXIpcmV0dXJuIHRvYXN0KCdDbGllbnRlIG7Do28gZW5jb250cmFkby4nKTtpZighci50ZXh0KXJldHVybiB0b2FzdCgnRXN0ZSBjbGllbnRlIG7Do28gcG9zc3VpIHBhcmNlbGFzIHZlbmNpZGFzIG91IGVtIGFiZXJ0by4nKTskKCdjbGllbnQtcmVwb3J0LXN1YicpLnRleHRDb250ZW50PXIuY2xpZW50Lm5hbWUrJyDigKIgc29tZW50ZSBwYXJjZWxhcyBjb20gc2FsZG8gZW0gYWJlcnRvJzskKCdjbGllbnQtcmVwb3J0LXRleHQnKS50ZXh0Q29udGVudD1yLnRleHQ7b3Blbk1vZGFsKCdjbGllbnQtcmVwb3J0LW1vZGFsJyl9CmFzeW5jIGZ1bmN0aW9uIGNvcHlDbGllbnRSZXBvcnQoKXtjb25zdCB0ZXh0PSQoJ2NsaWVudC1yZXBvcnQtdGV4dCcpLnRleHRDb250ZW50fHwnJztpZighdGV4dClyZXR1cm47dHJ5e2F3YWl0IG5hdmlnYXRvci5jbGlwYm9hcmQud3JpdGVUZXh0KHRleHQpO3RvYXN0KCdSZWxhdMOzcmlvIGNvcGlhZG8uIENvbGUgZGlyZXRhbWVudGUgbm8gV29yZCBvdSBHb29nbGUgRG9jcy4nKX1jYXRjaHtjb25zdCB0PWRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ3RleHRhcmVhJyk7dC52YWx1ZT10ZXh0O2RvY3VtZW50LmJvZHkuYXBwZW5kQ2hpbGQodCk7dC5zZWxlY3QoKTtkb2N1bWVudC5leGVjQ29tbWFuZCgnY29weScpO3QucmVtb3ZlKCk7dG9hc3QoJ1JlbGF0w7NyaW8gY29waWFkby4nKX19CmZ1bmN0aW9uIHByaW50Q2xpZW50UmVwb3J0KCl7Y29uc3QgdGV4dD0kKCdjbGllbnQtcmVwb3J0LXRleHQnKS50ZXh0Q29udGVudHx8Jyc7aWYoIXRleHQpcmV0dXJuO2NvbnN0IHc9d2luZG93Lm9wZW4oJycsJ19ibGFuaycsJ3dpZHRoPTkwMCxoZWlnaHQ9OTAwJyk7dy5kb2N1bWVudC53cml0ZSgnPCFkb2N0eXBlIGh0bWw+PGh0bWw+PGhlYWQ+PG1ldGEgY2hhcnNldD0idXRmLTgiPjx0aXRsZT5SZWxhdMOzcmlvIGRlIGNvbnRhcyBhIHJlY2ViZXI8L3RpdGxlPjxzdHlsZT5ib2R5e2ZvbnQ6MTVweC8xLjUgQXJpYWw7bWFyZ2luOjM0cHg7Y29sb3I6IzE3MjAzM31wcmV7d2hpdGUtc3BhY2U6cHJlLXdyYXA7Zm9udDoxNXB4LzEuNSBBcmlhbH0uaGVhZHtib3JkZXItYm90dG9tOjNweCBzb2xpZCAjMDY0NmE1O21hcmdpbi1ib3R0b206MThweDtwYWRkaW5nLWJvdHRvbToxMHB4fWgxe2ZvbnQtc2l6ZToyMHB4O2NvbG9yOiMwNjQ2YTU7bWFyZ2luOjB9PC9zdHlsZT48L2hlYWQ+PGJvZHk+PGRpdiBjbGFzcz0iaGVhZCI+PGgxPkFSSUFOQSBNw5NWRUlTPC9oMT48ZGl2PlJlbGF0w7NyaW8gZGUgY29udGFzIGEgcmVjZWJlcjwvZGl2PjwvZGl2PjxwcmU+Jytlc2ModGV4dCkrJzwvcHJlPjxzY3JpcHQ+d2luZG93Lm9ubG9hZD0oKT0+d2luZG93LnByaW50KCk8XC9zY3JpcHQ+PC9ib2R5PjwvaHRtbD4nKTt3LmRvY3VtZW50LmNsb3NlKCl9CicnJwppZiBtYXJrZXIgbm90IGluIHM6CiAgICByYWlzZSBTeXN0ZW1FeGl0KCdzZWxlY3RlZFJvd3MgbWFya2VyIG5vdCBmb3VuZCcpCnMgPSBzLnJlcGxhY2UobWFya2VyLCBpbnNlcnQgKyBtYXJrZXIsIDEpCgpvbGQgPSAiJCgnY29sLWJvZHknKS5vbmNsaWNrPWU9Pntjb25zdCBjaGs9ZS50YXJnZXQuY2xvc2VzdCgnLmNvbC1jaGVjaycpOyIKbmV3ID0gIiQoJ2NvbC1ib2R5Jykub25jbGljaz1lPT57Y29uc3QgcnA9ZS50YXJnZXQuY2xvc2VzdCgnW2RhdGEtY2xpZW50LXJlcG9ydF0nKTtpZihycCl7b3BlbkNsaWVudFJlcG9ydChycC5kYXRhc2V0LmNsaWVudFJlcG9ydCk7cmV0dXJufWNvbnN0IGNoaz1lLnRhcmdldC5jbG9zZXN0KCcuY29sLWNoZWNrJyk7IgppZiBvbGQgbm90IGluIHM6CiAgICByYWlzZSBTeXN0ZW1FeGl0KCdjb2wtYm9keSBoYW5kbGVyIHRhcmdldCBub3QgZm91bmQnKQpzID0gcy5yZXBsYWNlKG9sZCwgbmV3LCAxKQoKb2xkID0gIiQoJ3BheS1ib2R5Jykub25jbGljaz1lPT57Y29uc3QgYj1lLnRhcmdldC5jbG9zZXN0KCdbZGF0YS1yZWNlaXB0XScpO2lmKGIpcHJpbnRSZWNlaXB0KHBheW1lbnRzW051bWJlcihiLmRhdGFzZXQucmVjZWlwdCldKX07IgpuZXcgPSBvbGQgKyAiJCgnY2xpZW50LXJlcG9ydC1jb3B5Jykub25jbGljaz1jb3B5Q2xpZW50UmVwb3J0OyQoJ2NsaWVudC1yZXBvcnQtcHJpbnQnKS5vbmNsaWNrPXByaW50Q2xpZW50UmVwb3J0OyIKaWYgb2xkIG5vdCBpbiBzOgogICAgcmFpc2UgU3lzdGVtRXhpdCgncGF5LWJvZHkgaGFuZGxlciB0YXJnZXQgbm90IGZvdW5kJykKcyA9IHMucmVwbGFjZShvbGQsIG5ldywgMSkKCnAud3JpdGVfdGV4dChzKQo=' | base64 -d > /tmp/patch_client_report.py
-          python3 /tmp/patch_client_report.py
-          if ! git diff --quiet -- public/erp_financeiro_completo.html; then
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add public/erp_financeiro_completo.html
-            git commit -m 'feat(erp): gerar relatorio consolidado por cliente'
-            git push
-          fi
+          node --check functions/server.js
+          grep -q 'function getClientIp' functions/server.js
+          grep -q 'ip: getClientIp(req)' functions/server.js
+
+      - name: Check public storefront pages
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          check_page() {
+            local path="$1"
+            local marker="$2"
+            local file
+            file="/tmp/page-$(echo "$path" | tr '/?=&' '----').html"
+            local code
+            code=$(curl --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 15 --max-time 35 -sS -L -o "$file" -w '%{http_code}' "$SITE$path")
+            echo "$path -> $code"
+            [[ "$code" =~ ^2[0-9][0-9]$ ]]
+            test -s "$file"
+            test "$(wc -c < "$file")" -gt 200
+            grep -Fqi "$marker" "$file"
+          }
+
+          check_page "/" "Ariana"
+          check_page "/todos_produtos.html" "Catálogo Completo"
+          check_page "/produto.html" "Descrição Completa"
+          check_page "/carrinho.html" "Meu carrinho"
+          check_page "/checkout.html" "Checkout"
+          check_page "/pagamento.html" "Pagamento"
+          check_page "/login_cadastro.html" "Ariana"
+          check_page "/ofertas.html" "Ariana"
+          check_page "/busca.html" "Ariana"
+          check_page "/categoria.html" "Ariana"
+
+      - name: Check critical storefront assets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for asset in \
+            /js/api-config.js \
+            /marketplace-core.js \
+            /marketplace-core_global_payments.js \
+            /product-card.js \
+            /checkout-ariana.css; do
+            file="/tmp/asset-$(basename "$asset")"
+            code=$(curl --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 15 --max-time 35 -sS -L -o "$file" -w '%{http_code}' "$SITE$asset")
+            echo "$asset -> $code"
+            [[ "$code" =~ ^2[0-9][0-9]$ ]]
+            test -s "$file"
+          done
+
+          grep -Fq 'https://ariana-backend.onrender.com' /tmp/asset-api-config.js
+
+      - name: Check backend health and storefront catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          root_code=$(curl --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 15 --max-time 35 -sS -L -o /tmp/backend-root.json -w '%{http_code}' "$BACKEND/")
+          echo "/ -> $root_code"
+          [[ "$root_code" =~ ^2[0-9][0-9]$ ]]
+          grep -q '"ok":true' /tmp/backend-root.json
+
+          catalog_ok=0
+          for endpoint in /api/products /api/home/index-data; do
+            file="/tmp/catalog-$(echo "$endpoint" | tr '/' '-').json"
+            code=$(curl --retry 2 --retry-all-errors --retry-delay 2 --connect-timeout 15 --max-time 35 -sS -L -o "$file" -w '%{http_code}' "$BACKEND$endpoint" || true)
+            echo "$endpoint -> $code"
+            if [[ "$code" =~ ^2[0-9][0-9]$ ]] && test -s "$file"; then
+              if node - "$file" <<'NODE'
+          const fs = require('fs');
+          const file = process.argv[2];
+          let data;
+          try { data = JSON.parse(fs.readFileSync(file, 'utf8')); }
+          catch { process.exit(1); }
+          const arrays = [];
+          if (Array.isArray(data)) arrays.push(data);
+          if (data && typeof data === 'object') {
+            for (const key of ['products','items','results','docs','data']) {
+              if (Array.isArray(data[key])) arrays.push(data[key]);
+              else if (data[key] && typeof data[key] === 'object') {
+                for (const nested of ['products','items','results','docs','data']) {
+                  if (Array.isArray(data[key][nested])) arrays.push(data[key][nested]);
+                }
+              }
+            }
+          }
+          process.exit(arrays.some(arr => arr.length > 0) ? 0 : 1);
+          NODE
+              then
+                catalog_ok=1
+                break
+              fi
+            fi
+          done
+
+          test "$catalog_ok" -eq 1
+
+      - name: Check storefront CORS to backend
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          headers=$(curl --retry 2 --retry-all-errors --connect-timeout 15 --max-time 35 -sS -D - -o /dev/null -X OPTIONS \
+            -H 'Origin: https://arianamoveis.com.br' \
+            -H 'Access-Control-Request-Method: GET' \
+            -H 'Access-Control-Request-Headers: content-type' \
+            "$BACKEND/api/products" | tr -d '\r')
+
+          echo "$headers"
+          echo "$headers" | grep -qi '^access-control-allow-origin: https://arianamoveis.com.br$'
+
+      - name: Summary
+        run: echo 'Ariana storefront live smoke checks passed.'
