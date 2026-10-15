@@ -3,35 +3,17 @@ name: Ariana Storefront Live Smoke
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  patch-report:
-    if: github.actor != 'github-actions[bot]'
+  smoke:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Patch report
-        env:
-          REPORT_BLOCK_B64: ZnVuY3Rpb24gcmVwb3J0R3JvdXBzRnJvbVJvd3Mocm93cz1bXSl7Y29uc3QgY2xpZW50cz1uZXcgTWFwKCk7Zm9yKGNvbnN0IHIgb2Ygcm93cyl7Y29uc3QgY2s9Y3VzdG9tZXJLZXkocik7aWYoIWNsaWVudHMuaGFzKGNrKSljbGllbnRzLnNldChjayx7a2V5OmNrLG5hbWU6ci5jdXN0b21lck5hbWV8fCdDb25zdW1pZG9yJyxjcGY6ci5jdXN0b21lckNwZnx8Jycs cGhvbmU6ci5jdXN0b21lclBob25lfHwnJyxlbWFpbDpyLmN1c3RvbWVyRW1haWx8fCcnLHB1cmNoYXNlczpuZXcgTWFwKCl9KTtjb25zdCBjPWNsaWVudHMuZ2V0KGNrKTtpZighYy5wdXJjaGFzZXMuaGFzKHIucHVyY2hhc2VLZXkpKWMucHVyY2hhc2VzLnNldChyLnB1cmNoYXNlS2V5LHtrZXk6ci5wdXJjaGFzZUtleSxyZWY6ci5wdXJjaGFzZVJlZixzb3VyY2VUeXBlOnIuc291cmNlVHlwZSxvcmRlcklkOnIub3JkZXJJZCxyb3dzOltdfSk7Yy5wdXJjaGFzZXMuZ2V0KHIucHVyY2hhc2VLZXkpLnJvd3MucHVzaChyKX1yZXR1cm5bLi4uY2xpZW50cy52YWx1ZXMoKV0ubWFwKGM9Pih7Li4uYyxwdXJjaGFzZXM6Wy4uLmMucHVyY2hhc2VzLnZhbHVlcygpXX0pKX0KYXN5bmMgZnVuY3Rpb24gcmVwb3J0SGlzdG9yaWNhbEluZm8ocCl7aWYoIVN0cmluZyhwLmtleXx8JycpLnN0YXJ0c1dpdGgoJ3NpZ2U6JykpcmV0dXJue2luc3RhbGxtZW50czowLGl0ZW1zOltdfTtjb25zdCBzaWQ9U3RyaW5nKHAua2V5KS5zbGljZSg1KTt0cnl7Y29uc3QgZD1hd2FpdCBhcGkoJy9lcnAvbWlncmFjYW8vc2lnZS9jb21wcmFzLycrZW5jb2RlVVJJQ29tcG9uZW50KHNpZCkpLHNhbGU9ZC5wdXJjaGFzZXx8e30sbGl2ZT1zYWxlPy5tZXRhZGF0YT8uc2lnZUxpdmV8fHt9LHBheW1lbnRzPWxpdmUucGF5bWVudHN8fFtdLGl0ZW1zPShsaXZlLml0ZW1zPy5sZW5ndGg/bGl2ZS5pdGVtczpzYWxlLml0ZW1zKXx8W107cmV0dXJue2luc3RhbGxtZW50czpOdW1iZXIobGl2ZS5udW1iZXJPZkluc3RhbGxtZW50c3x8cGF5bWVudHNbMF0/Lmluc3RhbGxtZW50c3x8c2FsZS5udW1iZXJPZkluc3RhbGxtZW50c3x8MCksaXRlbXM6aXRlbXMubWFwKHg9PlN0cmluZyh4LmRlc2NyaXB0aW9ufHx4Lm5hbWV8fHgucHJvZHVjdE5hbWV8fCcnKS50cmltKCkpLmZpbHRlcihCb29sZWFuKX19Y2F0Y2h7cmV0dXJue2luc3RhbGxtZW50czowLGl0ZW1zOltdfX19CmFzeW5jIGZ1bmN0aW9uIGNsaWVudFJlcG9ydEZvcihrZXkpewogY29uc3QgYmFzZT1jb2xsZWN0aW9uR3JvdXBzKCkuZmluZCh4PT54LmtleT09PWtleSk7aWYoIWJhc2UpcmV0dXJuIG51bGw7CiBsZXQgc291cmNlUm93cz1jb2xsZWN0aW9uczsKIHRyeXtjb25zdCBxPWJhc2UuY3BmfHxiYXNlLm5hbWUscD1uZXcgVVJMU2VhcmNoUGFyYW1zKHtkaXJlY3Rpb246J3JlY2VpdmFibGUnLHF9KTtjb25zdCBkPWF3YWl0IGFwaSgnL2VycC9maW5hbmNlaXJvL2NvbXBsZXRvPycrcCk7Y29uc3QgYWxsPXByZXBhcmVDb2xsZWN0aW9ucyhkLmVudHJpZXN8fFtdKS5maWx0ZXIocj0+Y3VzdG9tZXJLZXkocik9PT1rZXkpO2lmKGFsbC5sZW5ndGgpc291cmNlUm93cz1hbGx9Y2F0Y2h7fQogY29uc3QgYz1yZXBvcnRHcm91cHNGcm9tUm93cyhzb3VyY2VSb3dzKS5maW5kKHg9Pngua2V5PT09a2V5KXx8YmFzZTsKIGNvbnN0IG5vdz10b2RheSgpLHNlY3Rpb25zPVtdO2xldCB0b3RhbFByaW5jaXBhbD0wLHRvdGFsRmluZT0wLHRvdGFsSW50ZXJlc3Q9MCx0b3RhbFVwZGF0ZWQ9MCx0b3RhbE9wZW49MCx0b3RhbE92ZXJkdWU9MDsKIGZvcihjb25zdCBwIG9mIGMucHVyY2hhc2VzKXsKICBjb25zdCBvcGVuUm93cz1wLnJvd3MuZmlsdGVyKHI9PlsncGVuZGVudGUnLCdwYXJjaWFsJ10uaW5jbHVkZXMoci5zdGF0dXMpJiZOdW1iZXIoci5yZW1haW5pbmd8fDApPjAuMDA5KS5zb3J0KChhLGIpPT5uZXcgRGF0ZShhLmR1ZUF0fHwwKS1uZXcgRGF0ZShiLmR1ZUF0fHwwKSk7CiAgaWYoIW9wZW5Sb3dzLmxlbmd0aCljb250aW51ZTsKICBjb25zdCBoaXN0PWF3YWl0IHJlcG9ydEhpc3RvcmljYWxJbmZvKHApLGRlY2xhcmVkPU1hdGgubWF4KDAsLi4ucC5yb3dzLm1hcChyPT5OdW1iZXIoci5pbnN0YWxsbWVudHN8fDApKSksbWF4TnVtYmVyPU1hdGgubWF4KDAsLi4ucC5yb3dzLm1hcChyPT5OdW1iZXIoci5udW1iZXJ8fDApKSksb3JpZ2luYWxJbnN0YWxsbWVudHM9TWF0aC5tYXgoTnVtYmVyKGhpc3QuaW5zdGFsbWVudHN8fDApLGRlY2xhcmVkLG1heE51bWJlcixwLnJvd3MubGVuZ3RoKTsKICBsZXQgcHJpbmNpcGFsPTAsZmluZT0wLGludGVyZXN0PTAsdXBkYXRlZD0wLG92ZXJkdWVDb3VudD0wO2NvbnN0IHJvd3M9W107CiAgZm9yKGNvbnN0IHIgb2Ygb3BlblJvd3Mpe2NvbnN0IHB2YWw9TWF0aC5tYXgoMCxOdW1iZXIoci5yZW1haW5pbmd8fDApKSxjYWxjPWNhbGN1bGF0ZUxhdGVDaGFyZ2VzKHAscHZhbCxub3csZmFsc2UpLGlzT3Zlcj1jYWxjLmRheXM+MDtwcmluY2lwYWwrPXB2YWw7ZmluZSs9TnVtYmVyKGNhbGMuZmluZXx8MCk7aW50ZXJlc3QrPU51bWJlcihjYWxjLmludGVyZXN0fHwwKTt1cGRhdGVkKz1OdW1iZXIoY2FsYy50b3RhbHx8cHZhbCk7aWYoaXNPdmVyKW92ZXJkdWVDb3VudCsrO3Jvd3MucHVzaCh7cGFyY2VsYToo...TRUNCATED_FOR_BREVITY...');
-          python3 - <<'PY'
-          import base64, os
-          from pathlib import Path
-          p=Path('public/erp_financeiro_completo.html')
-          s=p.read_text()
-          block=base64.b64decode(os.environ['REPORT_BLOCK_B64'].replace(' ','')).decode()
-          start=s.index('function clientReportFor(key)')
-          end=s.index('function selectedRows()', start)
-          p.write_text(s[:start]+block+s[end:])
-          PY
-      - name: Commit patch
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add public/erp_financeiro_completo.html
-          git commit -m "fix(erp): separar compras por pagina e conferir parcelamento" || exit 0
-          git push
+      - name: Validate backend entrypoint
+        run: node --check functions/server.js
+      - name: Validate ERP finance page exists
+        run: test -s public/erp_financeiro_completo.html
