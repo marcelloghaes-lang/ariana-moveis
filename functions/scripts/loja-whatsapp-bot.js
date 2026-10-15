@@ -9017,9 +9017,10 @@ async function handleVisionMedia(incoming, conv) {
   }
 
   if (confident && classification.kind === 'personal_document') {
+    console.warn('[loja-bot][alerta-crediario-canal-errado]', { phone: incoming.phone, kind: 'personal_document' });
     await sendText(
       incoming.phone,
-      'Recebi um documento. Para proteger seus dados, se ele for para análise de crédito, utilize o fluxo do *Ariana Crediário* para o envio seguro dos documentos.'
+      '⚠️ Recebi um documento. Para proteger seus dados, se ele for para análise de crédito, utilize o *Ariana Crediário* para o envio seguro dos documentos.\n\n*Crediário: 33 8428-4430*\nhttps://wa.me/553384284430\n\nToque no link acima para abrir o atendimento do Crediário.'
     );
     return { handled: true, kind: 'personal_document', confidence };
   }
