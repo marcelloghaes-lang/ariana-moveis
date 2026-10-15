@@ -23,7 +23,6 @@ jobs:
           p=Path('public/erp_financeiro_completo.html')
           s=p.read_text()
 
-          # Remove explicação da regra financeira no modal e troca o PRE por container HTML.
           s=s.replace('<div class="notice"><b>Regra financeira:</b> multa de 2% ao mês + juros de 1% ao mês, proporcionais aos dias de atraso. Parcelas ainda não vencidas entram no saldo principal, sem multa e sem juros.</div><pre id="client-report-text" style="margin:14px 0 0;white-space:pre-wrap;font:15px/1.55 Arial,sans-serif;border:1px dashed #b8c8dc;border-radius:10px;padding:18px;background:#fff;min-height:260px"></pre>', '<div id="client-report-text" style="margin:14px 0 0;border:1px solid #d8e2ef;border-radius:10px;padding:18px;background:#fff;min-height:260px;overflow:auto"></div>')
 
           start=s.index('function reportPad(v,n)')
@@ -73,3 +72,5 @@ function printClientReport(){const r=window.__clientReportCurrent;if(!r?.html)re
           git add public/erp_financeiro_completo.html
           git commit -m "fix(erp): alinhar relatório financeiro e ocultar regra" || exit 0
           git push
+
+# trigger 2026-10-15
