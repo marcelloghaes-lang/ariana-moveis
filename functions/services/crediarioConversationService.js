@@ -274,7 +274,7 @@ function looksGenericGreeting(text = '') {
 }
 
 function officialGreeting() {
-  return 'Olá, você está falando com o *Crediário da Ariana Móveis*.';
+  return 'Olá, você está falando com o *Crediário da Ariana Móveis*. Para outros assuntos, entre em contato pelo número *31 98514-7119*.';
 }
 
 function plausibleReplyForStep(step, text = '', normalizedPhone = '') {
