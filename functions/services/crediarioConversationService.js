@@ -252,16 +252,12 @@ function checklist(session) {
 
 function looksGenericGreeting(text = '') {
   const value = normalizeCommand(text).replace(/[!?.,;:]+/g, ' ').replace(/\s+/g, ' ').trim();
-  if (!value) return false;
-  const greetings = new Set([
-    'OI', 'OLA', 'OLÁ', 'BOM DIA', 'BOA TARDE', 'BOA NOITE',
-    'OI BOM DIA', 'OI BOA TARDE', 'OI BOA NOITE',
-    'OLA BOM DIA', 'OLA BOA TARDE', 'OLA BOA NOITE',
-    'OLÁ BOM DIA', 'OLÁ BOA TARDE', 'OLÁ BOA NOITE',
-    'TUDO BEM', 'OI TUDO BEM', 'OLA TUDO BEM', 'OLÁ TUDO BEM',
-    'OBRIGADO', 'OBRIGADA', 'VALEU'
-  ]);
-  return greetings.has(value);
+  if (!value || value.length > 100) return false;
+  const withoutGreetings = value
+    .replace(/\b(OI|OLA|BOM DIA|BOA TARDE|BOA NOITE|TUDO BEM|TUDO BOM|COMO VAI|COMO VOCE ESTA|COMO ESTA|BELEZA|BLZ)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return withoutGreetings === '';
 }
 
 function plausibleReplyForStep(step, text = '', normalizedPhone = '') {
@@ -327,7 +323,7 @@ export async function processCrediarioConversation({ mongoose, phone, instanceNa
 
   let session = await Model.findOne({ phone: normalizedPhone, instanceName: { $in: instanceAliases } }).sort({ updatedAt: -1 });
 
-  if (!session && !mediaReceived && (looksClearlyOffTopic(text) || looksGenericGreeting(text))) {
+  if (!session && !mediaReceived && looksClearlyOffTopic(text)) {
     return { duplicate: false, session: null, reply: offTopicReply(), offTopic: true };
   }
 
@@ -424,9 +420,13 @@ export async function processCrediarioConversation({ mongoose, phone, instanceNa
     if (looksGenericGreeting(text)) {
       session.processedEventHashes = [...session.processedEventHashes, safeEventId].slice(-100);
       session.lastInteractionAt = new Date();
-      session.audit.push({ action: 'OFF_TOPIC_REDIRECTED', fromStep: session.step, toStep: session.step, eventHash: safeEventId, metadata: { source: 'generic_greeting', confidence: 1 } });
+      session.audit.push({ action: 'GREETING_ACKNOWLEDGED', fromStep: session.step, toStep: session.step, eventHash: safeEventId, metadata: { source: 'greeting_rule' } });
       await session.save();
-      return { duplicate: false, session, reply: offTopicReply(), offTopic: true };
+      return {
+        duplicate: false,
+        session,
+        reply: `Olá! 😊 Tudo bem? Vamos continuar seu atendimento de crediário.\n\n${promptFor(session.step, session)}`
+      };
     }
 
     const classification = await classifyCrediarioText(text);
@@ -466,7 +466,7 @@ export async function processCrediarioConversation({ mongoose, phone, instanceNa
 
     case CREDIARIO_FLOW_STEPS.AGUARDANDO_NASCIMENTO: {
       const date = normalizeDateBR(text);
-      if (!date) reply = 'Ainda preciso da sua *data de nascimento*. Envie no formato *DD/MM/AAAA*. Para outros assuntos, fale com a loja no *31 98514-7119*.';
+      if (!date) reply = 'Ainda preciso da sua *data de nascimento*. Envie no formato *DD/MM/AAAA*.';
       else { session.data.birthDate = date; next = CREDIARIO_FLOW_STEPS.AGUARDANDO_ESTADO_CIVIL; reply = promptFor(next, session); }
       break;
     }
