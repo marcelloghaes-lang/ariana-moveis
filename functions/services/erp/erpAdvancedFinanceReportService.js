@@ -27,7 +27,7 @@ export function createErpAdvancedFinanceReportService(context={}){
   if(!Order)throw new Error('[erp-advanced-finance] Order não informado');
 
   async function currentSaleReceivables(){
-    const orders=await Order.find({origin:'erp_ariana',status:{$in:['pedido','venda','faturado']}}).select('_id customerName customerCpf payment total televendas updatedAt').lean();
+    const orders=await Order.find({origin:'erp_ariana',status:{$in:['pedido','venda','faturado','Entregue','entregue','delivered']}}).select('_id customerName customerCpf payment total televendas updatedAt').lean();
     const out=[];
     for(const o of orders){
       const stored=arr(o.televendas?.erp?.receivables),receivables=stored.length?stored:buildReceivables(o.total,o.payment||{});

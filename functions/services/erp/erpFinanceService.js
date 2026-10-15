@@ -20,11 +20,11 @@ export function createErpFinanceService(context={}){
  function remaining(r={}){return Math.max(0,money(Number(r.value||0)-receivedTotal(r)))}
  function state(r={}){const got=receivedTotal(r);if(r.status==='recebido'||remaining(r)<=0.009)return'recebido';if(got>0)return'parcial';return r.status||'pendente'}
  function customerKey(order={}){const doc=digits(order.customerCpf);return doc?`doc:${doc}`:`name:${clean(order.customerName||'Consumidor',180).toLowerCase()}`}
- function financeStage(status=''){return ['pedido','venda','faturado'].includes(String(status||'').toLowerCase())}
+ function financeStage(status=''){return ['pedido','venda','faturado','Entregue','entregue','delivered'].includes(String(status||'').toLowerCase())}
  function financeState(rows=[]){const active=array(rows).filter(r=>!['cancelado','estornado'].includes(String(r.status||'').toLowerCase()));if(!active.length)return'not_generated';const all=active.every(r=>state(r)==='recebido'),some=active.some(r=>receivedTotal(r)>0);return all?'settled':some?'partial':'generated'}
  function rowFrom(order,r){const got=receivedTotal(r),left=remaining(r),st=state(r),erp=order.televendas?.erp||{};return{orderId:String(order._id),code:erp.code||String(order._id).slice(-8).toUpperCase(),customerName:order.customerName||'Consumidor',customerCpf:order.customerCpf||'',customerPhone:order.customerPhone||'',customerEmail:order.customerEmail||'',number:Number(r.number||1),installments:Number(r.installments||1),value:money(r.value),dueAt:r.dueAt,status:st,rawStatus:r.status||'pendente',method:r.method||order.payment?.method||'',receivedAt:r.receivedAt||null,receivedAmount:got,remaining:left,payments:array(r.payments),orderTotal:money(order.total)}}
  async function list(query={}){
-  const filter={origin:'erp_ariana',status:{$in:['pedido','venda','faturado']}};
+  const filter={origin:'erp_ariana',status:{$in:['pedido','venda','faturado','Entregue','entregue','delivered']}};
   const orders=await Order.find(filter).sort({updatedAt:-1}).limit(5000);
   let rows=[];
   for(const order of orders){

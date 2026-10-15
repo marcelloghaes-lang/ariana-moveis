@@ -24,7 +24,7 @@ export function createErpParityAnalyticsService(context={}){
  if(!Order)throw new Error('[erp-parity] Order não informado');
 
  async function currentReceivables(){
-  const orders=await Order.find({origin:'erp_ariana',status:{$in:['pedido','venda','faturado']}}).select('_id customerName customerCpf customerPhone customerEmail payment paymentStatus total televendas updatedAt'),out=[];
+  const orders=await Order.find({origin:'erp_ariana',status:{$in:['pedido','venda','faturado','Entregue','entregue','delivered']}}).select('_id customerName customerCpf customerPhone customerEmail payment paymentStatus total televendas updatedAt'),out=[];
   for(const o of orders){
    const erp=o.televendas?.erp||{};
    let receivables=array(erp.receivables);
@@ -105,8 +105,9 @@ export function createErpParityAnalyticsService(context={}){
  async function sales(q={}){
   const{from,to}=reportPeriod(q),Historical=mongoose.models.ErpSigeHistoricalSale;
   const hist=Historical?await Historical.find({date:{$gte:from,$lte:to}}).sort({date:-1}).limit(20000).lean():[];
-  const currentRaw=await Order.find({origin:'erp_ariana',status:{$in:['pedido','venda','faturado']},createdAt:{$gte:from,$lte:to}}).sort({createdAt:-1}).limit(10000).lean();
-  const reconciled=dedupeCurrentOrders(currentRaw),current=reconciled.orders;
+  const currentRaw=await Order.find({origin:'erp_ariana',status:{$in:['pedido','venda','faturado','Entregue','entregue','delivered']}}).sort({createdAt:-1}).limit(20000).lean();
+  const currentInPeriod=currentRaw.filter(o=>{const d=new Date(orderSaleDate(o)||0);return !Number.isNaN(d.getTime())&&d>=from&&d<=to});
+  const reconciled=dedupeCurrentOrders(currentInPeriod),current=reconciled.orders;
   let rows=[];
   for(const s of hist){if(String(s.status||'').toLowerCase()==='canceled')continue;rows.push({id:String(s._id),source:'historico',code:s.code||'',date:s.date,customerName:s.customerName||'Consumidor',customerDocument:s.customerDocument||'',sellerName:s.sellerName||'',total:Number(s.total||0),paymentMethod:s.paymentCondition||'',items:(s.items||[]).map(i=>({name:i.description||'',productId:i.productId||'',qty:Number(i.quantity||0),value:Number(i.subtotal||0)}))})}
   for(const o of current)rows.push({id:String(o._id),source:'ariana',status:o.status||'',code:o.televendas?.erp?.code||'',date:orderSaleDate(o),customerName:o.customerName||'Consumidor',customerDocument:o.customerCpf||'',sellerName:o.televendas?.erp?.sellerName||o.sellerName||o.operatorName||'',total:Number(o.total||0),paymentMethod:o.payment?.method||'',items:(o.items||[]).map(i=>({name:i.name||'',productId:String(i.productId||''),qty:Number(i.qty||0),value:Number(i.totalPrice||0)}))});

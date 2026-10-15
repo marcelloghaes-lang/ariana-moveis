@@ -5,7 +5,11 @@ const cents=v=>Math.round(Number(v||0)*100);
 const rank={orcamento:0,pedido:1,venda:2,faturado:3};
 
 export function orderSaleDate(order={}){
-  return order?.televendas?.erp?.saleDate || order?.saleDate || order?.createdAt || order?.updatedAt || null;
+  const explicit=order?.televendas?.erp?.saleDate || order?.saleDate;
+  if(explicit)return explicit;
+  const timeline=Array.isArray(order?.televendas?.erp?.timeline)?order.televendas.erp.timeline:[];
+  const saleTransition=timeline.find(row=>['venda','faturado'].includes(clean(row?.status).toLowerCase())&&row?.at);
+  return saleTransition?.at || order?.createdAt || order?.updatedAt || null;
 }
 
 function dayKey(value){

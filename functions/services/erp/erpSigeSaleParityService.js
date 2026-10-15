@@ -37,7 +37,7 @@ export function createErpSigeSaleParityService(context={}){
  function recalc(order,erp,receivables){const open=receivables.filter(r=>!['cancelado','estornado'].includes(r.status));const received=open.filter(r=>r.status==='recebido');const all=open.length>0&&received.length===open.length;const some=received.length>0;order.paymentStatus=all?'approved':some?'partial':'pending';order.payment={...(order.payment||{}),status:all?'approved':some?'partial':'pending',received:all,receivedAt:all?(order.payment?.receivedAt||new Date()):null};return{...erp,receivables,financialStatus:all?'settled':some?'partial':'generated',financialSettledAt:all?(erp.financialSettledAt||new Date()):null}}
  async function updateReceivable(orderId,number,payload={},actor={}){
   const order=await findOrder(orderId);
-  if(!['pedido','venda','faturado'].includes(String(order.status||'').toLowerCase()))throw fail('O financeiro só pode ser editado em pedido ou venda ativa.',409,'ORDER_NOT_FINANCIAL');
+  if(!['pedido','venda','faturado','Entregue','entregue','delivered'].includes(String(order.status||'').toLowerCase()))throw fail('O financeiro só pode ser editado em pedido ou venda ativa.',409,'ORDER_NOT_FINANCIAL');
   const erp=order.televendas?.erp||{},rows=array(erp.receivables).map(r=>({...r,payments:array(r.payments).map(p=>({...p}))})),n=Math.max(1,Number(number||0)),idx=rows.findIndex(r=>Number(r.number)===n);
   if(idx<0)throw fail('Parcela não encontrada.',404,'RECEIVABLE_NOT_FOUND');
   const current=rows[idx];
