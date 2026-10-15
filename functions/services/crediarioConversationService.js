@@ -250,6 +250,20 @@ function checklist(session) {
   ].map(([label, ok]) => `${ok ? '✅' : '⬜'} ${label}`).join('\n');
 }
 
+function looksGenericGreeting(text = '') {
+  const value = normalizeCommand(text).replace(/[!?.,;:]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!value) return false;
+  const greetings = new Set([
+    'OI', 'OLA', 'OLÁ', 'BOM DIA', 'BOA TARDE', 'BOA NOITE',
+    'OI BOM DIA', 'OI BOA TARDE', 'OI BOA NOITE',
+    'OLA BOM DIA', 'OLA BOA TARDE', 'OLA BOA NOITE',
+    'OLÁ BOM DIA', 'OLÁ BOA TARDE', 'OLÁ BOA NOITE',
+    'TUDO BEM', 'OI TUDO BEM', 'OLA TUDO BEM', 'OLÁ TUDO BEM',
+    'OBRIGADO', 'OBRIGADA', 'VALEU'
+  ]);
+  return greetings.has(value);
+}
+
 function plausibleReplyForStep(step, text = '', normalizedPhone = '') {
   const command = normalizeCommand(text);
   switch (step) {
@@ -313,7 +327,7 @@ export async function processCrediarioConversation({ mongoose, phone, instanceNa
 
   let session = await Model.findOne({ phone: normalizedPhone, instanceName: { $in: instanceAliases } }).sort({ updatedAt: -1 });
 
-  if (!session && !mediaReceived && looksClearlyOffTopic(text)) {
+  if (!session && !mediaReceived && (looksClearlyOffTopic(text) || looksGenericGreeting(text))) {
     return { duplicate: false, session: null, reply: offTopicReply(), offTopic: true };
   }
 
@@ -407,6 +421,14 @@ export async function processCrediarioConversation({ mongoose, phone, instanceNa
   }
 
   if (!mediaReceived && text && !plausibleReplyForStep(session.step, text, normalizedPhone)) {
+    if (looksGenericGreeting(text)) {
+      session.processedEventHashes = [...session.processedEventHashes, safeEventId].slice(-100);
+      session.lastInteractionAt = new Date();
+      session.audit.push({ action: 'OFF_TOPIC_REDIRECTED', fromStep: session.step, toStep: session.step, eventHash: safeEventId, metadata: { source: 'generic_greeting', confidence: 1 } });
+      await session.save();
+      return { duplicate: false, session, reply: offTopicReply(), offTopic: true };
+    }
+
     const classification = await classifyCrediarioText(text);
     if (classification.related === false && Number(classification.confidence || 0) >= 0.55) {
       session.processedEventHashes = [...session.processedEventHashes, safeEventId].slice(-100);
