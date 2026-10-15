@@ -42,6 +42,13 @@ function aiConfig() {
   };
 }
 
+const bootAiConfig = aiConfig();
+console.log('[crediario-ai/config]', {
+  enabled: bootAiConfig.enabled,
+  configured: Boolean(bootAiConfig.apiKey),
+  model: bootAiConfig.model
+});
+
 function imageInput(media = {}) {
   const mimeType = clean(media.mimeType || media.mimetype, 120).toLowerCase();
   const base64 = clean(media.base64, 75_000_000).replace(/^data:[^,]+,/, '').replace(/\s/g, '');
