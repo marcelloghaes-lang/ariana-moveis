@@ -781,9 +781,10 @@ export default function registerCrediarioConversationRoutes(
       return res.json({
         ok: true,
         duplicate: result.duplicate,
-        conversationId: result.session.conversationId,
-        step: result.session.step,
-        status: result.session.status,
+        conversationId: result.session?.conversationId || '',
+        step: result.session?.step || '',
+        status: result.session?.status || '',
+        offTopic: result.offTopic === true,
         analysisId: linkedAnalysis?.analysisId || '',
         delivery: result.delivery?.status || 'NOT_SENT',
         media: result.media && Object.keys(result.media).length
