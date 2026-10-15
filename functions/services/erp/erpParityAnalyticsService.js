@@ -16,6 +16,24 @@ function outstanding(r={}){if(r.status==='paid')return 0;if(Number.isFinite(Numb
 function realized(r={}){return Math.max(0,money(r.paidValue||0))}
 function isHistoricalAnomaly(r={}){return r.origin==='sige_import'&&Math.abs(Number(r.value||0))>=HISTORICAL_ANOMALY_MIN_VALUE}
 function normalizeLedgerRow(r={}){const ps=array(r.payments),principal=money(ps.length?ps.reduce((s,p)=>s+Number(p.principalApplied??0),0):Number(r.principalPaid??(r.status==='paid'?r.value:0))),cash=money(ps.length?ps.reduce((s,p)=>s+Number(p.totalPaid??p.principalApplied??0),0):Number(r.paidValue||0));return{...r,id:String(r._id),source:r.origin==='sige_import'?'historico':'financeiro',principalPaid:principal,paidValue:cash,outstanding:r.status==='paid'?0:Math.max(0,money(Number(r.value||0)-principal)),partial:r.status!=='paid'&&principal>0}}
+async function enrichHistoricalInstallments(rows=[],Entry){
+ const saleIds=[...new Set(rows.map(r=>clean(r?.migration?.sourceSaleId||r?.historicalSourceSaleId,120)).filter(Boolean))];
+ if(!saleIds.length)return rows;
+ const Historical=mongoose.models.ErpSigeHistoricalSale||null;
+ const historicalSales=Historical?await Historical.find({sourceSystem:'sige',sourceId:{$in:saleIds}}).lean():[];
+ const originalTotalBySale=new Map(historicalSales.map(s=>{const live=s?.metadata?.sigeLive||{},payments=array(live?.payments);return[clean(s?.sourceId,120),Math.max(0,Number(live?.numberOfInstallments||0),Number(payments[0]?.installments||0),Number(s?.numberOfInstallments||0))]}));
+ const siblings=await Entry.collection.find({direction:'receivable','migration.sourceSaleId':{$in:saleIds},status:{$ne:'cancelled'}}).project({_id:1,dueAt:1,competenceAt:1,createdAt:1,migration:1,sourceId:1}).toArray();
+ const groups=new Map();for(const row of siblings){const sid=clean(row?.migration?.sourceSaleId,120);if(!sid)continue;if(!groups.has(sid))groups.set(sid,[]);groups.get(sid).push(row)}
+ const byEntry=new Map();
+ for(const [sid,list] of groups){
+  list.sort((a,b)=>{const ad=new Date(a?.dueAt||a?.competenceAt||a?.createdAt||0).getTime()||0,bd=new Date(b?.dueAt||b?.competenceAt||b?.createdAt||0).getTime()||0;if(ad!==bd)return ad-bd;const as=clean(a?.sourceId,120),bs=clean(b?.sourceId,120);if(as!==bs)return as.localeCompare(bs,'pt-BR',{numeric:true});return String(a?._id||'').localeCompare(String(b?._id||''))});
+  const installmentGroups=new Map();for(const row of list){const originalId=clean(row?.sourceId,120),k=originalId?`source:${originalId}`:`entry:${String(row?._id||'')}`;if(!installmentGroups.has(k))installmentGroups.set(k,[]);installmentGroups.get(k).push(row)}
+  const ordered=[...installmentGroups.values()].sort((a,b)=>{const ar=a[0]||{},br=b[0]||{},ad=new Date(ar?.dueAt||ar?.competenceAt||ar?.createdAt||0).getTime()||0,bd=new Date(br?.dueAt||br?.competenceAt||br?.createdAt||0).getTime()||0;if(ad!==bd)return ad-bd;return clean(ar?.sourceId,120).localeCompare(clean(br?.sourceId,120),'pt-BR',{numeric:true})});
+  const total=Math.max(Number(originalTotalBySale.get(sid)||0),ordered.length);
+  ordered.forEach((same,index)=>same.forEach(row=>byEntry.set(String(row._id),{number:index+1,installments:total,sourceSaleId:sid})));
+ }
+ return rows.map(r=>{const x=byEntry.get(String(r._id||r.id||''));return x?{...r,historicalInstallmentNumber:x.number,historicalInstallments:x.installments,historicalSourceSaleId:x.sourceSaleId}:r})
+}
 function reportPeriod(q={}){const now=new Date(),from=q.from?new Date(q.from):new Date(now.getFullYear(),0,1),to=q.to?new Date(q.to):new Date(now.getFullYear(),11,31,23,59,59,999);if(Number.isNaN(from.getTime())||Number.isNaN(to.getTime()))throw Object.assign(new Error('Período inválido.'),{statusCode:400});from.setHours(0,0,0,0);to.setHours(23,59,59,999);return{from,to}}
 function normalizeText(v=''){return clean(v,300).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()}
 
@@ -65,6 +83,7 @@ export function createErpParityAnalyticsService(context={}){
   if(q.from||q.to){filter.dueAt={};if(q.from)filter.dueAt.$gte=new Date(q.from);if(q.to){const d=new Date(q.to);d.setHours(23,59,59,999);filter.dueAt.$lte=d}}
   const text=clean(q.q||q.search,160);if(text){const rx=new RegExp(regexEscape(text),'i');filter.$or=[{personName:rx},{personDocument:rx},{personPhone:rx},{personEmail:rx},{description:rx},{categoryName:rx},{documentNumber:rx},{boletoNumber:rx}]}
   let base=(await Entry.collection.find(filter).sort({dueAt:1}).limit(30000).toArray()).map(normalizeLedgerRow);
+  base=await enrichHistoricalInstallments(base,Entry);
   if(!q.direction||q.direction==='receivable')base.push(...await currentReceivables());
   if(['receivable','payable'].includes(q.direction))base=base.filter(r=>r.direction===q.direction);
   if(personSourceId)base=base.filter(r=>String(r?.migration?.sourcePersonId||'')===personSourceId);
