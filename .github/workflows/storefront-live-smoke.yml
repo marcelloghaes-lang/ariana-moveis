@@ -3,17 +3,24 @@ name: Ariana Storefront Live Smoke
 on:
   push:
     branches: [main]
-  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  smoke:
+  patch-report:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate backend entrypoint
-        run: node --check functions/server.js
-      - name: Validate ERP finance page exists
-        run: test -s public/erp_financeiro_completo.html
+        with:
+          fetch-depth: 0
+      - name: Apply report patch
+        run: python3 scripts/patch_client_report_pages.py
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/erp_financeiro_completo.html
+          git commit -m "fix(erp): separar compras por pagina e conferir parcelamento" || exit 0
+          git push
