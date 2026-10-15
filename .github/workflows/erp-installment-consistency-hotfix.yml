@@ -1,0 +1,83 @@
+name: ERP installment consistency hotfix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/erp-installment-consistency-hotfix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Preserve original installment numbering in every finance view
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p = Path('functions/services/erp/erpParityAnalyticsService.js')
+          s = p.read_text(encoding='utf-8')
+          anchor = "function normalizeLedgerRow(r={}){const ps=array(r.payments),principal=money(ps.length?ps.reduce((s,p)=>s+Number(p.principalApplied??0),0):Number(r.principalPaid??(r.status==='paid'?r.value:0))),cash=money(ps.length?ps.reduce((s,p)=>s+Number(p.totalPaid??p.principalApplied??0),0):Number(r.paidValue||0));return{...r,id:String(r._id),source:r.origin==='sige_import'?'historico':'financeiro',principalPaid:principal,paidValue:cash,outstanding:r.status==='paid'?0:Math.max(0,money(Number(r.value||0)-principal)),partial:r.status!=='paid'&&principal>0}}\n"
+          if anchor not in s:
+              raise SystemExit('normalizeLedgerRow anchor not found')
+          helper = r'''async function enrichHistoricalInstallments(rows=[],Entry){
+           const saleIds=[...new Set(rows.map(r=>clean(r?.migration?.sourceSaleId||r?.historicalSourceSaleId,120)).filter(Boolean))];
+           if(!saleIds.length)return rows;
+           const Historical=mongoose.models.ErpSigeHistoricalSale||null;
+           const historicalSales=Historical?await Historical.find({sourceSystem:'sige',sourceId:{$in:saleIds}}).lean():[];
+           const originalTotalBySale=new Map(historicalSales.map(s=>{const live=s?.metadata?.sigeLive||{},payments=array(live?.payments);return[clean(s?.sourceId,120),Math.max(0,Number(live?.numberOfInstallments||0),Number(payments[0]?.installments||0),Number(s?.numberOfInstallments||0))]}));
+           const siblings=await Entry.collection.find({direction:'receivable','migration.sourceSaleId':{$in:saleIds},status:{$ne:'cancelled'}}).project({_id:1,dueAt:1,competenceAt:1,createdAt:1,migration:1,sourceId:1}).toArray();
+           const groups=new Map();for(const row of siblings){const sid=clean(row?.migration?.sourceSaleId,120);if(!sid)continue;if(!groups.has(sid))groups.set(sid,[]);groups.get(sid).push(row)}
+           const byEntry=new Map();
+           for(const [sid,list] of groups){
+            list.sort((a,b)=>{const ad=new Date(a?.dueAt||a?.competenceAt||a?.createdAt||0).getTime()||0,bd=new Date(b?.dueAt||b?.competenceAt||b?.createdAt||0).getTime()||0;if(ad!==bd)return ad-bd;const as=clean(a?.sourceId,120),bs=clean(b?.sourceId,120);if(as!==bs)return as.localeCompare(bs,'pt-BR',{numeric:true});return String(a?._id||'').localeCompare(String(b?._id||''))});
+            const installmentGroups=new Map();for(const row of list){const originalId=clean(row?.sourceId,120),k=originalId?`source:${originalId}`:`entry:${String(row?._id||'')}`;if(!installmentGroups.has(k))installmentGroups.set(k,[]);installmentGroups.get(k).push(row)}
+            const ordered=[...installmentGroups.values()].sort((a,b)=>{const ar=a[0]||{},br=b[0]||{},ad=new Date(ar?.dueAt||ar?.competenceAt||ar?.createdAt||0).getTime()||0,bd=new Date(br?.dueAt||br?.competenceAt||br?.createdAt||0).getTime()||0;if(ad!==bd)return ad-bd;return clean(ar?.sourceId,120).localeCompare(clean(br?.sourceId,120),'pt-BR',{numeric:true})});
+            const total=Math.max(Number(originalTotalBySale.get(sid)||0),ordered.length);
+            ordered.forEach((same,index)=>same.forEach(row=>byEntry.set(String(row._id),{number:index+1,installments:total,sourceSaleId:sid})));
+           }
+           return rows.map(r=>{const x=byEntry.get(String(r._id||r.id||''));return x?{...r,historicalInstallmentNumber:x.number,historicalInstallments:x.installments,historicalSourceSaleId:x.sourceSaleId}:r})
+          }
+'''
+          if 'async function enrichHistoricalInstallments(' not in s:
+              s = s.replace(anchor, anchor + helper, 1)
+          old = "  let base=(await Entry.collection.find(filter).sort({dueAt:1}).limit(30000).toArray()).map(normalizeLedgerRow);\n  if(!q.direction||q.direction==='receivable')base.push(...await currentReceivables());"
+          new = "  let base=(await Entry.collection.find(filter).sort({dueAt:1}).limit(30000).toArray()).map(normalizeLedgerRow);\n  base=await enrichHistoricalInstallments(base,Entry);\n  if(!q.direction||q.direction==='receivable')base.push(...await currentReceivables());"
+          if old not in s and 'base=await enrichHistoricalInstallments(base,Entry);' not in s:
+              raise SystemExit('finance base pattern not found')
+          if old in s:
+              s = s.replace(old,new,1)
+          p.write_text(s,encoding='utf-8')
+
+          p = Path('public/erp_financeiro_completo.html')
+          s = p.read_text(encoding='utf-8')
+          old = "function prepareCollections(rows){const normalized=rows.map(normalizeCollection),groups=new Map();for(const r of normalized){if(!groups.has(r.purchaseKey))groups.set(r.purchaseKey,[]);groups.get(r.purchaseKey).push(r)}for(const list of groups.values()){list.sort((a,b)=>new Date(a.dueAt||0)-new Date(b.dueAt||0));if(list[0]?.sourceType==='ledger'){let knownTotal=Math.max(0,...list.map(r=>Number(r.installments||0)));if(!knownTotal){const dueDates=[...new Set(list.map(r=>String(r.dueAt||'').slice(0,10)).filter(Boolean))];knownTotal=dueDates.length}if(knownTotal>0){list.forEach((r,i)=>{if(!Number(r.number))r.number=i+1;r.installments=knownTotal})}}}return normalized}"
+          new = "function prepareCollections(rows){return rows.map(normalizeCollection)}\nfunction installmentLabel(r){const n=Number(r?.number||0),t=Number(r?.installments||0);return n>0&&t>0?`${n}/${t}`:'A conferir'}"
+          if old in s:
+              s = s.replace(old,new,1)
+          elif 'function installmentLabel(r)' not in s:
+              raise SystemExit('prepareCollections pattern not found')
+          s = s.replace('<td>${r.number}/${r.installments}</td>','<td>${installmentLabel(r)}</td>')
+          p.write_text(s,encoding='utf-8')
+      - name: Verify patch
+        run: |
+          node --check functions/services/erp/erpParityAnalyticsService.js
+          grep -F "base=await enrichHistoricalInstallments(base,Entry);" functions/services/erp/erpParityAnalyticsService.js
+          grep -F "function installmentLabel(r)" public/erp_financeiro_completo.html
+          grep -F '<td>${installmentLabel(r)}</td>' public/erp_financeiro_completo.html
+          git diff --check
+      - name: Commit hotfix
+        run: |
+          git config user.name "Ariana ERP Hotfix"
+          git config user.email "actions@users.noreply.github.com"
+          git add functions/services/erp/erpParityAnalyticsService.js public/erp_financeiro_completo.html
+          git diff --cached --check
+          git commit -m "fix(erp): preservar numeracao original das parcelas em todos os filtros"
+          git push origin main
