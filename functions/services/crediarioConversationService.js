@@ -251,13 +251,30 @@ function checklist(session) {
 }
 
 function looksGenericGreeting(text = '') {
-  const value = normalizeCommand(text).replace(/[!?.,;:]+/g, ' ').replace(/\s+/g, ' ').trim();
+  let value = normalizeCommand(text).replace(/[!?.,;:]+/g, ' ').replace(/\s+/g, ' ').trim();
   if (!value || value.length > 100) return false;
+
+  // Corrige erros simples e abreviações comuns sem transformar respostas cadastrais em saudação.
+  value = value
+    .replace(/\b(TUDP|TDO|TD)\b/g, 'TUDO')
+    .replace(/\b(NOITR|NOIT)\b/g, 'NOITE')
+    .replace(/\b(TARD|TARDEEE)\b/g, 'TARDE')
+    .replace(/\b(BOMM|BOOM)\b/g, 'BOM')
+    .replace(/\b(BOAA|BOAAA)\b/g, 'BOA')
+    .replace(/\b(OII+|OIE|OPA)\b/g, 'OI')
+    .replace(/\b(E AI|EAI)\b/g, 'OI')
+    .replace(/\s+/g, ' ')
+    .trim();
+
   const withoutGreetings = value
-    .replace(/\b(OI|OLA|BOM DIA|BOA TARDE|BOA NOITE|TUDO BEM|TUDO BOM|COMO VAI|COMO VOCE ESTA|COMO ESTA|BELEZA|BLZ)\b/g, ' ')
+    .replace(/\b(OI|OLA|BOM DIA|BOA TARDE|BOA NOITE|TUDO BEM|TUDO BOM|TUDO|COMO VAI|COMO VOCE ESTA|COMO ESTA|BELEZA|BLZ)\b/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   return withoutGreetings === '';
+}
+
+function officialGreeting() {
+  return 'Olá, você está falando com o *Crediário da Ariana Móveis*.';
 }
 
 function plausibleReplyForStep(step, text = '', normalizedPhone = '') {
@@ -348,9 +365,9 @@ export async function processCrediarioConversation({ mongoose, phone, instanceNa
       processedEventHashes: [safeEventId]
     });
     if (mediaReceived) {
-      return { duplicate: false, session, reply: `Olá! 👋 Você está falando com o *Crediário Ariana Móveis*.\n\nAntes de receber documentos, preciso iniciar sua solicitação.\n\n${CONSENT_TEXT}` };
+      return { duplicate: false, session, reply: `${officialGreeting()}\n\nAntes de receber documentos, preciso iniciar sua solicitação.\n\n${CONSENT_TEXT}` };
     }
-    return { duplicate: false, session, reply: `Olá! 👋 Você está falando com o *Crediário Ariana Móveis*.\n\n${CONSENT_TEXT}` };
+    return { duplicate: false, session, reply: `${officialGreeting()}\n\n${CONSENT_TEXT}` };
   }
 
   if ((session.processedEventHashes || []).includes(safeEventId)) return { duplicate: true, session, reply: '' };
@@ -425,7 +442,7 @@ export async function processCrediarioConversation({ mongoose, phone, instanceNa
       return {
         duplicate: false,
         session,
-        reply: `Olá! 😊 Tudo bem? Vamos continuar seu atendimento de crediário.\n\n${promptFor(session.step, session)}`
+        reply: `${officialGreeting()}\n\n${promptFor(session.step, session)}`
       };
     }
 
