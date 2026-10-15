@@ -59,3 +59,5 @@ function printClientReport(){const r=window.__clientReportCurrent;if(!r?.html)re
           git add public/erp_financeiro_completo.html
           git commit -m "fix(erp): separar compras por pagina e conferir parcelamento" || exit 0
           git push
+
+# trigger
