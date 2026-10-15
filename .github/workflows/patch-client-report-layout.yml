@@ -1,0 +1,75 @@
+name: Patch client report layout
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Ajustar relatório por cliente
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('public/erp_financeiro_completo.html')
+          s=p.read_text()
+
+          # Remove explicação da regra financeira no modal e troca o PRE por container HTML.
+          s=s.replace('<div class="notice"><b>Regra financeira:</b> multa de 2% ao mês + juros de 1% ao mês, proporcionais aos dias de atraso. Parcelas ainda não vencidas entram no saldo principal, sem multa e sem juros.</div><pre id="client-report-text" style="margin:14px 0 0;white-space:pre-wrap;font:15px/1.55 Arial,sans-serif;border:1px dashed #b8c8dc;border-radius:10px;padding:18px;background:#fff;min-height:260px"></pre>', '<div id="client-report-text" style="margin:14px 0 0;border:1px solid #d8e2ef;border-radius:10px;padding:18px;background:#fff;min-height:260px;overflow:auto"></div>')
+
+          start=s.index('function reportPad(v,n)')
+          end=s.index('function selectedRows()', start)
+          block=r'''function clientReportFor(key){
+ const c=collectionGroups().find(x=>x.key===key);if(!c)return null;
+ const now=today(),sections=[];let totalPrincipal=0,totalFine=0,totalInterest=0,totalUpdated=0,totalOpen=0,totalOverdue=0;
+ for(const p of c.purchases){
+  const openRows=p.rows.filter(r=>['pendente','parcial'].includes(r.status)&&Number(r.remaining||0)>0.009).sort((a,b)=>new Date(a.dueAt||0)-new Date(b.dueAt||0));
+  if(!openRows.length)continue;
+  let principal=0,fine=0,interest=0,updated=0,overdueCount=0;
+  const rows=[];
+  for(const r of openRows){
+   const pval=Math.max(0,Number(r.remaining||0)),calc=calculateLateCharges(r,pval,now,false),isOver=calc.days>0;
+   principal+=pval;fine+=Number(calc.fine||0);interest+=Number(calc.interest||0);updated+=Number(calc.total||pval);if(isOver)overdueCount++;
+   rows.push({parcela:(r.number||0)+'/'+(r.installments||0),vencimento:date(r.dueAt),principal:pval,multa:Number(calc.fine||0),juros:Number(calc.interest||0),atualizado:Number(calc.total||pval),situacao:isOver?'VENCIDA':'EM ABERTO'});
+  }
+  totalPrincipal+=principal;totalFine+=fine;totalInterest+=interest;totalUpdated+=updated;totalOpen+=openRows.length;totalOverdue+=overdueCount;
+  sections.push({title:'COMPRA '+(sections.length+1)+' — '+(p.ref||'Compra'),rows,principal,fine,interest,updated});
+ }
+ if(!sections.length)return{client:c,text:'',html:''};
+ const plain=[];plain.push('ARIANA MÓVEIS','RELATÓRIO DE CONTAS A RECEBER','', 'Cliente: '+c.name);if(c.cpf)plain.push('CPF/CNPJ: '+c.cpf);if(c.phone)plain.push('Telefone: '+c.phone);plain.push('Atualizado em: '+new Date().toLocaleString('pt-BR'),'');
+ for(const sec of sections){plain.push(sec.title,'Parcela | Vencimento | Principal | Multa | Juros | Atualizado | Situação');for(const r of sec.rows)plain.push([r.parcela,r.vencimento,money(r.principal),money(r.multa),money(r.juros),money(r.atualizado),r.situacao].join(' | '));plain.push('Subtotal principal: '+money(sec.principal),'Multa: '+money(sec.fine),'Juros: '+money(sec.interest),'Subtotal atualizado: '+money(sec.updated),'');}
+ plain.push('RESUMO GERAL','Parcelas em aberto: '+totalOpen,'Parcelas vencidas: '+totalOverdue,'Principal em aberto: '+money(totalPrincipal),'Multa: '+money(totalFine),'Juros: '+money(totalInterest),'TOTAL ATUALIZADO: '+money(totalUpdated));
+ const cell='padding:7px 8px;border:1px solid #d6dee9;vertical-align:middle;';
+ let html='<div style="font-family:Arial,sans-serif;color:#172033;font-size:12pt;line-height:1.35">';
+ html+='<div style="font-size:15pt;font-weight:700">ARIANA MÓVEIS</div><div style="font-size:13pt;font-weight:700;margin-bottom:18px">RELATÓRIO DE CONTAS A RECEBER</div>';
+ html+='<div><b>Cliente:</b> '+esc(c.name)+'</div>'+(c.cpf?'<div><b>CPF/CNPJ:</b> '+esc(c.cpf)+'</div>':'')+(c.phone?'<div><b>Telefone:</b> '+esc(c.phone)+'</div>':'')+'<div><b>Atualizado em:</b> '+esc(new Date().toLocaleString('pt-BR'))+'</div>';
+ for(const sec of sections){html+='<div style="margin-top:24px;font-weight:700">'+esc(sec.title)+'</div><table style="border-collapse:collapse;width:100%;table-layout:fixed;margin-top:6px;font-family:Arial,sans-serif;font-size:10.5pt"><colgroup><col style="width:9%"><col style="width:14%"><col style="width:16%"><col style="width:13%"><col style="width:13%"><col style="width:17%"><col style="width:18%"></colgroup><thead><tr><th style="'+cell+'text-align:left">Parcela</th><th style="'+cell+'text-align:left">Vencimento</th><th style="'+cell+'text-align:right">Principal</th><th style="'+cell+'text-align:right">Multa</th><th style="'+cell+'text-align:right">Juros</th><th style="'+cell+'text-align:right">Atualizado</th><th style="'+cell+'text-align:center">Situação</th></tr></thead><tbody>';
+  for(const r of sec.rows)html+='<tr><td style="'+cell+'">'+esc(r.parcela)+'</td><td style="'+cell+'">'+esc(r.vencimento)+'</td><td style="'+cell+'text-align:right">'+money(r.principal)+'</td><td style="'+cell+'text-align:right">'+money(r.multa)+'</td><td style="'+cell+'text-align:right">'+money(r.juros)+'</td><td style="'+cell+'text-align:right;font-weight:700">'+money(r.atualizado)+'</td><td style="'+cell+'text-align:center">'+r.situacao+'</td></tr>';
+  html+='</tbody></table><table style="border-collapse:collapse;margin-top:6px;font-family:Arial,sans-serif;font-size:10.5pt"><tr><td style="padding:3px 12px 3px 0"><b>Subtotal principal:</b> '+money(sec.principal)+'</td><td style="padding:3px 12px"><b>Multa:</b> '+money(sec.fine)+'</td><td style="padding:3px 12px"><b>Juros:</b> '+money(sec.interest)+'</td><td style="padding:3px 0 3px 12px"><b>Subtotal atualizado:</b> '+money(sec.updated)+'</td></tr></table>';
+ }
+ html+='<div style="margin-top:26px;border-top:2px solid #172033;padding-top:10px"><div style="font-weight:700;font-size:13pt;margin-bottom:6px">RESUMO GERAL</div><table style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:11pt"><tr><td style="padding:3px 18px 3px 0">Parcelas em aberto: <b>'+totalOpen+'</b></td><td style="padding:3px 18px">Parcelas vencidas: <b>'+totalOverdue+'</b></td></tr><tr><td style="padding:3px 18px 3px 0">Principal em aberto: <b>'+money(totalPrincipal)+'</b></td><td style="padding:3px 18px">Multa: <b>'+money(totalFine)+'</b></td><td style="padding:3px 18px">Juros: <b>'+money(totalInterest)+'</b></td></tr></table><div style="font-size:14pt;font-weight:700;margin-top:8px">TOTAL ATUALIZADO: '+money(totalUpdated)+'</div></div></div>';
+ return{client:c,text:plain.join('\n'),html};
+}
+function openClientReport(key){const r=clientReportFor(key);if(!r)return toast('Cliente não encontrado.');if(!r.text)return toast('Este cliente não possui parcelas vencidas ou em aberto.');window.__clientReportCurrent=r;$('client-report-sub').textContent=r.client.name+' • somente parcelas com saldo em aberto';$('client-report-text').innerHTML=r.html;openModal('client-report-modal')}
+async function copyClientReport(){const r=window.__clientReportCurrent;if(!r?.text)return;try{if(window.ClipboardItem&&navigator.clipboard?.write){const item=new ClipboardItem({'text/html':new Blob([r.html],{type:'text/html'}),'text/plain':new Blob([r.text],{type:'text/plain'})});await navigator.clipboard.write([item])}else await navigator.clipboard.writeText(r.text);toast('Relatório copiado com colunas alinhadas para Word / Google Docs.')}catch{const range=document.createRange();range.selectNodeContents($('client-report-text'));const sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);document.execCommand('copy');sel.removeAllRanges();toast('Relatório copiado com a tabela formatada.')}}
+function printClientReport(){const r=window.__clientReportCurrent;if(!r?.html)return;const w=window.open('','_blank','width=1000,height=900');w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Relatório de contas a receber</title><style>@page{size:A4 portrait;margin:14mm}body{margin:0;color:#172033}table{page-break-inside:auto}tr{page-break-inside:avoid;page-break-after:auto}</style></head><body>'+r.html+'<script>window.onload=()=>window.print()<\\/script></body></html>');w.document.close()}
+'''
+          s=s[:start]+block+s[end:]
+          p.write_text(s)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/erp_financeiro_completo.html
+          git commit -m "fix(erp): alinhar relatório financeiro e ocultar regra" || exit 0
+          git push
