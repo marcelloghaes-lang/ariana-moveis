@@ -2,6 +2,7 @@ import { createErpDanfeService } from './erpDanfeService.js';
 
 const clean=(value='',max=1000)=>String(value??'').trim().slice(0,max);
 const digits=(value='')=>String(value??'').replace(/\D/g,'');
+let requestedRetryWorkerStarted=false;
 
 function bool(value,fallback=true){
   if(value===undefined||value===null||value==='')return fallback;
@@ -218,5 +219,50 @@ export function createErpNfeCustomerNotificationService(context={}){
     }
   }
 
-  return{send,messageFor};
+  async function retryRequested(){
+    if(!enabled||!Order)return;
+    const rows=await Order.find({
+      origin:'erp_ariana',
+      status:'faturado',
+      'nfe.status':'authorized',
+      'televendas.erp.nfeCustomerNotification.retryRequested':true
+    }).sort({'nfe.authorizedAt':1}).limit(10).lean();
+    for(const row of rows){
+      try{
+        const claim=await Order.collection.updateOne(
+          {_id:row._id,'televendas.erp.nfeCustomerNotification.retryRequested':true},
+          {$set:{
+            'televendas.erp.nfeCustomerNotification.retryRequested':false,
+            'televendas.erp.nfeCustomerNotification.status':'failed',
+            'televendas.erp.nfeCustomerNotification.retryStartedAt':new Date()
+          }}
+        );
+        if(!claim?.modifiedCount)continue;
+        const result=await send({
+          order:row,
+          fiscal:{
+            authorized:true,
+            environment:row?.nfe?.environment||'producao',
+            homologation:false,
+            orderId:String(row?._id||''),
+            key:row?.nfe?.key||'',
+            protocol:row?.nfe?.protocol||'',
+            number:row?.nfe?.number||'',
+            series:row?.nfe?.series||''
+          }
+        });
+        console.log('[erp-nfe/customer-notification/retry]',{orderId:String(row?._id||''),ok:result?.ok===true,status:result?.status||result?.reason||''});
+      }catch(error){
+        console.warn('[erp-nfe/customer-notification/retry]',{orderId:String(row?._id||''),error:clean(error?.message||error,500)});
+      }
+    }
+  }
+
+  if(enabled&&Order&&!requestedRetryWorkerStarted){
+    requestedRetryWorkerStarted=true;
+    const timer=setTimeout(()=>retryRequested().catch(error=>console.warn('[erp-nfe/customer-notification/retry]',clean(error?.message||error,500))),5000);
+    timer.unref?.();
+  }
+
+  return{send,messageFor,retryRequested};
 }
