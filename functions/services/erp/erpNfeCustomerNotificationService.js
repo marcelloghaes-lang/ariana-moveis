@@ -28,10 +28,11 @@ function firstName(value=''){
 }
 
 function messageFor(order={},fiscal={}){
-  const orderCode=clean(order?.televendas?.erp?.code||order?.code||order?._id||'',100);
+  const internalOrderCode=clean(order?.televendas?.erp?.code||order?.code||'',100);
+  const publicOrderCode=internalOrderCode.replace(/^ERP-\d{8}-/i,'');
   const nfeNumber=clean(fiscal?.number||order?.nfe?.number||'',40);
   const customer=firstName(order?.customerName);
-  const orderText=orderCode?` *${orderCode}*`:'';
+  const orderText=publicOrderCode?` nº *${publicOrderCode}*`:'';
   const nfeText=nfeNumber?`\n🧾 NF-e: *${nfeNumber}*`:'';
   return `📦 *Pedido faturado — Ariana Móveis*\n\nOlá, ${customer}! 😊\n\nSeu pedido${orderText} foi faturado com sucesso e a NF-e foi emitida.\n\nSeu pedido está liberado para envio/entrega conforme combinado.${nfeText}\n\nO DANFE em PDF segue anexado nesta conversa.\n\nObrigado pela preferência!\n*Ariana Móveis*`;
 }
