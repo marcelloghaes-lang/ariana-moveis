@@ -1,3 +1,5 @@
+import { createErpDanfeService } from './erpDanfeService.js';
+
 const clean=(value='',max=1000)=>String(value??'').trim().slice(0,max);
 const digits=(value='')=>String(value??'').replace(/\D/g,'');
 
@@ -26,16 +28,22 @@ function firstName(value=''){
 
 function messageFor(order={},fiscal={}){
   const orderCode=clean(order?.televendas?.erp?.code||order?.code||order?._id||'',100);
-  const nfeNumber=clean(fiscal?.number||'',40);
+  const nfeNumber=clean(fiscal?.number||order?.nfe?.number||'',40);
   const customer=firstName(order?.customerName);
   const orderText=orderCode?` *${orderCode}*`:'';
   const nfeText=nfeNumber?`\n🧾 NF-e: *${nfeNumber}*`:'';
-  return `📦 *Pedido faturado — Ariana Móveis*\n\nOlá, ${customer}! 😊\n\nSeu pedido${orderText} foi faturado com sucesso e a NF-e foi emitida.\n\nSeu pedido está liberado para envio/entrega conforme combinado.${nfeText}\n\nObrigado pela preferência!\n*Ariana Móveis*`;
+  return `📦 *Pedido faturado — Ariana Móveis*\n\nOlá, ${customer}! 😊\n\nSeu pedido${orderText} foi faturado com sucesso e a NF-e foi emitida.\n\nSeu pedido está liberado para envio/entrega conforme combinado.${nfeText}\n\nO DANFE em PDF segue anexado nesta conversa.\n\nObrigado pela preferência!\n*Ariana Móveis*`;
+}
+
+function providerError(response={},instanceName=''){
+  const providerMessage=clean(response?.data?.message||response?.data?.error||response?.statusText||'',300);
+  return new Error(`Evolution ${instanceName} recusou o envio (HTTP ${response.status})${providerMessage?`: ${providerMessage}`:''}`);
 }
 
 export function createErpNfeCustomerNotificationService(context={}){
-  const {Order,axios,getWhatsappSettings,normalizePhone:contextNormalizePhone,redact}=context;
+  const {Order,axios,getWhatsappSettings,normalizePhone:contextNormalizePhone}=context;
   const enabled=bool(process.env.ERP_NFE_CUSTOMER_NOTIFICATION_ENABLED,true);
+  const danfe=createErpDanfeService();
 
   async function mark(orderId,key,data={}){
     if(!Order?.collection||!orderId)return;
@@ -69,7 +77,7 @@ export function createErpNfeCustomerNotificationService(context={}){
     if(!order)return{ok:false,skipped:true,reason:'order_not_found'};
 
     const existing=order?.televendas?.erp?.nfeCustomerNotification||{};
-    if(key&&existing?.key===key&&existing?.status==='sent'){
+    if(key&&existing?.key===key&&existing?.status==='sent'&&existing?.messageSent===true&&existing?.pdfSent===true){
       return{ok:true,skipped:true,alreadySent:true,instanceName:existing?.instanceName||''};
     }
     if(key&&existing?.key===key&&existing?.status==='sending'){
@@ -78,15 +86,18 @@ export function createErpNfeCustomerNotificationService(context={}){
 
     const phone=normalizePhone(order?.customerPhone||'',contextNormalizePhone);
     if(!phone){
-      await mark(order._id,key,{status:'skipped',reason:'customer_phone_missing',phone:''});
+      await mark(order._id,key,{status:'skipped',reason:'customer_phone_missing',phone:'',messageSent:Boolean(existing?.messageSent),pdfSent:Boolean(existing?.pdfSent)});
       return{ok:false,skipped:true,reason:'customer_phone_missing'};
     }
+
+    const previousMessageSent=key&&existing?.key===key&&existing?.messageSent===true;
+    const previousPdfSent=key&&existing?.key===key&&existing?.pdfSent===true;
 
     const claimFilter={_id:order._id};
     if(key){
       claimFilter.$or=[
         {'televendas.erp.nfeCustomerNotification.key':{$ne:key}},
-        {'televendas.erp.nfeCustomerNotification.status':{$in:['failed','skipped']}},
+        {'televendas.erp.nfeCustomerNotification.status':{$in:['failed','partial','skipped']}},
         {'televendas.erp.nfeCustomerNotification.status':{$exists:false}}
       ];
     }
@@ -94,6 +105,8 @@ export function createErpNfeCustomerNotificationService(context={}){
       key,
       status:'sending',
       phone,
+      messageSent:previousMessageSent,
+      pdfSent:previousPdfSent,
       startedAt:new Date(),
       updatedAt:new Date()
     }}});
@@ -101,13 +114,19 @@ export function createErpNfeCustomerNotificationService(context={}){
       return{ok:true,skipped:true,reason:'already_claimed'};
     }
 
+    let instanceName='';
+    let messageId=clean(existing?.messageId||'',180);
+    let pdfMessageId=clean(existing?.pdfMessageId||'',180);
+    let messageSent=previousMessageSent;
+    let pdfSent=previousPdfSent;
+
     try{
       if(!axios?.post||typeof getWhatsappSettings!=='function')throw new Error('Canal Evolution de notificações indisponível.');
       const settings=await getWhatsappSettings();
       if(settings?.enabled===false)throw new Error('WhatsApp desativado nas configurações.');
       const apiUrl=clean(settings?.apiUrl,500).replace(/\/+$/,'');
       const apiKey=clean(settings?.apiKey,500);
-      const instanceName=clean(
+      instanceName=clean(
         process.env.ERP_NFE_NOTIFICATION_EVOLUTION_INSTANCE||
         process.env.EVOLUTION_INSTANCE_NOTIFICACOES||
         'Ariana_Notificacoes',
@@ -117,32 +136,84 @@ export function createErpNfeCustomerNotificationService(context={}){
       if(!apiKey)throw new Error('Chave da Evolution API não configurada.');
       if(!instanceName)throw new Error('Instância de notificações não configurada.');
 
-      const response=await axios.post(
-        `${apiUrl}/message/sendText/${encodeURIComponent(instanceName)}`,
-        {number:phone,text:messageFor(order,fiscal),delay:0},
-        {headers:{'Content-Type':'application/json',apikey:apiKey},timeout:10000,validateStatus:()=>true}
-      );
-      if(response.status<200||response.status>=300){
-        const providerMessage=clean(response?.data?.message||response?.data?.error||response?.statusText||'',300);
-        throw new Error(`Evolution ${instanceName} recusou o envio (HTTP ${response.status})${providerMessage?`: ${providerMessage}`:''}`);
+      const requestConfig={headers:{'Content-Type':'application/json',apikey:apiKey},timeout:20000,validateStatus:()=>true};
+
+      if(!messageSent){
+        const response=await axios.post(
+          `${apiUrl}/message/sendText/${encodeURIComponent(instanceName)}`,
+          {number:phone,text:messageFor(order,fiscal),delay:0},
+          requestConfig
+        );
+        if(response.status<200||response.status>=300)throw providerError(response,instanceName);
+        messageId=clean(response?.data?.key?.id||response?.data?.messageId||response?.data?.id||'',180);
+        messageSent=true;
+        await mark(order._id,key,{
+          status:'partial',phone,instanceName,messageId,messageSent:true,pdfSent:false,
+          messageSentAt:new Date(),nfeNumber:clean(fiscal?.number||order?.nfe?.number||'',40),protocol:clean(fiscal?.protocol||order?.nfe?.protocol||'',80)
+        });
       }
 
-      const messageId=clean(response?.data?.key?.id||response?.data?.messageId||response?.data?.id||'',180);
+      if(!pdfSent){
+        const xml=String(order?.nfe?.xml||fiscal?.fiscal?.xml||'').trim();
+        if(!xml)throw new Error('XML autorizado da NF-e não está disponível para gerar o DANFE.');
+        const nfeNumber=clean(fiscal?.number||order?.nfe?.number||'sem-numero',40);
+        const pdf=danfe.generate({
+          xml,
+          key:clean(fiscal?.key||order?.nfe?.key||'',80),
+          number:nfeNumber,
+          series:clean(fiscal?.series||order?.nfe?.series||'',20),
+          protocol:clean(fiscal?.protocol||order?.nfe?.protocol||'',80),
+          status:'approved'
+        });
+        const fileName=`DANFE-NFe-${String(nfeNumber).replace(/[^0-9A-Za-z_-]/g,'-')}.pdf`;
+        const mediaResponse=await axios.post(
+          `${apiUrl}/message/sendMedia/${encodeURIComponent(instanceName)}`,
+          {
+            number:phone,
+            mediatype:'document',
+            mimetype:'application/pdf',
+            caption:`🧾 DANFE da NF-e ${nfeNumber} — Ariana Móveis`,
+            media:pdf.toString('base64'),
+            fileName,
+            delay:0
+          },
+          requestConfig
+        );
+        if(mediaResponse.status<200||mediaResponse.status>=300)throw providerError(mediaResponse,instanceName);
+        pdfMessageId=clean(mediaResponse?.data?.key?.id||mediaResponse?.data?.messageId||mediaResponse?.data?.id||'',180);
+        pdfSent=true;
+      }
+
       await mark(order._id,key,{
         status:'sent',
         phone,
         instanceName,
         messageId,
+        pdfMessageId,
+        messageSent:true,
+        pdfSent:true,
         sentAt:new Date(),
-        nfeNumber:clean(fiscal?.number||'',40),
-        protocol:clean(fiscal?.protocol||'',80)
+        nfeNumber:clean(fiscal?.number||order?.nfe?.number||'',40),
+        protocol:clean(fiscal?.protocol||order?.nfe?.protocol||'',80)
       });
-      console.log('[erp-nfe/customer-notification] enviado',{orderId:String(order._id),nfeNumber:clean(fiscal?.number||'',40),instanceName});
-      return{ok:true,status:'sent',instanceName,messageId,phone};
+      console.log('[erp-nfe/customer-notification] mensagem e DANFE enviados',{orderId:String(order._id),nfeNumber:clean(fiscal?.number||order?.nfe?.number||'',40),instanceName});
+      return{ok:true,status:'sent',instanceName,messageId,pdfMessageId,phone,messageSent:true,pdfSent:true};
     }catch(error){
-      const failure={status:'failed',phone,error:clean(error?.message||error,500),failedAt:new Date()};
+      const failure={
+        status:messageSent?'partial':'failed',
+        phone,
+        instanceName,
+        messageId,
+        pdfMessageId,
+        messageSent,
+        pdfSent,
+        error:clean(error?.message||error,500),
+        failedAt:new Date(),
+        nfeNumber:clean(fiscal?.number||order?.nfe?.number||'',40),
+        protocol:clean(fiscal?.protocol||order?.nfe?.protocol||'',80)
+      };
       await mark(order._id,key,failure);
-      console.warn('[erp-nfe/customer-notification] falha',{orderId:String(order._id),error:failure.error});
+      console.warn('[erp-nfe/customer-notification] falha',{orderId:String(order._id),messageSent,pdfSent,error:failure.error});
       return{ok:false,...failure};
     }
   }
