@@ -38,6 +38,7 @@ import registerEfiRoutes from './routes/efiRoutes.js';
 import { releaseExpiredStockReservations } from './services/stockReservationService.js';
 import { startAdminWhatsappReminderWorker } from './services/adminWhatsappAlertService.js';
 import { startErpDailyDueWhatsappWorker, startErpFifteenDayOverdueWhatsappWorker, listErpFifteenDayOverdueAudit } from './services/erp/erpDailyDueWhatsappService.js';
+import { startErpFiveDayCollectionWorker } from './services/erp/erpFiveDayCollectionService.js';
 import initModels from './models/index.js';
 
 
@@ -2960,6 +2961,12 @@ startErpDailyDueWhatsappWorker({
   waSendTextMessage,
   toJSON,
   redact
+});
+startErpFiveDayCollectionWorker({
+  Setting,
+  IntegrationAuditLog,
+  mongoose,
+  waSendTextMessage
 });
 startErpFifteenDayOverdueWhatsappWorker({
   Order,
