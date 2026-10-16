@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { buildReceivables } from './erpService.js';
-import { dedupeCurrentOrders, orderSaleDate } from './erpSalesReportUtils.js';
+import { dedupeCurrentOrders, orderSaleDate, isCancelledSaleStatus, isBilledSaleStatus } from './erpSalesReportUtils.js';
 
 const clean=(v='',m=500)=>String(v??'').trim().slice(0,m);
 const money=v=>Math.round((Number(v||0)+Number.EPSILON)*100)/100;
@@ -123,13 +123,22 @@ export function createErpParityAnalyticsService(context={}){
 
  async function sales(q={}){
   const{from,to}=reportPeriod(q),Historical=mongoose.models.ErpSigeHistoricalSale;
+  const onlyBilled=['1','true','yes','on','faturado','billed'].includes(String(q.onlyBilled??q.faturado??'').trim().toLowerCase());
   const hist=Historical?await Historical.find({date:{$gte:from,$lte:to}}).sort({date:-1}).limit(20000).lean():[];
   const currentRaw=await Order.find({origin:'erp_ariana',status:{$in:['pedido','venda','faturado','Entregue','entregue','delivered']}}).sort({createdAt:-1}).limit(20000).lean();
   const currentInPeriod=currentRaw.filter(o=>{const d=new Date(orderSaleDate(o)||0);return !Number.isNaN(d.getTime())&&d>=from&&d<=to});
   const reconciled=dedupeCurrentOrders(currentInPeriod),current=reconciled.orders;
-  let rows=[];
-  for(const s of hist){if(String(s.status||'').toLowerCase()==='canceled')continue;rows.push({id:String(s._id),source:'historico',code:s.code||'',date:s.date,customerName:s.customerName||'Consumidor',customerDocument:s.customerDocument||'',sellerName:s.sellerName||'',total:Number(s.total||0),paymentMethod:s.paymentCondition||'',items:(s.items||[]).map(i=>({name:i.description||'',productId:i.productId||'',qty:Number(i.quantity||0),value:Number(i.subtotal||0)}))})}
-  for(const o of current)rows.push({id:String(o._id),source:'ariana',status:o.status||'',code:o.televendas?.erp?.code||'',date:orderSaleDate(o),customerName:o.customerName||'Consumidor',customerDocument:o.customerCpf||'',sellerName:o.televendas?.erp?.sellerName||o.sellerName||o.operatorName||'',total:Number(o.total||0),paymentMethod:o.payment?.method||'',items:(o.items||[]).map(i=>({name:i.name||'',productId:String(i.productId||''),qty:Number(i.qty||0),value:Number(i.totalPrice||0)}))});
+  let rows=[],excludedCancelled=0,excludedUnbilled=0;
+  for(const s of hist){
+   if(isCancelledSaleStatus(s.status)){excludedCancelled++;continue}
+   if(onlyBilled&&!isBilledSaleStatus(s.status)){excludedUnbilled++;continue}
+   rows.push({id:String(s._id),source:'historico',status:s.status||'',code:s.code||'',date:s.date,customerName:s.customerName||'Consumidor',customerDocument:s.customerDocument||'',sellerName:s.sellerName||'',total:Number(s.total||0),paymentMethod:s.paymentCondition||'',items:(s.items||[]).map(i=>({name:i.description||'',productId:i.productId||'',qty:Number(i.quantity||0),value:Number(i.subtotal||0)}))})
+  }
+  for(const o of current){
+   if(isCancelledSaleStatus(o.status)){excludedCancelled++;continue}
+   if(onlyBilled&&!isBilledSaleStatus(o.status)){excludedUnbilled++;continue}
+   rows.push({id:String(o._id),source:'ariana',status:o.status||'',code:o.televendas?.erp?.code||'',date:orderSaleDate(o),customerName:o.customerName||'Consumidor',customerDocument:o.customerCpf||'',sellerName:o.televendas?.erp?.sellerName||o.sellerName||o.operatorName||'',total:Number(o.total||0),paymentMethod:o.payment?.method||'',items:(o.items||[]).map(i=>({name:i.name||'',productId:String(i.productId||''),qty:Number(i.qty||0),value:Number(i.totalPrice||0)}))})
+  }
 
   const customer=normalizeText(q.customer||q.cliente),seller=normalizeText(q.seller||q.vendedor),payment=normalizeText(q.paymentMethod||q.pagamento),product=normalizeText(q.product||q.produto),source=clean(q.source||q.origem,30).toLowerCase(),minValue=Number(q.minValue??q.valorMin??''),maxValue=Number(q.maxValue??q.valorMax??'');
   rows=rows.filter(s=>{
@@ -155,7 +164,7 @@ export function createErpParityAnalyticsService(context={}){
   }
   const ranking=[...customers.values()].sort((a,b)=>b.value-a.value).map(x=>({...x,value:money(x.value),averageTicket:x.orders?money(x.value/x.orders):0}));let acc=0;const abc=ranking.map(x=>{acc+=x.value;const cumulative=total?acc/total:0;return{...x,share:total?money(x.value/total*100):0,curve:cumulative<=.8?'A':cumulative<=.95?'B':'C'}});
   const productRanking=[...products.values()].sort((a,b)=>b.value-a.value).map(x=>({...x,value:money(x.value)}));let productAcc=0;const productABC=productRanking.map(x=>{productAcc+=x.value;const cumulative=total?productAcc/total:0;return{...x,share:total?money(x.value/total*100):0,curve:cumulative<=.8?'A':cumulative<=.95?'B':'C'}});
-  return{period:{from,to},filters:{customer:clean(q.customer||q.cliente,160),seller:clean(q.seller||q.vendedor,160),paymentMethod:clean(q.paymentMethod||q.pagamento,100),product:clean(q.product||q.produto,160),source:source||'all',minValue:Number.isFinite(minValue)?minValue:null,maxValue:Number.isFinite(maxValue)?maxValue:null},summary:{sales:rows.length,items:itemCount,total:money(total),averageTicket:rows.length?money(total/rows.length):0,historical:rows.filter(x=>x.source==='historico').length,current:rows.filter(x=>x.source==='ariana').length,customers:customers.size,sellers:sellers.size,duplicatesSuppressed:reconciled.suppressed,dateBasis:'createdAt'},customerRanking:ranking.slice(0,500),customerABC:abc.slice(0,1000),productRanking:productRanking.slice(0,500),productABC:productABC.slice(0,1000),sellerRanking:[...sellers.values()].sort((a,b)=>b.value-a.value).slice(0,200).map(x=>({...x,value:money(x.value),averageTicket:x.orders?money(x.value/x.orders):0})),sellerProductRanking:[...sellerProducts.values()].sort((a,b)=>b.value-a.value).slice(0,1000).map(x=>({...x,value:money(x.value)})),paymentMethods:Object.fromEntries([...payments].map(([k,v])=>[k,money(v)])),dailySales:[...daily.values()].sort((a,b)=>a.date.localeCompare(b.date)).map(x=>({...x,value:money(x.value),averageTicket:x.sales?money(x.value/x.sales):0})),monthlySales:[...monthly.values()].sort((a,b)=>a.month.localeCompare(b.month)).map(x=>({...x,value:money(x.value),averageTicket:x.sales?money(x.value/x.sales):0})),sales:rows.slice(0,5000).map(x=>({...x,total:money(x.total)}))}
+  return{period:{from,to},filters:{customer:clean(q.customer||q.cliente,160),seller:clean(q.seller||q.vendedor,160),paymentMethod:clean(q.paymentMethod||q.pagamento,100),product:clean(q.product||q.produto,160),source:source||'all',onlyBilled,minValue:Number.isFinite(minValue)?minValue:null,maxValue:Number.isFinite(maxValue)?maxValue:null},summary:{sales:rows.length,items:itemCount,total:money(total),averageTicket:rows.length?money(total/rows.length):0,historical:rows.filter(x=>x.source==='historico').length,current:rows.filter(x=>x.source==='ariana').length,customers:customers.size,sellers:sellers.size,duplicatesSuppressed:reconciled.suppressed,excludedCancelled,excludedUnbilled,salesScope:onlyBilled?'billed_only':'active_sales',dateBasis:'createdAt'},customerRanking:ranking.slice(0,500),customerABC:abc.slice(0,1000),productRanking:productRanking.slice(0,500),productABC:productABC.slice(0,1000),sellerRanking:[...sellers.values()].sort((a,b)=>b.value-a.value).slice(0,200).map(x=>({...x,value:money(x.value),averageTicket:x.orders?money(x.value/x.orders):0})),sellerProductRanking:[...sellerProducts.values()].sort((a,b)=>b.value-a.value).slice(0,1000).map(x=>({...x,value:money(x.value)})),paymentMethods:Object.fromEntries([...payments].map(([k,v])=>[k,money(v)])),dailySales:[...daily.values()].sort((a,b)=>a.date.localeCompare(b.date)).map(x=>({...x,value:money(x.value),averageTicket:x.sales?money(x.value/x.sales):0})),monthlySales:[...monthly.values()].sort((a,b)=>a.month.localeCompare(b.month)).map(x=>({...x,value:money(x.value),averageTicket:x.sales?money(x.value/x.sales):0})),sales:rows.slice(0,5000).map(x=>({...x,total:money(x.total)}))}
  }
  return{finance,sales};
 }

@@ -2,7 +2,12 @@ const clean=(v='')=>String(v??'').trim();
 const norm=v=>clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
 const digits=v=>clean(v).replace(/\D/g,'');
 const cents=v=>Math.round(Number(v||0)*100);
-const rank={orcamento:0,pedido:1,venda:2,faturado:3};
+const rank={orcamento:0,pedido:1,venda:2,faturado:3,'pedido faturado':3,entregue:4,delivered:4};
+
+export function normalizeSaleStatus(value=''){return norm(value)}
+export function isCancelledSaleStatus(value=''){const s=norm(value);return s==='canceled'||s==='cancelled'||s.includes('cancelad')||s.includes('estorn')}
+export function isBilledSaleStatus(value=''){const s=norm(value);return s==='pedido faturado'||s==='faturado'||s==='entregue'||s==='delivered'}
+function saleStatusRank(value=''){return rank[norm(value)]??0}
 
 export function orderSaleDate(order={}){
   const explicit=order?.televendas?.erp?.saleDate || order?.saleDate;
@@ -65,14 +70,14 @@ export function dedupeCurrentOrders(input=[]){
 
   for(const group of groups.values()){
     if(group.length<=1){kept.push(...group);continue}
-    const statuses=new Set(group.map(o=>clean(o.status).toLowerCase()));
+    const statuses=new Set(group.map(o=>norm(o.status)));
     if(statuses.size<=1){
       kept.push(...group);
       continue;
     }
 
-    const highest=Math.max(...group.map(o=>rank[clean(o.status).toLowerCase()]??0));
-    const winners=group.filter(o=>(rank[clean(o.status).toLowerCase()]??0)===highest);
+    const highest=Math.max(...group.map(o=>saleStatusRank(o.status)));
+    const winners=group.filter(o=>saleStatusRank(o.status)===highest);
     kept.push(...winners);
     suppressed+=group.length-winners.length;
   }
@@ -81,4 +86,4 @@ export function dedupeCurrentOrders(input=[]){
   return{orders:kept,suppressed};
 }
 
-export default{orderSaleDate,dedupeCurrentOrders};
+export default{orderSaleDate,dedupeCurrentOrders,normalizeSaleStatus,isCancelledSaleStatus,isBilledSaleStatus};
