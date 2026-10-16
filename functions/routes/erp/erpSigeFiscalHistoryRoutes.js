@@ -5,6 +5,7 @@ import { createErpDanfeBrandedService } from '../../services/erp/erpDanfeBranded
 import { createErpFiscalSettingsService } from '../../services/erp/erpFiscalSettingsService.js';
 import { createErpNfeSefazService } from '../../services/erp/erpNfeSefazService.js';
 import { createErpNfeReturnService } from '../../services/erp/erpNfeReturnService.js';
+import { createErpNfeCustomerNotificationService } from '../../services/erp/erpNfeCustomerNotificationService.js';
 import { createErpService } from '../../services/erp/erpService.js';
 import { createErpCashService } from '../../services/erp/erpCashService.js';
 import { createErpSettingsService } from '../../services/erp/erpSettingsService.js';
@@ -29,6 +30,7 @@ export default function createErpSigeFiscalHistoryRoutes(context={}){
   const cash=createErpCashService(context);
   const nfe=createErpNfeSefazService({...context,erp},settings);
   const nfeReturn=createErpNfeReturnService({...context,erp},settings);
+  const nfeCustomerNotification=createErpNfeCustomerNotificationService(context);
   const sendError=(res,e,fallback='Erro fiscal.')=>res.status(Number(e?.statusCode||500)).json({
     ok:false,
     error:e?.message||fallback,
@@ -199,6 +201,9 @@ export default function createErpSigeFiscalHistoryRoutes(context={}){
           });
         }
       }
+
+      const customerNotification=await nfeCustomerNotification.send({order,fiscal});
+
       return res.json({
         ok:true,
         authorized:true,
@@ -210,7 +215,8 @@ export default function createErpSigeFiscalHistoryRoutes(context={}){
         number:fiscal.number,
         series:fiscal.series,
         environment:fiscal.environment,
-        fiscalDocumentId:fiscal.fiscalDocumentId||''
+        fiscalDocumentId:fiscal.fiscalDocumentId||'',
+        customerNotification
       });
     }catch(e){
       console.error('[erp-nfe/emitir-e-faturar]',{
