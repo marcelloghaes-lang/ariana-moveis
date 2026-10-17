@@ -18,9 +18,21 @@ export function createErpFinanceCustomerContactService(context={}){
   if(!Order)throw new Error('[erp-finance-contact] Order não informado');
   const phoneOf=value=>{
     const raw=clean(value,80);
-    const normalized=typeof normalizePhone==='function'?normalizePhone(raw,'55'):(()=>{let n=digits(raw);if(!n)return'';if(raw.startsWith('+'))return n;if(n.startsWith('00'))return n.slice(2);if((n.length===10||n.length===11)&&!n.startsWith('55'))n='55'+n;return n})();
+    let n=digits(raw);
+    if(!n)return'';
+
+    // DDI informado explicitamente nunca pode receber +55 automaticamente.
+    if(raw.startsWith('+'))return n.length>=8&&n.length<=15?`+${n}`:'';
+    if(raw.startsWith('00')){n=n.replace(/^00/,'');return n.length>=8&&n.length<=15?`+${n}`:'';}
+
+    // Compatibilidade para números NANP (EUA/Canadá) já digitados como 1 + 10 dígitos
+    // sem o sinal de +. Um celular brasileiro de 11 dígitos tem o 9 logo após o DDD;
+    // portanto 12013282716 não deve virar 5512013282716.
+    if(n.length===11&&n.startsWith('1')&&n[2]!=='9')return`+${n}`;
+
+    const normalized=typeof normalizePhone==='function'?normalizePhone(raw,'55'):(()=>{let x=n;if((x.length===10||x.length===11)&&!x.startsWith('55'))x='55'+x;return x})();
     if(!normalized)return'';
-    return raw.startsWith('+')?`+${digits(normalized)}`:digits(normalized);
+    return digits(normalized);
   };
 
   async function findPerson({cpf='',name=''}={}){
@@ -75,7 +87,7 @@ export function createErpFinanceCustomerContactService(context={}){
         person.metadata={...(person.metadata||{}),phoneUpdatedBy:clean(actor.email||actor.name||'Ariana Financeiro',180),phoneUpdatedIn:'ariana_financeiro',phoneUpdatedAt:new Date()};
         await person.save();
       }else{
-        person=await Person.create({name:customerName,document:customerCpf,phone:digits(normalized),personType:customerCpf.length===14?'Pessoa Jurídica':'Pessoa Física',roles:['Cliente'],active:true,source:'manual',sourceId:'financeiro_'+new mongoose.Types.ObjectId(),metadata:{createdBy:clean(actor.email||actor.name||'Ariana Financeiro',180),createdIn:'ariana_financeiro',createdFromPaymentPhonePrompt:true}});
+        person=await Person.create({name:customerName,document:customerCpf,phone:normalized,personType:customerCpf.length===14?'Pessoa Jurídica':'Pessoa Física',roles:['Cliente'],active:true,source:'manual',sourceId:'financeiro_'+new mongoose.Types.ObjectId(),metadata:{createdBy:clean(actor.email||actor.name||'Ariana Financeiro',180),createdIn:'ariana_financeiro',createdFromPaymentPhonePrompt:true}});
       }
       if(person?.linkedUserId&&User)await User.updateOne({_id:person.linkedUserId},{$set:{phone:normalized}}).catch(()=>null);
     }
